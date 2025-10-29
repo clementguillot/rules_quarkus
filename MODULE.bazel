@@ -1,7 +1,7 @@
 "Bazel dependencies"
 
 module(
-    name = "com_myorg_rules_mylang",
+    name = "com_clementguillot_rules_bazel",
 
     # NOTE:
     # version = "",
@@ -39,8 +39,8 @@ bazel_dep(name = "bazel_skylib_gazelle_plugin", version = "1.4.1", dev_dependenc
 bazel_dep(name = "bazel_lib", version = "3.0.0", dev_dependency = True)
 bazel_dep(name = "buildifier_prebuilt", version = "6.1.2", dev_dependency = True)
 
-mylang = use_extension("//mylang:extensions.bzl", "mylang")
-mylang.toolchain(mylang_version = "1.14.2")
-use_repo(mylang, "mylang_toolchains")
+quarkus = use_extension("//quarkus:extensions.bzl", "quarkus")
+quarkus.toolchain(quarkus_version = "1.14.2")
+use_repo(quarkus, "quarkus_toolchains")
 
-register_toolchains("@mylang_toolchains//:all")
+register_toolchains("@quarkus_toolchains//:all")

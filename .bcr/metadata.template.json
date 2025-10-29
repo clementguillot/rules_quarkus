@@ -1,7 +1,7 @@
 {
-  "homepage": "https://github.com/myorg/rules_mylang",
+  "homepage": "https://github.com/clementguillot/rules_quarkus",
   "maintainers": [],
-  "repository": ["github:myorg/rules_mylang"],
+  "repository": ["github:clementguillot/rules_quarkus"],
   "versions": [],
   "yanked_versions": {}
 }
