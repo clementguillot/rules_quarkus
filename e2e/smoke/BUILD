@@ -3,7 +3,7 @@ Add a basic smoke-test target below.
 """
 
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-# load("@com_clementguillot_rules_bazel//quarkus:defs.bzl", "...")
+# load("@com_clementguillot_rules_quarkus//quarkus:defs.bzl", "...")
 
 # Replace with a usage of your rule/macro
 filegroup(name = "empty")

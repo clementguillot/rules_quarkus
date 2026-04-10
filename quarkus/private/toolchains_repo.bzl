@@ -63,7 +63,7 @@ toolchain(
     name = "{platform}_toolchain",
     exec_compatible_with = {compatible_with},
     toolchain = "@{user_repository_name}_{platform}//:quarkus_toolchain",
-    toolchain_type = "@com_clementguillot_rules_bazel//quarkus:toolchain_type",
+    toolchain_type = "@com_clementguillot_rules_quarkus//quarkus:toolchain_type",
 )
 """.format(
             platform = platform,

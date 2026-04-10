@@ -1,6 +1,6 @@
 # Override http_archive for local testing
 local_repository(
-    name = "com_clementguillot_rules_bazel",
+    name = "com_clementguillot_rules_quarkus",
     path = "../..",
 )
 
@@ -14,6 +14,6 @@ local_repository(
 # you should fetch it *before* calling this.
 # Alternatively, you can skip calling this function, so long as you've
 # already fetched all the dependencies.
-load("@com_clementguillot_rules_bazel//quarkus:repositories.bzl", "rules_quarkus_dependencies")
+load("@com_clementguillot_rules_quarkus//quarkus:repositories.bzl", "rules_quarkus_dependencies")
 
 rules_quarkus_dependencies()
