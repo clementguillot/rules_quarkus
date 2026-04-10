@@ -39,6 +39,27 @@ bazel_dep(name = "bazel_skylib_gazelle_plugin", version = "1.4.1", dev_dependenc
 bazel_dep(name = "bazel_lib", version = "3.0.0", dev_dependency = True)
 bazel_dep(name = "buildifier_prebuilt", version = "6.1.2", dev_dependency = True)
 
+bazel_dep(name = "rules_java", version = "9.6.1")
+bazel_dep(name = "rules_jvm_external", version = "6.10")
+
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+maven.install(
+    artifacts = [
+        # Quarkifier deps
+        "io.quarkus:quarkus-core-deployment:3.20.6",
+        # Test framework
+        "org.junit.platform:junit-platform-launcher:6.0.3",
+        "org.junit.platform:junit-platform-console-standalone:6.0.3",
+        "org.junit.jupiter:junit-jupiter:6.0.3",
+    ],
+    known_contributing_modules = [
+        "bazel_worker_java",
+        "protobuf",
+    ],
+    lock_file = "//:maven_install.json",
+)
+use_repo(maven, "maven")
+
 quarkus = use_extension("//quarkus:extensions.bzl", "quarkus")
 quarkus.toolchain(quarkus_version = "1.14.2")
 use_repo(quarkus, "quarkus_toolchains")

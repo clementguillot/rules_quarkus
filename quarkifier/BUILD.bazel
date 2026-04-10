@@ -1,0 +1,40 @@
+load("@rules_java//java:java_binary.bzl", "java_binary")
+load("@rules_java//java:java_library.bzl", "java_library")
+load("@rules_java//java:java_test.bzl", "java_test")
+
+java_library(
+    name = "quarkifier_lib",
+    srcs = glob(["src/main/java/**/*.java"]),
+    visibility = ["//quarkifier:__pkg__"],
+    deps = [
+        "@maven//:io_quarkus_quarkus_bootstrap_app_model",
+        "@maven//:io_quarkus_quarkus_bootstrap_core",
+        "@maven//:io_quarkus_quarkus_bootstrap_runner",
+        "@maven//:io_quarkus_quarkus_core_deployment",
+    ],
+)
+
+java_binary(
+    name = "quarkifier",
+    main_class = "com.clementguillot.quarkifier.QuarkifierLauncher",
+    visibility = ["//visibility:public"],
+    runtime_deps = [":quarkifier_lib"],
+)
+
+java_test(
+    name = "quarkifier_test",
+    srcs = glob(["src/test/java/**/*.java"]),
+    args = [
+        "execute",
+        "--select-package=com.clementguillot.quarkifier",
+        "--fail-if-no-tests",
+    ],
+    main_class = "org.junit.platform.console.ConsoleLauncher",
+    use_testrunner = False,
+    deps = [
+        ":quarkifier_lib",
+        "@maven//:org_junit_jupiter_junit_jupiter",
+        "@maven//:org_junit_platform_junit_platform_console_standalone",
+        "@maven//:org_junit_platform_junit_platform_launcher",
+    ],
+)
