@@ -59,9 +59,3 @@ maven.install(
     lock_file = "//:maven_install.json",
 )
 use_repo(maven, "maven")
-
-quarkus = use_extension("//quarkus:extensions.bzl", "quarkus")
-quarkus.toolchain(quarkus_version = "1.14.2")
-use_repo(quarkus, "quarkus_toolchains")
-
-register_toolchains("@quarkus_toolchains//:all")

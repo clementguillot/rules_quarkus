@@ -1,14 +1,10 @@
-"""Mirror of release info
+"Supported Quarkus versions and quarkifier artifact coordinates."
 
-TODO: generate this file from GitHub API"""
+SUPPORTED_VERSIONS = ["3.20.6"]
 
-# The integrity hashes can be computed with
-# shasum -b -a 384 [downloaded file] | awk '{ print $1 }' | xxd -r -p | base64
-TOOL_VERSIONS = {
-    "1.14.2": {
-        "x86_64-apple-darwin": "sha384-ws4+rANvv0YxM1SgIBUXSG9jT8dKw83nls6R5qYkEKzPUB+viBIEozSsyq2e6i+f",
-        "aarch64-apple-darwin": "sha384-HcvJbxoJtGSavkGu0e7CyD00cBlmDb0TBWJ4JSaNa70zuU3N7XlMOYm3bbQcAv2U",
-        "x86_64-pc-windows-msvc": "sha384-35YN6TKpT0L9qyRBmq48NucvyXEtHnkeC+txf2YZmmJTmOzrAKREA74BA0EZvpar",
-        "x86_64-unknown-linux-gnu": "sha384-QgGOwTaetxY0h5HWCKc/3ZtBs4N/fgaaORthn7UcEv++Idm9W+ntCCZRwvBdwHPD",
-    },
-}
+# Maven coordinates for the quarkifier tool per Quarkus version.
+# The JAR is published as: com.clementguillot:quarkifier:{rules_version}-quarkus-{quarkus_version}
+QUARKIFIER_GROUP_ID = "com.clementguillot"
+QUARKIFIER_ARTIFACT_ID = "quarkifier"
+RULES_VERSION = "0.1.0"
+MAVEN_CENTRAL = "https://repo1.maven.org/maven2"

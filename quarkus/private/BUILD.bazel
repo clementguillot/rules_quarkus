@@ -1,19 +1,8 @@
-load("@bazel_lib//:bzl_library.bzl", "bzl_library")
+# Private implementation details for rules_quarkus.
 
-bzl_library(
-    name = "toolchains_repo",
-    srcs = ["toolchains_repo.bzl"],
-    visibility = ["//quarkus:__subpackages__"],
-)
-
-bzl_library(
-    name = "versions",
-    srcs = ["versions.bzl"],
-    visibility = ["//quarkus:__subpackages__"],
-)
-
-bzl_library(
-    name = "resolved_toolchain",
-    srcs = ["resolved_toolchain.bzl"],
-    visibility = ["//quarkus:__subpackages__"],
-)
+exports_files([
+    "launcher.sh.tpl",
+    "quarkus_app_impl.bzl",
+    "classpath_utils.bzl",
+    "versions.bzl",
+])

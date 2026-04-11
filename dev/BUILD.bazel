@@ -1,0 +1,17 @@
+# Dev-only targets (gazelle, buildifier, etc.)
+# These live in a separate package so that the root BUILD.bazel
+# doesn't load dev_dependency repos like @bazel_gazelle, which
+# would break downstream consumers using local_path_override.
+
+load("@bazel_gazelle//:def.bzl", "gazelle", "gazelle_binary")
+
+# gazelle:map_kind bzl_library bzl_library @bazel_lib//:bzl_library.bzl
+gazelle_binary(
+    name = "gazelle_bin",
+    languages = ["@bazel_skylib_gazelle_plugin//bzl"],
+)
+
+gazelle(
+    name = "gazelle",
+    gazelle = "gazelle_bin",
+)

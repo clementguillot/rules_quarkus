@@ -1,0 +1,20 @@
+load("@rules_java//java:java_library.bzl", "java_library")
+load("@rules_quarkus_toolchains//:defs.bzl", "quarkus_app")
+
+java_library(
+    name = "lib",
+    srcs = glob(["src/main/java/**/*.java"]),
+    resources = glob(["src/main/resources/**/*"]),
+    deps = [
+        "@maven//:io_quarkus_quarkus_arc",
+        "@maven//:io_quarkus_quarkus_rest",
+        "@maven//:jakarta_ws_rs_jakarta_ws_rs_api",
+    ],
+)
+
+quarkus_app(
+    name = "helloworld",
+    version = "1.0.0",
+    deps = [":lib"],
+    #     jvm_flags = ["-Xmx512m", "-Dquarkus.http.port=8081"],
+)

@@ -1,1 +1,6 @@
 # See https://github.com/crate-ci/typos?tab=readme-ov-file#false-positives how to ignore
+
+[files]
+extend-exclude = [
+    "maven_install.json",
+]

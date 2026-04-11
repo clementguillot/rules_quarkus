@@ -704,10 +704,18 @@
       "jakarta.inject:jakarta.inject-api",
       "jakarta.interceptor:jakarta.interceptor-api"
     ],
-    "org.aesh:aesh": ["org.aesh:readline"],
-    "org.aesh:readline": ["org.fusesource.jansi:jansi"],
-    "org.eclipse.parsson:parsson": ["jakarta.json:jakarta.json-api"],
-    "org.graalvm.sdk:nativeimage": ["org.graalvm.sdk:word"],
+    "org.aesh:aesh": [
+      "org.aesh:readline"
+    ],
+    "org.aesh:readline": [
+      "org.fusesource.jansi:jansi"
+    ],
+    "org.eclipse.parsson:parsson": [
+      "jakarta.json:jakarta.json-api"
+    ],
+    "org.graalvm.sdk:nativeimage": [
+      "org.graalvm.sdk:word"
+    ],
     "org.jboss.logging:commons-logging-jboss-logging": [
       "org.jboss.logging:jboss-logging"
     ],
@@ -770,9 +778,16 @@
       "org.jspecify:jspecify",
       "org.junit.platform:junit-platform-engine"
     ],
-    "org.ow2.asm:asm-analysis": ["org.ow2.asm:asm-tree"],
-    "org.ow2.asm:asm-commons": ["org.ow2.asm:asm", "org.ow2.asm:asm-tree"],
-    "org.ow2.asm:asm-tree": ["org.ow2.asm:asm"],
+    "org.ow2.asm:asm-analysis": [
+      "org.ow2.asm:asm-tree"
+    ],
+    "org.ow2.asm:asm-commons": [
+      "org.ow2.asm:asm",
+      "org.ow2.asm:asm-tree"
+    ],
+    "org.ow2.asm:asm-tree": [
+      "org.ow2.asm:asm"
+    ],
     "org.ow2.asm:asm-util": [
       "org.ow2.asm:asm",
       "org.ow2.asm:asm-analysis",
@@ -830,14 +845,22 @@
       "com.google.common.xml",
       "com.google.thirdparty.publicsuffix"
     ],
-    "com.google.j2objc:j2objc-annotations": ["com.google.j2objc.annotations"],
+    "com.google.j2objc:j2objc-annotations": [
+      "com.google.j2objc.annotations"
+    ],
     "com.google.protobuf:protobuf-java": [
       "com.google.protobuf",
       "com.google.protobuf.compiler"
     ],
-    "com.google.protobuf:protobuf-java-util": ["com.google.protobuf.util"],
-    "io.github.crac:org-crac": ["org.crac"],
-    "io.quarkus.gizmo:gizmo": ["io.quarkus.gizmo"],
+    "com.google.protobuf:protobuf-java-util": [
+      "com.google.protobuf.util"
+    ],
+    "io.github.crac:org-crac": [
+      "org.crac"
+    ],
+    "io.quarkus.gizmo:gizmo": [
+      "io.quarkus.gizmo"
+    ],
     "io.quarkus:quarkus-bootstrap-app-model": [
       "io.quarkus.bootstrap",
       "io.quarkus.bootstrap.model",
@@ -875,7 +898,9 @@
       "io.quarkus.builder.json",
       "io.quarkus.builder.location"
     ],
-    "io.quarkus:quarkus-class-change-agent": ["io.quarkus.changeagent"],
+    "io.quarkus:quarkus-class-change-agent": [
+      "io.quarkus.changeagent"
+    ],
     "io.quarkus:quarkus-classloader-commons": [
       "io.quarkus.commons.classloading"
     ],
@@ -954,7 +979,9 @@
       "io.quarkus.dev.testing",
       "io.quarkus.dev.testing.results"
     ],
-    "io.quarkus:quarkus-devtools-utilities": ["io.quarkus.utilities"],
+    "io.quarkus:quarkus-devtools-utilities": [
+      "io.quarkus.utilities"
+    ],
     "io.quarkus:quarkus-fs-util": [
       "io.quarkus.fs.util",
       "io.quarkus.fs.util.base",
@@ -963,7 +990,9 @@
     "io.quarkus:quarkus-hibernate-validator-spi": [
       "io.quarkus.hibernate.validator.spi"
     ],
-    "io.quarkus:quarkus-ide-launcher": ["io.quarkus.launcher"],
+    "io.quarkus:quarkus-ide-launcher": [
+      "io.quarkus.launcher"
+    ],
     "io.smallrye.common:smallrye-common-annotation": [
       "io.smallrye.common.annotation"
     ],
@@ -973,18 +1002,30 @@
     "io.smallrye.common:smallrye-common-constraint": [
       "io.smallrye.common.constraint"
     ],
-    "io.smallrye.common:smallrye-common-cpu": ["io.smallrye.common.cpu"],
+    "io.smallrye.common:smallrye-common-cpu": [
+      "io.smallrye.common.cpu"
+    ],
     "io.smallrye.common:smallrye-common-expression": [
       "io.smallrye.common.expression"
     ],
     "io.smallrye.common:smallrye-common-function": [
       "io.smallrye.common.function"
     ],
-    "io.smallrye.common:smallrye-common-io": ["io.smallrye.common.io.jar"],
-    "io.smallrye.common:smallrye-common-net": ["io.smallrye.common.net"],
-    "io.smallrye.common:smallrye-common-os": ["io.smallrye.common.os"],
-    "io.smallrye.common:smallrye-common-ref": ["io.smallrye.common.ref"],
-    "io.smallrye.config:smallrye-config": ["io.smallrye.config.inject"],
+    "io.smallrye.common:smallrye-common-io": [
+      "io.smallrye.common.io.jar"
+    ],
+    "io.smallrye.common:smallrye-common-net": [
+      "io.smallrye.common.net"
+    ],
+    "io.smallrye.common:smallrye-common-os": [
+      "io.smallrye.common.os"
+    ],
+    "io.smallrye.common:smallrye-common-ref": [
+      "io.smallrye.common.ref"
+    ],
+    "io.smallrye.config:smallrye-config": [
+      "io.smallrye.config.inject"
+    ],
     "io.smallrye.config:smallrye-config-common": [
       "io.smallrye.config.common",
       "io.smallrye.config.common.utils"
@@ -993,13 +1034,17 @@
       "io.smallrye.config",
       "io.smallrye.config._private"
     ],
-    "io.smallrye:jandex": ["org.jboss.jandex"],
+    "io.smallrye:jandex": [
+      "org.jboss.jandex"
+    ],
     "jakarta.annotation:jakarta.annotation-api": [
       "jakarta.annotation",
       "jakarta.annotation.security",
       "jakarta.annotation.sql"
     ],
-    "jakarta.el:jakarta.el-api": ["jakarta.el"],
+    "jakarta.el:jakarta.el-api": [
+      "jakarta.el"
+    ],
     "jakarta.enterprise:jakarta.enterprise.cdi-api": [
       "jakarta.decorator",
       "jakarta.enterprise.context",
@@ -1020,8 +1065,12 @@
       "jakarta.enterprise.lang.model.declarations",
       "jakarta.enterprise.lang.model.types"
     ],
-    "jakarta.inject:jakarta.inject-api": ["jakarta.inject"],
-    "jakarta.interceptor:jakarta.interceptor-api": ["jakarta.interceptor"],
+    "jakarta.inject:jakarta.inject-api": [
+      "jakarta.inject"
+    ],
+    "jakarta.interceptor:jakarta.interceptor-api": [
+      "jakarta.interceptor"
+    ],
     "jakarta.json:jakarta.json-api": [
       "jakarta.json",
       "jakarta.json.spi",
@@ -1124,7 +1173,9 @@
       "org.apache.commons.lang3.tuple",
       "org.apache.commons.lang3.util"
     ],
-    "org.apiguardian:apiguardian-api": ["org.apiguardian.api"],
+    "org.apiguardian:apiguardian-api": [
+      "org.apiguardian.api"
+    ],
     "org.checkerframework:checker-qual": [
       "org.checkerframework.checker.builder.qual",
       "org.checkerframework.checker.calledmethods.qual",
@@ -1194,12 +1245,17 @@
       "org.graalvm.nativeimage.impl",
       "org.graalvm.nativeimage.impl.clinit"
     ],
-    "org.graalvm.sdk:word": ["org.graalvm.word", "org.graalvm.word.impl"],
+    "org.graalvm.sdk:word": [
+      "org.graalvm.word",
+      "org.graalvm.word.impl"
+    ],
     "org.jboss.logging:commons-logging-jboss-logging": [
       "org.apache.commons.logging",
       "org.apache.commons.logging.impl"
     ],
-    "org.jboss.logging:jboss-logging": ["org.jboss.logging"],
+    "org.jboss.logging:jboss-logging": [
+      "org.jboss.logging"
+    ],
     "org.jboss.logging:jboss-logging-annotations": [
       "org.jboss.logging.annotations"
     ],
@@ -1212,12 +1268,16 @@
       "org.jboss.logmanager.formatters",
       "org.jboss.logmanager.handlers"
     ],
-    "org.jboss.slf4j:slf4j-jboss-logmanager": ["org.slf4j.impl"],
+    "org.jboss.slf4j:slf4j-jboss-logmanager": [
+      "org.slf4j.impl"
+    ],
     "org.jboss.threads:jboss-threads": [
       "org.jboss.threads",
       "org.jboss.threads.management"
     ],
-    "org.jspecify:jspecify": ["org.jspecify.annotations"],
+    "org.jspecify:jspecify": [
+      "org.jspecify.annotations"
+    ],
     "org.junit.jupiter:junit-jupiter-api": [
       "org.junit.jupiter.api",
       "org.junit.jupiter.api.condition",
@@ -1388,12 +1448,25 @@
       "org.junit.platform.launcher.listeners.session",
       "org.junit.platform.launcher.tagexpression"
     ],
-    "org.opentest4j:opentest4j": ["org.opentest4j"],
-    "org.ow2.asm:asm": ["org.objectweb.asm", "org.objectweb.asm.signature"],
-    "org.ow2.asm:asm-analysis": ["org.objectweb.asm.tree.analysis"],
-    "org.ow2.asm:asm-commons": ["org.objectweb.asm.commons"],
-    "org.ow2.asm:asm-tree": ["org.objectweb.asm.tree"],
-    "org.ow2.asm:asm-util": ["org.objectweb.asm.util"],
+    "org.opentest4j:opentest4j": [
+      "org.opentest4j"
+    ],
+    "org.ow2.asm:asm": [
+      "org.objectweb.asm",
+      "org.objectweb.asm.signature"
+    ],
+    "org.ow2.asm:asm-analysis": [
+      "org.objectweb.asm.tree.analysis"
+    ],
+    "org.ow2.asm:asm-commons": [
+      "org.objectweb.asm.commons"
+    ],
+    "org.ow2.asm:asm-tree": [
+      "org.objectweb.asm.tree"
+    ],
+    "org.ow2.asm:asm-util": [
+      "org.objectweb.asm.util"
+    ],
     "org.slf4j:slf4j-api": [
       "org.slf4j",
       "org.slf4j.event",
@@ -1557,7 +1630,9 @@
       ]
     },
     "org.eclipse.parsson:parsson": {
-      "jakarta.json.spi.JsonProvider": ["org.eclipse.parsson.JsonProviderImpl"]
+      "jakarta.json.spi.JsonProvider": [
+        "org.eclipse.parsson.JsonProviderImpl"
+      ]
     },
     "org.graalvm.sdk:nativeimage": {
       "org.graalvm.nativeimage.Platform": [
@@ -1582,7 +1657,9 @@
       "java.lang.System$LoggerFinder": [
         "org.jboss.logmanager.JBossLoggerFinder"
       ],
-      "java.util.logging.LogManager": ["org.jboss.logmanager.LogManager"],
+      "java.util.logging.LogManager": [
+        "org.jboss.logmanager.LogManager"
+      ],
       "org.jboss.logmanager.ConfiguratorFactory": [
         "org.jboss.logmanager.configuration.DefaultConfiguratorFactory"
       ]
