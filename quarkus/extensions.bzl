@@ -1,11 +1,11 @@
 """Bzlmod module extension for configuring the Quarkus toolchain.
 
 Auto-discovers Quarkus extensions from the maven_install.json lock file and
-resolves their -deployment counterparts automatically. The quarkifier tool JAR
-is either downloaded from Maven Central or overridden with a local label.
+resolves their -deployment counterparts automatically. The quarkifier deploy
+jar is downloaded from GitHub releases or overridden with a local build.
 """
 
-load("//quarkus/private:versions.bzl", "MAVEN_CENTRAL", "QUARKIFIER_ARTIFACT_ID", "QUARKIFIER_GROUP_ID", "RULES_VERSION", "SUPPORTED_VERSIONS")
+load("//quarkus/private:versions.bzl", "GITHUB_OWNER", "GITHUB_REPO", "MAVEN_CENTRAL", "RULES_VERSION", "SUPPORTED_VERSIONS")
 
 # ---- Repository rules ----
 
@@ -13,8 +13,8 @@ def _quarkus_toolchains_repo_impl(rctx):
     """Creates @rules_quarkus_toolchains with defs.bzl macro and tool alias."""
     rctx.file("BUILD.bazel", content = """\
 package(default_visibility = ["//visibility:public"])
-alias(name = "quarkifier_tool", actual = "{tool}")
-""".format(tool = rctx.attr.quarkifier_tool))
+exports_files(["defs.bzl"])
+""")
 
     rctx.file("defs.bzl", content = """\
 \"\"\"Public API — load quarkus_app from here.\"\"\"
@@ -42,29 +42,53 @@ _quarkus_toolchains_repo = repository_rule(
     },
 )
 
-def _quarkus_quarkifier_repo_impl(rctx):
-    """Downloads the quarkifier JAR from Maven Central."""
-    version = rctx.attr.tool_version
-    group_path = rctx.attr.group_id.replace(".", "/")
-    artifact_id = rctx.attr.artifact_id
-    jar_name = "{}-{}.jar".format(artifact_id, version)
-    url = "{}/{}/{}/{}/{}".format(rctx.attr.repository_url, group_path, artifact_id, version, jar_name)
-
-    rctx.download(url = url, output = "tool/" + jar_name)
+def _quarkus_quarkifier_download_repo_impl(rctx):
+    """Downloads the quarkifier JAR from a URL (GitHub release or Maven Central)."""
+    rctx.download(url = rctx.attr.url, output = "tool/quarkifier.jar")
 
     rctx.file("BUILD.bazel", content = """\
-load("@rules_java//java:java_import.bzl", "java_import")
 package(default_visibility = ["//visibility:public"])
-java_import(name = "quarkifier_tool", jars = ["tool/{jar}"])
-""".format(jar = jar_name))
+exports_files(["tool/quarkifier.jar"])
+""")
 
-_quarkus_quarkifier_repo = repository_rule(
-    implementation = _quarkus_quarkifier_repo_impl,
+_quarkus_quarkifier_download_repo = repository_rule(
+    implementation = _quarkus_quarkifier_download_repo_impl,
     attrs = {
-        "group_id": attr.string(default = QUARKIFIER_GROUP_ID),
-        "artifact_id": attr.string(default = QUARKIFIER_ARTIFACT_ID),
-        "tool_version": attr.string(mandatory = True),
-        "repository_url": attr.string(default = MAVEN_CENTRAL),
+        "url": attr.string(mandatory = True),
+    },
+)
+
+def _quarkus_quarkifier_local_build_repo_impl(rctx):
+    """Symlinks the quarkifier deploy jar from a local workspace's bazel-bin.
+
+    Expects the deploy jar to have been built already in the source workspace
+    via 'bazel build //quarkifier:quarkifier_deploy.jar'. This avoids nested
+    Bazel invocations and lockfile conflicts.
+    """
+
+    # Resolve the label to get the absolute path of the source workspace
+    src_workspace = str(rctx.path(rctx.attr.source_dir).dirname)
+    deploy_jar = src_workspace + "/bazel-bin/quarkifier/quarkifier_deploy.jar"
+
+    # Check if the deploy jar exists
+    result = rctx.execute(["test", "-f", deploy_jar])
+    if result.return_code != 0:
+        fail(
+            "Quarkifier deploy jar not found at: {}\n".format(deploy_jar) +
+            "Please build it first: cd {} && bazel build //quarkifier:quarkifier_deploy.jar".format(src_workspace),
+        )
+
+    rctx.symlink(deploy_jar, "tool/quarkifier.jar")
+
+    rctx.file("BUILD.bazel", content = """\
+package(default_visibility = ["//visibility:public"])
+exports_files(["tool/quarkifier.jar"])
+""")
+
+_quarkus_quarkifier_local_build_repo = repository_rule(
+    implementation = _quarkus_quarkifier_local_build_repo_impl,
+    attrs = {
+        "source_dir": attr.label(mandatory = True),
     },
 )
 
@@ -144,16 +168,29 @@ def _quarkus_impl(mctx):
     if version not in SUPPORTED_VERSIONS:
         fail("Unsupported Quarkus version '{}'. Supported: {}".format(version, SUPPORTED_VERSIONS))
 
-    # Resolve quarkifier tool: local label or Maven download
+    # Resolve quarkifier tool: local override > local build > GitHub release download
     if tc.quarkifier_tool:
         tool_target = str(tc.quarkifier_tool)
-    else:
-        tool_version = RULES_VERSION + "-quarkus-" + version
-        _quarkus_quarkifier_repo(
+    elif tc.quarkifier_source_dir:
+        _quarkus_quarkifier_local_build_repo(
             name = "rules_quarkus_quarkifier",
-            tool_version = tool_version,
+            source_dir = tc.quarkifier_source_dir,
         )
-        tool_target = "@rules_quarkus_quarkifier//:quarkifier_tool"
+        tool_target = "@rules_quarkus_quarkifier//:tool/quarkifier.jar"
+    else:
+        # Download from GitHub releases:
+        # https://github.com/{owner}/{repo}/releases/download/v{version}/quarkifier-deploy.jar
+        release_tag = "v" + RULES_VERSION
+        url = "https://github.com/{}/{}/releases/download/{}/quarkifier-deploy.jar".format(
+            GITHUB_OWNER,
+            GITHUB_REPO,
+            release_tag,
+        )
+        _quarkus_quarkifier_download_repo(
+            name = "rules_quarkus_quarkifier",
+            url = url,
+        )
+        tool_target = "@rules_quarkus_quarkifier//:tool/quarkifier.jar"
 
     _quarkus_toolchains_repo(
         name = "rules_quarkus_toolchains",
@@ -204,9 +241,16 @@ _toolchain_tag = tag_class(
         ),
         "quarkifier_tool": attr.label(
             doc = """\
-Override the quarkifier tool target. When set, this label is used instead of
-downloading from Maven Central. Use for local development or custom builds.
-Example: '//quarkifier'
+Override the quarkifier tool target with a pre-built deploy jar label.
+Example: '//:quarkifier_deploy.jar'
+""",
+        ),
+        "quarkifier_source_dir": attr.label(
+            doc = """\
+Label pointing to a file in the rules_quarkus source directory. The parent
+directory is used to build the quarkifier deploy jar locally.
+Used for local development and e2e testing.
+Example: '@com_clementguillot_rules_quarkus//:MODULE.bazel'
 """,
         ),
     },

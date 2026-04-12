@@ -16,5 +16,4 @@ quarkus_app(
     name = "helloworld",
     version = "1.0.0",
     deps = [":lib"],
-    #     jvm_flags = ["-Xmx512m", "-Dquarkus.http.port=8081"],
 )

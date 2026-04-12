@@ -7,7 +7,6 @@
     "com.google.guava:guava": 1943808618,
     "com.google.j2objc:j2objc-annotations": 2003271689,
     "io.quarkus:quarkus-arc": 1919946236,
-    "io.quarkus:quarkus-core-deployment": -1017146787,
     "io.quarkus:quarkus-rest": 196951302,
     "repositories": -1949687017
   },
@@ -39,7 +38,6 @@
     "io.netty:netty-transport": 764254626,
     "io.netty:netty-transport-native-unix-common": -1442019057,
     "io.quarkus.arc:arc": -2057497235,
-    "io.quarkus.gizmo:gizmo": -1721842181,
     "io.quarkus.resteasy.reactive:resteasy-reactive": 852125474,
     "io.quarkus.resteasy.reactive:resteasy-reactive-common": 1256994066,
     "io.quarkus.resteasy.reactive:resteasy-reactive-common-types": 883130300,
@@ -47,19 +45,12 @@
     "io.quarkus.security:quarkus-security": 680953299,
     "io.quarkus.vertx.utils:quarkus-vertx-utils": -550087684,
     "io.quarkus:quarkus-arc": -934362385,
-    "io.quarkus:quarkus-bootstrap-app-model": 1266652238,
-    "io.quarkus:quarkus-bootstrap-core": -1110504760,
     "io.quarkus:quarkus-bootstrap-runner": 406321986,
-    "io.quarkus:quarkus-builder": -304103101,
-    "io.quarkus:quarkus-class-change-agent": -1625112547,
     "io.quarkus:quarkus-classloader-commons": -1769748846,
     "io.quarkus:quarkus-core": 1784986312,
-    "io.quarkus:quarkus-core-deployment": -312366095,
     "io.quarkus:quarkus-credentials": 209488456,
     "io.quarkus:quarkus-development-mode-spi": 968596753,
-    "io.quarkus:quarkus-devtools-utilities": 464758008,
     "io.quarkus:quarkus-fs-util": 610682858,
-    "io.quarkus:quarkus-hibernate-validator-spi": -1123486304,
     "io.quarkus:quarkus-ide-launcher": -863175982,
     "io.quarkus:quarkus-jsonp": -2047581048,
     "io.quarkus:quarkus-mutiny": 841005993,
@@ -99,7 +90,6 @@
     "io.smallrye.reactive:smallrye-mutiny-vertx-web": -1567294045,
     "io.smallrye.reactive:smallrye-mutiny-vertx-web-common": -1352721708,
     "io.smallrye.reactive:vertx-mutiny-generator": -1953228164,
-    "io.smallrye:jandex": 1673522906,
     "io.smallrye:smallrye-context-propagation": 1633801372,
     "io.smallrye:smallrye-context-propagation-api": 1222810252,
     "io.smallrye:smallrye-context-propagation-storage": 2063837407,
@@ -122,18 +112,10 @@
     "jakarta.transaction:jakarta.transaction-api": -1232049293,
     "jakarta.ws.rs:jakarta.ws.rs-api": 155773188,
     "jakarta.xml.bind:jakarta.xml.bind-api": -904326670,
-    "org.aesh:aesh": -684107909,
-    "org.aesh:readline": 1066826701,
-    "org.apache.commons:commons-lang3": -850748327,
-    "org.apiguardian:apiguardian-api": 1279798469,
     "org.checkerframework:checker-qual": -1533199059,
     "org.eclipse.microprofile.config:microprofile-config-api": 1033345756,
     "org.eclipse.microprofile.context-propagation:microprofile-context-propagation-api": -482095317,
     "org.eclipse.parsson:parsson": 261021719,
-    "org.eclipse.sisu:org.eclipse.sisu.inject": -625920817,
-    "org.fusesource.jansi:jansi": -1665988609,
-    "org.graalvm.sdk:nativeimage": -1830909194,
-    "org.graalvm.sdk:word": 921752333,
     "org.jboss.logging:commons-logging-jboss-logging": -1896182967,
     "org.jboss.logging:jboss-logging": -1889532189,
     "org.jboss.logging:jboss-logging-annotations": 797649319,
@@ -141,19 +123,6 @@
     "org.jboss.slf4j:slf4j-jboss-logmanager": 1438717166,
     "org.jboss.threads:jboss-threads": 961295307,
     "org.jctools:jctools-core": 473448173,
-    "org.junit.jupiter:junit-jupiter": -1906719316,
-    "org.junit.jupiter:junit-jupiter-api": 1952991524,
-    "org.junit.jupiter:junit-jupiter-engine": -1075862089,
-    "org.junit.jupiter:junit-jupiter-params": 218629575,
-    "org.junit.platform:junit-platform-commons": -381654750,
-    "org.junit.platform:junit-platform-engine": 500708226,
-    "org.junit.platform:junit-platform-launcher": 1879428872,
-    "org.opentest4j:opentest4j": -1711174392,
-    "org.ow2.asm:asm": -1101379267,
-    "org.ow2.asm:asm-analysis": -559036312,
-    "org.ow2.asm:asm-commons": 1034366166,
-    "org.ow2.asm:asm-tree": -1479389285,
-    "org.ow2.asm:asm-util": -824669353,
     "org.reactivestreams:reactive-streams": 1281941191,
     "org.slf4j:slf4j-api": -1847183587,
     "org.wildfly.common:wildfly-common": -616941343
@@ -324,12 +293,6 @@
       },
       "version": "3.20.6"
     },
-    "io.quarkus.gizmo:gizmo": {
-      "shasums": {
-        "jar": "b4c903e40595313685ad3fef57a429e715fef5a254c653703bab19ee50eec077"
-      },
-      "version": "1.8.0"
-    },
     "io.quarkus.resteasy.reactive:resteasy-reactive": {
       "shasums": {
         "jar": "c33359fb8693e0cf2d38fb7cbe0fa57035de8c64e98fa3aa69b5a846aa4deceb"
@@ -372,33 +335,9 @@
       },
       "version": "3.20.6"
     },
-    "io.quarkus:quarkus-bootstrap-app-model": {
-      "shasums": {
-        "jar": "9dc4b03c60c343afc19693f5ec3ca098330c970c7dc33e0ce837e58fa3645b64"
-      },
-      "version": "3.20.6"
-    },
-    "io.quarkus:quarkus-bootstrap-core": {
-      "shasums": {
-        "jar": "de5d36938b8c8dcc968423ea76b292126b6ed867b6d71230a6e0cd75506e8e72"
-      },
-      "version": "3.20.6"
-    },
     "io.quarkus:quarkus-bootstrap-runner": {
       "shasums": {
         "jar": "8c65a92bcad636b2f5a19912503caa491d61332c2956048d8adbe1f9159875e8"
-      },
-      "version": "3.20.6"
-    },
-    "io.quarkus:quarkus-builder": {
-      "shasums": {
-        "jar": "9b20dd0b873787d3d10ab61d8ca3c8962d82a06078ead957a1f77a1d04bc2429"
-      },
-      "version": "3.20.6"
-    },
-    "io.quarkus:quarkus-class-change-agent": {
-      "shasums": {
-        "jar": "be21d5bd3e051585291f980c64425971e5851ae44844c59d8ad13a75d2d191dd"
       },
       "version": "3.20.6"
     },
@@ -414,12 +353,6 @@
       },
       "version": "3.20.6"
     },
-    "io.quarkus:quarkus-core-deployment": {
-      "shasums": {
-        "jar": "6a324377a698f33cd71b6af41b95d4a52dc63a7cb081ff239424fd05c4ed6892"
-      },
-      "version": "3.20.6"
-    },
     "io.quarkus:quarkus-credentials": {
       "shasums": {
         "jar": "5f2f01a1d52fc92e23797463908f3868284c810422bf03c4c5d4b0115e3b56de"
@@ -432,23 +365,11 @@
       },
       "version": "3.20.6"
     },
-    "io.quarkus:quarkus-devtools-utilities": {
-      "shasums": {
-        "jar": "fbe1f5facdd5239b3308f70cd9cd59758d99eaea2998746f533e1958020bfa54"
-      },
-      "version": "3.20.6"
-    },
     "io.quarkus:quarkus-fs-util": {
       "shasums": {
         "jar": "cd66340d85a2daa72dc1adedfe7ee4ac0d1d8ea2e4334922169114f687b54d08"
       },
       "version": "0.0.10"
-    },
-    "io.quarkus:quarkus-hibernate-validator-spi": {
-      "shasums": {
-        "jar": "924d9cef2035d99d2b1076eecaca9c9910350180f0071a744d549b48aa469ace"
-      },
-      "version": "3.20.6"
     },
     "io.quarkus:quarkus-ide-launcher": {
       "shasums": {
@@ -684,12 +605,6 @@
       },
       "version": "3.21.5"
     },
-    "io.smallrye:jandex": {
-      "shasums": {
-        "jar": "4a48ad61b7492a25381693106186f1b94acbff26181fdb2ed989286b683ac29e"
-      },
-      "version": "3.3.0"
-    },
     "io.smallrye:smallrye-context-propagation": {
       "shasums": {
         "jar": "91fa253d8bd903672f30b9bcd03a97f03a73499f5a7ed1fd3d03d04f5348549a"
@@ -822,30 +737,6 @@
       },
       "version": "4.0.2"
     },
-    "org.aesh:aesh": {
-      "shasums": {
-        "jar": "8c1e17fd1ab9d3a736bdee7fbd649e174f7dc26c1ceeac6e9ea596a9d63fcffd"
-      },
-      "version": "2.8.2"
-    },
-    "org.aesh:readline": {
-      "shasums": {
-        "jar": "601eb6cbc77a8b07b8014ba89cf3fbdda20fcdb96493e57466d3753fa26accde"
-      },
-      "version": "2.6"
-    },
-    "org.apache.commons:commons-lang3": {
-      "shasums": {
-        "jar": "4eeeae8d20c078abb64b015ec158add383ac581571cddc45c68f0c9ae0230720"
-      },
-      "version": "3.18.0"
-    },
-    "org.apiguardian:apiguardian-api": {
-      "shasums": {
-        "jar": "b509448ac506d607319f182537f0b35d71007582ec741832a1f111e5b5b70b38"
-      },
-      "version": "1.1.2"
-    },
     "org.checkerframework:checker-qual": {
       "shasums": {
         "jar": "e316255bbfcd9fe50d165314b85abb2b33cb2a66a93c491db648e498a82c2de1"
@@ -869,30 +760,6 @@
         "jar": "c21db018f8ac6cf79893f1af77f1cd337937bd12ae6fa3d4b10f5a00819ee56c"
       },
       "version": "1.1.7"
-    },
-    "org.eclipse.sisu:org.eclipse.sisu.inject": {
-      "shasums": {
-        "jar": "15335c4dcf082f599fb8eddcfb58d6a7e9a9c97de2883c257089a479b9b24522"
-      },
-      "version": "0.9.0.M3"
-    },
-    "org.fusesource.jansi:jansi": {
-      "shasums": {
-        "jar": "6cd91991323dd7b2fb28ca93d7ac12af5a86a2f53279e2b35827b30313fd0b9f"
-      },
-      "version": "2.4.0"
-    },
-    "org.graalvm.sdk:nativeimage": {
-      "shasums": {
-        "jar": "b20c00823c194cadcafc8e853b96a5754e641b467dc56634e738d756b308ad9a"
-      },
-      "version": "23.1.2"
-    },
-    "org.graalvm.sdk:word": {
-      "shasums": {
-        "jar": "2ae7a71ff3f53f61d1d7360a6152f67ce3902ae86ca22b30b70208dc0cf4e039"
-      },
-      "version": "23.1.2"
     },
     "org.jboss.logging:commons-logging-jboss-logging": {
       "shasums": {
@@ -935,84 +802,6 @@
         "jar": "d65e5f38bcd0984e26f87187687f1f70dd52740c4d5e046f8d104e01ab5db95f"
       },
       "version": "4.0.5"
-    },
-    "org.junit.jupiter:junit-jupiter": {
-      "shasums": {
-        "jar": "3854b3ad434906b827fec474aa0d8da8b56e9e56d5fc7f2e20fc3f12ec4be894"
-      },
-      "version": "5.12.2"
-    },
-    "org.junit.jupiter:junit-jupiter-api": {
-      "shasums": {
-        "jar": "0b9ca728e4bcd9adc57f29deb9556ff9ed5e08b4e8843b875aba4e4e3e04f092"
-      },
-      "version": "5.12.2"
-    },
-    "org.junit.jupiter:junit-jupiter-engine": {
-      "shasums": {
-        "jar": "f576c06b8accde9985063b8bc80526cb980eec24dee0b7221fc8ddd7ace65800"
-      },
-      "version": "5.12.2"
-    },
-    "org.junit.jupiter:junit-jupiter-params": {
-      "shasums": {
-        "jar": "b219ffa949b90a71aa3b6c2b606456b82bca0b2089b7459c8ff461156ff59b0f"
-      },
-      "version": "5.12.2"
-    },
-    "org.junit.platform:junit-platform-commons": {
-      "shasums": {
-        "jar": "e683a01e85dfabea520c056ac6015a6162756e602ec653c0da85e233f0afbc18"
-      },
-      "version": "1.12.2"
-    },
-    "org.junit.platform:junit-platform-engine": {
-      "shasums": {
-        "jar": "cef0efcb5bd2e05e2b808d38bab5c655089c0c3001527376e74cb606a7911ec8"
-      },
-      "version": "1.12.2"
-    },
-    "org.junit.platform:junit-platform-launcher": {
-      "shasums": {
-        "jar": "dccf2c1fa0a977c53ad094ad859bfdddd524d97594b76307ad787de71985757f"
-      },
-      "version": "1.12.2"
-    },
-    "org.opentest4j:opentest4j": {
-      "shasums": {
-        "jar": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b"
-      },
-      "version": "1.3.0"
-    },
-    "org.ow2.asm:asm": {
-      "shasums": {
-        "jar": "8cadd43ac5eb6d09de05faecca38b917a040bb9139c7edeb4cc81c740b713281"
-      },
-      "version": "9.7.1"
-    },
-    "org.ow2.asm:asm-analysis": {
-      "shasums": {
-        "jar": "85b29371884ba31bb76edf22323c2c24e172c3267a67152eba3d1ccc2e041ef2"
-      },
-      "version": "9.7.1"
-    },
-    "org.ow2.asm:asm-commons": {
-      "shasums": {
-        "jar": "9a579b54d292ad9be171d4313fd4739c635592c2b5ac3a459bbd1049cddec6a0"
-      },
-      "version": "9.7.1"
-    },
-    "org.ow2.asm:asm-tree": {
-      "shasums": {
-        "jar": "9929881f59eb6b840e86d54570c77b59ce721d104e6dfd7a40978991c2d3b41f"
-      },
-      "version": "9.7.1"
-    },
-    "org.ow2.asm:asm-util": {
-      "shasums": {
-        "jar": "f885be71b5c90556f5f1ad1c4f9276b29b96057c497d46666fe4ddbec3cb43c6"
-      },
-      "version": "9.7.1"
     },
     "org.reactivestreams:reactive-streams": {
       "shasums": {
@@ -1131,11 +920,6 @@
       "jakarta.transaction:jakarta.transaction-api",
       "org.jboss.logging:jboss-logging"
     ],
-    "io.quarkus.gizmo:gizmo": [
-      "io.smallrye:jandex",
-      "org.ow2.asm:asm",
-      "org.ow2.asm:asm-util"
-    ],
     "io.quarkus.resteasy.reactive:resteasy-reactive": [
       "io.quarkus.resteasy.reactive:resteasy-reactive-common",
       "jakarta.annotation:jakarta.annotation-api",
@@ -1184,28 +968,12 @@
       "io.quarkus:quarkus-core",
       "org.eclipse.microprofile.context-propagation:microprofile-context-propagation-api"
     ],
-    "io.quarkus:quarkus-bootstrap-app-model": [
-      "io.quarkus:quarkus-fs-util",
-      "org.jboss.logging:commons-logging-jboss-logging",
-      "org.jboss.logging:jboss-logging"
-    ],
-    "io.quarkus:quarkus-bootstrap-core": [
-      "io.quarkus:quarkus-bootstrap-app-model",
-      "io.quarkus:quarkus-classloader-commons",
-      "io.smallrye.common:smallrye-common-io"
-    ],
     "io.quarkus:quarkus-bootstrap-runner": [
       "io.github.crac:org-crac",
       "io.quarkus:quarkus-classloader-commons",
       "io.smallrye.common:smallrye-common-io",
       "org.jboss.logging:jboss-logging",
       "org.jboss.logmanager:jboss-logmanager"
-    ],
-    "io.quarkus:quarkus-builder": [
-      "io.smallrye.common:smallrye-common-constraint",
-      "org.jboss.logging:jboss-logging",
-      "org.jboss.threads:jboss-threads",
-      "org.wildfly.common:wildfly-common"
     ],
     "io.quarkus:quarkus-core": [
       "io.quarkus:quarkus-bootstrap-runner",
@@ -1225,34 +993,8 @@
       "org.slf4j:slf4j-api",
       "org.wildfly.common:wildfly-common"
     ],
-    "io.quarkus:quarkus-core-deployment": [
-      "io.quarkus.gizmo:gizmo",
-      "io.quarkus:quarkus-bootstrap-core",
-      "io.quarkus:quarkus-builder",
-      "io.quarkus:quarkus-class-change-agent",
-      "io.quarkus:quarkus-classloader-commons",
-      "io.quarkus:quarkus-core",
-      "io.quarkus:quarkus-development-mode-spi",
-      "io.quarkus:quarkus-devtools-utilities",
-      "io.quarkus:quarkus-hibernate-validator-spi",
-      "io.smallrye:jandex",
-      "org.aesh:aesh",
-      "org.aesh:readline",
-      "org.apache.commons:commons-lang3",
-      "org.eclipse.sisu:org.eclipse.sisu.inject",
-      "org.graalvm.sdk:nativeimage",
-      "org.junit.jupiter:junit-jupiter",
-      "org.junit.platform:junit-platform-launcher",
-      "org.ow2.asm:asm",
-      "org.ow2.asm:asm-commons",
-      "org.wildfly.common:wildfly-common"
-    ],
     "io.quarkus:quarkus-credentials": [
       "io.quarkus.arc:arc"
-    ],
-    "io.quarkus:quarkus-hibernate-validator-spi": [
-      "io.quarkus:quarkus-builder",
-      "io.smallrye:jandex"
     ],
     "io.quarkus:quarkus-jsonp": [
       "io.quarkus:quarkus-core",
@@ -1484,17 +1226,8 @@
     "jakarta.xml.bind:jakarta.xml.bind-api": [
       "jakarta.activation:jakarta.activation-api"
     ],
-    "org.aesh:aesh": [
-      "org.aesh:readline"
-    ],
-    "org.aesh:readline": [
-      "org.fusesource.jansi:jansi"
-    ],
     "org.eclipse.parsson:parsson": [
       "jakarta.json:jakarta.json-api"
-    ],
-    "org.graalvm.sdk:nativeimage": [
-      "org.graalvm.sdk:word"
     ],
     "org.jboss.logging:commons-logging-jboss-logging": [
       "org.jboss.logging:jboss-logging"
@@ -1520,52 +1253,6 @@
       "io.smallrye.common:smallrye-common-function",
       "org.jboss.logging:jboss-logging",
       "org.wildfly.common:wildfly-common"
-    ],
-    "org.junit.jupiter:junit-jupiter": [
-      "org.junit.jupiter:junit-jupiter-api",
-      "org.junit.jupiter:junit-jupiter-engine",
-      "org.junit.jupiter:junit-jupiter-params"
-    ],
-    "org.junit.jupiter:junit-jupiter-api": [
-      "org.apiguardian:apiguardian-api",
-      "org.junit.platform:junit-platform-commons",
-      "org.opentest4j:opentest4j"
-    ],
-    "org.junit.jupiter:junit-jupiter-engine": [
-      "org.apiguardian:apiguardian-api",
-      "org.junit.jupiter:junit-jupiter-api",
-      "org.junit.platform:junit-platform-engine"
-    ],
-    "org.junit.jupiter:junit-jupiter-params": [
-      "org.apiguardian:apiguardian-api",
-      "org.junit.jupiter:junit-jupiter-api"
-    ],
-    "org.junit.platform:junit-platform-commons": [
-      "org.apiguardian:apiguardian-api"
-    ],
-    "org.junit.platform:junit-platform-engine": [
-      "org.apiguardian:apiguardian-api",
-      "org.junit.platform:junit-platform-commons",
-      "org.opentest4j:opentest4j"
-    ],
-    "org.junit.platform:junit-platform-launcher": [
-      "org.apiguardian:apiguardian-api",
-      "org.junit.platform:junit-platform-engine"
-    ],
-    "org.ow2.asm:asm-analysis": [
-      "org.ow2.asm:asm-tree"
-    ],
-    "org.ow2.asm:asm-commons": [
-      "org.ow2.asm:asm",
-      "org.ow2.asm:asm-tree"
-    ],
-    "org.ow2.asm:asm-tree": [
-      "org.ow2.asm:asm"
-    ],
-    "org.ow2.asm:asm-util": [
-      "org.ow2.asm:asm",
-      "org.ow2.asm:asm-analysis",
-      "org.ow2.asm:asm-tree"
     ],
     "org.wildfly.common:wildfly-common": [
       "io.smallrye.common:smallrye-common-cpu",
@@ -1756,9 +1443,6 @@
       "io.quarkus.arc.impl",
       "io.quarkus.arc.impl.bcextensions"
     ],
-    "io.quarkus.gizmo:gizmo": [
-      "io.quarkus.gizmo"
-    ],
     "io.quarkus.resteasy.reactive:resteasy-reactive": [
       "org.jboss.resteasy.reactive.server",
       "org.jboss.resteasy.reactive.server.core",
@@ -1828,45 +1512,12 @@
       "io.quarkus.arc.runtime.logging",
       "io.quarkus.arc.runtime.test"
     ],
-    "io.quarkus:quarkus-bootstrap-app-model": [
-      "io.quarkus.bootstrap",
-      "io.quarkus.bootstrap.model",
-      "io.quarkus.bootstrap.model.gradle",
-      "io.quarkus.bootstrap.model.gradle.impl",
-      "io.quarkus.bootstrap.resolver",
-      "io.quarkus.bootstrap.util",
-      "io.quarkus.bootstrap.workspace",
-      "io.quarkus.maven",
-      "io.quarkus.maven.dependency",
-      "io.quarkus.paths",
-      "io.quarkus.sbom",
-      "io.quarkus.util"
-    ],
-    "io.quarkus:quarkus-bootstrap-core": [
-      "io.quarkus.bootstrap",
-      "io.quarkus.bootstrap.app",
-      "io.quarkus.bootstrap.classloading",
-      "io.quarkus.bootstrap.devmode",
-      "io.quarkus.bootstrap.jbang",
-      "io.quarkus.bootstrap.prebuild",
-      "io.quarkus.bootstrap.utils"
-    ],
     "io.quarkus:quarkus-bootstrap-runner": [
       "io.quarkus.bootstrap.forkjoin",
       "io.quarkus.bootstrap.graal",
       "io.quarkus.bootstrap.logging",
       "io.quarkus.bootstrap.naming",
       "io.quarkus.bootstrap.runner"
-    ],
-    "io.quarkus:quarkus-builder": [
-      "io.quarkus.builder",
-      "io.quarkus.builder.diag",
-      "io.quarkus.builder.item",
-      "io.quarkus.builder.json",
-      "io.quarkus.builder.location"
-    ],
-    "io.quarkus:quarkus-class-change-agent": [
-      "io.quarkus.changeagent"
     ],
     "io.quarkus:quarkus-classloader-commons": [
       "io.quarkus.commons.classloading"
@@ -1892,50 +1543,6 @@
       "io.quarkus.runtime.types",
       "io.quarkus.runtime.util"
     ],
-    "io.quarkus:quarkus-core-deployment": [
-      "io.quarkus.banner",
-      "io.quarkus.deployment",
-      "io.quarkus.deployment.annotations",
-      "io.quarkus.deployment.bean",
-      "io.quarkus.deployment.builditem",
-      "io.quarkus.deployment.builditem.nativeimage",
-      "io.quarkus.deployment.cmd",
-      "io.quarkus.deployment.codegen",
-      "io.quarkus.deployment.configuration",
-      "io.quarkus.deployment.configuration.definition",
-      "io.quarkus.deployment.configuration.matching",
-      "io.quarkus.deployment.configuration.tracker",
-      "io.quarkus.deployment.configuration.type",
-      "io.quarkus.deployment.console",
-      "io.quarkus.deployment.dev",
-      "io.quarkus.deployment.dev.devservices",
-      "io.quarkus.deployment.dev.filesystem",
-      "io.quarkus.deployment.dev.filesystem.watch",
-      "io.quarkus.deployment.dev.io",
-      "io.quarkus.deployment.dev.remote",
-      "io.quarkus.deployment.dev.testing",
-      "io.quarkus.deployment.execannotations",
-      "io.quarkus.deployment.ide",
-      "io.quarkus.deployment.images",
-      "io.quarkus.deployment.index",
-      "io.quarkus.deployment.jbang",
-      "io.quarkus.deployment.logging",
-      "io.quarkus.deployment.metrics",
-      "io.quarkus.deployment.mutability",
-      "io.quarkus.deployment.naming",
-      "io.quarkus.deployment.pkg",
-      "io.quarkus.deployment.pkg.builditem",
-      "io.quarkus.deployment.pkg.steps",
-      "io.quarkus.deployment.proxy",
-      "io.quarkus.deployment.recording",
-      "io.quarkus.deployment.recording.substitutions",
-      "io.quarkus.deployment.sbom",
-      "io.quarkus.deployment.shutdown",
-      "io.quarkus.deployment.steps",
-      "io.quarkus.deployment.types",
-      "io.quarkus.deployment.util",
-      "io.quarkus.runner.bootstrap"
-    ],
     "io.quarkus:quarkus-credentials": [
       "io.quarkus.credentials",
       "io.quarkus.credentials.runtime"
@@ -1950,16 +1557,10 @@
       "io.quarkus.dev.testing",
       "io.quarkus.dev.testing.results"
     ],
-    "io.quarkus:quarkus-devtools-utilities": [
-      "io.quarkus.utilities"
-    ],
     "io.quarkus:quarkus-fs-util": [
       "io.quarkus.fs.util",
       "io.quarkus.fs.util.base",
       "io.quarkus.fs.util.sysfs"
-    ],
-    "io.quarkus:quarkus-hibernate-validator-spi": [
-      "io.quarkus.hibernate.validator.spi"
     ],
     "io.quarkus:quarkus-ide-launcher": [
       "io.quarkus.launcher"
@@ -2175,9 +1776,6 @@
       "io.smallrye.mutiny.vertx.codegen.lang",
       "io.smallrye.mutiny.vertx.codegen.methods"
     ],
-    "io.smallrye:jandex": [
-      "org.jboss.jandex"
-    ],
     "io.smallrye:smallrye-context-propagation": [
       "io.smallrye.context",
       "io.smallrye.context.impl",
@@ -2376,106 +1974,6 @@
       "jakarta.xml.bind.helpers",
       "jakarta.xml.bind.util"
     ],
-    "org.aesh:aesh": [
-      "org.aesh",
-      "org.aesh.command",
-      "org.aesh.command.activator",
-      "org.aesh.command.alias",
-      "org.aesh.command.builder",
-      "org.aesh.command.completer",
-      "org.aesh.command.container",
-      "org.aesh.command.converter",
-      "org.aesh.command.export",
-      "org.aesh.command.impl",
-      "org.aesh.command.impl.activator",
-      "org.aesh.command.impl.completer",
-      "org.aesh.command.impl.container",
-      "org.aesh.command.impl.converter",
-      "org.aesh.command.impl.internal",
-      "org.aesh.command.impl.invocation",
-      "org.aesh.command.impl.operator",
-      "org.aesh.command.impl.parser",
-      "org.aesh.command.impl.populator",
-      "org.aesh.command.impl.registry",
-      "org.aesh.command.impl.renderer",
-      "org.aesh.command.impl.result",
-      "org.aesh.command.impl.shell",
-      "org.aesh.command.impl.validator",
-      "org.aesh.command.invocation",
-      "org.aesh.command.man",
-      "org.aesh.command.man.parser",
-      "org.aesh.command.map",
-      "org.aesh.command.operator",
-      "org.aesh.command.option",
-      "org.aesh.command.parser",
-      "org.aesh.command.populator",
-      "org.aesh.command.registry",
-      "org.aesh.command.renderer",
-      "org.aesh.command.result",
-      "org.aesh.command.settings",
-      "org.aesh.command.shell",
-      "org.aesh.command.validator",
-      "org.aesh.comparators",
-      "org.aesh.complete",
-      "org.aesh.constants",
-      "org.aesh.converter",
-      "org.aesh.graphics",
-      "org.aesh.impl.util",
-      "org.aesh.io",
-      "org.aesh.io.filter",
-      "org.aesh.io.scanner",
-      "org.aesh.parser",
-      "org.aesh.readline",
-      "org.aesh.selector",
-      "org.aesh.util",
-      "org.aesh.util.completer",
-      "org.aesh.util.graal"
-    ],
-    "org.aesh:readline": [
-      "org.aesh.readline",
-      "org.aesh.readline.action",
-      "org.aesh.readline.action.mappings",
-      "org.aesh.readline.alias",
-      "org.aesh.readline.completion",
-      "org.aesh.readline.cursor",
-      "org.aesh.readline.editing",
-      "org.aesh.readline.history",
-      "org.aesh.readline.paste",
-      "org.aesh.readline.terminal",
-      "org.aesh.readline.terminal.formatting",
-      "org.aesh.readline.terminal.impl",
-      "org.aesh.readline.terminal.utils",
-      "org.aesh.readline.tty.terminal",
-      "org.aesh.readline.undo",
-      "org.aesh.readline.util",
-      "org.aesh.terminal",
-      "org.aesh.terminal.io",
-      "org.aesh.terminal.tty",
-      "org.aesh.terminal.utils"
-    ],
-    "org.apache.commons:commons-lang3": [
-      "org.apache.commons.lang3",
-      "org.apache.commons.lang3.arch",
-      "org.apache.commons.lang3.builder",
-      "org.apache.commons.lang3.compare",
-      "org.apache.commons.lang3.concurrent",
-      "org.apache.commons.lang3.concurrent.locks",
-      "org.apache.commons.lang3.event",
-      "org.apache.commons.lang3.exception",
-      "org.apache.commons.lang3.function",
-      "org.apache.commons.lang3.math",
-      "org.apache.commons.lang3.mutable",
-      "org.apache.commons.lang3.reflect",
-      "org.apache.commons.lang3.stream",
-      "org.apache.commons.lang3.text",
-      "org.apache.commons.lang3.text.translate",
-      "org.apache.commons.lang3.time",
-      "org.apache.commons.lang3.tuple",
-      "org.apache.commons.lang3.util"
-    ],
-    "org.apiguardian:apiguardian-api": [
-      "org.apiguardian.api"
-    ],
     "org.checkerframework:checker-qual": [
       "org.checkerframework.checker.builder.qual",
       "org.checkerframework.checker.calledmethods.qual",
@@ -2521,38 +2019,6 @@
       "org.eclipse.parsson",
       "org.eclipse.parsson.api"
     ],
-    "org.eclipse.sisu:org.eclipse.sisu.inject": [
-      "org.eclipse.sisu",
-      "org.eclipse.sisu.bean",
-      "org.eclipse.sisu.inject",
-      "org.eclipse.sisu.launch",
-      "org.eclipse.sisu.osgi",
-      "org.eclipse.sisu.space",
-      "org.eclipse.sisu.space.asm",
-      "org.eclipse.sisu.wire",
-      "org.sonatype.inject"
-    ],
-    "org.fusesource.jansi:jansi": [
-      "org.fusesource.jansi",
-      "org.fusesource.jansi.internal",
-      "org.fusesource.jansi.io"
-    ],
-    "org.graalvm.sdk:nativeimage": [
-      "com.oracle.svm.core.annotate",
-      "org.graalvm.nativeimage",
-      "org.graalvm.nativeimage.c",
-      "org.graalvm.nativeimage.c.constant",
-      "org.graalvm.nativeimage.c.function",
-      "org.graalvm.nativeimage.c.struct",
-      "org.graalvm.nativeimage.c.type",
-      "org.graalvm.nativeimage.hosted",
-      "org.graalvm.nativeimage.impl",
-      "org.graalvm.nativeimage.impl.clinit"
-    ],
-    "org.graalvm.sdk:word": [
-      "org.graalvm.word",
-      "org.graalvm.word.impl"
-    ],
     "org.jboss.logging:commons-logging-jboss-logging": [
       "org.apache.commons.logging",
       "org.apache.commons.logging.impl"
@@ -2587,96 +2053,6 @@
       "org.jctools.queues.atomic.unpadded",
       "org.jctools.queues.unpadded",
       "org.jctools.util"
-    ],
-    "org.junit.jupiter:junit-jupiter-api": [
-      "org.junit.jupiter.api",
-      "org.junit.jupiter.api.condition",
-      "org.junit.jupiter.api.extension",
-      "org.junit.jupiter.api.extension.support",
-      "org.junit.jupiter.api.function",
-      "org.junit.jupiter.api.io",
-      "org.junit.jupiter.api.parallel"
-    ],
-    "org.junit.jupiter:junit-jupiter-engine": [
-      "org.junit.jupiter.engine",
-      "org.junit.jupiter.engine.config",
-      "org.junit.jupiter.engine.descriptor",
-      "org.junit.jupiter.engine.discovery",
-      "org.junit.jupiter.engine.discovery.predicates",
-      "org.junit.jupiter.engine.execution",
-      "org.junit.jupiter.engine.extension",
-      "org.junit.jupiter.engine.support"
-    ],
-    "org.junit.jupiter:junit-jupiter-params": [
-      "org.junit.jupiter.params",
-      "org.junit.jupiter.params.aggregator",
-      "org.junit.jupiter.params.converter",
-      "org.junit.jupiter.params.provider",
-      "org.junit.jupiter.params.shadow.com.univocity.parsers.annotations",
-      "org.junit.jupiter.params.shadow.com.univocity.parsers.annotations.helpers",
-      "org.junit.jupiter.params.shadow.com.univocity.parsers.common",
-      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.beans",
-      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.fields",
-      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.input",
-      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.input.concurrent",
-      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.iterators",
-      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.processor",
-      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.processor.core",
-      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.record",
-      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.routine",
-      "org.junit.jupiter.params.shadow.com.univocity.parsers.conversions",
-      "org.junit.jupiter.params.shadow.com.univocity.parsers.csv",
-      "org.junit.jupiter.params.shadow.com.univocity.parsers.fixed",
-      "org.junit.jupiter.params.shadow.com.univocity.parsers.tsv",
-      "org.junit.jupiter.params.support"
-    ],
-    "org.junit.platform:junit-platform-commons": [
-      "org.junit.platform.commons",
-      "org.junit.platform.commons.annotation",
-      "org.junit.platform.commons.function",
-      "org.junit.platform.commons.logging",
-      "org.junit.platform.commons.support",
-      "org.junit.platform.commons.support.conversion",
-      "org.junit.platform.commons.support.scanning",
-      "org.junit.platform.commons.util"
-    ],
-    "org.junit.platform:junit-platform-engine": [
-      "org.junit.platform.engine",
-      "org.junit.platform.engine.discovery",
-      "org.junit.platform.engine.reporting",
-      "org.junit.platform.engine.support.config",
-      "org.junit.platform.engine.support.descriptor",
-      "org.junit.platform.engine.support.discovery",
-      "org.junit.platform.engine.support.filter",
-      "org.junit.platform.engine.support.hierarchical",
-      "org.junit.platform.engine.support.store"
-    ],
-    "org.junit.platform:junit-platform-launcher": [
-      "org.junit.platform.launcher",
-      "org.junit.platform.launcher.core",
-      "org.junit.platform.launcher.listeners",
-      "org.junit.platform.launcher.listeners.discovery",
-      "org.junit.platform.launcher.listeners.session",
-      "org.junit.platform.launcher.tagexpression"
-    ],
-    "org.opentest4j:opentest4j": [
-      "org.opentest4j"
-    ],
-    "org.ow2.asm:asm": [
-      "org.objectweb.asm",
-      "org.objectweb.asm.signature"
-    ],
-    "org.ow2.asm:asm-analysis": [
-      "org.objectweb.asm.tree.analysis"
-    ],
-    "org.ow2.asm:asm-commons": [
-      "org.objectweb.asm.commons"
-    ],
-    "org.ow2.asm:asm-tree": [
-      "org.objectweb.asm.tree"
-    ],
-    "org.ow2.asm:asm-util": [
-      "org.objectweb.asm.util"
     ],
     "org.reactivestreams:reactive-streams": [
       "org.reactivestreams"
@@ -2741,7 +2117,6 @@
       "io.netty:netty-transport",
       "io.netty:netty-transport-native-unix-common",
       "io.quarkus.arc:arc",
-      "io.quarkus.gizmo:gizmo",
       "io.quarkus.resteasy.reactive:resteasy-reactive",
       "io.quarkus.resteasy.reactive:resteasy-reactive-common",
       "io.quarkus.resteasy.reactive:resteasy-reactive-common-types",
@@ -2749,19 +2124,12 @@
       "io.quarkus.security:quarkus-security",
       "io.quarkus.vertx.utils:quarkus-vertx-utils",
       "io.quarkus:quarkus-arc",
-      "io.quarkus:quarkus-bootstrap-app-model",
-      "io.quarkus:quarkus-bootstrap-core",
       "io.quarkus:quarkus-bootstrap-runner",
-      "io.quarkus:quarkus-builder",
-      "io.quarkus:quarkus-class-change-agent",
       "io.quarkus:quarkus-classloader-commons",
       "io.quarkus:quarkus-core",
-      "io.quarkus:quarkus-core-deployment",
       "io.quarkus:quarkus-credentials",
       "io.quarkus:quarkus-development-mode-spi",
-      "io.quarkus:quarkus-devtools-utilities",
       "io.quarkus:quarkus-fs-util",
-      "io.quarkus:quarkus-hibernate-validator-spi",
       "io.quarkus:quarkus-ide-launcher",
       "io.quarkus:quarkus-jsonp",
       "io.quarkus:quarkus-mutiny",
@@ -2801,7 +2169,6 @@
       "io.smallrye.reactive:smallrye-mutiny-vertx-web",
       "io.smallrye.reactive:smallrye-mutiny-vertx-web-common",
       "io.smallrye.reactive:vertx-mutiny-generator",
-      "io.smallrye:jandex",
       "io.smallrye:smallrye-context-propagation",
       "io.smallrye:smallrye-context-propagation-api",
       "io.smallrye:smallrye-context-propagation-storage",
@@ -2824,18 +2191,10 @@
       "jakarta.transaction:jakarta.transaction-api",
       "jakarta.ws.rs:jakarta.ws.rs-api",
       "jakarta.xml.bind:jakarta.xml.bind-api",
-      "org.aesh:aesh",
-      "org.aesh:readline",
-      "org.apache.commons:commons-lang3",
-      "org.apiguardian:apiguardian-api",
       "org.checkerframework:checker-qual",
       "org.eclipse.microprofile.config:microprofile-config-api",
       "org.eclipse.microprofile.context-propagation:microprofile-context-propagation-api",
       "org.eclipse.parsson:parsson",
-      "org.eclipse.sisu:org.eclipse.sisu.inject",
-      "org.fusesource.jansi:jansi",
-      "org.graalvm.sdk:nativeimage",
-      "org.graalvm.sdk:word",
       "org.jboss.logging:commons-logging-jboss-logging",
       "org.jboss.logging:jboss-logging",
       "org.jboss.logging:jboss-logging-annotations",
@@ -2843,19 +2202,6 @@
       "org.jboss.slf4j:slf4j-jboss-logmanager",
       "org.jboss.threads:jboss-threads",
       "org.jctools:jctools-core",
-      "org.junit.jupiter:junit-jupiter",
-      "org.junit.jupiter:junit-jupiter-api",
-      "org.junit.jupiter:junit-jupiter-engine",
-      "org.junit.jupiter:junit-jupiter-params",
-      "org.junit.platform:junit-platform-commons",
-      "org.junit.platform:junit-platform-engine",
-      "org.junit.platform:junit-platform-launcher",
-      "org.opentest4j:opentest4j",
-      "org.ow2.asm:asm",
-      "org.ow2.asm:asm-analysis",
-      "org.ow2.asm:asm-commons",
-      "org.ow2.asm:asm-tree",
-      "org.ow2.asm:asm-util",
       "org.reactivestreams:reactive-streams",
       "org.slf4j:slf4j-api",
       "org.wildfly.common:wildfly-common"
@@ -2914,14 +2260,6 @@
         "io.quarkus.runtime.configuration.RegexConverter",
         "io.quarkus.runtime.configuration.ZoneIdConverter",
         "io.quarkus.runtime.logging.LevelConverter"
-      ]
-    },
-    "io.quarkus:quarkus-core-deployment": {
-      "io.quarkus.deployment.dev.CompilationProvider": [
-        "io.quarkus.deployment.dev.JavaCompilationProvider"
-      ],
-      "io.smallrye.config.SmallRyeConfigBuilderCustomizer": [
-        "io.quarkus.deployment.configuration.BuildTimeConfigBuilderCustomizer"
       ]
     },
     "io.quarkus:quarkus-rest": {
@@ -3044,20 +2382,6 @@
         "org.eclipse.parsson.JsonProviderImpl"
       ]
     },
-    "org.graalvm.sdk:nativeimage": {
-      "org.graalvm.nativeimage.Platform": [
-        "org.graalvm.nativeimage.Platform$ANDROID_AARCH64",
-        "org.graalvm.nativeimage.Platform$IOS_AARCH64",
-        "org.graalvm.nativeimage.Platform$IOS_AMD64",
-        "org.graalvm.nativeimage.Platform$LINUX_AARCH64",
-        "org.graalvm.nativeimage.Platform$LINUX_AMD64",
-        "org.graalvm.nativeimage.Platform$LINUX_RISCV64",
-        "org.graalvm.nativeimage.Platform$MACOS_AARCH64",
-        "org.graalvm.nativeimage.Platform$MACOS_AMD64",
-        "org.graalvm.nativeimage.Platform$WINDOWS_AARCH64",
-        "org.graalvm.nativeimage.Platform$WINDOWS_AMD64"
-      ]
-    },
     "org.jboss.logging:commons-logging-jboss-logging": {
       "org.apache.commons.logging.LogFactory": [
         "org.apache.commons.logging.impl.JBossLogFactory"
@@ -3077,33 +2401,6 @@
     "org.jboss.slf4j:slf4j-jboss-logmanager": {
       "org.slf4j.spi.SLF4JServiceProvider": [
         "org.slf4j.impl.JBossSlf4jServiceProvider"
-      ]
-    },
-    "org.junit.jupiter:junit-jupiter-engine": {
-      "org.junit.platform.engine.TestEngine": [
-        "org.junit.jupiter.engine.JupiterTestEngine"
-      ]
-    },
-    "org.junit.platform:junit-platform-engine": {
-      "org.junit.platform.engine.discovery.DiscoverySelectorIdentifierParser": [
-        "org.junit.platform.engine.discovery.ClassSelector$IdentifierParser",
-        "org.junit.platform.engine.discovery.ClasspathResourceSelector$IdentifierParser",
-        "org.junit.platform.engine.discovery.ClasspathRootSelector$IdentifierParser",
-        "org.junit.platform.engine.discovery.DirectorySelector$IdentifierParser",
-        "org.junit.platform.engine.discovery.FileSelector$IdentifierParser",
-        "org.junit.platform.engine.discovery.IterationSelector$IdentifierParser",
-        "org.junit.platform.engine.discovery.MethodSelector$IdentifierParser",
-        "org.junit.platform.engine.discovery.ModuleSelector$IdentifierParser",
-        "org.junit.platform.engine.discovery.NestedClassSelector$IdentifierParser",
-        "org.junit.platform.engine.discovery.NestedMethodSelector$IdentifierParser",
-        "org.junit.platform.engine.discovery.PackageSelector$IdentifierParser",
-        "org.junit.platform.engine.discovery.UniqueIdSelector$IdentifierParser",
-        "org.junit.platform.engine.discovery.UriSelector$IdentifierParser"
-      ]
-    },
-    "org.junit.platform:junit-platform-launcher": {
-      "org.junit.platform.launcher.TestExecutionListener": [
-        "org.junit.platform.launcher.listeners.UniqueIdTrackingListener"
       ]
     }
   },

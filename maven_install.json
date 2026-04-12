@@ -8,6 +8,8 @@
     "com.google.j2objc:j2objc-annotations": 2003271689,
     "com.google.protobuf:protobuf-java": -1795397632,
     "com.google.protobuf:protobuf-java-util": -1033086717,
+    "io.quarkus.arc:arc": 1915132689,
+    "io.quarkus:quarkus-core": 1336519121,
     "io.quarkus:quarkus-core-deployment": -1017146787,
     "org.junit.jupiter:junit-jupiter": -1032504578,
     "org.junit.platform:junit-platform-console-standalone": -1481831078,
@@ -25,6 +27,7 @@
     "com.google.protobuf:protobuf-java": -590519546,
     "com.google.protobuf:protobuf-java-util": -2139946669,
     "io.github.crac:org-crac": 2056493181,
+    "io.quarkus.arc:arc": -305064516,
     "io.quarkus.gizmo:gizmo": -1721842181,
     "io.quarkus:quarkus-bootstrap-app-model": 1266652238,
     "io.quarkus:quarkus-bootstrap-core": -1110504760,
@@ -32,8 +35,8 @@
     "io.quarkus:quarkus-builder": -304103101,
     "io.quarkus:quarkus-class-change-agent": -1625112547,
     "io.quarkus:quarkus-classloader-commons": -1769748846,
-    "io.quarkus:quarkus-core": 1784986312,
-    "io.quarkus:quarkus-core-deployment": -584917576,
+    "io.quarkus:quarkus-core": 1083724207,
+    "io.quarkus:quarkus-core-deployment": -183797421,
     "io.quarkus:quarkus-development-mode-spi": 968596753,
     "io.quarkus:quarkus-devtools-utilities": 464758008,
     "io.quarkus:quarkus-fs-util": 610682858,
@@ -52,14 +55,16 @@
     "io.smallrye.config:smallrye-config": -1714123685,
     "io.smallrye.config:smallrye-config-common": -1627169722,
     "io.smallrye.config:smallrye-config-core": 522121086,
+    "io.smallrye.reactive:mutiny": -1260360251,
     "io.smallrye:jandex": 1673522906,
     "jakarta.annotation:jakarta.annotation-api": 196616042,
-    "jakarta.el:jakarta.el-api": 323988540,
-    "jakarta.enterprise:jakarta.enterprise.cdi-api": -950347730,
+    "jakarta.el:jakarta.el-api": 261490521,
+    "jakarta.enterprise:jakarta.enterprise.cdi-api": -1542432060,
     "jakarta.enterprise:jakarta.enterprise.lang-model": 1858614948,
     "jakarta.inject:jakarta.inject-api": 188991469,
     "jakarta.interceptor:jakarta.interceptor-api": 71151213,
     "jakarta.json:jakarta.json-api": -1054410882,
+    "jakarta.transaction:jakarta.transaction-api": -1232049293,
     "org.aesh:aesh": -684107909,
     "org.aesh:readline": 1066826701,
     "org.apache.commons:commons-lang3": -850748327,
@@ -77,6 +82,7 @@
     "org.jboss.logmanager:jboss-logmanager": -1368409710,
     "org.jboss.slf4j:slf4j-jboss-logmanager": 1438717166,
     "org.jboss.threads:jboss-threads": 961295307,
+    "org.jctools:jctools-core": 473448173,
     "org.jspecify:jspecify": 117231129,
     "org.junit.jupiter:junit-jupiter": -1180454764,
     "org.junit.jupiter:junit-jupiter-api": -452374709,
@@ -155,6 +161,12 @@
         "jar": "d77a0c628d1399ee682738851dca13d060fef51601aedad6d1efcd3185f9af09"
       },
       "version": "0.1.3"
+    },
+    "io.quarkus.arc:arc": {
+      "shasums": {
+        "jar": "06ac01aeedcff61928ca56e888e6458fba1dd9eaf5f4afadfb1893a9e7d93c5b"
+      },
+      "version": "3.20.6"
     },
     "io.quarkus.gizmo:gizmo": {
       "shasums": {
@@ -318,6 +330,12 @@
       },
       "version": "3.11.4"
     },
+    "io.smallrye.reactive:mutiny": {
+      "shasums": {
+        "jar": "7e3d1ac6016cfb1526d8e49abf48bb72bf752305e6cd7f5609f9d3f75e04bd90"
+      },
+      "version": "2.9.5"
+    },
     "io.smallrye:jandex": {
       "shasums": {
         "jar": "4a48ad61b7492a25381693106186f1b94acbff26181fdb2ed989286b683ac29e"
@@ -332,9 +350,9 @@
     },
     "jakarta.el:jakarta.el-api": {
       "shasums": {
-        "jar": "90432d18281717b363b819978c6a172433a2654b77eb87c863c22fc19c20eced"
+        "jar": "f33d0becf2d5516730ba5cc99a7b5a2b1f62986bf0a3370249cdff9a2f171507"
       },
-      "version": "5.0.1"
+      "version": "6.0.0"
     },
     "jakarta.enterprise:jakarta.enterprise.cdi-api": {
       "shasums": {
@@ -365,6 +383,12 @@
         "jar": "bc934142805ea1d794f1440563965a3861a2a9fb7414ecd3fe44f26500734414"
       },
       "version": "2.1.3"
+    },
+    "jakarta.transaction:jakarta.transaction-api": {
+      "shasums": {
+        "jar": "50c0a7c760c13ae6c042acf182b28f0047413db95b4636fb8879bcffab5ba875"
+      },
+      "version": "2.0.1"
     },
     "org.aesh:aesh": {
       "shasums": {
@@ -467,6 +491,12 @@
         "jar": "436bcba7b602fce82317eafc7c054929e94434d752151d3a2c40333b8ad4250e"
       },
       "version": "3.8.0.Final"
+    },
+    "org.jctools:jctools-core": {
+      "shasums": {
+        "jar": "d65e5f38bcd0984e26f87187687f1f70dd52740c4d5e046f8d104e01ab5db95f"
+      },
+      "version": "4.0.5"
     },
     "org.jspecify:jspecify": {
       "shasums": {
@@ -588,6 +618,13 @@
       "com.google.j2objc:j2objc-annotations",
       "com.google.protobuf:protobuf-java"
     ],
+    "io.quarkus.arc:arc": [
+      "io.smallrye.reactive:mutiny",
+      "jakarta.annotation:jakarta.annotation-api",
+      "jakarta.enterprise:jakarta.enterprise.cdi-api",
+      "jakarta.transaction:jakarta.transaction-api",
+      "org.jboss.logging:jboss-logging"
+    ],
     "io.quarkus.gizmo:gizmo": [
       "io.smallrye:jandex",
       "org.ow2.asm:asm",
@@ -696,6 +733,10 @@
       "jakarta.annotation:jakarta.annotation-api",
       "org.eclipse.microprofile.config:microprofile-config-api",
       "org.jboss.logging:jboss-logging"
+    ],
+    "io.smallrye.reactive:mutiny": [
+      "io.smallrye.common:smallrye-common-annotation",
+      "org.jctools:jctools-core"
     ],
     "jakarta.enterprise:jakarta.enterprise.cdi-api": [
       "jakarta.annotation:jakarta.annotation-api",
@@ -857,6 +898,11 @@
     ],
     "io.github.crac:org-crac": [
       "org.crac"
+    ],
+    "io.quarkus.arc:arc": [
+      "io.quarkus.arc",
+      "io.quarkus.arc.impl",
+      "io.quarkus.arc.impl.bcextensions"
     ],
     "io.quarkus.gizmo:gizmo": [
       "io.quarkus.gizmo"
@@ -1034,6 +1080,31 @@
       "io.smallrye.config",
       "io.smallrye.config._private"
     ],
+    "io.smallrye.reactive:mutiny": [
+      "io.smallrye.mutiny",
+      "io.smallrye.mutiny.converters",
+      "io.smallrye.mutiny.converters.multi",
+      "io.smallrye.mutiny.converters.uni",
+      "io.smallrye.mutiny.groups",
+      "io.smallrye.mutiny.helpers",
+      "io.smallrye.mutiny.helpers.queues",
+      "io.smallrye.mutiny.helpers.spies",
+      "io.smallrye.mutiny.helpers.test",
+      "io.smallrye.mutiny.infrastructure",
+      "io.smallrye.mutiny.operators",
+      "io.smallrye.mutiny.operators.multi",
+      "io.smallrye.mutiny.operators.multi.builders",
+      "io.smallrye.mutiny.operators.multi.multicast",
+      "io.smallrye.mutiny.operators.multi.overflow",
+      "io.smallrye.mutiny.operators.multi.processors",
+      "io.smallrye.mutiny.operators.multi.replay",
+      "io.smallrye.mutiny.operators.multi.split",
+      "io.smallrye.mutiny.operators.uni",
+      "io.smallrye.mutiny.operators.uni.builders",
+      "io.smallrye.mutiny.subscription",
+      "io.smallrye.mutiny.tuples",
+      "io.smallrye.mutiny.unchecked"
+    ],
     "io.smallrye:jandex": [
       "org.jboss.jandex"
     ],
@@ -1075,6 +1146,9 @@
       "jakarta.json",
       "jakarta.json.spi",
       "jakarta.json.stream"
+    ],
+    "jakarta.transaction:jakarta.transaction-api": [
+      "jakarta.transaction"
     ],
     "org.aesh:aesh": [
       "org.aesh",
@@ -1274,6 +1348,15 @@
     "org.jboss.threads:jboss-threads": [
       "org.jboss.threads",
       "org.jboss.threads.management"
+    ],
+    "org.jctools:jctools-core": [
+      "org.jctools.counters",
+      "org.jctools.maps",
+      "org.jctools.queues",
+      "org.jctools.queues.atomic",
+      "org.jctools.queues.atomic.unpadded",
+      "org.jctools.queues.unpadded",
+      "org.jctools.util"
     ],
     "org.jspecify:jspecify": [
       "org.jspecify.annotations"
@@ -1510,6 +1593,7 @@
       "com.google.protobuf:protobuf-java",
       "com.google.protobuf:protobuf-java-util",
       "io.github.crac:org-crac",
+      "io.quarkus.arc:arc",
       "io.quarkus.gizmo:gizmo",
       "io.quarkus:quarkus-bootstrap-app-model",
       "io.quarkus:quarkus-bootstrap-core",
@@ -1537,6 +1621,7 @@
       "io.smallrye.config:smallrye-config",
       "io.smallrye.config:smallrye-config-common",
       "io.smallrye.config:smallrye-config-core",
+      "io.smallrye.reactive:mutiny",
       "io.smallrye:jandex",
       "jakarta.annotation:jakarta.annotation-api",
       "jakarta.el:jakarta.el-api",
@@ -1545,6 +1630,7 @@
       "jakarta.inject:jakarta.inject-api",
       "jakarta.interceptor:jakarta.interceptor-api",
       "jakarta.json:jakarta.json-api",
+      "jakarta.transaction:jakarta.transaction-api",
       "org.aesh:aesh",
       "org.aesh:readline",
       "org.apache.commons:commons-lang3",
@@ -1562,6 +1648,7 @@
       "org.jboss.logmanager:jboss-logmanager",
       "org.jboss.slf4j:slf4j-jboss-logmanager",
       "org.jboss.threads:jboss-threads",
+      "org.jctools:jctools-core",
       "org.jspecify:jspecify",
       "org.junit.jupiter:junit-jupiter",
       "org.junit.jupiter:junit-jupiter-api",

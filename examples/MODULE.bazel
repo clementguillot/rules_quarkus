@@ -20,7 +20,6 @@ maven.install(
     artifacts = [
         "io.quarkus:quarkus-rest:3.20.6",
         "io.quarkus:quarkus-arc:3.20.6",
-        "io.quarkus:quarkus-core-deployment:3.20.6",
     ],
     known_contributing_modules = [
         "bazel_worker_java",
@@ -33,7 +32,7 @@ use_repo(maven, "maven")
 quarkus = use_extension("@com_clementguillot_rules_quarkus//quarkus:extensions.bzl", "quarkus")
 quarkus.toolchain(
     lock_file = "//:maven_install.json",
-    quarkifier_tool = "@com_clementguillot_rules_quarkus//quarkifier:quarkifier_lib",
+    quarkifier_source_dir = "@com_clementguillot_rules_quarkus//:MODULE.bazel",
     quarkus_version = "3.20.6",
 )
-use_repo(quarkus, "quarkus_deployment", "rules_quarkus_toolchains")
+use_repo(quarkus, "quarkus_deployment", "rules_quarkus_quarkifier", "rules_quarkus_toolchains")

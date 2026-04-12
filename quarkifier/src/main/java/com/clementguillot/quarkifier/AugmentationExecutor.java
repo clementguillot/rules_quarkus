@@ -67,7 +67,6 @@ public final class AugmentationExecutor {
               .setTargetDirectory(outputDir)
               .setBaseName("quarkus-run")
               .setMode(mapMode(config.mode()))
-              .setBaseClassLoader(AugmentationExecutor.class.getClassLoader())
               .setIsolateDeployment(false)
               .setFlatClassPath(true)
               .setLocalProjectDiscovery(false)
@@ -75,11 +74,29 @@ public final class AugmentationExecutor {
               .build();
 
       try (CuratedApplication curatedApp = bootstrap.bootstrap()) {
-        AugmentAction action = curatedApp.createAugmentor();
-        AugmentResult result = action.createProductionApplication();
-        if (result == null) {
-          throw new AugmentationException(
-              "Augmentation produced no result for output directory: " + outputDir);
+        // Manually create AugmentAction via the augment classloader to avoid
+        // classloader conflicts between the tool's system classloader and the
+        // Quarkus deployment classloader. We load AugmentActionImpl from the
+        // augment classloader and set the thread context classloader (TCCL) so
+        // ASM's ClassWriter.getCommonSuperClass() can resolve all types during
+        // bytecode generation.
+        ClassLoader augmentCl = curatedApp.getOrCreateAugmentClassLoader();
+        Class<?> augmentClass =
+            augmentCl.loadClass("io.quarkus.runner.bootstrap.AugmentActionImpl");
+
+        java.lang.reflect.Constructor<?> ctor = findAugmentConstructor(augmentClass);
+
+        ClassLoader originalTccl = Thread.currentThread().getContextClassLoader();
+        try {
+          Thread.currentThread().setContextClassLoader(augmentCl);
+          AugmentAction action = (AugmentAction) ctor.newInstance(curatedApp);
+          AugmentResult result = action.createProductionApplication();
+          if (result == null) {
+            throw new AugmentationException(
+                "Augmentation produced no result for output directory: " + outputDir);
+          }
+        } finally {
+          Thread.currentThread().setContextClassLoader(originalTccl);
         }
       }
 
@@ -419,6 +436,22 @@ public final class AugmentationExecutor {
         addedArtifactIds.add(coords.artifactId());
       }
     }
+  }
+
+  /**
+   * Finds the AugmentActionImpl constructor that takes a single CuratedApplication parameter.
+   */
+  private static java.lang.reflect.Constructor<?> findAugmentConstructor(Class<?> augmentClass)
+      throws AugmentationException {
+    for (java.lang.reflect.Constructor<?> c : augmentClass.getConstructors()) {
+      Class<?>[] paramTypes = c.getParameterTypes();
+      if (paramTypes.length == 1
+          && paramTypes[0].getName().equals("io.quarkus.bootstrap.app.CuratedApplication")) {
+        return c;
+      }
+    }
+    throw new AugmentationException(
+        "Cannot find AugmentActionImpl(CuratedApplication) constructor");
   }
 
   private static QuarkusBootstrap.Mode mapMode(AugmentationMode mode) {

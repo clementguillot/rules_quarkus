@@ -10,8 +10,6 @@ load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusAppInfo")
 load("//quarkus/private:classpath_utils.bzl", "collect_runtime_classpath", "collect_source_dirs")
 
-_QUARKIFIER_MAIN = "com.clementguillot.quarkifier.QuarkifierLauncher"
-
 def _quarkus_app_impl(ctx):
     if not ctx.attr.deps:
         fail("quarkus_app rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
@@ -20,9 +18,10 @@ def _quarkus_app_impl(ctx):
     source_dirs = collect_source_dirs(ctx.attr.deps)
     output_dir = ctx.actions.declare_directory(ctx.label.name + "-quarkus-app")
 
-    tool_classpath = collect_runtime_classpath([ctx.attr.quarkifier_tool])
     deployment_classpath = collect_runtime_classpath([ctx.attr.deployment_deps]) if ctx.attr.deployment_deps else depset()
-    all_jars = depset(transitive = [tool_classpath, runtime_classpath, deployment_classpath])
+
+    # Resolve the quarkifier deploy jar (fat/uber jar with all tool deps bundled).
+    tool_jar = ctx.file.quarkifier_tool
 
     java_runtime = ctx.attr._java_runtime[java_common.JavaRuntimeInfo]
 
@@ -36,17 +35,22 @@ def _quarkus_app_impl(ctx):
     if ctx.attr.version:
         args.add("--app-version", ctx.attr.version)
 
-    # JVM + classpath args
-    cp_args = ctx.actions.args()
-    cp_args.add("-Djava.util.logging.manager=org.jboss.logmanager.LogManager")
-    cp_args.add("-cp")
-    cp_args.add_joined(all_jars, join_with = ":")
-    cp_args.add(_QUARKIFIER_MAIN)
+    # Invoke: java -jar quarkifier_deploy.jar <args>
+    # The deploy jar is a fat jar containing all tool classes + dependencies,
+    # so no -cp assembly is needed. The tool handles classloader isolation
+    # internally via the augment classloader + TCCL.
+    jar_args = ctx.actions.args()
+    jar_args.add("-Djava.util.logging.manager=org.jboss.logmanager.LogManager")
+    jar_args.add("-jar")
+    jar_args.add(tool_jar)
 
     ctx.actions.run(
         executable = java_runtime.java_executable_exec_path,
-        arguments = [cp_args, args],
-        inputs = depset(transitive = [all_jars, java_runtime.files]),
+        arguments = [jar_args, args],
+        inputs = depset(
+            direct = [tool_jar],
+            transitive = [runtime_classpath, deployment_classpath, java_runtime.files],
+        ),
         outputs = [output_dir],
         mnemonic = "QuarkusAugmentation",
         progress_message = "Running Quarkus augmentation for %{label}",
@@ -107,7 +111,10 @@ quarkus_app_rule = rule(
             doc = "Application version shown in Quarkus startup banner.",
         ),
         "quarkus_version": attr.string(doc = "Quarkus version (set by macro)."),
-        "quarkifier_tool": attr.label(providers = [JavaInfo], doc = "Quarkifier tool (set by macro)."),
+        "quarkifier_tool": attr.label(
+            allow_single_file = [".jar"],
+            doc = "Quarkifier deploy jar (fat jar with all tool deps bundled).",
+        ),
         "deployment_deps": attr.label(doc = "Deployment deps (set by macro)."),
         "_java_runtime": attr.label(
             default = "@bazel_tools//tools/jdk:current_java_runtime",

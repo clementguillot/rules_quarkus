@@ -5,17 +5,25 @@ load("@rules_java//java:java_test.bzl", "java_test")
 java_library(
     name = "quarkifier_lib",
     srcs = glob(["src/main/java/**/*.java"]),
-    visibility = ["//visibility:public"],
+    visibility = ["//quarkifier:__pkg__"],
     deps = [
+        # Quarkus Bootstrap
         "@maven//:io_quarkus_quarkus_bootstrap_app_model",
         "@maven//:io_quarkus_quarkus_bootstrap_core",
         "@maven//:io_quarkus_quarkus_bootstrap_runner",
+        # Quarkus Core + deployment (contains AugmentActionImpl)
+        "@maven//:io_quarkus_quarkus_core",
         "@maven//:io_quarkus_quarkus_core_deployment",
+        # ArC runtime — needed in the deploy jar so ASM's ClassWriter can resolve
+        # types like io.quarkus.arc.impl.ParameterizedTypeImpl during augmentation.
+        # This is a transitive dep of quarkus-core, so always available.
+        "@maven//:io_quarkus_arc_arc",
     ],
 )
 
 java_binary(
     name = "quarkifier",
+    # jvm_flags = ["-Djava.util.logging.manager=org.jboss.logmanager.LogManager"],
     main_class = "com.clementguillot.quarkifier.QuarkifierLauncher",
     visibility = ["//visibility:public"],
     runtime_deps = [":quarkifier_lib"],
