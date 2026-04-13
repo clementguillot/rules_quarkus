@@ -1,21 +1,23 @@
 package com.clementguillot.quarkifier;
 
-/** Augmentation mode: NORMAL for production builds, TEST for test-scoped builds. */
+/** Augmentation mode: NORMAL for production builds, TEST for test-scoped builds, DEV for dev mode. */
 public enum AugmentationMode {
   NORMAL,
-  TEST;
+  TEST,
+  DEV;
 
   /**
    * Parses a mode string (case-insensitive).
    *
-   * @throws IllegalArgumentException if the string is not "normal" or "test"
+   * @throws IllegalArgumentException if the string is not "normal", "test", or "dev"
    */
   public static AugmentationMode parse(String value) {
     return switch (value.toLowerCase()) {
       case "normal" -> NORMAL;
       case "test" -> TEST;
+      case "dev" -> DEV;
       default -> throw new IllegalArgumentException(
-          "Invalid mode: '%s'. Must be 'normal' or 'test'.".formatted(value));
+          "Invalid mode: '%s'. Must be 'normal', 'test', or 'dev'.".formatted(value));
     };
   }
 }

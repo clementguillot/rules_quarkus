@@ -2,6 +2,8 @@ package com.clementguillot.quarkifier;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /** Unit tests for {@link QuarkifierConfig} error paths and edge cases. */
@@ -124,5 +126,48 @@ class QuarkifierConfigTest {
               "--mode", "test"
             });
     assertEquals(AugmentationMode.TEST, config.mode());
+  }
+
+  @Test
+  void parse_sourceDirs() throws QuarkifierConfig.InvalidArgumentsException {
+    var config =
+        QuarkifierConfig.parse(
+            new String[] {
+              "--application-classpath", "a.jar",
+              "--deployment-classpath", "d.jar",
+              "--output-dir", "/out",
+              "--source-dirs", "src/main/java,lib/src/main/java"
+            });
+    assertEquals(
+        List.of(Path.of("src/main/java"), Path.of("lib/src/main/java")), config.sourceDirs());
+  }
+
+  @Test
+  void parse_sourceDirsMissingValue() {
+    var ex =
+        assertThrows(
+            QuarkifierConfig.InvalidArgumentsException.class,
+            () ->
+                QuarkifierConfig.parse(
+                    new String[] {
+                      "--application-classpath", "a.jar",
+                      "--deployment-classpath", "d.jar",
+                      "--output-dir", "/out",
+                      "--source-dirs"
+                    }));
+    assertTrue(ex.getMessage().contains("--source-dirs"));
+  }
+
+  @Test
+  void parse_absentSourceDirsDefaultsToEmptyList()
+      throws QuarkifierConfig.InvalidArgumentsException {
+    var config =
+        QuarkifierConfig.parse(
+            new String[] {
+              "--application-classpath", "a.jar",
+              "--deployment-classpath", "d.jar",
+              "--output-dir", "/out"
+            });
+    assertTrue(config.sourceDirs().isEmpty());
   }
 }

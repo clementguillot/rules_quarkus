@@ -264,7 +264,7 @@
   "moduleExtensions": {
     "@@com_clementguillot_rules_quarkus+//quarkus:extensions.bzl%quarkus": {
       "general": {
-        "bzlTransitiveDigest": "avVumgjJyjV+RgIMtsV7waTYJ3Y+V+Bucj4DRWcRSOQ=",
+        "bzlTransitiveDigest": "zXYy6zDDM8JmV7kMKda0+6dfhww0SV5dF9RT51WjO1w=",
         "usagesDigest": "jcB2FkuWGvmzsFQbGekTFsh9ZxKAN1cb+OBgFLP0btk=",
         "recordedInputs": [
           "REPO_MAPPING:,com_clementguillot_rules_quarkus com_clementguillot_rules_quarkus+",
@@ -281,6 +281,7 @@
             "repoRuleId": "@@com_clementguillot_rules_quarkus+//quarkus:extensions.bzl%_quarkus_toolchains_repo",
             "attributes": {
               "quarkifier_tool": "@rules_quarkus_quarkifier//:tool/quarkifier.jar",
+              "quarkifier_dev_tool": "@rules_quarkus_quarkifier//:tool/quarkifier_dev.jar",
               "quarkus_version": "3.20.6"
             }
           },
@@ -289,6 +290,7 @@
             "attributes": {
               "artifacts": [
                 "io.quarkus:quarkus-core-deployment:3.20.6",
+                "io.quarkus:quarkus-vertx-http-dev-ui-resources:3.20.6",
                 "io.quarkus:quarkus-arc-deployment:3.20.6",
                 "io.quarkus:quarkus-bootstrap-runner-deployment:3.20.6",
                 "io.quarkus:quarkus-classloader-commons-deployment:3.20.6",

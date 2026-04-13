@@ -1,5 +1,5 @@
 load("@rules_java//java:java_library.bzl", "java_library")
-load("@rules_quarkus_toolchains//:defs.bzl", "quarkus_app")
+load("@rules_quarkus_toolchains//:defs.bzl", "quarkus_app", "quarkus_dev")
 
 java_library(
     name = "lib",
@@ -15,5 +15,10 @@ java_library(
 quarkus_app(
     name = "helloworld",
     version = "1.0.0",
+    deps = [":lib"],
+)
+
+quarkus_dev(
+    name = "dev",
     deps = [":lib"],
 )

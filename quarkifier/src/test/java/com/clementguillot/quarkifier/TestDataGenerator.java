@@ -28,7 +28,8 @@ final class TestDataGenerator {
         RNG.nextBoolean() ? AugmentationMode.NORMAL : AugmentationMode.TEST,
         RNG.nextDouble() < 0.3 ? null : randomVersion(),
         RNG.nextDouble() < 0.3 ? null : randomAlpha(3, 10),
-        RNG.nextDouble() < 0.3 ? null : randomVersion());
+        RNG.nextDouble() < 0.3 ? null : randomVersion(),
+        randomPathList(0, 3));
   }
 
   private static List<Path> randomPathList(int min, int max) {

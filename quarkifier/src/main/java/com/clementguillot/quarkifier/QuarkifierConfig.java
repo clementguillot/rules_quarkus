@@ -16,6 +16,7 @@ import java.util.regex.Pattern;
  * @param mode NORMAL or TEST
  * @param expectedQuarkusVersion expected Quarkus version for mismatch warnings (may be {@code
  *     null})
+ * @param sourceDirs source directories for hot-reload in dev mode (comma-separated on CLI)
  */
 public record QuarkifierConfig(
     List<Path> applicationClasspath,
@@ -26,7 +27,8 @@ public record QuarkifierConfig(
     AugmentationMode mode,
     String expectedQuarkusVersion,
     String appName,
-    String appVersion) {
+    String appVersion,
+    List<Path> sourceDirs) {
 
   private static final String USAGE =
       """
@@ -36,8 +38,9 @@ public record QuarkifierConfig(
               --output-dir <path> \\
               [--application-properties <path>] \\
               [--resources <path,path,...>] \\
-              [--mode normal|test] \\
-              [--expected-quarkus-version <version>]""";
+              [--mode normal|test|dev] \\
+              [--expected-quarkus-version <version>] \\
+              [--source-dirs <dir,dir,...>]""";
 
   /**
    * Parses CLI arguments into an {@link QuarkifierConfig}.
@@ -58,6 +61,7 @@ public record QuarkifierConfig(
     String expectedVersion = null;
     String appName = null;
     String appVersion = null;
+    String sourceDirs = null;
 
     for (int i = 0; i < args.length; i++) {
       switch (args[i]) {
@@ -70,6 +74,7 @@ public record QuarkifierConfig(
         case "--expected-quarkus-version" -> expectedVersion = requireValue(args, ++i, args[i - 1]);
         case "--app-name" -> appName = requireValue(args, ++i, args[i - 1]);
         case "--app-version" -> appVersion = requireValue(args, ++i, args[i - 1]);
+        case "--source-dirs" -> sourceDirs = requireValue(args, ++i, args[i - 1]);
         default -> throw new InvalidArgumentsException("Unknown argument: " + args[i]);
       }
     }
@@ -100,7 +105,8 @@ public record QuarkifierConfig(
         parsedMode,
         expectedVersion,
         appName,
-        appVersion);
+        appVersion,
+        sourceDirs != null ? splitPaths(sourceDirs, ",") : List.of());
   }
 
   /**
@@ -145,6 +151,11 @@ public record QuarkifierConfig(
     if (appVersion != null) {
       list.add("--app-version");
       list.add(appVersion);
+    }
+
+    if (!sourceDirs.isEmpty()) {
+      list.add("--source-dirs");
+      list.add(joinPaths(sourceDirs, ","));
     }
 
     return list.toArray(String[]::new);

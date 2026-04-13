@@ -54,6 +54,13 @@ public final class AugmentationExecutor {
           buildApplicationModel(
               appJar, runtimeJars, deployCp, config.appName(), config.appVersion());
 
+      // DEV mode: delegate to DevModeLauncher which starts IsolatedDevModeMain
+      // with full Dev UI and hot-reload support (CLE-5).
+      if (config.mode() == AugmentationMode.DEV) {
+        DevModeLauncher.launch(config, appModel);
+        return; // DevModeLauncher blocks until shutdown
+      }
+
       var buildProps = new java.util.Properties();
       buildProps.setProperty(
           "platform.quarkus.native.builder-image",
@@ -89,7 +96,10 @@ public final class AugmentationExecutor {
         ClassLoader originalTccl = Thread.currentThread().getContextClassLoader();
         try {
           Thread.currentThread().setContextClassLoader(augmentCl);
+
           AugmentAction action = (AugmentAction) ctor.newInstance(curatedApp);
+
+          // Production/test mode: create the packaged application
           AugmentResult result = action.createProductionApplication();
           if (result == null) {
             throw new AugmentationException(
@@ -336,7 +346,7 @@ public final class AugmentationExecutor {
    * Builds an {@link ApplicationModel} from classpath jars, detecting Quarkus extensions and
    * setting the appropriate dependency flags.
    */
-  private static ApplicationModel buildApplicationModel(
+  static ApplicationModel buildApplicationModel(
       Path appJar,
       List<Path> runtimeJars,
       List<Path> deployClasspath,
@@ -349,6 +359,85 @@ public final class AugmentationExecutor {
     setAppArtifact(modelBuilder, appJar, appName, appVersion);
     Set<ArtifactKey> addedKeys = addRuntimeDependencies(modelBuilder, runtimeJars, extensionJars);
     addDeploymentDependencies(modelBuilder, deployClasspath, addedKeys);
+
+    // Mark bootstrap and infrastructure jars as parent-first so the augment
+    // classloader delegates to the parent for them. This prevents LinkageError
+    // and ClassCastException. We must NOT mark runtime extension jars (like
+    // smallrye-config, arc) as parent-first because the generated CDI proxies
+    // need to access them from the same classloader.
+    Set<String> parentFirstArtifactIds = Set.of(
+        // Bootstrap infrastructure
+        "quarkus-bootstrap-core", "quarkus-bootstrap-app-model",
+        "quarkus-bootstrap-runner", "quarkus-classloader-commons",
+        "quarkus-development-mode-spi", "quarkus-fs-util",
+        "quarkus-bootstrap-maven-resolver",
+        // Core (needed by IsolatedDevModeMain)
+        "quarkus-core",
+        // Config (loaded early by DevModeMain before augment CL is created)
+        "smallrye-config", "smallrye-config-core", "smallrye-config-common",
+        "microprofile-config-api",
+        // Logging
+        "jboss-logmanager", "jboss-logging", "slf4j-api",
+        "slf4j-jboss-logmanager", "jboss-logging-annotations",
+        // Threading
+        "jboss-threads", "wildfly-common",
+        // SmallRye common (used by config)
+        "smallrye-common-constraint", "smallrye-common-expression",
+        "smallrye-common-function", "smallrye-common-classloader",
+        "smallrye-common-io", "smallrye-common-annotation",
+        "smallrye-common-cpu", "smallrye-common-net",
+        "smallrye-common-os", "smallrye-common-ref",
+        // JSON (used by config)
+        "jakarta.json-api", "parsson",
+        // Jakarta APIs (needed parent-first so that classes like
+        // smallrye-common-annotation's Identifier$Literal, which extends
+        // jakarta.enterprise.util.AnnotationLiteral, are loaded by the same
+        // classloader — prevents VerifyError in dev mode)
+        "jakarta.enterprise.cdi-api", "jakarta.enterprise.lang-model",
+        "jakarta.inject-api", "jakarta.interceptor-api",
+        "jakarta.annotation-api", "jakarta.el-api",
+        "jakarta.transaction-api",
+        // Other infrastructure
+        "quarkus-ide-launcher", "org-crac",
+        "commons-logging-jboss-logging",
+        // Maven resolver (parent-first so QuarkusClassLoader delegates to system CL,
+        // preventing ClassCastException on RemoteRepository in the Extensions Dev UI panel)
+        "maven-resolver-api", "maven-resolver-spi", "maven-resolver-impl",
+        "maven-resolver-util", "maven-resolver-connector-basic",
+        "maven-resolver-transport-file", "maven-resolver-transport-http",
+        "maven-resolver-named-locks", "maven-resolver-supplier",
+        "maven-model", "maven-model-builder", "maven-repository-metadata",
+        "maven-builder-support", "maven-artifact",
+        "maven-settings", "maven-settings-builder"
+    );
+    for (var dep : modelBuilder.getDependencies()) {
+      if (parentFirstArtifactIds.contains(dep.getArtifactId())) {
+        modelBuilder.addParentFirstArtifact(dep.getKey());
+      }
+    }
+
+    // Workaround: handleExtensionProperties processes runner-parent-first-artifacts
+    // from quarkus-extension.properties, but the GACT keys it creates have empty type
+    // while our dependencies have type "jar". The keys don't match, so the
+    // CLASSLOADER_RUNNER_PARENT_FIRST flag is never set by buildDependencies().
+    // We fix this by manually setting the flag based on artifactId matching.
+    Set<String> runnerParentFirstArtifactIds = Set.of(
+        "quarkus-bootstrap-runner", "quarkus-classloader-commons",
+        "quarkus-development-mode-spi",
+        "jboss-logmanager", "jboss-logging",
+        "slf4j-jboss-logmanager", "slf4j-api",
+        "smallrye-common-constraint", "smallrye-common-cpu",
+        "smallrye-common-expression", "smallrye-common-function",
+        "smallrye-common-io", "smallrye-common-net",
+        "smallrye-common-os", "smallrye-common-ref",
+        "org-crac"
+    );
+    for (var dep : modelBuilder.getDependencies()) {
+      if (runnerParentFirstArtifactIds.contains(dep.getArtifactId())) {
+        dep.setFlags(DependencyFlags.CLASSLOADER_RUNNER_PARENT_FIRST);
+      }
+    }
+
     return modelBuilder.build();
   }
 
@@ -367,6 +456,19 @@ public final class AugmentationExecutor {
           }
           modelBuilder.handleExtensionProperties(
               props, ArtifactKey.ga(ext.groupId(), ext.artifactId()));
+
+          // Register extension capabilities (provides-capabilities / requires-capabilities).
+          // The Maven/Gradle resolvers do this automatically, but since we bypass them
+          // and build the ApplicationModel manually, we must do it ourselves.
+          // Without this, capabilities like VERTX_HTTP won't be available to build steps.
+          String providesCapabilities = props.getProperty("provides-capabilities");
+          String requiresCapabilities = props.getProperty("requires-capabilities");
+          if (providesCapabilities != null || requiresCapabilities != null) {
+            String compactCoords = ext.groupId() + ":" + ext.artifactId();
+            modelBuilder.addExtensionCapabilities(
+                io.quarkus.bootstrap.model.CapabilityContract.of(
+                    compactCoords, providesCapabilities, requiresCapabilities));
+          }
         }
       }
     }
@@ -439,6 +541,99 @@ public final class AugmentationExecutor {
   }
 
   /**
+   * Sets RuntimeUpdatesProcessor.INSTANCE to a minimal mock so that
+   * ConsoleStateManager.installBuiltins() doesn't NPE. The mock only
+   * needs to handle getCommandLineArgs() and setCommandLineArgs().
+   */
+  static void mockRuntimeUpdatesProcessor(ClassLoader cl) {
+    try {
+      Class<?> rupClass = cl.loadClass("io.quarkus.deployment.dev.RuntimeUpdatesProcessor");
+      var instanceField = rupClass.getDeclaredField("INSTANCE");
+      instanceField.setAccessible(true);
+
+      // If already set, don't override
+      if (instanceField.get(null) != null) return;
+
+      // Use sun.misc.Unsafe to create an instance without calling the constructor
+      // (the constructor has many required parameters we can't provide).
+      Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
+      var theUnsafe = unsafeClass.getDeclaredField("theUnsafe");
+      theUnsafe.setAccessible(true);
+      var unsafe = theUnsafe.get(null);
+      var allocateInstance = unsafeClass.getMethod("allocateInstance", Class.class);
+      var mock = allocateInstance.invoke(unsafe, rupClass);
+
+      // Set the commandLineArgs field to an empty array
+      try {
+        var argsField = rupClass.getDeclaredField("commandLineArgs");
+        argsField.setAccessible(true);
+        argsField.set(mock, new String[0]);
+      } catch (NoSuchFieldException ignored) {
+      }
+
+      // Initialize TimestampSet fields that other build steps access
+      try {
+        Class<?> tsClass = cl.loadClass("io.quarkus.deployment.dev.RuntimeUpdatesProcessor$TimestampSet");
+        var tsCtor = tsClass.getDeclaredConstructor();
+        tsCtor.setAccessible(true);
+        for (String fieldName : new String[] {"main", "test"}) {
+          try {
+            var f = rupClass.getDeclaredField(fieldName);
+            f.setAccessible(true);
+            f.set(mock, tsCtor.newInstance());
+          } catch (NoSuchFieldException ignored2) {
+          }
+        }
+      } catch (Exception ignored) {
+      }
+
+      // Initialize other fields that build steps may access
+      try {
+        var ctxField = rupClass.getDeclaredField("context");
+        ctxField.setAccessible(true);
+        if (ctxField.get(mock) == null) {
+          // Create a minimal DevModeContext
+          Class<?> dmcClass = cl.loadClass("io.quarkus.deployment.dev.DevModeContext");
+          ctxField.set(mock, dmcClass.getDeclaredConstructor().newInstance());
+        }
+      } catch (Exception ignored) {
+      }
+
+      instanceField.set(null, mock);
+    } catch (Exception ignored) {
+    }
+  }
+
+  /**
+   * Clears the static ConsoleStateManager singleton's command map.
+   * In normal dev mode, IsolatedDevModeMain uses an isolated classloader so each
+   * augmentation gets a fresh singleton. We run in the same classloader, so we
+   * need to clear the static state before each augmentation to avoid
+   * "Key already registered" errors from ConsoleProcessor build steps.
+   */
+  static void clearConsoleState(ClassLoader cl) {
+    try {
+      Class<?> csmClass = cl.loadClass("io.quarkus.deployment.console.ConsoleStateManager");
+      var instanceField = csmClass.getField("INSTANCE");
+      var instance = instanceField.get(null);
+      var commandsField = csmClass.getDeclaredField("commands");
+      commandsField.setAccessible(true);
+      ((java.util.Map<?, ?>) commandsField.get(instance)).clear();
+      var initField = csmClass.getDeclaredField("initialized");
+      initField.setAccessible(true);
+      initField.set(null, true);
+    } catch (Exception ignored) {
+    }
+    try {
+      Class<?> cpClass = cl.loadClass("io.quarkus.deployment.console.ConsoleProcessor");
+      var ciField = cpClass.getDeclaredField("consoleInstalled");
+      ciField.setAccessible(true);
+      ciField.set(null, true);
+    } catch (Exception ignored) {
+    }
+  }
+
+  /**
    * Finds the AugmentActionImpl constructor that takes a single CuratedApplication parameter.
    */
   private static java.lang.reflect.Constructor<?> findAugmentConstructor(Class<?> augmentClass)
@@ -458,6 +653,7 @@ public final class AugmentationExecutor {
     return switch (mode) {
       case NORMAL -> QuarkusBootstrap.Mode.PROD;
       case TEST -> QuarkusBootstrap.Mode.TEST;
+      case DEV -> QuarkusBootstrap.Mode.DEV;
     };
   }
 }

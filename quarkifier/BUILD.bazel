@@ -29,6 +29,93 @@ java_binary(
     runtime_deps = [":quarkifier_lib"],
 )
 
+# Dev mode bootstrap library and binary.
+#
+# This target builds the same quarkifier sources as quarkifier_lib but with a
+# MINIMAL set of compile-time dependencies.  The key constraint: the dev-bootstrap
+# jar must NOT include runtime extension jars (SmallRye Config, ArC, etc.) that
+# are also present in the ApplicationModel.  Those jars must be loaded exclusively
+# by the augment classloader so that IsolatedDevModeMain can run without
+# LinkageError (duplicate class definitions across classloaders) or VerifyError
+# (CDI proxies accessing protected methods across classloader boundaries).
+#
+# The missing deps are provided at runtime by the augment classloader from the
+# serialized ApplicationModel — this mirrors how Maven's DevMojo works.
+#
+# Verified deploy jar classpath (quarkifier_dev_bootstrap_deploy.jar):
+#
+#   CRITICAL EXCLUSION — ArC (io.quarkus.arc) is NOT bundled.  The full
+#   quarkifier_deploy.jar includes ~206 ArC classes; this jar has zero.
+#   ArC must be loaded exclusively by the augment classloader to prevent
+#   VerifyError from CDI proxies crossing classloader boundaries.
+#
+#   Expected bundled artifacts (direct + transitive):
+#     - com.clementguillot/quarkifier (this project's classes)
+#     - io.quarkus/quarkus-bootstrap-app-model
+#     - io.quarkus/quarkus-bootstrap-core
+#     - io.quarkus/quarkus-bootstrap-runner
+#     - io.quarkus/quarkus-core
+#     - io.quarkus/quarkus-core-deployment
+#     - io.quarkus/quarkus-builder, quarkus-class-change-agent,
+#       quarkus-classloader-commons, quarkus-development-mode-spi,
+#       quarkus-devtools-utilities, quarkus-fs-util,
+#       quarkus-hibernate-validator-spi, quarkus-ide-launcher
+#     - org.jboss.logmanager/jboss-logmanager
+#     - org.jboss.logging/jboss-logging, jboss-logging-annotations,
+#       commons-logging-jboss-logging
+#     - org.jboss.slf4j/slf4j-jboss-logmanager, org.slf4j/slf4j-api
+#     - io.quarkus.gizmo/gizmo, io.smallrye/jandex
+#     - io.smallrye.common/smallrye-common-* (annotation, classloader,
+#       constraint, cpu, expression, function, io, net, os, ref)
+#     - io.smallrye.config/smallrye-config, smallrye-config-common,
+#       smallrye-config-core
+#     - org.eclipse.microprofile.config/microprofile-config-api
+#     - jakarta.*/jakarta.annotation-api, jakarta.el-api,
+#       jakarta.enterprise.cdi-api, jakarta.enterprise.lang-model,
+#       jakarta.inject-api, jakarta.interceptor-api, jakarta.json-api
+#     - org.eclipse.parsson/parsson
+#     - org.aesh/aesh, readline, terminal-api
+#     - org.fusesource.jansi/jansi
+#     - org.apache.commons/commons-lang3
+#     - org.wildfly.common/wildfly-common
+#     - org.jboss.threads/jboss-threads
+#     - org.eclipse.sisu/org.eclipse.sisu.inject
+#     - io.github.crac/org-crac
+#
+#   Note: smallrye-config, smallrye-common, microprofile-config-api,
+#   parsson, and jakarta.json-api are present as transitive dependencies
+#   of quarkus-core / quarkus-core-deployment.  These are loaded
+#   parent-first by the augment classloader and do NOT cause
+#   LinkageError because they are not runtime extension jars — they are
+#   bootstrap infrastructure that quarkus-core itself requires.
+#   The critical exclusion is ArC, whose CDI proxy classes cause
+#   VerifyError when loaded on both the system and augment classloaders.
+#
+java_library(
+    name = "quarkifier_dev_bootstrap_lib",
+    srcs = glob(["src/main/java/**/*.java"]),
+    visibility = ["//quarkifier:__pkg__"],
+    deps = [
+        # Quarkus Bootstrap
+        "@maven//:io_quarkus_quarkus_bootstrap_app_model",
+        "@maven//:io_quarkus_quarkus_bootstrap_core",
+        "@maven//:io_quarkus_quarkus_bootstrap_runner",
+        # Quarkus Core + deployment (needed for DevModeMain, DevModeContext)
+        "@maven//:io_quarkus_quarkus_core",
+        "@maven//:io_quarkus_quarkus_core_deployment",
+        # Logging
+        "@maven//:org_jboss_logmanager_jboss_logmanager",
+        "@maven//:org_jboss_logging_jboss_logging",
+    ],
+)
+
+java_binary(
+    name = "quarkifier_dev_bootstrap",
+    main_class = "com.clementguillot.quarkifier.QuarkifierLauncher",
+    visibility = ["//visibility:public"],
+    runtime_deps = [":quarkifier_dev_bootstrap_lib"],
+)
+
 java_test(
     name = "quarkifier_test",
     srcs = glob(["src/test/java/**/*.java"]),
@@ -41,6 +128,8 @@ java_test(
     use_testrunner = False,
     deps = [
         ":quarkifier_lib",
+        "@maven//:io_quarkus_quarkus_bootstrap_app_model",
+        "@maven//:io_quarkus_quarkus_bootstrap_core",
         "@maven//:org_junit_jupiter_junit_jupiter",
         "@maven//:org_junit_platform_junit_platform_console_standalone",
         "@maven//:org_junit_platform_junit_platform_launcher",

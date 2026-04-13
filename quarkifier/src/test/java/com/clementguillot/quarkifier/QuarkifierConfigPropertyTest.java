@@ -22,5 +22,8 @@ class QuarkifierConfigPropertyTest {
     assertEquals(original.resources(), parsed.resources());
     assertEquals(original.mode(), parsed.mode());
     assertEquals(original.expectedQuarkusVersion(), parsed.expectedQuarkusVersion());
+    assertEquals(original.appName(), parsed.appName());
+    assertEquals(original.appVersion(), parsed.appVersion());
+    assertEquals(original.sourceDirs(), parsed.sourceDirs());
   }
 }

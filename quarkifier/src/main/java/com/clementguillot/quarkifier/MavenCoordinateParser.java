@@ -32,7 +32,15 @@ public final class MavenCoordinateParser {
    * @return parsed coordinates, or a fallback based on the filename
    */
   public static Coordinates parse(Path jarPath) {
-    String[] parts = jarPath.toString().replace('\\', '/').split("/");
+    // Try to resolve symlinks to get the original path (e.g., Coursier cache)
+    // which has the full Maven directory structure for groupId extraction.
+    Path resolvedPath = jarPath;
+    try {
+      resolvedPath = jarPath.toRealPath();
+    } catch (java.io.IOException ignored) {
+    }
+
+    String[] parts = resolvedPath.toString().replace('\\', '/').split("/");
 
     if (parts.length < 4) {
       return fallback(jarPath);
