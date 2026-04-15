@@ -11,7 +11,6 @@ import java.util.regex.Pattern;
  * @param applicationClasspath runtime jars (colon-separated on CLI)
  * @param deploymentClasspath deployment jars (colon-separated on CLI)
  * @param outputDir directory where Fast_Jar output is written
- * @param applicationProperties path to application.properties (may be {@code null})
  * @param resources additional resource paths (comma-separated on CLI)
  * @param mode NORMAL or TEST
  * @param expectedQuarkusVersion expected Quarkus version for mismatch warnings (may be {@code
@@ -22,7 +21,6 @@ public record QuarkifierConfig(
     List<Path> applicationClasspath,
     List<Path> deploymentClasspath,
     Path outputDir,
-    Path applicationProperties,
     List<Path> resources,
     AugmentationMode mode,
     String expectedQuarkusVersion,
@@ -36,7 +34,6 @@ public record QuarkifierConfig(
               --application-classpath <jar:jar:...> \\
               --deployment-classpath <jar:jar:...> \\
               --output-dir <path> \\
-              [--application-properties <path>] \\
               [--resources <path,path,...>] \\
               [--mode normal|test|dev] \\
               [--expected-quarkus-version <version>] \\
@@ -55,7 +52,6 @@ public record QuarkifierConfig(
     String appCp = null;
     String deployCp = null;
     String outputDir = null;
-    String appProps = null;
     String resources = null;
     String mode = null;
     String expectedVersion = null;
@@ -68,7 +64,6 @@ public record QuarkifierConfig(
         case "--application-classpath" -> appCp = requireValue(args, ++i, args[i - 1]);
         case "--deployment-classpath" -> deployCp = requireValue(args, ++i, args[i - 1]);
         case "--output-dir" -> outputDir = requireValue(args, ++i, args[i - 1]);
-        case "--application-properties" -> appProps = requireValue(args, ++i, args[i - 1]);
         case "--resources" -> resources = requireValue(args, ++i, args[i - 1]);
         case "--mode" -> mode = requireValue(args, ++i, args[i - 1]);
         case "--expected-quarkus-version" -> expectedVersion = requireValue(args, ++i, args[i - 1]);
@@ -100,7 +95,6 @@ public record QuarkifierConfig(
         splitPaths(appCp, ":"),
         splitPaths(deployCp, ":"),
         Path.of(outputDir),
-        appProps != null ? Path.of(appProps) : null,
         resources != null ? splitPaths(resources, ",") : List.of(),
         parsedMode,
         expectedVersion,
@@ -124,11 +118,6 @@ public record QuarkifierConfig(
 
     list.add("--output-dir");
     list.add(outputDir.toString());
-
-    if (applicationProperties != null) {
-      list.add("--application-properties");
-      list.add(applicationProperties.toString());
-    }
 
     if (!resources.isEmpty()) {
       list.add("--resources");

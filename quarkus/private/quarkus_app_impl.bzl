@@ -88,7 +88,6 @@ def _quarkus_app_impl(ctx):
             application_classpath = runtime_classpath,
             source_dirs = source_dirs,
             quarkus_version = ctx.attr.quarkus_version,
-            application_properties = None,
         ),
     ]
 

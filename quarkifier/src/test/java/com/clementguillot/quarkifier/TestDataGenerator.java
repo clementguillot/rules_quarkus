@@ -23,7 +23,6 @@ final class TestDataGenerator {
         randomPathList(1, 5),
         randomPathList(1, 5),
         randomSafePath(),
-        RNG.nextDouble() < 0.3 ? null : randomSafePath(),
         randomPathList(0, 3),
         RNG.nextBoolean() ? AugmentationMode.NORMAL : AugmentationMode.TEST,
         RNG.nextDouble() < 0.3 ? null : randomVersion(),
