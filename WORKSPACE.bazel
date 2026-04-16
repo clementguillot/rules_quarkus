@@ -1,1 +1,2 @@
 # Marker that this is the root of a Bazel workspace.
+workspace(name = "com_clementguillot_rules_quarkus")
