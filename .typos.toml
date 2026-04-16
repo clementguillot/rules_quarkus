@@ -2,3 +2,11 @@
 
 [default.extend-words]
 vertx = "vertx"
+
+[default]
+extend-ignore-re = [
+    # Ignore any string containing *.vertx. or *.vertx: (Vert.x Java packages, Maven coords, etc.)
+    "[a-zA-Z0-9_.]*\\.vertx[.:][a-zA-Z0-9_.:]*",
+    # Ignore any string containing -vertx, optionally followed by -* (Vert.x artifact names, etc.)
+    "([a-zA-Z0-9_-]*-)?vertx(-[a-zA-Z0-9_-]*)?",
+]
