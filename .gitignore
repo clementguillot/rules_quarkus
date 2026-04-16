@@ -4,3 +4,4 @@ bazel-*
 .ijwb/
 .bazelbsp/
 .DS_Store
+e2e/smoke/MODULE.bazel.lock

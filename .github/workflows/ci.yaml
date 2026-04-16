@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref_name != 'main' }}
 jobs:
   test:
-    uses: bazel-contrib/.github/.github/workflows/bazel.yaml@v6
+    uses: bazel-contrib/.github/.github/workflows/bazel.yaml@v7.4.0
     with:
       folders: |
         [
@@ -25,8 +25,12 @@ jobs:
       exclude: |
         [
           {"folder": ".", "bzlmodEnabled": false},
-          {"folder": ".", "bazelVersion": "6.4.0"}
+          {"os": "macos-latest"},
+          {"os": "windows-latest"}
         ]
+      bazel_versions: |
+        ["7.x", "8.x", "9.x"]
+      bazel_test_command: bazel test //... --lockfile_mode=off
   pre-commit:
     runs-on: ubuntu-latest
     steps:
