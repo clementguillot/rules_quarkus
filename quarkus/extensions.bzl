@@ -135,10 +135,12 @@ def _quarkus_quarkifier_local_build_repo_impl(rctx):
 
     rctx.symlink(deploy_jar, "tool/quarkifier.jar")
 
-    # Symlink the dev bootstrap jar
+    # Symlink the dev bootstrap jar (required for quarkus_dev rule)
     dev_result = rctx.execute(["test", "-f", dev_jar])
-    if dev_result.return_code == 0:
-        rctx.symlink(dev_jar, "tool/quarkifier_dev.jar")
+    if dev_result.return_code != 0:
+        fail("Quarkifier dev bootstrap jar not found at: {}\n".format(dev_jar))
+
+    rctx.symlink(dev_jar, "tool/quarkifier_dev.jar")
 
     rctx.file("BUILD.bazel", content = """\
 package(default_visibility = ["//visibility:public"])
