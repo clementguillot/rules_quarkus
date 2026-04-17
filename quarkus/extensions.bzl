@@ -75,29 +75,67 @@ _quarkus_quarkifier_download_repo = repository_rule(
 )
 
 def _quarkus_quarkifier_local_build_repo_impl(rctx):
-    """Symlinks quarkifier deploy jars from a local workspace's bazel-bin.
+    """Builds and symlinks quarkifier deploy jars from a local workspace.
 
-    Expects the deploy jars to have been built already in the source workspace.
-    Symlinks both the regular quarkifier and the dev bootstrap jar (if it exists)
-    into a single repo so consumers only need one use_repo() entry.
+    When quarkifier_source_dir is set (local development), this rule
+    automatically builds the deploy jars if they don't exist, then symlinks
+    them. Requires matching Bazel versions between the source and consumer
+    workspaces (both should use the same .bazelversion).
     """
 
-    # Resolve the label to get the absolute path of the source workspace
-    src_workspace = str(rctx.path(rctx.attr.source_dir).dirname)
-    deploy_jar = src_workspace + "/bazel-bin/quarkifier/quarkifier_deploy.jar"
+    # Resolve the label to get the absolute path of the source workspace.
+    # Use realpath to resolve symlinks (local_path_override uses symlinks).
+    src_workspace_raw = str(rctx.path(rctx.attr.source_dir).dirname)
+    realpath_result = rctx.execute(["realpath", src_workspace_raw])
+    src_workspace = realpath_result.stdout.strip() if realpath_result.return_code == 0 else src_workspace_raw
 
-    # Check if the deploy jar exists
+    # Resolve the actual bazel-bin path using 'bazel info' instead of relying
+    # on the bazel-bin convenience symlink (which may not exist after clean).
+    bin_result = rctx.execute(
+        ["bazel", "info", "bazel-bin"],
+        working_directory = src_workspace,
+        timeout = 60,
+    )
+    if bin_result.return_code == 0:
+        bazel_bin = bin_result.stdout.strip()
+    else:
+        bazel_bin = src_workspace + "/bazel-bin"
+
+    deploy_jar = bazel_bin + "/quarkifier/quarkifier_deploy.jar"
+    dev_jar = bazel_bin + "/quarkifier/quarkifier_dev_bootstrap_deploy.jar"
+
+    # Auto-build if either jar is missing
+    prod_exists = rctx.execute(["test", "-f", deploy_jar]).return_code == 0
+    dev_exists = rctx.execute(["test", "-f", dev_jar]).return_code == 0
+
+    if not prod_exists or not dev_exists:
+        rctx.report_progress("Building quarkifier deploy jars from source...")
+        build_result = rctx.execute(
+            [
+                "bazel",
+                "build",
+                "//quarkifier:quarkifier_deploy.jar",
+                "//quarkifier:quarkifier_dev_bootstrap_deploy.jar",
+            ],
+            working_directory = src_workspace,
+            timeout = 300,
+        )
+        if build_result.return_code != 0:
+            fail(
+                "Failed to build quarkifier deploy jars in {}:\n{}".format(
+                    src_workspace,
+                    build_result.stderr,
+                ),
+            )
+
+    # Verify the jars exist after build
     result = rctx.execute(["test", "-f", deploy_jar])
     if result.return_code != 0:
-        fail(
-            "Quarkifier deploy jar not found at: {}\n".format(deploy_jar) +
-            "Please build it first: cd {} && bazel build //quarkifier:quarkifier_deploy.jar".format(src_workspace),
-        )
+        fail("Quarkifier deploy jar not found at: {}\n".format(deploy_jar))
 
     rctx.symlink(deploy_jar, "tool/quarkifier.jar")
 
-    # Also symlink the dev bootstrap jar if it exists
-    dev_jar = src_workspace + "/bazel-bin/quarkifier/quarkifier_dev_bootstrap_deploy.jar"
+    # Symlink the dev bootstrap jar
     dev_result = rctx.execute(["test", "-f", dev_jar])
     if dev_result.return_code == 0:
         rctx.symlink(dev_jar, "tool/quarkifier_dev.jar")
