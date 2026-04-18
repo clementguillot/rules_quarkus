@@ -23,7 +23,6 @@ load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_dev_impl.bzl", 
 
 _QUARKUS_VERSION = "{version}"
 _QUARKIFIER_TOOL = "{tool}"
-_QUARKIFIER_DEV_TOOL = "{dev_tool}"
 _DEPLOYMENT_DEPS = "@quarkus_deployment//:all"
 
 def quarkus_app(name, **kwargs):
@@ -39,21 +38,19 @@ def quarkus_dev(name, **kwargs):
     quarkus_dev_rule(
         name = name,
         quarkus_version = _QUARKUS_VERSION,
-        quarkifier_tool = _QUARKIFIER_DEV_TOOL,
+        quarkifier_tool = _QUARKIFIER_TOOL,
         deployment_deps = _DEPLOYMENT_DEPS,
         **kwargs
     )
 """.format(
         version = rctx.attr.quarkus_version,
         tool = rctx.attr.quarkifier_tool,
-        dev_tool = rctx.attr.quarkifier_dev_tool,
     ))
 
 _quarkus_toolchains_repo = repository_rule(
     implementation = _quarkus_toolchains_repo_impl,
     attrs = {
         "quarkifier_tool": attr.string(mandatory = True),
-        "quarkifier_dev_tool": attr.string(mandatory = True),
         "quarkus_version": attr.string(mandatory = True),
     },
 )
@@ -75,11 +72,11 @@ _quarkus_quarkifier_download_repo = repository_rule(
 )
 
 def _quarkus_quarkifier_local_build_repo_impl(rctx):
-    """Builds and symlinks quarkifier deploy jars from a local workspace.
+    """Builds and symlinks the quarkifier deploy jar from a local workspace.
 
     When quarkifier_source_dir is set (local development), this rule
-    automatically builds the deploy jars if they don't exist, then symlinks
-    them. Requires matching Bazel versions between the source and consumer
+    automatically builds the deploy jar if it doesn't exist, then symlinks
+    it. Requires matching Bazel versions between the source and consumer
     workspaces (both should use the same .bazelversion).
     """
 
@@ -102,49 +99,39 @@ def _quarkus_quarkifier_local_build_repo_impl(rctx):
         bazel_bin = src_workspace + "/bazel-bin"
 
     deploy_jar = bazel_bin + "/quarkifier/quarkifier_deploy.jar"
-    dev_jar = bazel_bin + "/quarkifier/quarkifier_dev_bootstrap_deploy.jar"
 
-    # Auto-build if either jar is missing
+    # Auto-build if the jar is missing
     prod_exists = rctx.execute(["test", "-f", deploy_jar]).return_code == 0
-    dev_exists = rctx.execute(["test", "-f", dev_jar]).return_code == 0
 
-    if not prod_exists or not dev_exists:
-        rctx.report_progress("Building quarkifier deploy jars from source...")
+    if not prod_exists:
+        rctx.report_progress("Building quarkifier deploy jar from source...")
         build_result = rctx.execute(
             [
                 "bazel",
                 "build",
                 "//quarkifier:quarkifier_deploy.jar",
-                "//quarkifier:quarkifier_dev_bootstrap_deploy.jar",
             ],
             working_directory = src_workspace,
             timeout = 300,
         )
         if build_result.return_code != 0:
             fail(
-                "Failed to build quarkifier deploy jars in {}:\n{}".format(
+                "Failed to build quarkifier deploy jar in {}:\n{}".format(
                     src_workspace,
                     build_result.stderr,
                 ),
             )
 
-    # Verify the jars exist after build
+    # Verify the jar exists after build
     result = rctx.execute(["test", "-f", deploy_jar])
     if result.return_code != 0:
         fail("Quarkifier deploy jar not found at: {}\n".format(deploy_jar))
 
     rctx.symlink(deploy_jar, "tool/quarkifier.jar")
 
-    # Symlink the dev bootstrap jar (required for quarkus_dev rule)
-    dev_result = rctx.execute(["test", "-f", dev_jar])
-    if dev_result.return_code != 0:
-        fail("Quarkifier dev bootstrap jar not found at: {}\n".format(dev_jar))
-
-    rctx.symlink(dev_jar, "tool/quarkifier_dev.jar")
-
     rctx.file("BUILD.bazel", content = """\
 package(default_visibility = ["//visibility:public"])
-exports_files(["tool/quarkifier.jar", "tool/quarkifier_dev.jar"])
+exports_files(["tool/quarkifier.jar"])
 """)
 
 _quarkus_quarkifier_local_build_repo = repository_rule(
@@ -254,18 +241,9 @@ def _quarkus_impl(mctx):
         )
         tool_target = "@rules_quarkus_quarkifier//:tool/quarkifier.jar"
 
-    # Resolve dev bootstrap tool for quarkus_dev (minimal jar without ArC).
-    # When using a local source build, both jars live in the same repo.
-    # Otherwise, fall back to the regular quarkifier tool.
-    if tc.quarkifier_source_dir:
-        dev_tool_target = "@rules_quarkus_quarkifier//:tool/quarkifier_dev.jar"
-    else:
-        dev_tool_target = tool_target
-
     _quarkus_toolchains_repo(
         name = "rules_quarkus_toolchains",
         quarkifier_tool = tool_target,
-        quarkifier_dev_tool = dev_tool_target,
         quarkus_version = version,
     )
 

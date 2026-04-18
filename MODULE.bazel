@@ -34,11 +34,20 @@ bazel_dep(name = "bazel_skylib", version = "1.4.1")
 bazel_dep(name = "package_metadata", version = "0.0.5")
 bazel_dep(name = "platforms", version = "0.0.5")
 
-bazel_dep(name = "gazelle", version = "0.40.0", dev_dependency = True, repo_name = "bazel_gazelle")
-bazel_dep(name = "bazel_skylib_gazelle_plugin", version = "1.4.1", dev_dependency = True)
+bazel_dep(name = "gazelle", version = "0.50.0", dev_dependency = True, repo_name = "bazel_gazelle")
+bazel_dep(name = "bazel_skylib_gazelle_plugin", version = "1.9.0", dev_dependency = True)
 bazel_dep(name = "bazel_lib", version = "3.0.0", dev_dependency = True)
 bazel_dep(name = "buildifier_prebuilt", version = "6.1.2", dev_dependency = True)
 
+# Fix bazel 9.x issues
+bazel_dep(name = "rules_cc", version = "0.2.17", dev_dependency = True)
+bazel_dep(name = "rules_android", version = "0.7.1", dev_dependency = True, repo_name = "rules_android")
+bazel_dep(name = "rules_go", version = "0.60.0", dev_dependency = True, repo_name = "rules_go")
+
+go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk", dev_dependency = True)
+go_sdk.download(version = "1.24.12")
+
+# JVM dependencies
 bazel_dep(name = "rules_java", version = "9.6.1")
 
 bazel_dep(name = "rules_jvm_external", version = "6.10", dev_dependency = True)
