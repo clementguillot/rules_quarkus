@@ -4,7 +4,11 @@
 
 If you are using [devcontainers](https://code.visualstudio.com/docs/devcontainers/containers)
 and/or [codespaces](https://github.com/features/codespaces) then you can start
-contributing immediately and skip the next step.
+contributing immediately and skip the environment setup.
+
+## Developer On-Boarding
+
+For building, testing, project structure, and working with the examples workspace, see the [Developer Guide](docs/developer-guide.md).
 
 ## Formatting
 
@@ -64,3 +68,10 @@ then: tag the repo and push the tag, for example
 ```
 
 Then watch the automation run on GitHub actions which creates the release.
+
+## Architecture Reference
+
+For deeper understanding of the system design, see:
+- [Architecture Overview](docs/architecture.md) — three-layer architecture, module extension, build flow
+- [Quarkifier Tool Reference](docs/quarkifier.md) — CLI, pipeline, ApplicationModel construction
+- [Dev Mode & Dev UI Integration](docs/dev-mode.md) — classloader isolation, subprocess approach, known bugs
