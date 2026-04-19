@@ -1,4 +1,4 @@
-package com.clementguillot.quarkifier;
+package com.clementguillot.quarkifier.extension;
 
 import java.nio.file.Path;
 

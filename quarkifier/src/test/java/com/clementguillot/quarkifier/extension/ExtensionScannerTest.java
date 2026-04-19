@@ -1,4 +1,4 @@
-package com.clementguillot.quarkifier;
+package com.clementguillot.quarkifier.extension;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -73,7 +73,7 @@ class ExtensionScannerTest {
     assertNotNull(info);
     assertEquals("io.quarkus", info.groupId());
     assertEquals("quarkus-arc", info.artifactId());
-    assertEquals("jar", info.version()); // 3rd part is version regardless of format
+    assertEquals("jar", info.version());
   }
 
   @Test
@@ -111,8 +111,6 @@ class ExtensionScannerTest {
     assertEquals("quarkus-arc", results.get(0).artifactId());
     assertEquals("quarkus-resteasy-reactive", results.get(1).artifactId());
   }
-
-  // --- helpers ---
 
   private static Path createExtensionJar(Path dir, String name, String gav) throws IOException {
     Path jarPath = dir.resolve(name);

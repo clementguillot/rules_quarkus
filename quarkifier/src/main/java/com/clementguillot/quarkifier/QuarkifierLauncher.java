@@ -1,5 +1,11 @@
 package com.clementguillot.quarkifier;
 
+import com.clementguillot.quarkifier.augmentation.AugmentationExecutor;
+import com.clementguillot.quarkifier.extension.DeploymentArtifactResolver;
+import com.clementguillot.quarkifier.extension.ExtensionInfo;
+import com.clementguillot.quarkifier.extension.ExtensionScanner;
+import com.clementguillot.quarkifier.extension.MissingDeploymentArtifactException;
+import com.clementguillot.quarkifier.maven.VersionChecker;
 import java.io.IOException;
 import java.util.List;
 
@@ -29,7 +35,7 @@ public final class QuarkifierLauncher {
       System.err.println(QuarkifierConfig.usage());
       System.err.println("Error: " + e.getMessage());
       System.exit(2);
-      return; // unreachable, but keeps the compiler happy
+      return;
     }
 
     // 2. Scan application classpath for Quarkus extensions
@@ -55,9 +61,9 @@ public final class QuarkifierLauncher {
     // 4. Check version mismatches (warnings only, don't exit)
     VersionChecker.check(extensions, config.expectedQuarkusVersion());
 
-    // 5. Execute augmentation
+    // 5. Execute augmentation (pass extensions to avoid duplicate scanning)
     try {
-      AugmentationExecutor.execute(config);
+      AugmentationExecutor.execute(config, extensions);
     } catch (AugmentationException e) {
       e.printStackTrace(System.err);
       System.exit(1);

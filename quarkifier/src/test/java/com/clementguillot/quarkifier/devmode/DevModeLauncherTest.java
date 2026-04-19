@@ -1,7 +1,9 @@
-package com.clementguillot.quarkifier;
+package com.clementguillot.quarkifier.devmode;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.clementguillot.quarkifier.AugmentationMode;
+import com.clementguillot.quarkifier.QuarkifierConfig;
 import io.quarkus.bootstrap.app.QuarkusBootstrap;
 import io.quarkus.bootstrap.model.ApplicationModel;
 import io.quarkus.bootstrap.model.ApplicationModelBuilder;
@@ -54,7 +56,6 @@ class DevModeLauncherTest {
             .collect(Collectors.toSet());
     var expectedPaths =
         sourceDirs.stream().map(Path::toAbsolutePath).collect(Collectors.toSet());
-    // PathList.from() converts paths; verify the source dirs are present
     assertEquals(expectedPaths.size(), actualPaths.size());
     for (Path expected : expectedPaths) {
       assertTrue(
@@ -71,12 +72,10 @@ class DevModeLauncherTest {
     var context = DevModeLauncher.buildDevModeContext(config, appModel);
 
     assertNotNull(context.getApplicationRoot());
-    // Empty source dirs → empty source paths in ModuleInfo
     var sourcePaths = context.getApplicationRoot().getMain().getSourcePaths();
     assertTrue(
         sourcePaths == null || !sourcePaths.iterator().hasNext(),
         "Expected empty source paths but got: " + sourcePaths);
-    // Context should still be valid
     assertEquals(QuarkusBootstrap.Mode.DEV, context.getMode());
     assertNotNull(context.getProjectDir());
   }
@@ -119,9 +118,7 @@ class DevModeLauncherTest {
     var context = DevModeLauncher.buildDevModeContext(config, appModel);
 
     assertEquals("my-app", context.getBaseName());
-    assertEquals(
-        config.outputDir().toAbsolutePath().toFile(),
-        context.getProjectDir());
+    assertEquals(config.outputDir().toAbsolutePath().toFile(), context.getProjectDir());
     assertEquals(
         config.outputDir().toAbsolutePath().toString(),
         context.getApplicationRoot().getTargetDir());

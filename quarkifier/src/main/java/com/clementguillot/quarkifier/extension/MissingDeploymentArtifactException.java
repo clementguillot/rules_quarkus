@@ -1,4 +1,4 @@
-package com.clementguillot.quarkifier;
+package com.clementguillot.quarkifier.extension;
 
 /**
  * Thrown when a Quarkus extension's corresponding {@code -deployment} artifact cannot be found on
@@ -9,9 +9,6 @@ package com.clementguillot.quarkifier;
  * repository.
  */
 public final class MissingDeploymentArtifactException extends RuntimeException {
-
-  private final String missingDeploymentArtifactId;
-  private final String originatingExtensionArtifactId;
 
   /**
    * @param missingDeploymentArtifactId the deployment artifact that was expected (e.g. {@code
@@ -27,15 +24,5 @@ public final class MissingDeploymentArtifactException extends RuntimeException {
             + "' required by extension '"
             + originatingExtensionArtifactId
             + "'");
-    this.missingDeploymentArtifactId = missingDeploymentArtifactId;
-    this.originatingExtensionArtifactId = originatingExtensionArtifactId;
-  }
-
-  public String getMissingDeploymentArtifactId() {
-    return missingDeploymentArtifactId;
-  }
-
-  public String getOriginatingExtensionArtifactId() {
-    return originatingExtensionArtifactId;
   }
 }

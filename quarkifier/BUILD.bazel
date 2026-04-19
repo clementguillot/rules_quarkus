@@ -35,6 +35,9 @@ java_test(
     args = [
         "execute",
         "--select-package=com.clementguillot.quarkifier",
+        "--select-package=com.clementguillot.quarkifier.extension",
+        "--select-package=com.clementguillot.quarkifier.maven",
+        "--select-package=com.clementguillot.quarkifier.devmode",
         "--fail-if-no-tests",
     ],
     main_class = "org.junit.platform.console.ConsoleLauncher",

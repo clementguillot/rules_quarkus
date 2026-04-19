@@ -1,10 +1,9 @@
-package com.clementguillot.quarkifier;
+package com.clementguillot.quarkifier.extension;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /** Unit tests for {@link DeploymentArtifactResolver}. */
@@ -26,20 +25,19 @@ class DeploymentArtifactResolverTest {
   @Test
   void resolveAll_singleExtension() {
     var ext =
-        new ExtensionInfo("io.quarkus", "quarkus-arc", "3.20.6", Path.of("quarkus-arc-3.20.6.jar"));
+        new ExtensionInfo(
+            "io.quarkus", "quarkus-arc", "3.20.6", Path.of("quarkus-arc-3.20.6.jar"));
     Path deployJar = Path.of("lib/quarkus-arc-deployment-3.20.6.jar");
 
-    Map<ExtensionInfo, Path> result =
-        DeploymentArtifactResolver.resolveAll(List.of(ext), List.of(deployJar));
-
-    assertEquals(1, result.size());
-    assertEquals(deployJar, result.get(ext));
+    assertDoesNotThrow(
+        () -> DeploymentArtifactResolver.resolveAll(List.of(ext), List.of(deployJar)));
   }
 
   @Test
   void resolveAll_multipleExtensions() {
     var arc =
-        new ExtensionInfo("io.quarkus", "quarkus-arc", "3.20.6", Path.of("quarkus-arc-3.20.6.jar"));
+        new ExtensionInfo(
+            "io.quarkus", "quarkus-arc", "3.20.6", Path.of("quarkus-arc-3.20.6.jar"));
     var resteasy =
         new ExtensionInfo(
             "io.quarkus",
@@ -50,19 +48,17 @@ class DeploymentArtifactResolverTest {
     Path arcDeploy = Path.of("lib/quarkus-arc-deployment-3.20.6.jar");
     Path resteasyDeploy = Path.of("lib/quarkus-resteasy-reactive-deployment-3.20.6.jar");
 
-    Map<ExtensionInfo, Path> result =
-        DeploymentArtifactResolver.resolveAll(
-            List.of(arc, resteasy), List.of(arcDeploy, resteasyDeploy));
-
-    assertEquals(2, result.size());
-    assertEquals(arcDeploy, result.get(arc));
-    assertEquals(resteasyDeploy, result.get(resteasy));
+    assertDoesNotThrow(
+        () ->
+            DeploymentArtifactResolver.resolveAll(
+                List.of(arc, resteasy), List.of(arcDeploy, resteasyDeploy)));
   }
 
   @Test
   void resolveAll_missingDeploymentArtifact_throws() {
     var ext =
-        new ExtensionInfo("io.quarkus", "quarkus-arc", "3.20.6", Path.of("quarkus-arc-3.20.6.jar"));
+        new ExtensionInfo(
+            "io.quarkus", "quarkus-arc", "3.20.6", Path.of("quarkus-arc-3.20.6.jar"));
     assertThrows(
         MissingDeploymentArtifactException.class,
         () -> DeploymentArtifactResolver.resolveAll(List.of(ext), List.of()));
@@ -71,7 +67,8 @@ class DeploymentArtifactResolverTest {
   @Test
   void resolveAll_missingDeploymentArtifact_messageContainsBothIds() {
     var ext =
-        new ExtensionInfo("io.quarkus", "quarkus-arc", "3.20.6", Path.of("quarkus-arc-3.20.6.jar"));
+        new ExtensionInfo(
+            "io.quarkus", "quarkus-arc", "3.20.6", Path.of("quarkus-arc-3.20.6.jar"));
 
     var ex =
         assertThrows(
@@ -84,13 +81,14 @@ class DeploymentArtifactResolverTest {
 
   @Test
   void resolveAll_emptyExtensionList() {
-    assertEquals(0, DeploymentArtifactResolver.resolveAll(List.of(), List.of()).size());
+    assertDoesNotThrow(() -> DeploymentArtifactResolver.resolveAll(List.of(), List.of()));
   }
 
   @Test
   void resolveAll_partialMatch_firstMissing() {
     var arc =
-        new ExtensionInfo("io.quarkus", "quarkus-arc", "3.20.6", Path.of("quarkus-arc-3.20.6.jar"));
+        new ExtensionInfo(
+            "io.quarkus", "quarkus-arc", "3.20.6", Path.of("quarkus-arc-3.20.6.jar"));
     var resteasy =
         new ExtensionInfo(
             "io.quarkus",

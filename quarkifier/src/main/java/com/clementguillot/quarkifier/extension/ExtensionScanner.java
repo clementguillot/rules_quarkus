@@ -1,4 +1,4 @@
-package com.clementguillot.quarkifier;
+package com.clementguillot.quarkifier.extension;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,11 +44,6 @@ public final class ExtensionScanner {
     return Collections.unmodifiableList(extensions);
   }
 
-  /**
-   * Scans a single jar for Quarkus extension metadata.
-   *
-   * @return the extension info, or {@code null} if the jar is not a Quarkus extension
-   */
   private static ExtensionInfo scanJar(Path jarPath) throws IOException {
     try (JarFile jarFile = new JarFile(jarPath.toFile())) {
       ZipEntry entry = jarFile.getEntry(EXTENSION_PROPERTIES_PATH);
@@ -71,7 +66,7 @@ public final class ExtensionScanner {
    *
    * @return the extension info, or {@code null} if the property is missing or malformed
    */
-  static ExtensionInfo parseDeploymentArtifact(Properties props, Path sourceJar) {
+  public static ExtensionInfo parseDeploymentArtifact(Properties props, Path sourceJar) {
     String gav = props.getProperty(DEPLOYMENT_ARTIFACT_KEY);
     if (gav == null || gav.isBlank()) {
       return null;
@@ -86,7 +81,6 @@ public final class ExtensionScanner {
     String deploymentArtifactId = parts[1];
     String version = parts[2];
 
-    // Derive the runtime artifact ID by stripping the -deployment suffix
     String artifactId =
         deploymentArtifactId.endsWith(DEPLOYMENT_SUFFIX)
             ? deploymentArtifactId.substring(

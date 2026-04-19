@@ -1,5 +1,8 @@
-package com.clementguillot.quarkifier;
+package com.clementguillot.quarkifier.devmode;
 
+import com.clementguillot.quarkifier.AugmentationException;
+import com.clementguillot.quarkifier.QuarkifierConfig;
+import com.clementguillot.quarkifier.maven.MavenCoordinateParser;
 import io.quarkus.bootstrap.BootstrapConstants;
 import io.quarkus.bootstrap.app.QuarkusBootstrap;
 import io.quarkus.bootstrap.model.ApplicationModel;
@@ -10,13 +13,14 @@ import io.quarkus.maven.dependency.ArtifactKey;
 import io.quarkus.paths.PathList;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
-import java.io.FileOutputStream;
 import java.io.ObjectOutputStream;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
@@ -47,29 +51,26 @@ public final class DevModeLauncher {
     try {
       DevModeContext context = buildDevModeContext(config, appModel);
 
-      // 1. Serialize the ApplicationModel to a temp file
       Path serializedModel = BootstrapUtils.serializeAppModel(appModel, false);
+      Path devJar =
+          createDevJar(context, config.deploymentClasspath(), config.applicationClasspath());
 
-      // 2. Create the dev jar (like Maven's DevMojo / DevModeCommandLineBuilder)
-      Path devJar = createDevJar(context, config.deploymentClasspath(),
-          config.applicationClasspath());
-
-      // 3. Build the java command
       String javaBin = System.getProperty("java.home") + "/bin/java";
       List<String> cmd = new ArrayList<>();
       cmd.add(javaBin);
       cmd.add("-Djava.util.logging.manager=org.jboss.logmanager.LogManager");
-      cmd.add("-D" + BootstrapConstants.SERIALIZED_APP_MODEL + "="
-          + serializedModel.toAbsolutePath());
+      cmd.add(
+          "-D"
+              + BootstrapConstants.SERIALIZED_APP_MODEL
+              + "="
+              + serializedModel.toAbsolutePath());
       cmd.add("-jar");
       cmd.add(devJar.toAbsolutePath().toString());
 
-      // 4. Start the child process
       ProcessBuilder pb = new ProcessBuilder(cmd);
       pb.inheritIO();
       Process process = pb.start();
 
-      // 5. Wait for the child process
       Runtime.getRuntime().addShutdownHook(new Thread(process::destroyForcibly));
       int exitCode = process.waitFor();
       if (exitCode != 0) {
@@ -83,51 +84,34 @@ public final class DevModeLauncher {
     }
   }
 
-  /**
-   * Creates a minimal JAR containing the serialized {@link DevModeContext} and a manifest
-   * with {@code Class-Path} entries pointing to the deployment jars.
-   *
-   * <p>The manifest classpath includes all deployment jars EXCEPT runtime Quarkus extension
-   * jars (those with {@code META-INF/quarkus-extension.properties}). Runtime extension jars
-   * like {@code quarkus-arc}, {@code quarkus-rest}, {@code smallrye-config-inject} contain
-   * CDI beans whose ArC-generated proxies cause VerifyError when the bean class is loaded
-   * by the system CL and the proxy by the augment/runtime CL.
-   */
-  private static Path createDevJar(DevModeContext context,
-      List<Path> deploymentClasspath, List<Path> applicationClasspath) throws Exception {
+  private static Path createDevJar(
+      DevModeContext context, List<Path> deploymentClasspath, List<Path> applicationClasspath)
+      throws Exception {
     Path tempFile = Files.createTempFile("quarkus-dev", ".jar");
     tempFile.toFile().deleteOnExit();
 
-    // Identify runtime extension jars (those with quarkus-extension.properties).
-    // These must NOT be on the manifest classpath — they are loaded exclusively
-    // by the augment/runtime classloader from the ApplicationModel.
-    java.util.Set<String> extensionArtifactIds = new java.util.HashSet<>();
+    Set<String> extensionArtifactIds = new HashSet<>();
     for (Path jar : applicationClasspath) {
       try (var jf = new java.util.jar.JarFile(jar.toFile())) {
         if (jf.getEntry("META-INF/quarkus-extension.properties") != null) {
           extensionArtifactIds.add(MavenCoordinateParser.parse(jar).artifactId());
         }
       } catch (Exception ignored) {
-        // Skip jars that can't be read
       }
     }
-    // Also exclude jars whose classes are loaded by both the system CL and the
-    // QuarkusClassLoader, causing ClassCastException across classloader boundaries.
     extensionArtifactIds.add("smallrye-config-inject");
     extensionArtifactIds.add("smallrye-config");
     extensionArtifactIds.add("smallrye-config-core");
     extensionArtifactIds.add("smallrye-config-common");
     extensionArtifactIds.add("microprofile-config-api");
 
-    try (ZipOutputStream out = new ZipOutputStream(new FileOutputStream(tempFile.toFile()))) {
+    try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(tempFile))) {
       out.putNextEntry(new ZipEntry("META-INF/"));
 
       Manifest manifest = new Manifest();
       manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
-      manifest.getMainAttributes().put(Attributes.Name.MAIN_CLASS,
-          DevModeMain.class.getName());
+      manifest.getMainAttributes().put(Attributes.Name.MAIN_CLASS, DevModeMain.class.getName());
 
-      // Include all deployment jars except runtime extension jars
       StringBuilder classPath = new StringBuilder();
       for (Path jar : deploymentClasspath) {
         var coords = MavenCoordinateParser.parse(jar);
@@ -143,9 +127,9 @@ public final class DevModeLauncher {
 
       out.putNextEntry(new ZipEntry(DevModeMain.DEV_MODE_CONTEXT));
       ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-      ObjectOutputStream obj = new ObjectOutputStream(new DataOutputStream(bytes));
-      obj.writeObject(context);
-      obj.close();
+      try (ObjectOutputStream obj = new ObjectOutputStream(new DataOutputStream(bytes))) {
+        obj.writeObject(context);
+      }
       out.write(bytes.toByteArray());
     }
 
@@ -155,7 +139,8 @@ public final class DevModeLauncher {
   /**
    * Builds a {@link DevModeContext} configured for Bazel-managed dev mode.
    */
-  static DevModeContext buildDevModeContext(QuarkifierConfig config, ApplicationModel appModel) {
+  public static DevModeContext buildDevModeContext(
+      QuarkifierConfig config, ApplicationModel appModel) {
     var context = new DevModeContext();
     context.setAbortOnFailedStart(true);
     context.setLocalProjectDiscovery(false);
@@ -164,13 +149,13 @@ public final class DevModeLauncher {
     context.setArgs(new String[0]);
     context.setProjectDir(config.outputDir().toAbsolutePath().toFile());
 
-    // Platform properties for SmallRye Config expression resolution
-    context.getBuildSystemProperties().put(
-        "platform.quarkus.native.builder-image",
-        "quay.io/quarkus/ubi-quarkus-mandrel-builder-image:jdk-21");
+    context
+        .getBuildSystemProperties()
+        .put(
+            "platform.quarkus.native.builder-image",
+            "quay.io/quarkus/ubi-quarkus-mandrel-builder-image:jdk-21");
     context.getBuildSystemProperties().put("quarkus.package.jar.type", "fast-jar");
 
-    // Build ModuleInfo for the application root
     Path appJar = config.applicationClasspath().get(0);
     var coords = MavenCoordinateParser.parse(appJar);
 

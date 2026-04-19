@@ -1,7 +1,8 @@
-package com.clementguillot.quarkifier;
+package com.clementguillot.quarkifier.maven;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.clementguillot.quarkifier.extension.ExtensionInfo;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -69,8 +70,6 @@ class VersionCheckerTest {
     assertEquals(0, VersionChecker.check(List.of(), "3.20.6", capture.stream).size());
     assertEquals("", capture.text());
   }
-
-  // --- helpers ---
 
   private static ExtensionInfo ext(String artifactId, String version) {
     return new ExtensionInfo(

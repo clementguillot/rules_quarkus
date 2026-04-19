@@ -1,9 +1,7 @@
-package com.clementguillot.quarkifier;
+package com.clementguillot.quarkifier.extension;
 
 import java.nio.file.Path;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Resolves the {@code -deployment} counterpart for each Quarkus extension discovered on the
@@ -35,34 +33,21 @@ public final class DeploymentArtifactResolver {
   }
 
   /**
-   * Resolves deployment jars for all provided extensions.
+   * Validates that deployment jars exist for all provided extensions.
    *
    * @param extensions extensions discovered by {@link ExtensionScanner}
    * @param deploymentClasspath jars available on the deployment classpath
-   * @return an ordered map from each extension to its resolved deployment jar
    * @throws MissingDeploymentArtifactException if any deployment jar is missing
    */
-  public static Map<ExtensionInfo, Path> resolveAll(
-      List<ExtensionInfo> extensions, List<Path> deploymentClasspath) {
-
-    Map<ExtensionInfo, Path> resolved = new LinkedHashMap<>();
+  public static void resolveAll(List<ExtensionInfo> extensions, List<Path> deploymentClasspath) {
     for (ExtensionInfo ext : extensions) {
       String expectedId = deploymentArtifactId(ext);
-      Path deploymentJar = findOnClasspath(expectedId, deploymentClasspath);
-      if (deploymentJar == null) {
+      if (findOnClasspath(expectedId, deploymentClasspath) == null) {
         throw new MissingDeploymentArtifactException(expectedId, ext.artifactId());
       }
-      resolved.put(ext, deploymentJar);
     }
-    return resolved;
   }
 
-  /**
-   * Searches the deployment classpath for a jar whose filename contains the given deployment
-   * artifact ID.
-   *
-   * @return the matching path, or {@code null} if not found
-   */
   private static Path findOnClasspath(String deploymentArtifactId, List<Path> classpath) {
     for (Path jar : classpath) {
       String filename = jar.getFileName().toString();
