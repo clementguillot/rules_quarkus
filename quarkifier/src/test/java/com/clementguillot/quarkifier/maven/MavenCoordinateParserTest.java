@@ -1,4 +1,4 @@
-package com.clementguillot.quarkifier;
+package com.clementguillot.quarkifier.maven;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -52,7 +52,6 @@ class MavenCoordinateParserTest {
   })
   void fallbackExtractsArtifactIdAndVersion(
       String filename, String expectedArtifact, String expectedVersion) {
-    // Short path like Coursier cache: jars/filename.jar
     var path = Path.of("jars/" + filename);
     var coords = MavenCoordinateParser.parse(path);
     assertEquals(expectedArtifact, coords.artifactId());
@@ -89,15 +88,12 @@ class MavenCoordinateParserTest {
 
   @Test
   void sameArtifactFromDifferentSourcesProducesSameArtifactIdAndVersion() {
-    // @maven path
     var mavenPath = Path.of("/repo/io/quarkus/quarkus-arc/3.20.6/processed_quarkus-arc-3.20.6.jar");
     var mavenCoords = MavenCoordinateParser.parse(mavenPath);
 
-    // @quarkus_deployment Coursier path (short)
     var coursierPath = Path.of("jars/quarkus-arc-3.20.6.jar");
     var coursierCoords = MavenCoordinateParser.parse(coursierPath);
 
-    // artifactId and version must match for dedup to work
     assertEquals(mavenCoords.artifactId(), coursierCoords.artifactId());
     assertEquals(mavenCoords.version(), coursierCoords.version());
   }

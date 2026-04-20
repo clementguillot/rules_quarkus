@@ -1,5 +1,9 @@
 package com.clementguillot.quarkifier;
 
+import com.clementguillot.quarkifier.augmentation.AugmentationExecutor;
+import com.clementguillot.quarkifier.extension.ExtensionInfo;
+import com.clementguillot.quarkifier.extension.ExtensionScanner;
+import com.clementguillot.quarkifier.extension.VersionChecker;
 import java.io.IOException;
 import java.util.List;
 
@@ -11,7 +15,6 @@ import java.util.List;
  * <ol>
  *   <li>Parse CLI arguments
  *   <li>Scan application classpath for Quarkus extensions
- *   <li>Resolve deployment artifacts for each extension
  *   <li>Check extension versions against the expected toolchain version
  *   <li>Execute Quarkus augmentation to produce Fast_Jar output
  * </ol>
@@ -32,30 +35,17 @@ public final class QuarkifierLauncher {
       return; // unreachable, but keeps the compiler happy
     }
 
-    // 2. Scan application classpath for Quarkus extensions
-    List<ExtensionInfo> extensions;
+    // 2. Scan application classpath for Quarkus extensions and check versions
     try {
-      extensions = ExtensionScanner.scan(config.applicationClasspath());
+      List<ExtensionInfo> extensions = ExtensionScanner.scan(config.applicationClasspath());
+      VersionChecker.check(extensions, config.expectedQuarkusVersion());
     } catch (IOException e) {
       System.err.println("Error scanning extensions: " + e.getMessage());
       System.exit(1);
       return;
     }
 
-    // 3. Resolve deployment artifacts (warn on missing, don't fail)
-    try {
-      DeploymentArtifactResolver.resolveAll(extensions, config.deploymentClasspath());
-    } catch (MissingDeploymentArtifactException e) {
-      System.err.println(
-          "WARNING: "
-              + e.getMessage()
-              + ". The extension's build-time processing may be incomplete.");
-    }
-
-    // 4. Check version mismatches (warnings only, don't exit)
-    VersionChecker.check(extensions, config.expectedQuarkusVersion());
-
-    // 5. Execute augmentation
+    // 3. Execute augmentation
     try {
       AugmentationExecutor.execute(config);
     } catch (AugmentationException e) {
@@ -64,7 +54,7 @@ public final class QuarkifierLauncher {
       return;
     }
 
-    // 6. Success
+    // 4. Success
     System.exit(0);
   }
 }

@@ -1,4 +1,4 @@
-package com.clementguillot.quarkifier;
+package com.clementguillot.quarkifier.extension;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -16,12 +16,10 @@ public final class VersionChecker {
   private VersionChecker() {}
 
   /**
-   * Checks each extension's version against the expected Quarkus version.
+   * Checks each extension's version against the expected Quarkus version. Mismatches are printed as
+   * warnings to stderr. If {@code expectedVersion} is {@code null}, the check is skipped.
    *
-   * <p>If {@code expectedVersion} is {@code null}, the check is skipped entirely and an empty list
-   * is returned.
-   *
-   * @param extensions      the discovered Quarkus extensions
+   * @param extensions the discovered Quarkus extensions
    * @param expectedVersion the expected Quarkus toolchain version (may be {@code null})
    */
   public static void check(List<ExtensionInfo> extensions, String expectedVersion) {
@@ -30,7 +28,7 @@ public final class VersionChecker {
 
   /**
    * Checks each extension's version against the expected Quarkus version, writing warnings to the
-   * given {@link PrintStream}.
+   * given {@link PrintStream}. Returns the list of mismatched extensions.
    *
    * <p>Package-private overload for testability.
    */

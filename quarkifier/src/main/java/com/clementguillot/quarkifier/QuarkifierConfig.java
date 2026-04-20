@@ -12,9 +12,11 @@ import java.util.regex.Pattern;
  * @param deploymentClasspath deployment jars (colon-separated on CLI)
  * @param outputDir directory where Fast_Jar output is written
  * @param resources additional resource paths (comma-separated on CLI)
- * @param mode NORMAL or TEST
+ * @param mode NORMAL, TEST, or DEV
  * @param expectedQuarkusVersion expected Quarkus version for mismatch warnings (may be {@code
  *     null})
+ * @param appName application name for Quarkus startup banner (may be {@code null})
+ * @param appVersion application version for Quarkus startup banner (may be {@code null})
  * @param sourceDirs source directories for hot-reload in dev mode (comma-separated on CLI)
  */
 public record QuarkifierConfig(
@@ -37,6 +39,8 @@ public record QuarkifierConfig(
               [--resources <path,path,...>] \\
               [--mode normal|test|dev] \\
               [--expected-quarkus-version <version>] \\
+              [--app-name <name>] \\
+              [--app-version <version>] \\
               [--source-dirs <dir,dir,...>]""";
 
   /**
@@ -103,10 +107,7 @@ public record QuarkifierConfig(
         sourceDirs != null ? splitPaths(sourceDirs, ",") : List.of());
   }
 
-  /**
-   * Serializes this config back to a CLI argument array. Useful for round-trip testing (Property
-   * 9).
-   */
+  /** Serializes this config back to a CLI argument array, suitable for round-trip testing. */
   public String[] toArgs() {
     var list = new java.util.ArrayList<String>();
 

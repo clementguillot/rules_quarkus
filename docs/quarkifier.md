@@ -12,7 +12,6 @@ java -jar quarkifier_deploy.jar \
   --application-classpath <jar:jar:...> \
   --deployment-classpath <jar:jar:...> \
   --output-dir <path> \
-  [--application-properties <path>] \
   [--resources <path,path,...>] \
   [--mode normal|test|dev] \
   [--expected-quarkus-version <version>] \
@@ -28,7 +27,6 @@ java -jar quarkifier_deploy.jar \
 | `--application-classpath` | Yes | — | Colon-separated list of runtime jars |
 | `--deployment-classpath` | Yes | — | Colon-separated list of runtime + deployment jars |
 | `--output-dir` | Yes | — | Directory where Fast_Jar output is written |
-| `--application-properties` | No | `null` | Path to `application.properties` |
 | `--resources` | No | `[]` | Comma-separated list of resource file paths |
 | `--mode` | No | `normal` | Augmentation mode: `normal`, `test`, or `dev` |
 | `--expected-quarkus-version` | No | `null` | Expected Quarkus version for mismatch warnings |
@@ -44,6 +42,36 @@ java -jar quarkifier_deploy.jar \
 | 1 | Augmentation failure (stack trace on stderr) |
 | 2 | Invalid CLI arguments (usage message on stderr) |
 
+## Package Structure
+
+```
+com.clementguillot.quarkifier
+├── QuarkifierLauncher              Entry point, orchestrates the pipeline
+├── QuarkifierConfig                Immutable record for CLI config
+├── AugmentationMode                Enum: NORMAL, TEST, DEV
+├── AugmentationException           Checked exception wrapping build errors
+│
+├── extension/                      Extension discovery and validation
+│   ├── ExtensionInfo               Record: groupId, artifactId, version, sourceJar
+│   ├── ExtensionScanner            Scans jars for quarkus-extension.properties
+│   ├── DeploymentArtifactResolver  Maps extensions to their -deployment jars
+│   ├── MissingDeploymentArtifactException
+│   └── VersionChecker              Compares extension versions against expected
+│
+├── maven/                          Maven coordinate parsing
+│   └── MavenCoordinateParser       Extracts GAV from jar file paths
+│
+├── model/                          ApplicationModel construction
+│   └── QuarkusAppModelBuilder      Builds ApplicationModel from classpath jars
+│
+├── augmentation/                   Augmentation execution and post-processing
+│   ├── AugmentationExecutor        Orchestrates bootstrap + augmentation
+│   └── FastJarAssembler            Post-processes output into runnable Fast_Jar
+│
+└── dev/                            Dev mode (room to grow)
+    └── DevModeLauncher             Builds DevModeContext, launches subprocess
+```
+
 ## QuarkifierConfig Record
 
 All CLI arguments are parsed into an immutable `QuarkifierConfig` record:
@@ -53,7 +81,6 @@ public record QuarkifierConfig(
     List<Path> applicationClasspath,
     List<Path> deploymentClasspath,
     Path outputDir,
-    Path applicationProperties,
     List<Path> resources,
     AugmentationMode mode,
     String expectedQuarkusVersion,
@@ -122,25 +149,25 @@ graph LR
 
 ### Step 5: Augmentation
 
-`AugmentationExecutor.execute()` is the core. Its behavior depends on the mode:
+`AugmentationExecutor.execute()` orchestrates the build. Its behavior depends on the mode:
 
-- **NORMAL/TEST**: Builds `ApplicationModel`, runs `QuarkusBootstrap` augmentation in-process, then post-processes the output
+- **NORMAL/TEST**: Delegates to `QuarkusAppModelBuilder` to build the `ApplicationModel`, runs `QuarkusBootstrap` augmentation in-process, then delegates to `FastJarAssembler` for post-processing
 - **DEV**: Delegates to `DevModeLauncher` (see [Dev Mode](dev-mode.md))
 
 ## ApplicationModel Construction
 
-`AugmentationExecutor.buildApplicationModel()` builds the model that Quarkus needs, bypassing Maven/Gradle resolution entirely:
+`QuarkusAppModelBuilder.build()` builds the model that Quarkus needs, bypassing Maven/Gradle resolution entirely:
 
 1. **Register extensions** — scans runtime jars for `quarkus-extension.properties`, calls `modelBuilder.handleExtensionProperties()`, and manually registers capabilities (`provides-capabilities`, `requires-capabilities`)
 2. **Set app artifact** — uses `MavenCoordinateParser` to extract coordinates from the app jar path
 3. **Add runtime dependencies** — adds all runtime jars, marking extension jars with `setRuntimeExtensionArtifact()`
 4. **Add deployment dependencies** — adds deployment-only jars, deduplicating by both `ArtifactKey` and `artifactId`
-5. **Set parent-first artifacts** — marks bootstrap/infrastructure jars as parent-first for the augment classloader
+5. **Mark parent-first artifacts** — marks bootstrap/infrastructure jars as parent-first for the augment classloader
 6. **Fix runner-parent-first flags** — workaround for the GACT key mismatch bug (see [Dev Mode](dev-mode.md#the-gact-key-mismatch-bug))
 
-## Post-Processing Steps
+## Post-Processing (FastJarAssembler)
 
-After Quarkus augmentation produces raw output, four post-processing steps normalize it into a complete Fast_Jar:
+After Quarkus augmentation produces raw output, `FastJarAssembler.assemble()` runs four steps to normalize it into a complete Fast_Jar:
 
 ### assembleLibDirectories
 
@@ -173,23 +200,6 @@ Extracts `groupId`/`artifactId`/`version` from jar file paths. Handles multiple 
 | Coursier cache (short) | `jars/quarkus-arc-3.20.6.jar` |
 
 Uses stop segments (`external`, `v1`, `https`, `maven`, etc.) to identify where groupId segments begin when walking backwards from the filename.
-
-## Key Classes
-
-| Class | Role |
-|---|---|
-| `QuarkifierLauncher` | Entry point, orchestrates the pipeline |
-| `QuarkifierConfig` | Immutable record for CLI config; `parse()` and `toArgs()` for round-trip |
-| `AugmentationExecutor` | Builds `ApplicationModel`, runs augmentation, post-processes output |
-| `AugmentationMode` | Enum: `NORMAL`, `TEST`, or `DEV` |
-| `AugmentationException` | Checked exception wrapping Quarkus build errors |
-| `DevModeLauncher` | Builds `DevModeContext`, launches dev mode subprocess |
-| `ExtensionScanner` | Scans jars for `META-INF/quarkus-extension.properties` |
-| `ExtensionInfo` | Record: `groupId`, `artifactId`, `version`, `sourceJar` |
-| `DeploymentArtifactResolver` | Maps extensions to their `-deployment` jars |
-| `MissingDeploymentArtifactException` | Exception with both missing and originating artifact IDs |
-| `MavenCoordinateParser` | Extracts GAV coordinates from jar file paths |
-| `VersionChecker` | Compares extension versions against expected version |
 
 ## Error Handling
 

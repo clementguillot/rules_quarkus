@@ -5,3 +5,6 @@ bazel-*
 .bazelbsp/
 .DS_Store
 e2e/smoke/MODULE.bazel.lock
+
+quarkus-src
+.kiro

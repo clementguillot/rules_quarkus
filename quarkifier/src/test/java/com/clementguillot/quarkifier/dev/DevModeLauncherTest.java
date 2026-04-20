@@ -1,11 +1,10 @@
-package com.clementguillot.quarkifier;
+package com.clementguillot.quarkifier.dev;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.clementguillot.quarkifier.AugmentationMode;
+import com.clementguillot.quarkifier.QuarkifierConfig;
 import io.quarkus.bootstrap.app.QuarkusBootstrap;
-import io.quarkus.bootstrap.model.ApplicationModel;
-import io.quarkus.bootstrap.model.ApplicationModelBuilder;
-import io.quarkus.maven.dependency.ResolvedDependencyBuilder;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -13,19 +12,6 @@ import org.junit.jupiter.api.Test;
 
 /** Unit tests for {@link DevModeLauncher#buildDevModeContext}. */
 class DevModeLauncherTest {
-
-  private static ApplicationModel minimalAppModel() {
-    var modelBuilder = new ApplicationModelBuilder();
-    modelBuilder.setAppArtifact(
-        ResolvedDependencyBuilder.newInstance()
-            .setGroupId("com.example")
-            .setArtifactId("test-app")
-            .setVersion("1.0.0")
-            .setResolvedPath(Path.of("test-app.jar"))
-            .setRuntimeCp()
-            .setDeploymentCp());
-    return modelBuilder.build();
-  }
 
   private static QuarkifierConfig configWithSourceDirs(List<Path> sourceDirs) {
     return new QuarkifierConfig(
@@ -44,9 +30,8 @@ class DevModeLauncherTest {
   void buildDevModeContext_withSourceDirs_setsSourcePaths() {
     var sourceDirs = List.of(Path.of("src/main/java"), Path.of("lib/src/main/java"));
     var config = configWithSourceDirs(sourceDirs);
-    var appModel = minimalAppModel();
 
-    var context = DevModeLauncher.buildDevModeContext(config, appModel);
+    var context = DevModeLauncher.buildDevModeContext(config);
 
     assertNotNull(context.getApplicationRoot());
     var actualPaths =
@@ -54,7 +39,6 @@ class DevModeLauncherTest {
             .collect(Collectors.toSet());
     var expectedPaths =
         sourceDirs.stream().map(Path::toAbsolutePath).collect(Collectors.toSet());
-    // PathList.from() converts paths; verify the source dirs are present
     assertEquals(expectedPaths.size(), actualPaths.size());
     for (Path expected : expectedPaths) {
       assertTrue(
@@ -66,17 +50,14 @@ class DevModeLauncherTest {
   @Test
   void buildDevModeContext_withoutSourceDirs_emptySourcePaths() {
     var config = configWithSourceDirs(List.of());
-    var appModel = minimalAppModel();
 
-    var context = DevModeLauncher.buildDevModeContext(config, appModel);
+    var context = DevModeLauncher.buildDevModeContext(config);
 
     assertNotNull(context.getApplicationRoot());
-    // Empty source dirs → empty source paths in ModuleInfo
     var sourcePaths = context.getApplicationRoot().getMain().getSourcePaths();
     assertTrue(
         sourcePaths == null || !sourcePaths.iterator().hasNext(),
         "Expected empty source paths but got: " + sourcePaths);
-    // Context should still be valid
     assertEquals(QuarkusBootstrap.Mode.DEV, context.getMode());
     assertNotNull(context.getProjectDir());
   }
@@ -84,9 +65,8 @@ class DevModeLauncherTest {
   @Test
   void buildDevModeContext_abortOnFailedStart_alwaysTrue() {
     var config = configWithSourceDirs(List.of());
-    var appModel = minimalAppModel();
 
-    var context = DevModeLauncher.buildDevModeContext(config, appModel);
+    var context = DevModeLauncher.buildDevModeContext(config);
 
     assertTrue(context.isAbortOnFailedStart());
   }
@@ -94,9 +74,8 @@ class DevModeLauncherTest {
   @Test
   void buildDevModeContext_localProjectDiscovery_alwaysFalse() {
     var config = configWithSourceDirs(List.of(Path.of("src/main/java")));
-    var appModel = minimalAppModel();
 
-    var context = DevModeLauncher.buildDevModeContext(config, appModel);
+    var context = DevModeLauncher.buildDevModeContext(config);
 
     assertFalse(context.isLocalProjectDiscovery());
   }
@@ -114,9 +93,8 @@ class DevModeLauncherTest {
             "my-app",
             "1.0.0",
             List.of(Path.of("src/main/java")));
-    var appModel = minimalAppModel();
 
-    var context = DevModeLauncher.buildDevModeContext(config, appModel);
+    var context = DevModeLauncher.buildDevModeContext(config);
 
     assertEquals("my-app", context.getBaseName());
     assertEquals(
