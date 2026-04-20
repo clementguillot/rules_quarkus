@@ -1,6 +1,8 @@
-package com.clementguillot.quarkifier;
+package com.clementguillot.quarkifier.maven;
 
+import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Set;
 
 /**
@@ -37,7 +39,7 @@ public final class MavenCoordinateParser {
     Path resolvedPath = jarPath;
     try {
       resolvedPath = jarPath.toRealPath();
-    } catch (java.io.IOException ignored) {
+    } catch (IOException ignored) {
     }
 
     String[] parts = resolvedPath.toString().replace('\\', '/').split("/");
@@ -66,11 +68,22 @@ public final class MavenCoordinateParser {
       return fallback(jarPath);
     }
 
-    return new Coordinates(String.join(".", java.util.Arrays.copyOfRange(parts, groupIdStart, groupIdEnd + 1)), artifactId, version);
+    return new Coordinates(
+        String.join(".", Arrays.copyOfRange(parts, groupIdStart, groupIdEnd + 1)),
+        artifactId,
+        version);
   }
 
+  /**
+   * Checks whether a path segment is a boundary marker that precedes the Maven groupId. Segments
+   * containing dots (e.g. "repo1.maven.org"), special characters, or known Bazel/OS prefixes are
+   * not part of the groupId.
+   */
   private static boolean isStopSegment(String segment) {
-    if (segment.isEmpty() || segment.contains("+") || segment.contains("=") || segment.contains(".")) {
+    if (segment.isEmpty()
+        || segment.contains("+")
+        || segment.contains("=")
+        || segment.contains(".")) {
       return true;
     }
     if (STOP_SEGMENTS.contains(segment)) return true;
@@ -80,6 +93,11 @@ public final class MavenCoordinateParser {
     return false;
   }
 
+  /**
+   * Fallback when the path doesn't match the standard Maven layout. Extracts artifactId and version
+   * from the filename alone (e.g. {@code quarkus-arc-3.20.6.jar} → {@code quarkus-arc} / {@code
+   * 3.20.6}). Returns {@code "unknown"} for groupId.
+   */
   private static Coordinates fallback(Path jarPath) {
     String name = jarPath.getFileName().toString();
     if (name.startsWith("processed_")) {
