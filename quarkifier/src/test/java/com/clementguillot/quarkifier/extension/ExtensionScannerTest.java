@@ -19,7 +19,7 @@ class ExtensionScannerTest {
   void parseDeploymentArtifact_standardGav() {
     var props = new Properties();
     props.setProperty(
-        "deployment-artifact", "io.quarkus:quarkus-resteasy-reactive-deployment:3.20.6");
+        "deployment-artifact", "io.quarkus:quarkus-resteasy-reactive-deployment:3.27.3");
     Path jar = Path.of("dummy.jar");
 
     ExtensionInfo info = ExtensionScanner.parseDeploymentArtifact(props, jar);
@@ -27,7 +27,7 @@ class ExtensionScannerTest {
     assertNotNull(info);
     assertEquals("io.quarkus", info.groupId());
     assertEquals("quarkus-resteasy-reactive", info.artifactId());
-    assertEquals("3.20.6", info.version());
+    assertEquals("3.27.3", info.version());
     assertEquals(jar, info.sourceJar());
   }
 
@@ -66,7 +66,7 @@ class ExtensionScannerTest {
   @Test
   void parseDeploymentArtifact_extraGavParts() {
     var props = new Properties();
-    props.setProperty("deployment-artifact", "io.quarkus:quarkus-arc-deployment:jar:3.20.6");
+    props.setProperty("deployment-artifact", "io.quarkus:quarkus-arc-deployment:jar:3.27.3");
 
     ExtensionInfo info = ExtensionScanner.parseDeploymentArtifact(props, Path.of("x.jar"));
 
@@ -78,7 +78,7 @@ class ExtensionScannerTest {
 
   @Test
   void scan_withExtensionJar(@TempDir Path tempDir) throws IOException {
-    Path jar = createExtensionJar(tempDir, "ext.jar", "io.quarkus:quarkus-arc-deployment:3.20.6");
+    Path jar = createExtensionJar(tempDir, "ext.jar", "io.quarkus:quarkus-arc-deployment:3.27.3");
 
     List<ExtensionInfo> results = ExtensionScanner.scan(List.of(jar));
 
@@ -99,11 +99,11 @@ class ExtensionScannerTest {
 
   @Test
   void scan_mixedJars(@TempDir Path tempDir) throws IOException {
-    Path ext1 = createExtensionJar(tempDir, "ext1.jar", "io.quarkus:quarkus-arc-deployment:3.20.6");
+    Path ext1 = createExtensionJar(tempDir, "ext1.jar", "io.quarkus:quarkus-arc-deployment:3.27.3");
     Path plain = createPlainJar(tempDir, "plain.jar");
     Path ext2 =
         createExtensionJar(
-            tempDir, "ext2.jar", "io.quarkus:quarkus-resteasy-reactive-deployment:3.20.6");
+            tempDir, "ext2.jar", "io.quarkus:quarkus-resteasy-reactive-deployment:3.27.3");
 
     List<ExtensionInfo> results = ExtensionScanner.scan(List.of(ext1, plain, ext2));
 

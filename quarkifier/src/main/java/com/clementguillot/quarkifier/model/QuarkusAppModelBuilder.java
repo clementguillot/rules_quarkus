@@ -50,9 +50,23 @@ public final class QuarkusAppModelBuilder {
 
     var modelBuilder = new ApplicationModelBuilder();
     Set<Path> extensionJars = registerExtensions(modelBuilder, runtimeJars);
+
+    // Also scan deployment jars for runtime extensions that were pulled in as
+    // transitive deps of deployment artifacts (e.g., quarkus-devui is a transitive
+    // dep of quarkus-devui-deployment). These are "conditional dev dependencies"
+    // that Maven's resolver adds automatically in dev mode.
+    Set<String> knownExtensionArtifactIds = new HashSet<>();
+    for (Path jar : extensionJars) {
+      knownExtensionArtifactIds.add(MavenCoordinateParser.parse(jar).artifactId());
+    }
+    Set<Path> deployExtensionJars = registerExtensions(modelBuilder, deployClasspath.stream()
+        .filter(jar -> !knownExtensionArtifactIds.contains(MavenCoordinateParser.parse(jar).artifactId()))
+        .toList());
+    extensionJars.addAll(deployExtensionJars);
+
     setAppArtifact(modelBuilder, appJar, appName, appVersion);
     Set<ArtifactKey> addedKeys = addRuntimeDependencies(modelBuilder, runtimeJars, extensionJars);
-    addDeploymentDependencies(modelBuilder, deployClasspath, addedKeys);
+    addDeploymentDependencies(modelBuilder, deployClasspath, addedKeys, extensionJars);
     markParentFirstArtifacts(modelBuilder);
     fixRunnerParentFirstFlags(modelBuilder);
 
@@ -151,13 +165,25 @@ public final class QuarkusAppModelBuilder {
   /**
    * Adds deployment-only jars, deduplicating by both ArtifactKey and artifactId to handle the same
    * jar resolved from different sources (e.g., @maven vs Coursier cache).
+   *
+   * <p>Jars that are Quarkus runtime extensions (identified by {@code extensionJars}) are marked
+   * with both runtime and deployment classpath flags, since they are conditional dev dependencies
+   * that need to be on the runtime classpath for the augment classloader.
    */
   private static void addDeploymentDependencies(
       ApplicationModelBuilder modelBuilder,
       List<Path> deployClasspath,
-      Set<ArtifactKey> addedKeys) {
+      Set<ArtifactKey> addedKeys,
+      Set<Path> extensionJars) {
     Set<String> addedArtifactIds = new HashSet<>();
     for (var key : addedKeys) addedArtifactIds.add(key.getArtifactId());
+
+    // Build a set of extension artifact IDs for path-independent matching
+    // (deployment jars may come from Coursier cache, not the same path as scanned)
+    Set<String> extensionArtifactIds = new HashSet<>();
+    for (Path jar : extensionJars) {
+      extensionArtifactIds.add(MavenCoordinateParser.parse(jar).artifactId());
+    }
 
     for (Path jar : deployClasspath) {
       var coords = MavenCoordinateParser.parse(jar);
@@ -171,6 +197,19 @@ public final class QuarkusAppModelBuilder {
               .setResolvedPath(jar)
               .setDeploymentCp()
               .setDirect(true);
+
+      // Runtime extensions found in the deployment classpath (conditional dev deps)
+      // need to be on both the runtime and deployment classpaths.
+      if (extensionArtifactIds.contains(coords.artifactId())) {
+        dep.setRuntimeCp().setRuntimeExtensionArtifact();
+      }
+
+      // Conditional dev runtime jars (e.g., quarkus-arc-dev, quarkus-rest-dev)
+      // contain runtime classes referenced by generated code. They need to be
+      // on the runtime classpath. We identify them by the "-dev" suffix pattern.
+      if (coords.artifactId().endsWith("-dev")) {
+        dep.setRuntimeCp();
+      }
 
       if (!addedKeys.contains(dep.getKey())) {
         modelBuilder.addDependency(dep);
@@ -186,8 +225,9 @@ public final class QuarkusAppModelBuilder {
    * Marks bootstrap and infrastructure jars as parent-first so the augment classloader delegates to
    * the parent for them. This prevents LinkageError and ClassCastException.
    *
-   * <p>We must NOT mark runtime extension jars (like smallrye-config, arc) as parent-first because
-   * the generated CDI proxies need to access them from the same classloader.
+   * <p>Jars containing CDI beans (e.g., {@code smallrye-config} which has {@code ConfigProducer})
+   * must NOT be parent-first — ArC-generated proxies cause VerifyError across classloader
+   * boundaries.
    */
   private static void markParentFirstArtifacts(ApplicationModelBuilder modelBuilder) {
     Set<String> parentFirstArtifactIds =
@@ -202,8 +242,10 @@ public final class QuarkusAppModelBuilder {
             "quarkus-bootstrap-maven-resolver",
             // Core (needed by IsolatedDevModeMain)
             "quarkus-core",
-            // Config (loaded early by DevModeMain before augment CL is created)
-            "smallrye-config",
+            // Config infrastructure. Note: smallrye-config itself is NOT parent-first
+            // because it contains CDI beans (ConfigProducer) whose ArC proxies cause
+            // VerifyError across classloader boundaries. Only the core/common/api jars
+            // (which don't contain CDI beans) are parent-first.
             "smallrye-config-core",
             "smallrye-config-common",
             "microprofile-config-api",
@@ -243,27 +285,8 @@ public final class QuarkusAppModelBuilder {
             "jakarta.transaction-api",
             // Other infrastructure
             "quarkus-ide-launcher",
-            "org-crac",
-            "commons-logging-jboss-logging",
-            // Maven resolver (parent-first so QuarkusClassLoader delegates to system CL,
-            // preventing ClassCastException on RemoteRepository in the Extensions Dev UI panel)
-            "maven-resolver-api",
-            "maven-resolver-spi",
-            "maven-resolver-impl",
-            "maven-resolver-util",
-            "maven-resolver-connector-basic",
-            "maven-resolver-transport-file",
-            "maven-resolver-transport-http",
-            "maven-resolver-named-locks",
-            "maven-resolver-supplier",
-            "maven-model",
-            "maven-model-builder",
-            "maven-repository-metadata",
-            "maven-builder-support",
-            "maven-artifact",
-            "maven-settings",
-            "maven-settings-builder");
-
+            "crac",
+            "commons-logging-jboss-logging");
     for (var dep : modelBuilder.getDependencies()) {
       if (parentFirstArtifactIds.contains(dep.getArtifactId())) {
         modelBuilder.addParentFirstArtifact(dep.getKey());
@@ -298,7 +321,7 @@ public final class QuarkusAppModelBuilder {
             "smallrye-common-net",
             "smallrye-common-os",
             "smallrye-common-ref",
-            "org-crac");
+            "crac");
 
     for (var dep : modelBuilder.getDependencies()) {
       if (runnerParentFirstArtifactIds.contains(dep.getArtifactId())) {

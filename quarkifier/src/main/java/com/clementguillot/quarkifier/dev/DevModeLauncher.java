@@ -11,20 +11,20 @@ import io.quarkus.bootstrap.util.BootstrapUtils;
 import io.quarkus.deployment.dev.DevModeContext;
 import io.quarkus.deployment.dev.DevModeMain;
 import io.quarkus.maven.dependency.ArtifactKey;
+import io.quarkus.maven.dependency.ResolvedDependency;
 import io.quarkus.paths.PathList;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.FileOutputStream;
 import java.io.ObjectOutputStream;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.jar.Attributes;
-import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -32,11 +32,12 @@ import java.util.zip.ZipOutputStream;
 /**
  * Launches Quarkus in dev mode with full Dev UI support via {@code IsolatedDevModeMain}.
  *
- * <p>Following Maven's {@code DevMojo} approach, this launcher creates a minimal "dev jar"
- * containing the serialized {@link DevModeContext} and a manifest classpath pointing to the
- * deployment jars. A <b>separate JVM process</b> is started with {@code java -jar dev.jar}, which
- * invokes {@link DevModeMain#main} to bootstrap {@code IsolatedDevModeMain} inside a clean augment
- * classloader with no overlap from the quarkifier's system classloader.
+ * <p>Creates a minimal "dev jar" with a serialized {@link DevModeContext} and a manifest classpath
+ * pointing to core deployment infrastructure jars + parent-first runtime artifacts. A separate JVM
+ * process runs {@link DevModeMain#main} which bootstraps {@code IsolatedDevModeMain} inside a clean
+ * augment classloader.
+ *
+ * @see <a href="../../../../../../docs/dev-mode.md">docs/dev-mode.md</a> for the full architecture
  */
 public final class DevModeLauncher {
 
@@ -58,15 +59,16 @@ public final class DevModeLauncher {
       Path serializedModel = BootstrapUtils.serializeAppModel(appModel, false);
 
       // 2. Create the dev jar (like Maven's DevMojo / DevModeCommandLineBuilder)
-      Path devJar =
-          createDevJar(
-              context, config.deploymentClasspath(), config.applicationClasspath());
+      Path devJar = createDevJar(context, config, appModel);
 
       // 3. Build the java command
       String javaBin = System.getProperty("java.home") + "/bin/java";
       List<String> cmd = new ArrayList<>();
       cmd.add(javaBin);
       cmd.add("-Djava.util.logging.manager=org.jboss.logmanager.LogManager");
+      // Required for jboss-threads on Java 24+
+      cmd.add("--add-opens");
+      cmd.add("java.base/java.lang=ALL-UNNAMED");
       cmd.add(
           "-D"
               + BootstrapConstants.SERIALIZED_APP_MODEL
@@ -95,22 +97,40 @@ public final class DevModeLauncher {
   }
 
   /**
-   * Creates a minimal JAR containing the serialized {@link DevModeContext} and a manifest with
-   * {@code Class-Path} entries pointing to the deployment jars.
-   *
-   * <p>The manifest classpath includes all deployment jars EXCEPT runtime Quarkus extension jars
-   * (those with {@code META-INF/quarkus-extension.properties}). Runtime extension jars like {@code
-   * quarkus-arc}, {@code quarkus-rest}, {@code smallrye-config-inject} contain CDI beans whose
-   * ArC-generated proxies cause VerifyError when the bean class is loaded by the system CL and the
-   * proxy by the augment/runtime CL.
+   * Creates a minimal JAR with a serialized {@link DevModeContext} and a manifest {@code Class-Path}
+   * containing core deployment infrastructure jars and parent-first runtime artifacts.
    */
   private static Path createDevJar(
-      DevModeContext context, List<Path> deploymentClasspath, List<Path> applicationClasspath)
-      throws Exception {
+      DevModeContext context, QuarkifierConfig config, ApplicationModel appModel) throws Exception {
     Path tempFile = Files.createTempFile("quarkus-dev", ".jar");
     tempFile.toFile().deleteOnExit();
 
-    Set<String> extensionArtifactIds = collectExtensionArtifactIds(applicationClasspath);
+    // Collect parent-first artifact keys from the ApplicationModel.
+    // This matches Maven's ConfiguredClassLoading.getParentFirstArtifacts().
+    Set<ArtifactKey> parentFirstKeys = new HashSet<>();
+    for (ResolvedDependency dep : appModel.getDependencies()) {
+      if (dep.isClassLoaderParentFirst()) {
+        parentFirstKeys.add(dep.getKey());
+      }
+    }
+
+    // Build a set of jar filenames already covered by core deployment classpath,
+    // so we don't duplicate them when adding parent-first runtime jars.
+    Set<String> coreArtifactIds = new HashSet<>();
+    for (Path jar : config.coreDeploymentClasspath()) {
+      coreArtifactIds.add(MavenCoordinateParser.parse(jar).artifactId());
+    }
+
+    // Find parent-first runtime jars that aren't already in the core deployment set.
+    // These are runtime jars that extensions declare must be on the parent classloader.
+    List<Path> parentFirstJars = new ArrayList<>();
+    for (Path jar : config.applicationClasspath()) {
+      var coords = MavenCoordinateParser.parse(jar);
+      ArtifactKey key = ArtifactKey.ga(coords.groupId(), coords.artifactId());
+      if (parentFirstKeys.contains(key) && !coreArtifactIds.contains(coords.artifactId())) {
+        parentFirstJars.add(jar);
+      }
+    }
 
     try (ZipOutputStream out = new ZipOutputStream(new FileOutputStream(tempFile.toFile()))) {
       out.putNextEntry(new ZipEntry("META-INF/"));
@@ -119,15 +139,38 @@ public final class DevModeLauncher {
       manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
       manifest.getMainAttributes().put(Attributes.Name.MAIN_CLASS, DevModeMain.class.getName());
 
-      // Include all deployment jars except runtime extension jars
+      // Build the Class-Path: core deployment jars (deduped) + parent-first runtime jars
       StringBuilder classPath = new StringBuilder();
-      for (Path jar : deploymentClasspath) {
+
+      // 1. Core deployment infrastructure (quarkus-core-deployment transitive closure).
+      //    For jars that also exist on the application classpath, use the application
+      //    classpath version to avoid dual-classloader conflicts. The ApplicationModel
+      //    references the @maven version, so the system CL must use the same jar file.
+      Map<String, Path> appCpByArtifactId = new java.util.LinkedHashMap<>();
+      for (Path jar : config.applicationClasspath()) {
+        appCpByArtifactId.put(MavenCoordinateParser.parse(jar).artifactId(), jar);
+      }
+
+      Set<String> addedToManifest = new HashSet<>();
+      for (Path jar : config.coreDeploymentClasspath()) {
         var coords = MavenCoordinateParser.parse(jar);
-        if (!extensionArtifactIds.contains(coords.artifactId())) {
-          URI uri = jar.toAbsolutePath().toUri();
-          classPath.append(uri).append(" ");
+        if (addedToManifest.contains(coords.artifactId())) continue;
+        // Prefer the application classpath version if available (same jar file
+        // that the ApplicationModel references, avoiding class identity conflicts)
+        Path effectiveJar = appCpByArtifactId.getOrDefault(coords.artifactId(), jar);
+        classPath.append(effectiveJar.toAbsolutePath().toUri()).append(" ");
+        addedToManifest.add(coords.artifactId());
+      }
+
+      // 2. Parent-first runtime artifacts not already in core
+      for (Path jar : parentFirstJars) {
+        var coords = MavenCoordinateParser.parse(jar);
+        if (!addedToManifest.contains(coords.artifactId())) {
+          classPath.append(jar.toAbsolutePath().toUri()).append(" ");
+          addedToManifest.add(coords.artifactId());
         }
       }
+
       manifest
           .getMainAttributes()
           .put(Attributes.Name.CLASS_PATH, classPath.toString().trim());
@@ -146,34 +189,6 @@ public final class DevModeLauncher {
     return tempFile;
   }
 
-  /**
-   * Collects artifact IDs that must be excluded from the dev jar's manifest classpath.
-   *
-   * <p>This includes all runtime extension jars (detected via {@code
-   * quarkus-extension.properties}) plus a hardcoded set of SmallRye Config jars. These are loaded
-   * exclusively by the augment/runtime classloader; putting them on the system classpath causes
-   * ClassCastException and VerifyError across classloader boundaries.
-   */
-  private static Set<String> collectExtensionArtifactIds(List<Path> applicationClasspath) {
-    Set<String> extensionArtifactIds = new HashSet<>();
-    for (Path jar : applicationClasspath) {
-      try (var jf = new JarFile(jar.toFile())) {
-        if (jf.getEntry("META-INF/quarkus-extension.properties") != null) {
-          extensionArtifactIds.add(MavenCoordinateParser.parse(jar).artifactId());
-        }
-      } catch (Exception ignored) {
-      }
-    }
-    // Also exclude SmallRye Config jars — they are loaded by both the system CL and the
-    // QuarkusClassLoader, causing ClassCastException across classloader boundaries.
-    extensionArtifactIds.add("smallrye-config-inject");
-    extensionArtifactIds.add("smallrye-config");
-    extensionArtifactIds.add("smallrye-config-core");
-    extensionArtifactIds.add("smallrye-config-common");
-    extensionArtifactIds.add("microprofile-config-api");
-    return extensionArtifactIds;
-  }
-
   /** Builds a {@link DevModeContext} configured for Bazel-managed dev mode. */
   static DevModeContext buildDevModeContext(QuarkifierConfig config) {
     var context = new DevModeContext();
@@ -185,8 +200,8 @@ public final class DevModeLauncher {
     context.setProjectDir(config.outputDir().toAbsolutePath().toFile());
 
     // Platform properties for SmallRye Config expression resolution
-    BuildProperties.defaults().forEach(
-        (k, v) -> context.getBuildSystemProperties().put((String) k, (String) v));
+    BuildProperties.defaults()
+        .forEach((k, v) -> context.getBuildSystemProperties().put((String) k, (String) v));
 
     // Build ModuleInfo for the application root
     Path appJar = config.applicationClasspath().get(0);

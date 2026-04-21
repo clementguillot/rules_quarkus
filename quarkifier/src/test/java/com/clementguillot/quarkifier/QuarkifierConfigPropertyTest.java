@@ -17,6 +17,7 @@ class QuarkifierConfigPropertyTest {
 
     assertEquals(original.applicationClasspath(), parsed.applicationClasspath());
     assertEquals(original.deploymentClasspath(), parsed.deploymentClasspath());
+    assertEquals(original.coreDeploymentClasspath(), parsed.coreDeploymentClasspath());
     assertEquals(original.outputDir(), parsed.outputDir());
     assertEquals(original.resources(), parsed.resources());
     assertEquals(original.mode(), parsed.mode());

@@ -56,9 +56,9 @@ maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven", dev_depen
 maven.install(
     artifacts = [
         # Quarkifier deps
-        "io.quarkus:quarkus-core:3.20.6",
-        "io.quarkus:quarkus-core-deployment:3.20.6",
-        "io.quarkus.arc:arc:3.20.6",
+        "io.quarkus:quarkus-core:3.27.3",
+        "io.quarkus:quarkus-core-deployment:3.27.3",
+        "io.quarkus.arc:arc:3.27.3",
         # Test framework
         "org.junit.platform:junit-platform-launcher:6.0.3",
         "org.junit.platform:junit-platform-console-standalone:6.0.3",

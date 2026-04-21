@@ -7,6 +7,7 @@ RUNFILES_DIR="${BASH_SOURCE[0]}.runfiles"
 TOOL_JAR="${RUNFILES_DIR}/%{workspace}/%{tool_jar}"
 APP_CP_FILE="${RUNFILES_DIR}/%{workspace}/%{app_cp_file}"
 DEPLOY_CP_FILE="${RUNFILES_DIR}/%{workspace}/%{deploy_cp_file}"
+CORE_DEPLOY_CP_FILE="${RUNFILES_DIR}/%{workspace}/%{core_deploy_cp_file}"
 
 # Read classpaths from files, prefixing each entry with the runfiles dir
 APP_CP=""
@@ -25,6 +26,14 @@ while IFS=: read -ra ENTRIES; do
   done
 done < "$DEPLOY_CP_FILE"
 
+CORE_DEPLOY_CP=""
+while IFS=: read -ra ENTRIES; do
+  for entry in "${ENTRIES[@]}"; do
+    if [ -n "$CORE_DEPLOY_CP" ]; then CORE_DEPLOY_CP="${CORE_DEPLOY_CP}:"; fi
+    CORE_DEPLOY_CP="${CORE_DEPLOY_CP}${RUNFILES_DIR}/%{workspace}/${entry}"
+  done
+done < "$CORE_DEPLOY_CP_FILE"
+
 # Read source directories for hot-reload
 SOURCE_DIRS_FILE="${RUNFILES_DIR}/%{workspace}/%{source_dirs_file}"
 SOURCE_DIRS=""
@@ -41,6 +50,7 @@ exec java \
   -jar "$TOOL_JAR" \
   --application-classpath "$APP_CP" \
   --deployment-classpath "$DEPLOY_CP" \
+  --core-deployment-classpath "$CORE_DEPLOY_CP" \
   --output-dir "$OUTPUT_DIR" \
   --mode dev \
   --expected-quarkus-version %{quarkus_version} \

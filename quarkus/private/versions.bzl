@@ -1,6 +1,6 @@
 "Supported Quarkus versions and quarkifier release coordinates."
 
-SUPPORTED_VERSIONS = ["3.20.6"]
+SUPPORTED_VERSIONS = ["3.27.3"]
 
 RULES_VERSION = "0.1.0"
 

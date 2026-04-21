@@ -24,6 +24,7 @@ load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_dev_impl.bzl", 
 _QUARKUS_VERSION = "{version}"
 _QUARKIFIER_TOOL = "{tool}"
 _DEPLOYMENT_DEPS = "@quarkus_deployment//:all"
+_CORE_DEPLOYMENT_DEPS = "@quarkus_deployment//:core"
 
 def quarkus_app(name, **kwargs):
     quarkus_app_rule(
@@ -40,6 +41,7 @@ def quarkus_dev(name, **kwargs):
         quarkus_version = _QUARKUS_VERSION,
         quarkifier_tool = _QUARKIFIER_TOOL,
         deployment_deps = _DEPLOYMENT_DEPS,
+        core_deployment_deps = _CORE_DEPLOYMENT_DEPS,
         **kwargs
     )
 """.format(
@@ -142,14 +144,37 @@ _quarkus_quarkifier_local_build_repo = repository_rule(
 )
 
 def _quarkus_deployment_repo_impl(rctx):
-    """Downloads Quarkus deployment jars with transitive deps using Coursier."""
+    """Downloads Quarkus deployment jars with transitive deps using Coursier.
+
+    Produces two java_library targets:
+      - :core  — transitive deps of quarkus-core-deployment only (dev jar manifest)
+      - :all   — all deployment jars (core + extension-specific deployment jars)
+    """
     rctx.download(
         url = "https://github.com/coursier/launchers/raw/master/coursier",
         output = "coursier",
         executable = True,
     )
 
-    all_jars = []
+    # Phase 1: Resolve quarkus-core-deployment transitive deps (the "core" set).
+    # This is the first artifact in the list by convention.
+    core_jar_paths = []
+    core_gav = rctx.attr.artifacts[0] if rctx.attr.artifacts else None
+    if core_gav:
+        result = rctx.execute(
+            ["./coursier", "fetch", "--repository", rctx.attr.repository_url, core_gav],
+            timeout = 300,
+        )
+        if result.return_code == 0:
+            for line in result.stdout.strip().split("\n"):
+                line = line.strip()
+                if line.endswith(".jar") and line not in core_jar_paths:
+                    core_jar_paths.append(line)
+
+    core_jar_set = {p: True for p in core_jar_paths}
+
+    # Phase 2: Resolve all deployment artifacts (core + extensions).
+    all_jars = list(core_jar_paths)
     for gav in rctx.attr.artifacts:
         result = rctx.execute(
             ["./coursier", "fetch", "--repository", rctx.attr.repository_url, gav],
@@ -161,8 +186,10 @@ def _quarkus_deployment_repo_impl(rctx):
                 if line.endswith(".jar") and line not in all_jars:
                     all_jars.append(line)
 
+    # Phase 3: Generate BUILD targets, tracking which belong to core.
     imports = []
     all_targets = []
+    core_targets = []
     seen = {}
     for jar_path in all_jars:
         jar_file = jar_path.split("/")[-1]
@@ -175,14 +202,21 @@ def _quarkus_deployment_repo_impl(rctx):
             'java_import(name = "{n}", jars = ["jars/{j}"], visibility = ["//visibility:public"])'.format(n = target_name, j = jar_file),
         )
         all_targets.append('":{}"'.format(target_name))
+        if jar_path in core_jar_set:
+            core_targets.append('":{}"'.format(target_name))
 
     rctx.file("BUILD.bazel", content = """\
 load("@rules_java//java:java_import.bzl", "java_import")
 load("@rules_java//java:java_library.bzl", "java_library")
 package(default_visibility = ["//visibility:public"])
 {imports}
-java_library(name = "all", exports = [{exports}])
-""".format(imports = "\n".join(imports), exports = ", ".join(all_targets)))
+java_library(name = "core", exports = [{core_exports}])
+java_library(name = "all", exports = [{all_exports}])
+""".format(
+        imports = "\n".join(imports),
+        core_exports = ", ".join(core_targets),
+        all_exports = ", ".join(all_targets),
+    ))
 
 _quarkus_deployment_repo = repository_rule(
     implementation = _quarkus_deployment_repo_impl,
@@ -250,9 +284,24 @@ def _quarkus_impl(mctx):
     # Auto-discover deployment artifacts from lock file
     deployment_artifacts = [
         "io.quarkus:quarkus-core-deployment:" + version,
-        # Dev UI resources — needed for dev mode
-        "io.quarkus:quarkus-vertx-http-dev-ui-resources:" + version,
     ]
+
+    # Conditional dev dependencies: these are extensions that Quarkus activates
+    # only in dev mode via "conditional-dev-dependencies" in quarkus-extension.properties.
+    # Maven's resolver handles this automatically; we must add them explicitly.
+    # quarkus-devui-deployment: conditional dev dep of quarkus-vertx-http (Dev UI)
+    conditional_dev_deployment_artifacts = [
+        "io.quarkus:quarkus-devui-deployment:" + version,
+    ]
+
+    # Conditional dev runtime artifacts: many Quarkus extensions have separate
+    # "-dev" runtime modules that are only activated in dev mode (e.g.,
+    # quarkus-arc-dev, quarkus-rest-dev). These contain dev-mode-specific
+    # classes like EventsMonitor that the Dev UI build steps reference.
+    # We resolve them alongside deployment artifacts so they're available
+    # to the ApplicationModel.
+    conditional_dev_runtime_artifacts = []
+
     prefixes = tc.extension_group_prefixes if tc.extension_group_prefixes else _DEFAULT_EXTENSION_GROUP_PREFIXES
 
     if tc.lock_file:
@@ -274,6 +323,20 @@ def _quarkus_impl(mctx):
             if deployment_gav not in deployment_artifacts:
                 deployment_artifacts.append(deployment_gav)
 
+            # Add the conditional dev runtime artifact (e.g., quarkus-arc-dev)
+            dev_runtime_gav = group_id + ":" + artifact_id + "-dev:" + version
+            conditional_dev_runtime_artifacts.append(dev_runtime_gav)
+
+    # Add conditional dev deployment artifacts after extension discovery
+    for gav in conditional_dev_deployment_artifacts:
+        if gav not in deployment_artifacts:
+            deployment_artifacts.append(gav)
+
+    # Add conditional dev runtime artifacts
+    for gav in conditional_dev_runtime_artifacts:
+        if gav not in deployment_artifacts:
+            deployment_artifacts.append(gav)
+
     _quarkus_deployment_repo(
         name = "quarkus_deployment",
         artifacts = deployment_artifacts,
@@ -283,7 +346,7 @@ _toolchain_tag = tag_class(
     attrs = {
         "quarkus_version": attr.string(
             mandatory = True,
-            doc = "The Quarkus version to use (e.g. '3.20.6').",
+            doc = "The Quarkus version to use (e.g. '3.27.3').",
         ),
         "lock_file": attr.label(
             doc = "Path to maven_install.json for auto-discovering Quarkus extensions.",

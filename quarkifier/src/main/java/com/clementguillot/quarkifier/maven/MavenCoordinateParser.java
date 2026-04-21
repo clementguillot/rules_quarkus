@@ -9,7 +9,7 @@ import java.util.Set;
  * Extracts Maven coordinates (groupId, artifactId, version) from jar file paths.
  *
  * <p>Handles Bazel maven repository paths like: {@code
- * .../io/quarkus/quarkus-arc/3.20.6/processed_quarkus-arc-3.20.6.jar}
+ * .../io/quarkus/quarkus-arc/3.27.3/processed_quarkus-arc-3.27.3.jar}
  */
 public final class MavenCoordinateParser {
 
@@ -95,8 +95,8 @@ public final class MavenCoordinateParser {
 
   /**
    * Fallback when the path doesn't match the standard Maven layout. Extracts artifactId and version
-   * from the filename alone (e.g. {@code quarkus-arc-3.20.6.jar} → {@code quarkus-arc} / {@code
-   * 3.20.6}). Returns {@code "unknown"} for groupId.
+   * from the filename alone (e.g. {@code quarkus-arc-3.27.3.jar} → {@code quarkus-arc} / {@code
+   * 3.27.3}). Returns {@code "unknown"} for groupId.
    */
   private static Coordinates fallback(Path jarPath) {
     String name = jarPath.getFileName().toString();

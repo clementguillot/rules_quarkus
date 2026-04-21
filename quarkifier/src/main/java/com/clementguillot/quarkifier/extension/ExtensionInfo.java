@@ -11,7 +11,7 @@ import java.nio.file.Path;
  *
  * @param groupId Maven group ID (e.g. {@code io.quarkus})
  * @param artifactId Maven runtime artifact ID (e.g. {@code quarkus-resteasy-reactive})
- * @param version Maven version (e.g. {@code 3.20.6})
+ * @param version Maven version (e.g. {@code 3.27.3})
  * @param sourceJar the classpath jar that contained the extension metadata
  */
 public record ExtensionInfo(String groupId, String artifactId, String version, Path sourceJar) {}

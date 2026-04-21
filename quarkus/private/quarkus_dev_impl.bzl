@@ -46,6 +46,7 @@ def _quarkus_dev_impl(ctx):
 
     runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
     deployment_classpath = collect_runtime_classpath([ctx.attr.deployment_deps]) if ctx.attr.deployment_deps else depset()
+    core_deployment_classpath = collect_runtime_classpath([ctx.attr.core_deployment_deps]) if ctx.attr.core_deployment_deps else depset()
 
     tool_jar = ctx.file.quarkifier_tool
     java_runtime = ctx.attr._java_runtime[java_common.JavaRuntimeInfo]
@@ -54,6 +55,7 @@ def _quarkus_dev_impl(ctx):
     # We use short_path so paths resolve correctly in the runfiles tree.
     app_cp_file = ctx.actions.declare_file(ctx.label.name + "_app_cp.txt")
     deploy_cp_file = ctx.actions.declare_file(ctx.label.name + "_deploy_cp.txt")
+    core_deploy_cp_file = ctx.actions.declare_file(ctx.label.name + "_core_deploy_cp.txt")
 
     app_cp_args = ctx.actions.args()
     app_cp_args.add_joined(runtime_classpath, join_with = ":", map_each = _short_path)
@@ -62,6 +64,10 @@ def _quarkus_dev_impl(ctx):
     deploy_cp_args = ctx.actions.args()
     deploy_cp_args.add_joined(depset(transitive = [runtime_classpath, deployment_classpath]), join_with = ":", map_each = _short_path)
     ctx.actions.write(output = deploy_cp_file, content = deploy_cp_args)
+
+    core_deploy_cp_args = ctx.actions.args()
+    core_deploy_cp_args.add_joined(core_deployment_classpath, join_with = ":", map_each = _short_path)
+    ctx.actions.write(output = core_deploy_cp_file, content = core_deploy_cp_args)
 
     # Collect source directories from java_library deps for hot-reload support.
     source_dirs = _collect_java_source_dirs(ctx.attr.deps)
@@ -78,6 +84,7 @@ def _quarkus_dev_impl(ctx):
             "%{tool_jar}": tool_jar.short_path,
             "%{app_cp_file}": app_cp_file.short_path,
             "%{deploy_cp_file}": deploy_cp_file.short_path,
+            "%{core_deploy_cp_file}": core_deploy_cp_file.short_path,
             "%{quarkus_version}": ctx.attr.quarkus_version,
             "%{app_name}": ctx.label.name,
             "%{source_dirs_file}": source_dirs_file.short_path,
@@ -86,8 +93,8 @@ def _quarkus_dev_impl(ctx):
     )
 
     runfiles = ctx.runfiles(
-        files = [tool_jar, app_cp_file, deploy_cp_file, source_dirs_file],
-        transitive_files = depset(transitive = [runtime_classpath, deployment_classpath, java_runtime.files]),
+        files = [tool_jar, app_cp_file, deploy_cp_file, core_deploy_cp_file, source_dirs_file],
+        transitive_files = depset(transitive = [runtime_classpath, deployment_classpath, core_deployment_classpath, java_runtime.files]),
     )
 
     return [
@@ -111,7 +118,8 @@ quarkus_dev_rule = rule(
             allow_single_file = [".jar"],
             doc = "Quarkifier deploy jar.",
         ),
-        "deployment_deps": attr.label(doc = "Deployment deps (set by macro)."),
+        "deployment_deps": attr.label(doc = "All deployment deps including extensions (set by macro)."),
+        "core_deployment_deps": attr.label(doc = "Core deployment deps only — quarkus-core-deployment transitive closure (set by macro)."),
         "_java_runtime": attr.label(
             default = "@bazel_tools//tools/jdk:current_java_runtime",
         ),

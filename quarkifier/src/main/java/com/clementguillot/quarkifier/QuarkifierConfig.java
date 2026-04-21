@@ -10,6 +10,8 @@ import java.util.regex.Pattern;
  *
  * @param applicationClasspath runtime jars (colon-separated on CLI)
  * @param deploymentClasspath deployment jars (colon-separated on CLI)
+ * @param coreDeploymentClasspath core deployment jars only — quarkus-core-deployment transitive
+ *     closure (colon-separated on CLI, dev mode only)
  * @param outputDir directory where Fast_Jar output is written
  * @param resources additional resource paths (comma-separated on CLI)
  * @param mode NORMAL, TEST, or DEV
@@ -22,6 +24,7 @@ import java.util.regex.Pattern;
 public record QuarkifierConfig(
     List<Path> applicationClasspath,
     List<Path> deploymentClasspath,
+    List<Path> coreDeploymentClasspath,
     Path outputDir,
     List<Path> resources,
     AugmentationMode mode,
@@ -35,6 +38,7 @@ public record QuarkifierConfig(
             Usage: quarkifier \\
               --application-classpath <jar:jar:...> \\
               --deployment-classpath <jar:jar:...> \\
+              [--core-deployment-classpath <jar:jar:...>] \\
               --output-dir <path> \\
               [--resources <path,path,...>] \\
               [--mode normal|test|dev] \\
@@ -55,6 +59,7 @@ public record QuarkifierConfig(
   public static QuarkifierConfig parse(String[] args) throws InvalidArgumentsException {
     String appCp = null;
     String deployCp = null;
+    String coreDeployCp = null;
     String outputDir = null;
     String resources = null;
     String mode = null;
@@ -67,6 +72,7 @@ public record QuarkifierConfig(
       switch (args[i]) {
         case "--application-classpath" -> appCp = requireValue(args, ++i, args[i - 1]);
         case "--deployment-classpath" -> deployCp = requireValue(args, ++i, args[i - 1]);
+        case "--core-deployment-classpath" -> coreDeployCp = requireValue(args, ++i, args[i - 1]);
         case "--output-dir" -> outputDir = requireValue(args, ++i, args[i - 1]);
         case "--resources" -> resources = requireValue(args, ++i, args[i - 1]);
         case "--mode" -> mode = requireValue(args, ++i, args[i - 1]);
@@ -98,6 +104,7 @@ public record QuarkifierConfig(
     return new QuarkifierConfig(
         splitPaths(appCp, ":"),
         splitPaths(deployCp, ":"),
+        coreDeployCp != null ? splitPaths(coreDeployCp, ":") : List.of(),
         Path.of(outputDir),
         resources != null ? splitPaths(resources, ",") : List.of(),
         parsedMode,
@@ -116,6 +123,11 @@ public record QuarkifierConfig(
 
     list.add("--deployment-classpath");
     list.add(joinPaths(deploymentClasspath, ":"));
+
+    if (!coreDeploymentClasspath.isEmpty()) {
+      list.add("--core-deployment-classpath");
+      list.add(joinPaths(coreDeploymentClasspath, ":"));
+    }
 
     list.add("--output-dir");
     list.add(outputDir.toString());
