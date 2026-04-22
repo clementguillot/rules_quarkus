@@ -17,8 +17,8 @@ class VersionCheckerTest {
     var capture = new CapturedOutput();
     List<ExtensionInfo> mismatched =
         VersionChecker.check(
-            List.of(ext("quarkus-arc", "3.20.6"), ext("quarkus-resteasy-reactive", "3.20.6")),
-            "3.20.6",
+            List.of(ext("quarkus-arc", "3.27.3"), ext("quarkus-resteasy-reactive", "3.27.3")),
+            "3.27.3",
             capture.stream);
 
     assertEquals(0, mismatched.size());
@@ -31,7 +31,7 @@ class VersionCheckerTest {
     List<ExtensionInfo> mismatched =
         VersionChecker.check(
             List.of(ext("quarkus-arc", "3.18.0"), ext("quarkus-resteasy-reactive", "3.19.0")),
-            "3.20.6",
+            "3.27.3",
             capture.stream);
 
     assertEquals(2, mismatched.size());
@@ -54,8 +54,8 @@ class VersionCheckerTest {
     var capture = new CapturedOutput();
     List<ExtensionInfo> mismatched =
         VersionChecker.check(
-            List.of(ext("quarkus-arc", "3.20.6"), ext("quarkus-resteasy-reactive", "3.18.0")),
-            "3.20.6",
+            List.of(ext("quarkus-arc", "3.27.3"), ext("quarkus-resteasy-reactive", "3.18.0")),
+            "3.27.3",
             capture.stream);
 
     assertEquals(1, mismatched.size());
@@ -66,7 +66,7 @@ class VersionCheckerTest {
   @Test
   void emptyExtensionList() {
     var capture = new CapturedOutput();
-    assertEquals(0, VersionChecker.check(List.of(), "3.20.6", capture.stream).size());
+    assertEquals(0, VersionChecker.check(List.of(), "3.27.3", capture.stream).size());
     assertEquals("", capture.text());
   }
 

@@ -96,7 +96,7 @@ And `quarkifier_source_dir` to resolve the local deploy jar:
 
 ```python
 quarkus.toolchain(
-    quarkus_version = "3.20.6",
+    quarkus_version = "3.27.3",
     lock_file = "//:maven_install.json",
     quarkifier_source_dir = "@com_clementguillot_rules_quarkus//:MODULE.bazel",
 )
@@ -159,7 +159,7 @@ Each property test is tagged with a comment: `Feature: rules-quarkus, Property {
 Defined in `quarkus/private/versions.bzl`:
 
 ```python
-SUPPORTED_VERSIONS = ["3.20.6"]
+SUPPORTED_VERSIONS = ["3.27.3"]
 RULES_VERSION = "0.1.0"
 GITHUB_OWNER = "clementguillot"
 GITHUB_REPO = "rules_quarkus"

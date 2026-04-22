@@ -6,9 +6,9 @@
     "com.google.errorprone:error_prone_annotations": -1035138750,
     "com.google.guava:guava": 1943808618,
     "com.google.j2objc:j2objc-annotations": 2003271689,
-    "io.quarkus.arc:arc": 1915132689,
-    "io.quarkus:quarkus-core": 1336519121,
-    "io.quarkus:quarkus-core-deployment": -1017146787,
+    "io.quarkus.arc:arc": -946196139,
+    "io.quarkus:quarkus-core": -1524809707,
+    "io.quarkus:quarkus-core-deployment": 416491681,
     "org.junit.jupiter:junit-jupiter": -1032504578,
     "org.junit.platform:junit-platform-console-standalone": -1481831078,
     "org.junit.platform:junit-platform-launcher": -779382379,
@@ -22,40 +22,43 @@
     "com.google.guava:guava": -163533230,
     "com.google.guava:listenablefuture": 1079558157,
     "com.google.j2objc:j2objc-annotations": 248818742,
-    "io.github.crac:org-crac": 2056493181,
-    "io.quarkus.arc:arc": -305064516,
-    "io.quarkus.gizmo:gizmo": -1721842181,
-    "io.quarkus:quarkus-bootstrap-app-model": 1266652238,
-    "io.quarkus:quarkus-bootstrap-core": -1110504760,
-    "io.quarkus:quarkus-bootstrap-runner": 406321986,
-    "io.quarkus:quarkus-builder": -304103101,
-    "io.quarkus:quarkus-class-change-agent": -1625112547,
-    "io.quarkus:quarkus-classloader-commons": -1769748846,
-    "io.quarkus:quarkus-core": 1083724207,
-    "io.quarkus:quarkus-core-deployment": -183797421,
-    "io.quarkus:quarkus-development-mode-spi": 968596753,
-    "io.quarkus:quarkus-devtools-utilities": 464758008,
-    "io.quarkus:quarkus-fs-util": 610682858,
-    "io.quarkus:quarkus-hibernate-validator-spi": -1123486304,
-    "io.quarkus:quarkus-ide-launcher": -863175982,
-    "io.smallrye.common:smallrye-common-annotation": -1484256118,
-    "io.smallrye.common:smallrye-common-classloader": 1009928856,
-    "io.smallrye.common:smallrye-common-constraint": -64549106,
-    "io.smallrye.common:smallrye-common-cpu": 989131920,
-    "io.smallrye.common:smallrye-common-expression": -975851735,
-    "io.smallrye.common:smallrye-common-function": -925764970,
-    "io.smallrye.common:smallrye-common-io": 1792470819,
-    "io.smallrye.common:smallrye-common-net": 1767529697,
-    "io.smallrye.common:smallrye-common-os": 1201892545,
-    "io.smallrye.common:smallrye-common-ref": 1206578066,
-    "io.smallrye.config:smallrye-config": -1714123685,
-    "io.smallrye.config:smallrye-config-common": -1627169722,
-    "io.smallrye.config:smallrye-config-core": 522121086,
-    "io.smallrye.reactive:mutiny": -1260360251,
-    "io.smallrye:jandex": 1673522906,
+    "io.github.dmlloyd:jdk-classfile-backport": 1460246868,
+    "io.quarkus.arc:arc": -946614674,
+    "io.quarkus.gizmo:gizmo": 1956106425,
+    "io.quarkus.gizmo:gizmo2": -1887871201,
+    "io.quarkus:quarkus-bootstrap-app-model": -923513404,
+    "io.quarkus:quarkus-bootstrap-core": -343523199,
+    "io.quarkus:quarkus-bootstrap-runner": -116121396,
+    "io.quarkus:quarkus-builder": -17971146,
+    "io.quarkus:quarkus-class-change-agent": -672019621,
+    "io.quarkus:quarkus-classloader-commons": 400218834,
+    "io.quarkus:quarkus-core": -369929068,
+    "io.quarkus:quarkus-core-deployment": 2144211252,
+    "io.quarkus:quarkus-development-mode-spi": 2069582730,
+    "io.quarkus:quarkus-fs-util": 2100134833,
+    "io.quarkus:quarkus-hibernate-validator-spi": -974025439,
+    "io.quarkus:quarkus-ide-launcher": 1865115086,
+    "io.smallrye.common:smallrye-common-annotation": -1541422257,
+    "io.smallrye.common:smallrye-common-classloader": -805847306,
+    "io.smallrye.common:smallrye-common-constraint": -1820281873,
+    "io.smallrye.common:smallrye-common-cpu": -334932526,
+    "io.smallrye.common:smallrye-common-expression": 368037826,
+    "io.smallrye.common:smallrye-common-function": 1053549806,
+    "io.smallrye.common:smallrye-common-io": 1446872542,
+    "io.smallrye.common:smallrye-common-net": -1730731989,
+    "io.smallrye.common:smallrye-common-os": 1149622573,
+    "io.smallrye.common:smallrye-common-process": -457724872,
+    "io.smallrye.common:smallrye-common-ref": 1084579247,
+    "io.smallrye.common:smallrye-common-resource": -975318444,
+    "io.smallrye.config:smallrye-config": -914261764,
+    "io.smallrye.config:smallrye-config-common": -1066906865,
+    "io.smallrye.config:smallrye-config-core": -365457456,
+    "io.smallrye.reactive:mutiny": -1617211608,
+    "io.smallrye:jandex": -359615195,
+    "io.smallrye:jandex-gizmo2": -1995464502,
     "jakarta.annotation:jakarta.annotation-api": 196616042,
-    "jakarta.el:jakarta.el-api": 261490521,
-    "jakarta.enterprise:jakarta.enterprise.cdi-api": -1542432060,
+    "jakarta.el:jakarta.el-api": -78449182,
+    "jakarta.enterprise:jakarta.enterprise.cdi-api": -289566630,
     "jakarta.enterprise:jakarta.enterprise.lang-model": 1858614948,
     "jakarta.inject:jakarta.inject-api": 188991469,
     "jakarta.interceptor:jakarta.interceptor-api": 71151213,
@@ -66,18 +69,18 @@
     "org.apache.commons:commons-lang3": -850748327,
     "org.apiguardian:apiguardian-api": 1279798469,
     "org.checkerframework:checker-qual": -1533199059,
+    "org.crac:crac": 853021667,
     "org.eclipse.microprofile.config:microprofile-config-api": 1033345756,
     "org.eclipse.parsson:parsson": 261021719,
-    "org.eclipse.sisu:org.eclipse.sisu.inject": -625920817,
+    "org.eclipse.sisu:org.eclipse.sisu.inject": -1006980622,
     "org.fusesource.jansi:jansi": -1665988609,
     "org.graalvm.sdk:nativeimage": -1830909194,
     "org.graalvm.sdk:word": 921752333,
     "org.jboss.logging:commons-logging-jboss-logging": -1896182967,
     "org.jboss.logging:jboss-logging": -1889532189,
-    "org.jboss.logging:jboss-logging-annotations": 797649319,
-    "org.jboss.logmanager:jboss-logmanager": -1368409710,
-    "org.jboss.slf4j:slf4j-jboss-logmanager": 1438717166,
-    "org.jboss.threads:jboss-threads": 961295307,
+    "org.jboss.logmanager:jboss-logmanager": -1110999658,
+    "org.jboss.slf4j:slf4j-jboss-logmanager": -1436669637,
+    "org.jboss.threads:jboss-threads": -991353416,
     "org.jctools:jctools-core": 473448173,
     "org.jspecify:jspecify": 117231129,
     "org.junit.jupiter:junit-jupiter": -1180454764,
@@ -89,13 +92,13 @@
     "org.junit.platform:junit-platform-engine": -2133752461,
     "org.junit.platform:junit-platform-launcher": -1164782491,
     "org.opentest4j:opentest4j": -1711174392,
-    "org.ow2.asm:asm": -1101379267,
-    "org.ow2.asm:asm-analysis": -559036312,
-    "org.ow2.asm:asm-commons": 1034366166,
-    "org.ow2.asm:asm-tree": -1479389285,
-    "org.ow2.asm:asm-util": -824669353,
-    "org.slf4j:slf4j-api": -1847183587,
-    "org.wildfly.common:wildfly-common": -616941343
+    "org.ow2.asm:asm": 611381606,
+    "org.ow2.asm:asm-analysis": -254710036,
+    "org.ow2.asm:asm-commons": 1032323649,
+    "org.ow2.asm:asm-tree": -1593303232,
+    "org.ow2.asm:asm-util": 610725920,
+    "org.slf4j:slf4j-api": -1521593912,
+    "org.wildfly.common:wildfly-common": 1915193746
   },
   "conflict_resolution": {
     "com.google.errorprone:error_prone_annotations:2.5.1": "com.google.errorprone:error_prone_annotations:2.18.0"
@@ -143,179 +146,191 @@
       },
       "version": "2.8"
     },
-    "io.github.crac:org-crac": {
+    "io.github.dmlloyd:jdk-classfile-backport": {
       "shasums": {
-        "jar": "d77a0c628d1399ee682738851dca13d060fef51601aedad6d1efcd3185f9af09"
+        "jar": "34f5c9424d49bbfcc6277a28c3ac6da04520e8c6fcc49c59be7a2b1462ce5554"
       },
-      "version": "0.1.3"
+      "version": "24.0"
     },
     "io.quarkus.arc:arc": {
       "shasums": {
-        "jar": "06ac01aeedcff61928ca56e888e6458fba1dd9eaf5f4afadfb1893a9e7d93c5b"
+        "jar": "367cb0071dd9d09c371f806f3d0530a12b5ffeb7f285cda0de8c399559ef1b34"
       },
-      "version": "3.20.6"
+      "version": "3.27.3"
     },
     "io.quarkus.gizmo:gizmo": {
       "shasums": {
-        "jar": "b4c903e40595313685ad3fef57a429e715fef5a254c653703bab19ee50eec077"
+        "jar": "6d463d670ea45cb9a8241e99dd02c7e422d9982a2ff6e8623d338ac2a6c892b1"
       },
-      "version": "1.8.0"
+      "version": "1.9.0"
+    },
+    "io.quarkus.gizmo:gizmo2": {
+      "shasums": {
+        "jar": "bcb1ade9db85101dcd42cd81f5a0de2c15e50e696928957943723593ec719c70"
+      },
+      "version": "2.0.0.Beta6"
     },
     "io.quarkus:quarkus-bootstrap-app-model": {
       "shasums": {
-        "jar": "9dc4b03c60c343afc19693f5ec3ca098330c970c7dc33e0ce837e58fa3645b64"
+        "jar": "6b14b184ea655f193a88b5f4669c1258743b7cdf0591c640986e46d0828969b2"
       },
-      "version": "3.20.6"
+      "version": "3.27.3"
     },
     "io.quarkus:quarkus-bootstrap-core": {
       "shasums": {
-        "jar": "de5d36938b8c8dcc968423ea76b292126b6ed867b6d71230a6e0cd75506e8e72"
+        "jar": "9915dfac2f331b49140a60b74cd57d5a421d22951676a7a2c22a3dc37bc1032d"
       },
-      "version": "3.20.6"
+      "version": "3.27.3"
     },
     "io.quarkus:quarkus-bootstrap-runner": {
       "shasums": {
-        "jar": "8c65a92bcad636b2f5a19912503caa491d61332c2956048d8adbe1f9159875e8"
+        "jar": "78c6624086038638192ae262bf1769bc58b32a6d90ded85b896536c07408ce5c"
       },
-      "version": "3.20.6"
+      "version": "3.27.3"
     },
     "io.quarkus:quarkus-builder": {
       "shasums": {
-        "jar": "9b20dd0b873787d3d10ab61d8ca3c8962d82a06078ead957a1f77a1d04bc2429"
+        "jar": "98faace102e51108a7e91a611ed48fdcb865c0191dcb5fdb92e17ed931131c35"
       },
-      "version": "3.20.6"
+      "version": "3.27.3"
     },
     "io.quarkus:quarkus-class-change-agent": {
       "shasums": {
-        "jar": "be21d5bd3e051585291f980c64425971e5851ae44844c59d8ad13a75d2d191dd"
+        "jar": "8b58582d2898386f5bd4ea4fd3fdac787b54a3826df237f622fecce0fbdcbe7e"
       },
-      "version": "3.20.6"
+      "version": "3.27.3"
     },
     "io.quarkus:quarkus-classloader-commons": {
       "shasums": {
-        "jar": "2cedd1ebc0b2bb0db61a576568a3b7de0edfbf239ca6ee77b75956f5e443f2d8"
+        "jar": "4c8e897cd3dff151b9ed4d196a0b7e6b79dd650249e34d06503f5c878fc59334"
       },
-      "version": "3.20.6"
+      "version": "3.27.3"
     },
     "io.quarkus:quarkus-core": {
       "shasums": {
-        "jar": "0b956aee8e614c5ed6e8aa7f5dd02c4e111eb5db95dae9d2110e6203496d1b7f"
+        "jar": "42ca682fd671eefcd700a5bec211d12b997d85ef19faac43d65cd822732b5888"
       },
-      "version": "3.20.6"
+      "version": "3.27.3"
     },
     "io.quarkus:quarkus-core-deployment": {
       "shasums": {
-        "jar": "6a324377a698f33cd71b6af41b95d4a52dc63a7cb081ff239424fd05c4ed6892"
+        "jar": "a9401f2699f490256083a2ec1140dfc3f036ae9eac1477118d9a2da1ec079ca9"
       },
-      "version": "3.20.6"
+      "version": "3.27.3"
     },
     "io.quarkus:quarkus-development-mode-spi": {
       "shasums": {
-        "jar": "63ddf896144dc4c5faae74205fcbf9c94003d0491ea418ca48c181ea4139cda0"
+        "jar": "cd8b0c853d89a6bc287238696e22ab13a78533ecf75fc91a1630afe1486ebb10"
       },
-      "version": "3.20.6"
-    },
-    "io.quarkus:quarkus-devtools-utilities": {
-      "shasums": {
-        "jar": "fbe1f5facdd5239b3308f70cd9cd59758d99eaea2998746f533e1958020bfa54"
-      },
-      "version": "3.20.6"
+      "version": "3.27.3"
     },
     "io.quarkus:quarkus-fs-util": {
       "shasums": {
-        "jar": "cd66340d85a2daa72dc1adedfe7ee4ac0d1d8ea2e4334922169114f687b54d08"
+        "jar": "515792e2c261e704b5c052be21fdaa9cc43aa5fd8588df53cf2edd071fd9ee26"
       },
-      "version": "0.0.10"
+      "version": "1.1.0"
     },
     "io.quarkus:quarkus-hibernate-validator-spi": {
       "shasums": {
-        "jar": "924d9cef2035d99d2b1076eecaca9c9910350180f0071a744d549b48aa469ace"
+        "jar": "5c492045efcc2a4c1d8de1662becab2822c7da3fbdedccdb77ca5fac302224bb"
       },
-      "version": "3.20.6"
+      "version": "3.27.3"
     },
     "io.quarkus:quarkus-ide-launcher": {
       "shasums": {
-        "jar": "211b65c2aa63fb6eaf54f31cca3738f9573de3fb433b0eb4b7855e22a2bdf62d"
+        "jar": "afd67053b3505b6e12708ddabb9fa45680e052780cc91e611cc90e62bb65bec9"
       },
-      "version": "3.20.6"
+      "version": "3.27.3"
     },
     "io.smallrye.common:smallrye-common-annotation": {
       "shasums": {
-        "jar": "801e10be0d41595f10610c5cf573722fa2da3dba660342ca118f9c79a4190fd7"
+        "jar": "ad3eff15b46fbf81bbc95315144640774bde7817c2e75981230a1fe39eb7429a"
       },
-      "version": "2.12.2"
+      "version": "2.13.9"
     },
     "io.smallrye.common:smallrye-common-classloader": {
       "shasums": {
-        "jar": "fef56223393b8e89340db91398dcec76b5ccde8eac9019fe0caaa5674dae7038"
+        "jar": "27b7498b4d26e9288689570f8a859b08806d59f44fa0a4db03e60dd51d4d7884"
       },
-      "version": "2.12.2"
+      "version": "2.13.9"
     },
     "io.smallrye.common:smallrye-common-constraint": {
       "shasums": {
-        "jar": "2d8ba1fbe4fd341ac278a5a7f34110611ee6a3979a67f16d3870373fd993e43a"
+        "jar": "c75d6fcecb867480106ed16607f03930788838c4fd959d11e05a916e5eae3a01"
       },
-      "version": "2.12.2"
+      "version": "2.13.9"
     },
     "io.smallrye.common:smallrye-common-cpu": {
       "shasums": {
-        "jar": "a54160fa7f9a259438b3a8e2892205024b77808ff80fde503809f720fe2a5e71"
+        "jar": "7ecaf8b4f048afb8a732fd798be4de29a33d9e01b58adce90fa22dfcedb6ef7c"
       },
-      "version": "2.12.2"
+      "version": "2.13.9"
     },
     "io.smallrye.common:smallrye-common-expression": {
       "shasums": {
-        "jar": "17aa952d36d909200c44d9ace7e0cae3f3a41ec3ac03be83500115c50925f932"
+        "jar": "45f4f698e5f1daf239313616ede8faa0f1682dcb19b2ba6ae5750a6c1337d834"
       },
-      "version": "2.12.2"
+      "version": "2.13.9"
     },
     "io.smallrye.common:smallrye-common-function": {
       "shasums": {
-        "jar": "1d4f4b9ec3c90953e57175d344a10cfae41d8a986d8644a5a4789cbcd836d634"
+        "jar": "7f1fdd06f9201b00420569dbda7f5fc8c16b8ebc9e9c688f372709834804e3ca"
       },
-      "version": "2.12.2"
+      "version": "2.13.9"
     },
     "io.smallrye.common:smallrye-common-io": {
       "shasums": {
-        "jar": "9139d0aefd024f62bbfe1d6509fa657332687a23cac2fa86326b79b346d31d52"
+        "jar": "6132512fa1c32ea63b9f0dacb5fb85f5d418f25b7087d88db6ed294560a888eb"
       },
-      "version": "2.12.2"
+      "version": "2.13.9"
     },
     "io.smallrye.common:smallrye-common-net": {
       "shasums": {
-        "jar": "377d4e93bd3d4891f2fae7f00abb2b51e00c679cb46ad988b162b01ee883f2f8"
+        "jar": "5825dbae884cb9cbde7a5e93025fd29caf3d0c4848a98b2fe049129e6b9587a7"
       },
-      "version": "2.12.2"
+      "version": "2.13.9"
     },
     "io.smallrye.common:smallrye-common-os": {
       "shasums": {
-        "jar": "98ce50fd173b14756528b3c1eef4f8a85a1797913e500255df2c3cbbd8cc2851"
+        "jar": "8de1846ca0674a299cd6c37f66914ce72569019b5706267aa3963ce68fd87b36"
       },
-      "version": "2.12.2"
+      "version": "2.13.9"
+    },
+    "io.smallrye.common:smallrye-common-process": {
+      "shasums": {
+        "jar": "5c9fae9b4e3cb8e84c8b211aacfd1919b3e2f5a6aaf9664f34e2b2fa5b386e17"
+      },
+      "version": "2.13.9"
     },
     "io.smallrye.common:smallrye-common-ref": {
       "shasums": {
-        "jar": "22463eabea55544ef171c74bab751fbb259c461119be795ba65e43900b423f46"
+        "jar": "72e147f76dc3a2d7aac9f18b812708390d1d8cf768ad32f556852068616575d7"
       },
-      "version": "2.12.2"
+      "version": "2.13.9"
+    },
+    "io.smallrye.common:smallrye-common-resource": {
+      "shasums": {
+        "jar": "9ba62b4cc6ae4cf2492966d19795cf3a150a4bcf8bc88d646b1d34b8c8019dc8"
+      },
+      "version": "2.13.9"
     },
     "io.smallrye.config:smallrye-config": {
       "shasums": {
-        "jar": "e0fb5fa30aa6b7c7c58ea7411c67deb9c2572d633f7ac8f9eea85dd299844810"
+        "jar": "ca8d6fb0b020d874b707f2c4a13d6492d62ea7fffa95fe03c040f553f77998f4"
       },
-      "version": "3.11.4"
+      "version": "3.13.4"
     },
     "io.smallrye.config:smallrye-config-common": {
       "shasums": {
-        "jar": "ab86755440d38006cdc3cc5dd6e3a46e309da6508cc838273aed6eb8bf4f4101"
+        "jar": "fd3fb6f0609d2cb95d26119912165f89036120392ff79cabe0bc24cdb7acda51"
       },
-      "version": "3.11.4"
+      "version": "3.13.4"
     },
     "io.smallrye.config:smallrye-config-core": {
       "shasums": {
-        "jar": "ccec457dd237801a8c8030ef8c0b5dfc7329ddb57709a94f22b274fac5598d56"
+        "jar": "b2ac5384844bae798b40c57057f131eb72754fb68366fb092bda5d913ee4a35b"
       },
-      "version": "3.11.4"
+      "version": "3.13.4"
     },
     "io.smallrye.reactive:mutiny": {
       "shasums": {
@@ -325,9 +340,15 @@
     },
     "io.smallrye:jandex": {
       "shasums": {
-        "jar": "4a48ad61b7492a25381693106186f1b94acbff26181fdb2ed989286b683ac29e"
+        "jar": "6be417290a1d343dd27b45cbd12e273deb4af30a2df5cb9e4bad880fb63945b2"
       },
-      "version": "3.3.0"
+      "version": "3.4.0"
+    },
+    "io.smallrye:jandex-gizmo2": {
+      "shasums": {
+        "jar": "6df02b54b40fa1b8bb4e7b9f6856815a2242d2221760522ef975258b405d5c81"
+      },
+      "version": "3.4.0"
     },
     "jakarta.annotation:jakarta.annotation-api": {
       "shasums": {
@@ -337,9 +358,9 @@
     },
     "jakarta.el:jakarta.el-api": {
       "shasums": {
-        "jar": "f33d0becf2d5516730ba5cc99a7b5a2b1f62986bf0a3370249cdff9a2f171507"
+        "jar": "7e84b5bed49de32b79cc5e85d90b6f5adb1a953ac67283adbb41c1e297f9c605"
       },
-      "version": "6.0.0"
+      "version": "6.0.1"
     },
     "jakarta.enterprise:jakarta.enterprise.cdi-api": {
       "shasums": {
@@ -407,6 +428,12 @@
       },
       "version": "3.33.0"
     },
+    "org.crac:crac": {
+      "shasums": {
+        "jar": "f4426e1641c8f0fa2f025a4cd7c40c285abaf265930e6717adfcaef03d034850"
+      },
+      "version": "1.5.0"
+    },
     "org.eclipse.microprofile.config:microprofile-config-api": {
       "shasums": {
         "jar": "dee277f81e1edfeafd5e43589441ecdf434500fe4a31d035e74b8e6d8e7bfd91"
@@ -421,9 +448,9 @@
     },
     "org.eclipse.sisu:org.eclipse.sisu.inject": {
       "shasums": {
-        "jar": "15335c4dcf082f599fb8eddcfb58d6a7e9a9c97de2883c257089a479b9b24522"
+        "jar": "1cbd7a965a5e2a9ea823bab311962a4e5aa5c240705bdbad5a52b40ffdfa1004"
       },
-      "version": "0.9.0.M3"
+      "version": "0.9.0.M4"
     },
     "org.fusesource.jansi:jansi": {
       "shasums": {
@@ -455,12 +482,6 @@
       },
       "version": "3.6.1.Final"
     },
-    "org.jboss.logging:jboss-logging-annotations": {
-      "shasums": {
-        "jar": "16bb023044398307eb85c18271131c57ddebf7fb053f0490fdb253e5b84ddfb2"
-      },
-      "version": "3.0.4.Final"
-    },
     "org.jboss.logmanager:jboss-logmanager": {
       "shasums": {
         "jar": "c1e7de682a4871a8e4eefb26adaf0fcc63cd0913543c50aa6b7f46fa5ec151fe"
@@ -469,15 +490,15 @@
     },
     "org.jboss.slf4j:slf4j-jboss-logmanager": {
       "shasums": {
-        "jar": "277885104b727a213ef784bab31499d23221074ded28b04827e809d2f5489693"
+        "jar": "ba469a975e9d1e79f34a8baa1a0afa8b01bbd8cf080537c0e0899476d31db84b"
       },
-      "version": "2.0.0.Final"
+      "version": "2.0.2.Final"
     },
     "org.jboss.threads:jboss-threads": {
       "shasums": {
-        "jar": "436bcba7b602fce82317eafc7c054929e94434d752151d3a2c40333b8ad4250e"
+        "jar": "d3af2f6b942eae683ff2de7dfe68467f8d570cbba8db37fe858977349c3bf2aa"
       },
-      "version": "3.8.0.Final"
+      "version": "3.9.1"
     },
     "org.jctools:jctools-core": {
       "shasums": {
@@ -547,39 +568,39 @@
     },
     "org.ow2.asm:asm": {
       "shasums": {
-        "jar": "8cadd43ac5eb6d09de05faecca38b917a040bb9139c7edeb4cc81c740b713281"
+        "jar": "876eab6a83daecad5ca67eb9fcabb063c97b5aeb8cf1fca7a989ecde17522051"
       },
-      "version": "9.7.1"
+      "version": "9.8"
     },
     "org.ow2.asm:asm-analysis": {
       "shasums": {
-        "jar": "85b29371884ba31bb76edf22323c2c24e172c3267a67152eba3d1ccc2e041ef2"
+        "jar": "e640732fbcd3c6271925a504f125e38384688f4dfbbf92c8622dfcee0d09edb9"
       },
-      "version": "9.7.1"
+      "version": "9.8"
     },
     "org.ow2.asm:asm-commons": {
       "shasums": {
-        "jar": "9a579b54d292ad9be171d4313fd4739c635592c2b5ac3a459bbd1049cddec6a0"
+        "jar": "3301a1c1cb4c59fcc5292648dac1d7c5aed4c0f067dfbe88873b8cdfe77404f4"
       },
-      "version": "9.7.1"
+      "version": "9.8"
     },
     "org.ow2.asm:asm-tree": {
       "shasums": {
-        "jar": "9929881f59eb6b840e86d54570c77b59ce721d104e6dfd7a40978991c2d3b41f"
+        "jar": "14b7880cb7c85eed101e2710432fc3ffb83275532a6a894dc4c4095d49ad59f1"
       },
-      "version": "9.7.1"
+      "version": "9.8"
     },
     "org.ow2.asm:asm-util": {
       "shasums": {
-        "jar": "f885be71b5c90556f5f1ad1c4f9276b29b96057c497d46666fe4ddbec3cb43c6"
+        "jar": "8ba0460ecb28fd0e2980e5f3ef3433a513a457bc077f81a53bdc75b587a08d15"
       },
-      "version": "9.7.1"
+      "version": "9.8"
     },
     "org.slf4j:slf4j-api": {
       "shasums": {
-        "jar": "2f2a92d410b268139d7d63b75ed25e21995cfe4100c19bf23577cfdbc8077bda"
+        "jar": "7b751d952061954d5abfed7181c1f645d336091b679891591d63329c622eb832"
       },
-      "version": "2.0.6"
+      "version": "2.0.17"
     },
     "org.wildfly.common:wildfly-common": {
       "shasums": {
@@ -609,6 +630,11 @@
       "org.ow2.asm:asm",
       "org.ow2.asm:asm-util"
     ],
+    "io.quarkus.gizmo:gizmo2": [
+      "io.github.dmlloyd:jdk-classfile-backport",
+      "io.smallrye.common:smallrye-common-constraint",
+      "io.smallrye.common:smallrye-common-resource"
+    ],
     "io.quarkus:quarkus-bootstrap-app-model": [
       "io.quarkus:quarkus-fs-util",
       "org.jboss.logging:commons-logging-jboss-logging",
@@ -620,9 +646,9 @@
       "io.smallrye.common:smallrye-common-io"
     ],
     "io.quarkus:quarkus-bootstrap-runner": [
-      "io.github.crac:org-crac",
       "io.quarkus:quarkus-classloader-commons",
       "io.smallrye.common:smallrye-common-io",
+      "org.crac:crac",
       "org.jboss.logging:jboss-logging",
       "org.jboss.logmanager:jboss-logmanager"
     ],
@@ -643,7 +669,6 @@
       "jakarta.enterprise:jakarta.enterprise.cdi-api",
       "jakarta.inject:jakarta.inject-api",
       "org.jboss.logging:jboss-logging",
-      "org.jboss.logging:jboss-logging-annotations",
       "org.jboss.logmanager:jboss-logmanager",
       "org.jboss.slf4j:slf4j-jboss-logmanager",
       "org.jboss.threads:jboss-threads",
@@ -652,15 +677,18 @@
     ],
     "io.quarkus:quarkus-core-deployment": [
       "io.quarkus.gizmo:gizmo",
+      "io.quarkus.gizmo:gizmo2",
       "io.quarkus:quarkus-bootstrap-core",
       "io.quarkus:quarkus-builder",
       "io.quarkus:quarkus-class-change-agent",
       "io.quarkus:quarkus-classloader-commons",
       "io.quarkus:quarkus-core",
       "io.quarkus:quarkus-development-mode-spi",
-      "io.quarkus:quarkus-devtools-utilities",
       "io.quarkus:quarkus-hibernate-validator-spi",
+      "io.smallrye.common:smallrye-common-os",
+      "io.smallrye.common:smallrye-common-process",
       "io.smallrye:jandex",
+      "io.smallrye:jandex-gizmo2",
       "org.aesh:aesh",
       "org.aesh:readline",
       "org.apache.commons:commons-lang3",
@@ -671,6 +699,9 @@
       "org.ow2.asm:asm",
       "org.ow2.asm:asm-commons",
       "org.wildfly.common:wildfly-common"
+    ],
+    "io.quarkus:quarkus-development-mode-spi": [
+      "org.jboss.logging:jboss-logging"
     ],
     "io.quarkus:quarkus-hibernate-validator-spi": [
       "io.quarkus:quarkus-builder",
@@ -691,7 +722,15 @@
       "io.smallrye.common:smallrye-common-constraint",
       "org.jboss.logging:jboss-logging"
     ],
+    "io.smallrye.common:smallrye-common-process": [
+      "io.smallrye.common:smallrye-common-function",
+      "io.smallrye.common:smallrye-common-os",
+      "org.jboss.logging:jboss-logging"
+    ],
     "io.smallrye.common:smallrye-common-ref": [
+      "io.smallrye.common:smallrye-common-constraint"
+    ],
+    "io.smallrye.common:smallrye-common-resource": [
       "io.smallrye.common:smallrye-common-constraint"
     ],
     "io.smallrye.config:smallrye-config": [
@@ -717,6 +756,10 @@
       "io.smallrye.common:smallrye-common-annotation",
       "org.jctools:jctools-core"
     ],
+    "io.smallrye:jandex-gizmo2": [
+      "io.quarkus.gizmo:gizmo2",
+      "io.smallrye:jandex"
+    ],
     "jakarta.enterprise:jakarta.enterprise.cdi-api": [
       "jakarta.annotation:jakarta.annotation-api",
       "jakarta.el:jakarta.el-api",
@@ -733,13 +776,13 @@
     "org.eclipse.parsson:parsson": [
       "jakarta.json:jakarta.json-api"
     ],
+    "org.eclipse.sisu:org.eclipse.sisu.inject": [
+      "org.ow2.asm:asm"
+    ],
     "org.graalvm.sdk:nativeimage": [
       "org.graalvm.sdk:word"
     ],
     "org.jboss.logging:commons-logging-jboss-logging": [
-      "org.jboss.logging:jboss-logging"
-    ],
-    "org.jboss.logging:jboss-logging-annotations": [
       "org.jboss.logging:jboss-logging"
     ],
     "org.jboss.logmanager:jboss-logmanager": [
@@ -868,8 +911,17 @@
     "com.google.j2objc:j2objc-annotations": [
       "com.google.j2objc.annotations"
     ],
-    "io.github.crac:org-crac": [
-      "org.crac"
+    "io.github.dmlloyd:jdk-classfile-backport": [
+      "io.github.dmlloyd.classfile",
+      "io.github.dmlloyd.classfile.attribute",
+      "io.github.dmlloyd.classfile.components",
+      "io.github.dmlloyd.classfile.constantpool",
+      "io.github.dmlloyd.classfile.extras",
+      "io.github.dmlloyd.classfile.extras.constant",
+      "io.github.dmlloyd.classfile.extras.reflect",
+      "io.github.dmlloyd.classfile.impl",
+      "io.github.dmlloyd.classfile.impl.verifier",
+      "io.github.dmlloyd.classfile.instruction"
     ],
     "io.quarkus.arc:arc": [
       "io.quarkus.arc",
@@ -878,6 +930,14 @@
     ],
     "io.quarkus.gizmo:gizmo": [
       "io.quarkus.gizmo"
+    ],
+    "io.quarkus.gizmo:gizmo2": [
+      "io.quarkus.gizmo2",
+      "io.quarkus.gizmo2.creator",
+      "io.quarkus.gizmo2.creator.ops",
+      "io.quarkus.gizmo2.desc",
+      "io.quarkus.gizmo2.impl",
+      "io.quarkus.gizmo2.impl.constant"
     ],
     "io.quarkus:quarkus-bootstrap-app-model": [
       "io.quarkus.bootstrap",
@@ -924,10 +984,11 @@
     ],
     "io.quarkus:quarkus-core": [
       "io.quarkus",
+      "io.quarkus.devservice.runtime.config",
+      "io.quarkus.devservices.crossclassloader.runtime",
       "io.quarkus.logging",
       "io.quarkus.runtime",
       "io.quarkus.runtime.annotations",
-      "io.quarkus.runtime.appcds",
       "io.quarkus.runtime.configuration",
       "io.quarkus.runtime.console",
       "io.quarkus.runtime.dev.io",
@@ -953,10 +1014,8 @@
       "io.quarkus.deployment.cmd",
       "io.quarkus.deployment.codegen",
       "io.quarkus.deployment.configuration",
-      "io.quarkus.deployment.configuration.definition",
       "io.quarkus.deployment.configuration.matching",
       "io.quarkus.deployment.configuration.tracker",
-      "io.quarkus.deployment.configuration.type",
       "io.quarkus.deployment.console",
       "io.quarkus.deployment.dev",
       "io.quarkus.deployment.dev.devservices",
@@ -997,9 +1056,6 @@
       "io.quarkus.dev.testing",
       "io.quarkus.dev.testing.results"
     ],
-    "io.quarkus:quarkus-devtools-utilities": [
-      "io.quarkus.utilities"
-    ],
     "io.quarkus:quarkus-fs-util": [
       "io.quarkus.fs.util",
       "io.quarkus.fs.util.base",
@@ -1038,8 +1094,14 @@
     "io.smallrye.common:smallrye-common-os": [
       "io.smallrye.common.os"
     ],
+    "io.smallrye.common:smallrye-common-process": [
+      "io.smallrye.common.process"
+    ],
     "io.smallrye.common:smallrye-common-ref": [
       "io.smallrye.common.ref"
+    ],
+    "io.smallrye.common:smallrye-common-resource": [
+      "io.smallrye.common.resource"
     ],
     "io.smallrye.config:smallrye-config": [
       "io.smallrye.config.inject"
@@ -1079,6 +1141,9 @@
     ],
     "io.smallrye:jandex": [
       "org.jboss.jandex"
+    ],
+    "io.smallrye:jandex-gizmo2": [
+      "org.jboss.jandex.gizmo2"
     ],
     "jakarta.annotation:jakarta.annotation-api": [
       "jakarta.annotation",
@@ -1254,6 +1319,10 @@
       "org.checkerframework.dataflow.qual",
       "org.checkerframework.framework.qual"
     ],
+    "org.crac:crac": [
+      "org.crac",
+      "org.crac.management"
+    ],
     "org.eclipse.microprofile.config:microprofile-config-api": [
       "org.eclipse.microprofile.config",
       "org.eclipse.microprofile.config.inject",
@@ -1270,7 +1339,6 @@
       "org.eclipse.sisu.launch",
       "org.eclipse.sisu.osgi",
       "org.eclipse.sisu.space",
-      "org.eclipse.sisu.space.asm",
       "org.eclipse.sisu.wire",
       "org.sonatype.inject"
     ],
@@ -1301,9 +1369,6 @@
     ],
     "org.jboss.logging:jboss-logging": [
       "org.jboss.logging"
-    ],
-    "org.jboss.logging:jboss-logging-annotations": [
-      "org.jboss.logging.annotations"
     ],
     "org.jboss.logmanager:jboss-logmanager": [
       "org.jboss.logmanager",
@@ -1562,9 +1627,10 @@
       "com.google.guava:guava",
       "com.google.guava:listenablefuture",
       "com.google.j2objc:j2objc-annotations",
-      "io.github.crac:org-crac",
+      "io.github.dmlloyd:jdk-classfile-backport",
       "io.quarkus.arc:arc",
       "io.quarkus.gizmo:gizmo",
+      "io.quarkus.gizmo:gizmo2",
       "io.quarkus:quarkus-bootstrap-app-model",
       "io.quarkus:quarkus-bootstrap-core",
       "io.quarkus:quarkus-bootstrap-runner",
@@ -1574,7 +1640,6 @@
       "io.quarkus:quarkus-core",
       "io.quarkus:quarkus-core-deployment",
       "io.quarkus:quarkus-development-mode-spi",
-      "io.quarkus:quarkus-devtools-utilities",
       "io.quarkus:quarkus-fs-util",
       "io.quarkus:quarkus-hibernate-validator-spi",
       "io.quarkus:quarkus-ide-launcher",
@@ -1587,12 +1652,15 @@
       "io.smallrye.common:smallrye-common-io",
       "io.smallrye.common:smallrye-common-net",
       "io.smallrye.common:smallrye-common-os",
+      "io.smallrye.common:smallrye-common-process",
       "io.smallrye.common:smallrye-common-ref",
+      "io.smallrye.common:smallrye-common-resource",
       "io.smallrye.config:smallrye-config",
       "io.smallrye.config:smallrye-config-common",
       "io.smallrye.config:smallrye-config-core",
       "io.smallrye.reactive:mutiny",
       "io.smallrye:jandex",
+      "io.smallrye:jandex-gizmo2",
       "jakarta.annotation:jakarta.annotation-api",
       "jakarta.el:jakarta.el-api",
       "jakarta.enterprise:jakarta.enterprise.cdi-api",
@@ -1606,6 +1674,7 @@
       "org.apache.commons:commons-lang3",
       "org.apiguardian:apiguardian-api",
       "org.checkerframework:checker-qual",
+      "org.crac:crac",
       "org.eclipse.microprofile.config:microprofile-config-api",
       "org.eclipse.parsson:parsson",
       "org.eclipse.sisu:org.eclipse.sisu.inject",
@@ -1614,7 +1683,6 @@
       "org.graalvm.sdk:word",
       "org.jboss.logging:commons-logging-jboss-logging",
       "org.jboss.logging:jboss-logging",
-      "org.jboss.logging:jboss-logging-annotations",
       "org.jboss.logmanager:jboss-logmanager",
       "org.jboss.slf4j:slf4j-jboss-logmanager",
       "org.jboss.threads:jboss-threads",

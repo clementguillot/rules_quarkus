@@ -1,6 +1,6 @@
 # Dev Mode & Dev UI Integration
 
-This document captures the hard-won knowledge from implementing Quarkus dev mode in Bazel. Dev mode is the most complex part of `rules_quarkus` due to classloader isolation requirements.
+Dev mode is the most complex part of `rules_quarkus` due to classloader isolation requirements. This document captures the key design decisions and troubleshooting knowledge.
 
 ## Overview
 
@@ -14,12 +14,10 @@ Unlike production augmentation (which runs in-process), dev mode uses a **separa
 
 1. `AugmentationExecutor.execute()` detects `mode == DEV` and delegates to `DevModeLauncher.launch()`
 2. `DevModeLauncher` serializes the `ApplicationModel` to a temp file
-3. `DevModeLauncher` creates a minimal "dev jar" with a serialized `DevModeContext` and a filtered manifest classpath
+3. `DevModeLauncher` creates a minimal "dev jar" with a serialized `DevModeContext` and a precisely scoped manifest classpath
 4. A child `java -jar dev.jar` process is started with `ProcessBuilder`
 5. The child process runs `DevModeMain.main()` → `IsolatedDevModeMain` inside a clean augment classloader
 6. The parent process waits for the child to exit, with a shutdown hook to destroy it on SIGTERM
-
-This mirrors how Maven's `DevMojo` works and avoids classloader conflicts between the quarkifier's system classloader and the Quarkus deployment classloader.
 
 ## Launch Sequence
 
@@ -37,9 +35,9 @@ sequenceDiagram
     QC->>AE: execute(config)
     AE->>AE: buildApplicationModel(...)
     AE->>DML: launch(config, appModel)
-    DML->>DML: buildDevModeContext(config, appModel)
+    DML->>DML: buildDevModeContext(config)
     DML->>DML: BootstrapUtils.serializeAppModel(appModel)
-    DML->>DML: createDevJar(context, deployCp, appCp)
+    DML->>DML: createDevJar(context, config, appModel)
     DML->>Child: ProcessBuilder: java -jar dev.jar
     Child->>DMM: DevModeMain.main()
     DMM->>DMM: QuarkusBootstrap.builder().setIsolateDeployment(true)
@@ -53,28 +51,43 @@ sequenceDiagram
 
 `DevModeLauncher.createDevJar()` creates a temporary JAR containing:
 
-1. **`META-INF/MANIFEST.MF`** — with `Main-Class: io.quarkus.deployment.dev.DevModeMain` and a `Class-Path` pointing to deployment jars (as `file:///` URIs)
+1. **`META-INF/MANIFEST.MF`** — with `Main-Class: io.quarkus.deployment.dev.DevModeMain` and a `Class-Path` pointing to deployment infrastructure jars (as `file:///` URIs)
 2. **Serialized `DevModeContext`** — at the entry path `DevModeMain.DEV_MODE_CONTEXT`, containing module info, source paths, and build system properties
 
-### Manifest Classpath Filtering
+### Manifest Classpath Strategy
 
-The manifest classpath includes all deployment jars **except**:
+The manifest classpath contains two categories of jars, matching Maven's `DevMojo`:
 
-- **Runtime extension jars** — jars containing `META-INF/quarkus-extension.properties` (e.g., `quarkus-arc`, `quarkus-rest`). These contain CDI beans whose ArC-generated proxies cause `VerifyError` when the bean class is loaded by the system classloader and the proxy by the augment classloader.
-- **SmallRye Config jars** — `smallrye-config`, `smallrye-config-core`, `smallrye-config-common`, `smallrye-config-inject`, `microprofile-config-api`. These cause `ClassCastException` across classloader boundaries.
+1. **Core deployment infrastructure** — the transitive closure of `quarkus-core-deployment`, resolved separately via `@quarkus_deployment//:core`. For jars that also exist on the application classpath, the `@maven` version is preferred to avoid class identity conflicts between Coursier and `rules_jvm_external` copies.
 
-These excluded jars are loaded exclusively by the augment classloader from the `ApplicationModel`.
+2. **Parent-first runtime artifacts** — runtime jars flagged as `CLASSLOADER_PARENT_FIRST` in the `ApplicationModel` (logging, Jakarta APIs, etc.).
 
-## Classloader Isolation Strategy
+Everything else — extension deployment jars, runtime extension jars — is loaded by the augment classloader from the serialized `ApplicationModel`.
+
+## Three Classpaths
+
+The `quarkus_dev` rule manages three separate classpaths:
+
+| Classpath | Source | Purpose |
+|-----------|--------|---------|
+| `application_classpath` | `deps` runtime jars | Runtime deps for the ApplicationModel |
+| `deployment_classpath` | `@quarkus_deployment//:all` | All deployment jars for the ApplicationModel |
+| `core_deployment_classpath` | `@quarkus_deployment//:core` | Core deployment infrastructure for the dev jar manifest |
+
+The `@quarkus_deployment` repo resolves these in two Coursier phases:
+1. `coursier fetch io.quarkus:quarkus-core-deployment:VERSION` → `:core` target (~70 jars)
+2. `coursier fetch` all extension deployment GAVs → `:all` target (superset of `:core`, ~300 jars)
+
+## Classloader Hierarchy
 
 ```mermaid
 graph TD
-    subgraph "System ClassLoader (dev.jar manifest classpath)"
-        SYS["DevModeMain<br/>quarkus-bootstrap-core<br/>jboss-logmanager, jboss-logging<br/>(filtered: no ArC, no SmallRye Config)"]
+    subgraph "System ClassLoader (dev.jar manifest)"
+        SYS["DevModeMain<br/>quarkus-core-deployment transitive closure<br/>+ parent-first runtime artifacts"]
     end
 
     subgraph "Augment ClassLoader (from ApplicationModel)"
-        AUG["quarkus-core-deployment<br/>All -deployment jars<br/>Runtime extension jars (ArC, REST, etc.)<br/>SmallRye Config<br/>IsolatedDevModeMain"]
+        AUG["Extension -deployment jars<br/>Runtime extension jars (ArC, REST, etc.)<br/>IsolatedDevModeMain"]
     end
 
     subgraph "Base Runtime ClassLoader"
@@ -85,161 +98,56 @@ graph TD
     AUG -->|"parent-first delegation"| RT
 ```
 
-The key insight: the system classloader must contain **only** bootstrap infrastructure. Everything else comes from the augment classloader via the `ApplicationModel`.
+## Conditional Dev Dependencies
 
-### Why Runtime Extension Jars Must Be Excluded
+Many Quarkus extensions declare `conditional-dev-dependencies` in their `quarkus-extension.properties`. These are runtime modules activated only in dev mode. Maven's resolver handles them automatically; we resolve them explicitly in `extensions.bzl`:
 
-Runtime extension jars like `quarkus-arc` contain CDI beans. During augmentation, ArC generates proxy classes that extend these beans. If the bean class is loaded by the system classloader and the proxy by the augment classloader, the JVM throws `VerifyError` because the proxy tries to access protected methods across classloader boundaries.
+- **`quarkus-devui-deployment`** — conditional dev dep of `quarkus-vertx-http` (provides the Dev UI)
+- **`{extension}-dev` jars** (e.g., `quarkus-arc-dev`, `quarkus-rest-dev`) — contain dev-mode-specific classes like `EventsMonitor` that Dev UI build steps reference
 
-### Why SmallRye Config Must Be Excluded
+The `QuarkusAppModelBuilder` also scans the deployment classpath for runtime extensions pulled in transitively (e.g., `quarkus-devui` via `quarkus-devui-deployment`) and marks them appropriately in the `ApplicationModel`.
 
-SmallRye Config classes are used by both the bootstrap code and the augment classloader. If loaded on both, `ClassCastException` occurs when config objects cross the classloader boundary.
+## Parent-First Artifacts
 
-## Single Quarkifier JAR for Both Modes
+`QuarkusAppModelBuilder.markParentFirstArtifacts()` marks infrastructure jars as parent-first so the augment classloader delegates to the system classloader for them. This prevents `LinkageError` and `ClassCastException`.
 
-Both `quarkus_app` (production) and `quarkus_dev` (dev mode) use the same `quarkifier_deploy.jar`. A separate "dev bootstrap" JAR is not needed because:
+Key categories: bootstrap (`quarkus-bootstrap-core`, etc.), core (`quarkus-core`), config (`smallrye-config-core`, `smallrye-config-common`, `microprofile-config-api`), logging (`jboss-logmanager`, `jboss-logging`), Jakarta APIs.
 
-1. Dev mode spawns a **separate child JVM process** — the parent quarkifier process and child dev process have independent classloaders
-2. `DevModeLauncher.createDevJar()` performs **runtime filtering** of the manifest classpath, excluding runtime extension JARs (ArC, REST, etc.) and SmallRye Config JARs
-3. The child JVM's system classloader only sees what's in the dev.jar manifest `Class-Path`, which never includes ArC
+**Important**: `smallrye-config` itself is NOT parent-first. In SmallRye Config 3.13+, the main jar contains CDI beans (`ConfigProducer`) whose ArC-generated proxies cause `VerifyError` when the bean class and proxy are loaded by different classloaders.
 
-The parent quarkifier process having ArC on its classpath is irrelevant — the JVM process boundary is the classloader isolation mechanism. This is the same approach Maven's `DevMojo` uses: the Maven process itself has all dependencies, but the forked dev mode process gets a filtered classpath.
+## Known Quarkus Bootstrap Workarounds
 
-## The GACT Key Mismatch Bug
+### GACT Key Mismatch
 
-**Problem**: `handleExtensionProperties()` processes `runner-parent-first-artifacts` from `quarkus-extension.properties` and creates GACT (Group-Artifact-Classifier-Type) keys with **empty type**. But our manually-added dependencies have type `"jar"`. The keys don't match, so `buildDependencies()` never sets the `CLASSLOADER_RUNNER_PARENT_FIRST` flag.
+`handleExtensionProperties()` creates GACT keys with empty type, but our dependencies have type `"jar"`. The `CLASSLOADER_RUNNER_PARENT_FIRST` flag is never set by `buildDependencies()`. Workaround: `fixRunnerParentFirstFlags()` sets the flag by `artifactId` matching.
 
-**Workaround**: In `AugmentationExecutor.buildApplicationModel()`, we manually set the `CLASSLOADER_RUNNER_PARENT_FIRST` flag by matching on `artifactId`:
+### Extension Capabilities
 
-```java
-Set<String> runnerParentFirstArtifactIds = Set.of(
-    "quarkus-bootstrap-runner", "quarkus-classloader-commons",
-    "quarkus-development-mode-spi",
-    "jboss-logmanager", "jboss-logging",
-    "slf4j-jboss-logmanager", "slf4j-api",
-    "smallrye-common-constraint", "smallrye-common-cpu",
-    // ... more artifacts
-);
-for (var dep : modelBuilder.getDependencies()) {
-    if (runnerParentFirstArtifactIds.contains(dep.getArtifactId())) {
-        dep.setFlags(DependencyFlags.CLASSLOADER_RUNNER_PARENT_FIRST);
-    }
-}
-```
-
-This is a known Quarkus bootstrap bug that affects anyone building an `ApplicationModel` manually (outside Maven/Gradle).
-
-## Extension Capabilities Registration
-
-**Problem**: `handleExtensionProperties()` does NOT process `provides-capabilities` and `requires-capabilities` from `quarkus-extension.properties`. In Maven/Gradle, the resolver handles this automatically. Since we bypass the resolver, capabilities like `VERTX_HTTP` are missing, causing build steps to fail.
-
-**Workaround**: In `registerExtensions()`, we manually read and register capabilities:
-
-```java
-String providesCapabilities = props.getProperty("provides-capabilities");
-String requiresCapabilities = props.getProperty("requires-capabilities");
-if (providesCapabilities != null || requiresCapabilities != null) {
-    modelBuilder.addExtensionCapabilities(
-        CapabilityContract.of(compactCoords, providesCapabilities, requiresCapabilities));
-}
-```
-
-## Parent-First Artifact Lists
-
-The `buildApplicationModel()` method maintains two separate parent-first lists:
-
-### 1. Augment Classloader Parent-First (`parentFirstArtifactIds`)
-
-These jars are delegated to the parent (system) classloader by the augment classloader. This prevents `LinkageError` and `ClassCastException`:
-
-- **Bootstrap infrastructure**: `quarkus-bootstrap-core`, `quarkus-bootstrap-app-model`, `quarkus-bootstrap-runner`, `quarkus-classloader-commons`
-- **Core**: `quarkus-core` (needed by `IsolatedDevModeMain`)
-- **Config**: `smallrye-config`, `smallrye-config-core`, `smallrye-config-common`, `microprofile-config-api`
-- **Logging**: `jboss-logmanager`, `jboss-logging`, `slf4j-api`, `slf4j-jboss-logmanager`
-- **Jakarta APIs**: `jakarta.enterprise.cdi-api`, `jakarta.inject-api`, `jakarta.interceptor-api`, etc.
-- **Maven resolver**: `maven-resolver-api`, `maven-model`, etc. (prevents `ClassCastException` on `RemoteRepository` in the Extensions Dev UI panel)
-
-### 2. Runner Parent-First (`runnerParentFirstArtifactIds`)
-
-These jars get the `CLASSLOADER_RUNNER_PARENT_FIRST` flag for the production `RunnerClassLoader`. This is the workaround for the GACT key mismatch bug described above.
-
-## DevModeContext Construction
-
-`DevModeLauncher.buildDevModeContext()` creates the context that `DevModeMain` needs:
-
-```java
-context.setAbortOnFailedStart(true);       // surface failures immediately
-context.setLocalProjectDiscovery(false);    // Bazel manages all deps
-context.setMode(QuarkusBootstrap.Mode.DEV);
-
-// ModuleInfo with source paths for hot-reload
-new DevModeContext.ModuleInfo.Builder()
-    .setSourcePaths(PathList.from(config.sourceDirs()))
-    .setClassesPath(appJar.toAbsolutePath().toString())
-    .setResourcePaths(PathList.from(config.resources()))
-    .build();
-```
-
-Key settings:
-- `abortOnFailedStart=true` — without this, startup failures silently call `System.exit(1)`
-- `localProjectDiscovery=false` — Bazel manages all dependencies, no Maven-style project scanning
-- Source paths come from `--source-dirs` CLI argument, which the Starlark rule populates from `java_library` deps
+`handleExtensionProperties()` doesn't process `provides-capabilities` / `requires-capabilities`. Workaround: `registerExtensions()` manually reads and registers them.
 
 ## Source Directory Flow
 
-The `quarkus_dev_impl.bzl` rule collects source directories from `java_library` deps:
-
-1. `_collect_java_source_dirs()` examines source files from each dep's `DefaultInfo`
-2. It finds standard Maven-layout markers (`src/main/java`, `src/test/java`) in file paths
-3. Source dir paths are written to a file in the runfiles
-4. `dev_launcher.sh.tpl` reads the file and passes `--source-dirs` to the quarkifier CLI
-5. `DevModeLauncher` sets these as `sourcePaths` in `DevModeContext.ModuleInfo`
-6. `IsolatedDevModeMain.setupRuntimeCompilation()` creates a `RuntimeUpdatesProcessor` that watches these directories
+1. `_collect_java_source_dirs()` in the Starlark rule finds `src/main/java` markers in dep source files
+2. Source dirs are written to a runfiles file and passed via `--source-dirs`
+3. `DevModeLauncher` sets them as `sourcePaths` in `DevModeContext.ModuleInfo`
+4. `IsolatedDevModeMain` creates a `RuntimeUpdatesProcessor` that watches these directories
 
 When source dirs are empty, hot-reload is disabled but the Dev UI still works.
 
 ## Known Limitations
 
-### Extensions Panel (Not Yet Fixed)
-
-The Extensions panel in the Dev UI doesn't work. It tries to use Maven resolver classes to fetch extension metadata, which fails in the Bazel environment.
-
-### No In-Process Dev Mode
-
-Dev mode always uses a separate JVM process. In-process dev mode is not supported because the quarkifier's system classloader would conflict with the augment classloader. This adds ~2-3 seconds of startup overhead.
-
-### Docker Required for Dev Services
-
-Dev Services (auto-provisioned databases, message brokers, etc.) require Docker on the host. If Docker is unavailable, Quarkus reports an error.
-
-## Starlark Rule: quarkus_dev
-
-The `quarkus_dev` rule (`quarkus/private/quarkus_dev_impl.bzl`) is the Bazel entry point for dev mode:
-
-```python
-load("@rules_quarkus_toolchains//:defs.bzl", "quarkus_dev")
-
-quarkus_dev(
-    name = "dev",
-    deps = [":lib"],
-)
-```
-
-It uses the same `quarkifier_deploy.jar` as production and generates a `dev_launcher.sh` script that:
-1. Reads application and deployment classpaths from files
-2. Reads source directories from a file
-3. Creates a temp output directory
-4. Runs `java -jar quarkifier_deploy.jar --mode dev --source-dirs ...`
+- **Extensions panel**: The Dev UI Extensions panel doesn't work — it uses Maven resolver classes unavailable in Bazel.
+- **No in-process dev mode**: Always uses a separate JVM process (~2-3s startup overhead).
+- **Docker required for Dev Services**: Dev Services need Docker on the host.
 
 ## Troubleshooting
 
 ### LinkageError or VerifyError on startup
 
-The dev.jar manifest classpath may overlap with the `ApplicationModel`. Check that `DevModeLauncher.createDevJar()` is correctly excluding runtime extension JARs (those with `META-INF/quarkus-extension.properties`) and SmallRye Config JARs from the manifest `Class-Path`.
-
-### "Key already registered" from ConsoleStateManager
-
-Static state from a previous run persists. The `clearConsoleState()` helper in `AugmentationExecutor` handles this, but if you see it, the console state wasn't cleared before launch.
+Check for duplicate jars across classloaders. Common causes:
+- A jar exists in both `@maven` (processed) and Coursier cache (original) with different file identities
+- A jar containing CDI beans is marked as parent-first (loaded by system CL, proxy generated in runtime CL)
+- An extension-specific deployment jar leaked into the core deployment classpath
 
 ### Silent exit with no error
 
@@ -247,7 +155,4 @@ Static state from a previous run persists. The `clearConsoleState()` helper in `
 
 ### Hot-reload not working
 
-Source directories may not be reaching the `DevModeContext`. Check:
-1. `_collect_java_source_dirs()` finds your source roots
-2. The source dirs file is non-empty in runfiles
-3. `--source-dirs` appears in the quarkifier CLI invocation
+Check that `_collect_java_source_dirs()` finds your source roots, the source dirs file is non-empty in runfiles, and `--source-dirs` appears in the quarkifier CLI invocation.

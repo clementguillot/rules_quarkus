@@ -3,7 +3,7 @@
 `rules_quarkus` provides Bazel-native rules for building and running Quarkus JVM applications. Instead of wrapping Maven/Gradle plugins, it invokes the Quarkus internal build API (`io.quarkus.deployment`) directly through a custom Java tool called the **Quarkifier**. This gives Bazel full control over caching, sandboxing, and dependency tracking.
 
 - **Module**: `com_clementguillot_rules_quarkus`
-- **Quarkus version**: 3.20.6 LTS
+- **Quarkus version**: 3.27.3 LTS
 - **Java**: 17+
 - **Bazel**: 7+
 

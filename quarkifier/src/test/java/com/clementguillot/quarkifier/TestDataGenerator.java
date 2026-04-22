@@ -22,6 +22,7 @@ final class TestDataGenerator {
     return new QuarkifierConfig(
         randomPathList(1, 5),
         randomPathList(1, 5),
+        randomPathList(0, 3),
         randomSafePath(),
         randomPathList(0, 3),
         RNG.nextBoolean() ? AugmentationMode.NORMAL : AugmentationMode.TEST,

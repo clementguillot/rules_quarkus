@@ -29,8 +29,8 @@ Use `rules_jvm_external` to declare your Quarkus runtime dependencies. Only decl
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.install(
     artifacts = [
-        "io.quarkus:quarkus-rest:3.20.6",
-        "io.quarkus:quarkus-arc:3.20.6",
+        "io.quarkus:quarkus-rest:3.27.3",
+        "io.quarkus:quarkus-arc:3.27.3",
     ],
     lock_file = "//:maven_install.json",
 )
@@ -47,7 +47,7 @@ quarkus = use_extension(
     "quarkus",
 )
 quarkus.toolchain(
-    quarkus_version = "3.20.6",
+    quarkus_version = "3.27.3",
     lock_file = "//:maven_install.json",
 )
 use_repo(quarkus, "quarkus_deployment", "rules_quarkus_toolchains")
@@ -59,7 +59,7 @@ The `lock_file` is used to auto-discover which Quarkus extensions you're using a
 
 | Attribute | Default | Description |
 |---|---|---|
-| `quarkus_version` | (required) | Quarkus version, e.g. `"3.20.6"` |
+| `quarkus_version` | (required) | Quarkus version, e.g. `"3.27.3"` |
 | `lock_file` | `None` | Path to `maven_install.json` for extension auto-discovery |
 | `extension_group_prefixes` | `["io.quarkus", "io.quarkiverse."]` | Maven groupId prefixes identifying Quarkus extensions |
 | `quarkifier_tool` | `None` | Override quarkifier tool with a pre-built jar label |
@@ -216,8 +216,8 @@ bazel_dep(name = "rules_jvm_external", version = "6.10")
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.install(
     artifacts = [
-        "io.quarkus:quarkus-rest:3.20.6",
-        "io.quarkus:quarkus-arc:3.20.6",
+        "io.quarkus:quarkus-rest:3.27.3",
+        "io.quarkus:quarkus-arc:3.27.3",
     ],
     lock_file = "//:maven_install.json",
 )
@@ -228,7 +228,7 @@ quarkus = use_extension(
     "quarkus",
 )
 quarkus.toolchain(
-    quarkus_version = "3.20.6",
+    quarkus_version = "3.27.3",
     lock_file = "//:maven_install.json",
 )
 use_repo(quarkus, "quarkus_deployment", "rules_quarkus_toolchains")

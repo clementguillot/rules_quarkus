@@ -17,10 +17,11 @@ class DevModeLauncherTest {
     return new QuarkifierConfig(
         List.of(Path.of("app.jar")),
         List.of(Path.of("deploy.jar")),
+        List.of(),
         Path.of("/tmp/output"),
         List.of(),
         AugmentationMode.DEV,
-        "3.20.6",
+        "3.27.3",
         "my-app",
         "1.0.0",
         sourceDirs);
@@ -86,10 +87,11 @@ class DevModeLauncherTest {
         new QuarkifierConfig(
             List.of(Path.of("app.jar")),
             List.of(Path.of("deploy.jar")),
+            List.of(),
             Path.of("/tmp/output"),
             List.of(),
             AugmentationMode.DEV,
-            "3.20.6",
+            "3.27.3",
             "my-app",
             "1.0.0",
             List.of(Path.of("src/main/java")));
