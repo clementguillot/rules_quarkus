@@ -6,6 +6,7 @@ import com.clementguillot.quarkifier.extension.ExtensionScanner;
 import com.clementguillot.quarkifier.extension.VersionChecker;
 import java.io.IOException;
 import java.util.List;
+import org.jboss.logging.Logger;
 
 /**
  * Main entry point for Quarkifier CLI.
@@ -21,16 +22,18 @@ import java.util.List;
  */
 public final class QuarkifierLauncher {
 
+  private static final Logger LOGGER = Logger.getLogger(QuarkifierLauncher.class);
+
   private QuarkifierLauncher() {}
 
-  public static void main(String[] args) {
+  public static void main(String... args) {
     // 1. Parse CLI arguments
     QuarkifierConfig config;
     try {
       config = QuarkifierConfig.parse(args);
     } catch (QuarkifierConfig.InvalidArgumentsException e) {
-      System.err.println(QuarkifierConfig.usage());
-      System.err.println("Error: " + e.getMessage());
+      LOGGER.error(QuarkifierConfig.usage());
+      LOGGER.errorf("Error: %s", e.getMessage());
       System.exit(2);
       return; // unreachable, but keeps the compiler happy
     }
@@ -40,7 +43,7 @@ public final class QuarkifierLauncher {
       List<ExtensionInfo> extensions = ExtensionScanner.scan(config.applicationClasspath());
       VersionChecker.check(extensions, config.expectedQuarkusVersion());
     } catch (IOException e) {
-      System.err.println("Error scanning extensions: " + e.getMessage());
+      LOGGER.errorf("Error scanning extensions: %s", e.getMessage());
       System.exit(1);
       return;
     }
@@ -49,7 +52,7 @@ public final class QuarkifierLauncher {
     try {
       AugmentationExecutor.execute(config);
     } catch (AugmentationException e) {
-      e.printStackTrace(System.err);
+      LOGGER.error("Augmentation failed", e);
       System.exit(1);
       return;
     }

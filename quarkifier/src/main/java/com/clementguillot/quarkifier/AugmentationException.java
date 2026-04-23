@@ -1,5 +1,7 @@
 package com.clementguillot.quarkifier;
 
+import java.io.Serial;
+
 /**
  * Thrown when Quarkus augmentation fails.
  *
@@ -7,6 +9,8 @@ package com.clementguillot.quarkifier;
  * stderr and exit with a non-zero code.
  */
 public final class AugmentationException extends Exception {
+
+  @Serial private static final long serialVersionUID = 1L;
 
   public AugmentationException(String message) {
     super(message);

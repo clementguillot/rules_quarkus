@@ -38,8 +38,7 @@ class DevModeLauncherTest {
     var actualPaths =
         context.getApplicationRoot().getMain().getSourcePaths().stream()
             .collect(Collectors.toSet());
-    var expectedPaths =
-        sourceDirs.stream().map(Path::toAbsolutePath).collect(Collectors.toSet());
+    var expectedPaths = sourceDirs.stream().map(Path::toAbsolutePath).collect(Collectors.toSet());
     assertEquals(expectedPaths.size(), actualPaths.size());
     for (Path expected : expectedPaths) {
       assertTrue(
@@ -99,9 +98,7 @@ class DevModeLauncherTest {
     var context = DevModeLauncher.buildDevModeContext(config);
 
     assertEquals("my-app", context.getBaseName());
-    assertEquals(
-        config.outputDir().toAbsolutePath().toFile(),
-        context.getProjectDir());
+    assertEquals(config.outputDir().toAbsolutePath().toFile(), context.getProjectDir());
     assertEquals(
         config.outputDir().toAbsolutePath().toString(),
         context.getApplicationRoot().getTargetDir());

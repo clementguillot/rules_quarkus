@@ -47,6 +47,25 @@ bazel_dep(name = "rules_go", version = "0.60.0", dev_dependency = True, repo_nam
 go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk", dev_dependency = True)
 go_sdk.download(version = "1.24.12")
 
+bazel_dep(name = "aspect_rules_lint", version = "2.5.0", dev_dependency = True)
+
+# Java formatter tools
+format_tools = use_extension("@aspect_rules_lint//format:extensions.bzl", "tools", dev_dependency = True)
+format_tools.google_java_format()
+use_repo(format_tools, "google-java-format")
+
+# Java linter tools
+lint_tools = use_extension("@aspect_rules_lint//lint:extensions.bzl", "tools", dev_dependency = True)
+lint_tools.checkstyle()
+lint_tools.spotbugs()
+lint_tools.pmd()
+use_repo(
+    lint_tools,
+    "com_puppycrawl_tools_checkstyle",
+    "net_sourceforge_pmd",
+    "spotbugs",
+)
+
 # JVM dependencies
 bazel_dep(name = "rules_java", version = "9.6.1")
 

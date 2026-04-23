@@ -95,8 +95,7 @@ public final class AugmentationExecutor {
       // conflicts. Set the TCCL so ASM's ClassWriter.getCommonSuperClass() can
       // resolve all types during bytecode generation.
       ClassLoader augmentCl = curatedApp.getOrCreateAugmentClassLoader();
-      Class<?> augmentClass =
-          augmentCl.loadClass("io.quarkus.runner.bootstrap.AugmentActionImpl");
+      Class<?> augmentClass = augmentCl.loadClass("io.quarkus.runner.bootstrap.AugmentActionImpl");
 
       java.lang.reflect.Constructor<?> ctor = findAugmentConstructor(augmentClass);
 
@@ -125,7 +124,7 @@ public final class AugmentationExecutor {
     for (java.lang.reflect.Constructor<?> c : augmentClass.getConstructors()) {
       Class<?>[] paramTypes = c.getParameterTypes();
       if (paramTypes.length == 1
-          && paramTypes[0].getName().equals("io.quarkus.bootstrap.app.CuratedApplication")) {
+          && "io.quarkus.bootstrap.app.CuratedApplication".equals(paramTypes[0].getName())) {
         return c;
       }
     }

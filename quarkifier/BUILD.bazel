@@ -1,6 +1,7 @@
 load("@rules_java//java:java_binary.bzl", "java_binary")
 load("@rules_java//java:java_library.bzl", "java_library")
 load("@rules_java//java:java_test.bzl", "java_test")
+load("//tools/lint:linters.bzl", "pmd_test")
 
 java_library(
     name = "quarkifier_lib",
@@ -18,6 +19,8 @@ java_library(
         # types like io.quarkus.arc.impl.ParameterizedTypeImpl during augmentation.
         # This is a transitive dep of quarkus-core, so always available.
         "@maven//:io_quarkus_arc_arc",
+        # Logging
+        "@maven//:org_jboss_logging_jboss_logging",
     ],
 )
 
@@ -47,4 +50,9 @@ java_test(
         "@maven//:org_junit_platform_junit_platform_console_standalone",
         "@maven//:org_junit_platform_junit_platform_launcher",
     ],
+)
+
+pmd_test(
+    name = "pmd_test",
+    srcs = [":quarkifier_lib"],
 )

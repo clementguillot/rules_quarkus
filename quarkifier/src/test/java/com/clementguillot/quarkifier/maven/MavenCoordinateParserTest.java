@@ -69,8 +69,7 @@ class MavenCoordinateParserTest {
 
   @Test
   void parseDeepGroupId() {
-    var path =
-        Path.of("/repo/org/apache/commons/commons-lang3/3.14.0/commons-lang3-3.14.0.jar");
+    var path = Path.of("/repo/org/apache/commons/commons-lang3/3.14.0/commons-lang3-3.14.0.jar");
     var coords = MavenCoordinateParser.parse(path);
     assertEquals("org.apache.commons", coords.groupId());
     assertEquals("commons-lang3", coords.artifactId());
