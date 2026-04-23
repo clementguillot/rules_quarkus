@@ -19,6 +19,7 @@ import java.util.jar.Manifest;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
+import org.jboss.logging.Logger;
 
 /**
  * Post-processes Quarkus augmentation output into a complete, runnable Fast_Jar directory.
@@ -28,11 +29,16 @@ import java.util.zip.ZipEntry;
  * <ol>
  *   <li>{@link #assembleLibDirectories} — classify jars into {@code lib/boot/} vs {@code lib/main/}
  *   <li>{@link #assembleResourcesJar} — create {@code app/resources.jar} from user resources
- *   <li>{@link #regenerateApplicationDat} — regenerate {@code quarkus-application.dat} with correct paths
- *   <li>{@link #fixRunnerManifest} — rewrite {@code quarkus-run.jar} manifest with boot jar classpath
+ *   <li>{@link #regenerateApplicationDat} — regenerate {@code quarkus-application.dat} with correct
+ *       paths
+ *   <li>{@link #fixRunnerManifest} — rewrite {@code quarkus-run.jar} manifest with boot jar
+ *       classpath
  * </ol>
  */
 public final class FastJarAssembler {
+
+  private static final String JAR_EXTENSION = ".jar";
+  private static final Logger LOGGER = Logger.getLogger(FastJarAssembler.class);
 
   private FastJarAssembler() {}
 
@@ -63,8 +69,8 @@ public final class FastJarAssembler {
    * names. Deduplicates by {@code artifactId:version} so that jars from different sources are only
    * copied once.
    */
-  static void assembleLibDirectories(
-      Path outputDir, List<Path> runtimeJars, ApplicationModel model) throws IOException {
+  static void assembleLibDirectories(Path outputDir, List<Path> runtimeJars, ApplicationModel model)
+      throws IOException {
 
     Path quarkusAppDir = resolveQuarkusAppDir(outputDir);
     Path libBoot = quarkusAppDir.resolve("lib").resolve("boot");
@@ -93,12 +99,16 @@ public final class FastJarAssembler {
       var coords = MavenCoordinateParser.parse(jar);
       String dedupeKey = coords.artifactId() + ":" + coords.version();
 
-      if (copiedKeys.contains(dedupeKey)) continue;
-      if (excludedArtifactIds.contains(coords.artifactId())) continue;
+      if (copiedKeys.contains(dedupeKey)) {
+        continue;
+      }
+      if (excludedArtifactIds.contains(coords.artifactId())) {
+        continue;
+      }
       copiedKeys.add(dedupeKey);
 
       String mavenName =
-          coords.groupId() + "." + coords.artifactId() + "-" + coords.version() + ".jar";
+          coords.groupId() + "." + coords.artifactId() + "-" + coords.version() + JAR_EXTENSION;
       Path targetDir = bootArtifactIds.contains(coords.artifactId()) ? libBoot : libMain;
       Files.copy(jar, targetDir.resolve(mavenName), StandardCopyOption.REPLACE_EXISTING);
     }
@@ -109,7 +119,9 @@ public final class FastJarAssembler {
    * (application.properties, etc.). The RunnerClassLoader picks these up at runtime.
    */
   static void assembleResourcesJar(Path outputDir, List<Path> resources) throws IOException {
-    if (resources == null || resources.isEmpty()) return;
+    if (resources == null || resources.isEmpty()) {
+      return;
+    }
 
     Path appDir = resolveQuarkusAppDir(outputDir).resolve("app");
     Files.createDirectories(appDir);
@@ -118,9 +130,13 @@ public final class FastJarAssembler {
     try (var jos = new JarOutputStream(Files.newOutputStream(resourcesJar))) {
       Set<String> addedEntries = new HashSet<>();
       for (Path resource : resources) {
-        if (!Files.exists(resource)) continue;
+        if (!Files.exists(resource)) {
+          continue;
+        }
         String entryName = resource.getFileName().toString();
-        if (addedEntries.contains(entryName)) continue;
+        if (addedEntries.contains(entryName)) {
+          continue;
+        }
         addedEntries.add(entryName);
 
         jos.putNextEntry(new ZipEntry(entryName));
@@ -140,7 +156,9 @@ public final class FastJarAssembler {
   static void regenerateApplicationDat(Path outputDir) throws IOException {
     Path quarkusAppDir = resolveQuarkusAppDir(outputDir).toAbsolutePath();
     Path datFile = quarkusAppDir.resolve("quarkus").resolve("quarkus-application.dat");
-    if (!Files.exists(datFile)) return;
+    if (!Files.exists(datFile)) {
+      return;
+    }
 
     List<Path> allJars = new ArrayList<>();
     List<Path> parentFirstJars = new ArrayList<>();
@@ -149,13 +167,13 @@ public final class FastJarAssembler {
       Path dir = quarkusAppDir.resolve(subdir);
       if (Files.isDirectory(dir)) {
         try (var s = Files.list(dir)) {
-          s.filter(p -> p.toString().endsWith(".jar"))
+          s.filter(p -> p.toString().endsWith(JAR_EXTENSION))
               .map(Path::toAbsolutePath)
               .sorted()
               .forEach(
                   jar -> {
                     allJars.add(jar);
-                    if (subdir.equals("lib/boot")) {
+                    if ("lib/boot".equals(subdir)) {
                       parentFirstJars.add(jar);
                     }
                   });
@@ -179,21 +197,27 @@ public final class FastJarAssembler {
   static void fixRunnerManifest(Path outputDir) throws IOException {
     Path quarkusAppDir = resolveQuarkusAppDir(outputDir);
     Path runnerJar = quarkusAppDir.resolve("quarkus-run.jar");
-    if (!Files.exists(runnerJar)) return;
+    if (!Files.exists(runnerJar)) {
+      return;
+    }
 
     Path bootDir = quarkusAppDir.resolve("lib").resolve("boot");
-    if (!Files.isDirectory(bootDir)) return;
+    if (!Files.isDirectory(bootDir)) {
+      return;
+    }
 
     String classPath;
     try (Stream<Path> bootJars = Files.list(bootDir)) {
       classPath =
           bootJars
-              .filter(p -> p.toString().endsWith(".jar"))
+              .filter(p -> p.toString().endsWith(JAR_EXTENSION))
               .map(p -> "lib/boot/" + p.getFileName())
               .sorted()
               .collect(Collectors.joining(" "));
     }
-    if (classPath.isEmpty()) return;
+    if (classPath.isEmpty()) {
+      return;
+    }
 
     makeWritable(runnerJar);
 
@@ -203,7 +227,7 @@ public final class FastJarAssembler {
     try (JarFile jar = new JarFile(runnerJar.toFile())) {
       manifest = jar.getManifest();
       var entryList =
-          jar.stream().filter(e -> !e.getName().equals("META-INF/MANIFEST.MF")).toList();
+          jar.stream().filter(e -> !"META-INF/MANIFEST.MF".equals(e.getName())).toList();
       entryNames = new String[entryList.size()];
       entries = new byte[entryList.size()][];
       for (int i = 0; i < entryList.size(); i++) {
@@ -247,10 +271,12 @@ public final class FastJarAssembler {
 
   /** Removes all .jar files from a directory. */
   private static void clearJars(Path dir) throws IOException {
-    if (!Files.isDirectory(dir)) return;
+    if (!Files.isDirectory(dir)) {
+      return;
+    }
     try (var stream = Files.list(dir)) {
       stream
-          .filter(p -> p.toString().endsWith(".jar"))
+          .filter(p -> p.toString().endsWith(JAR_EXTENSION))
           .forEach(
               p -> {
                 try {
@@ -258,15 +284,13 @@ public final class FastJarAssembler {
                 } catch (IOException e) {
                   // Retry after making writable — Quarkus output jars may be read-only.
                   if (!p.toFile().setWritable(true)) {
-                    System.err.println(
-                        "WARNING: Cannot make file writable, skipping delete: " + p);
+                    LOGGER.warnf("Cannot make file writable, skipping delete: %s", p);
                     return;
                   }
                   try {
                     Files.delete(p);
                   } catch (IOException retryFailed) {
-                    System.err.println(
-                        "WARNING: Cannot delete file after making writable: " + p);
+                    LOGGER.warnf("Cannot delete file after making writable: %s", p);
                   }
                 }
               });

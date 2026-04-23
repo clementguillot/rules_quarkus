@@ -1,0 +1,8 @@
+axl_archive_dep(
+    name = "aspect_rules_lint",
+    urls = ["https://github.com/aspect-build/rules_lint/releases/download/v2.5.0/rules_lint-v2.5.0.tar.gz"],
+    integrity = "sha256-WJ48QkAh4OPb32jZqWoFj64nuVafPGxFuksE7aCRuog=",
+    strip_prefix = "rules_lint-2.5.0",
+    dev = True,
+    auto_use_tasks = True,
+)

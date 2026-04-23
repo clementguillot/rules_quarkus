@@ -59,9 +59,15 @@ public final class QuarkusAppModelBuilder {
     for (Path jar : extensionJars) {
       knownExtensionArtifactIds.add(MavenCoordinateParser.parse(jar).artifactId());
     }
-    Set<Path> deployExtensionJars = registerExtensions(modelBuilder, deployClasspath.stream()
-        .filter(jar -> !knownExtensionArtifactIds.contains(MavenCoordinateParser.parse(jar).artifactId()))
-        .toList());
+    Set<Path> deployExtensionJars =
+        registerExtensions(
+            modelBuilder,
+            deployClasspath.stream()
+                .filter(
+                    jar ->
+                        !knownExtensionArtifactIds.contains(
+                            MavenCoordinateParser.parse(jar).artifactId()))
+                .toList());
     extensionJars.addAll(deployExtensionJars);
 
     setAppArtifact(modelBuilder, appJar, appName, appVersion);
@@ -155,7 +161,9 @@ public final class QuarkusAppModelBuilder {
               .setRuntimeCp()
               .setDeploymentCp()
               .setDirect(true);
-      if (extensionJars.contains(jar)) dep.setRuntimeExtensionArtifact();
+      if (extensionJars.contains(jar)) {
+        dep.setRuntimeExtensionArtifact();
+      }
       modelBuilder.addDependency(dep);
       addedKeys.add(dep.getKey());
     }
@@ -176,7 +184,9 @@ public final class QuarkusAppModelBuilder {
       Set<ArtifactKey> addedKeys,
       Set<Path> extensionJars) {
     Set<String> addedArtifactIds = new HashSet<>();
-    for (var key : addedKeys) addedArtifactIds.add(key.getArtifactId());
+    for (var key : addedKeys) {
+      addedArtifactIds.add(key.getArtifactId());
+    }
 
     // Build a set of extension artifact IDs for path-independent matching
     // (deployment jars may come from Coursier cache, not the same path as scanned)
@@ -187,7 +197,9 @@ public final class QuarkusAppModelBuilder {
 
     for (Path jar : deployClasspath) {
       var coords = MavenCoordinateParser.parse(jar);
-      if (addedArtifactIds.contains(coords.artifactId())) continue;
+      if (addedArtifactIds.contains(coords.artifactId())) {
+        continue;
+      }
 
       var dep =
           ResolvedDependencyBuilder.newInstance()
@@ -299,9 +311,9 @@ public final class QuarkusAppModelBuilder {
    *
    * <p>{@code handleExtensionProperties} processes runner-parent-first-artifacts from
    * quarkus-extension.properties, but the GACT keys it creates have empty type while our
-   * dependencies have type "jar". The keys don't match, so the
-   * {@code CLASSLOADER_RUNNER_PARENT_FIRST} flag is never set by {@code buildDependencies()}. We
-   * fix this by manually setting the flag based on artifactId matching.
+   * dependencies have type "jar". The keys don't match, so the {@code
+   * CLASSLOADER_RUNNER_PARENT_FIRST} flag is never set by {@code buildDependencies()}. We fix this
+   * by manually setting the flag based on artifactId matching.
    */
   private static void fixRunnerParentFirstFlags(ApplicationModelBuilder modelBuilder) {
     Set<String> runnerParentFirstArtifactIds =

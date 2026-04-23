@@ -1,5 +1,6 @@
 package com.clementguillot.quarkifier;
 
+import java.io.Serial;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -56,7 +57,7 @@ public record QuarkifierConfig(
    * @return a validated config
    * @throws InvalidArgumentsException on missing/invalid arguments (caller should exit 2)
    */
-  public static QuarkifierConfig parse(String[] args) throws InvalidArgumentsException {
+  public static QuarkifierConfig parse(String... args) throws InvalidArgumentsException {
     String appCp = null;
     String deployCp = null;
     String coreDeployCp = null;
@@ -98,7 +99,7 @@ public record QuarkifierConfig(
     try {
       parsedMode = mode != null ? AugmentationMode.parse(mode) : AugmentationMode.NORMAL;
     } catch (IllegalArgumentException e) {
-      throw new InvalidArgumentsException(e.getMessage());
+      throw new InvalidArgumentsException(e.getMessage(), e);
     }
 
     return new QuarkifierConfig(
@@ -138,7 +139,7 @@ public record QuarkifierConfig(
     }
 
     list.add("--mode");
-    list.add(mode.name().toLowerCase());
+    list.add(mode.name().toLowerCase(java.util.Locale.ROOT));
 
     if (expectedQuarkusVersion != null) {
       list.add("--expected-quarkus-version");
@@ -179,10 +180,10 @@ public record QuarkifierConfig(
   }
 
   private static List<Path> splitPaths(String value, String separator) {
-    if (value.isEmpty()) return List.of();
-    return Arrays.stream(value.split(Pattern.quote(separator)))
-        .map(Path::of)
-        .toList();
+    if (value.isEmpty()) {
+      return List.of();
+    }
+    return Arrays.stream(value.split(Pattern.quote(separator))).map(Path::of).toList();
   }
 
   private static String joinPaths(List<Path> paths, String separator) {
@@ -191,8 +192,15 @@ public record QuarkifierConfig(
 
   /** Thrown when CLI arguments are invalid. The caller should exit with code 2. */
   public static final class InvalidArgumentsException extends Exception {
+
+    @Serial private static final long serialVersionUID = 1L;
+
     public InvalidArgumentsException(String message) {
       super(message);
+    }
+
+    public InvalidArgumentsException(String message, Throwable cause) {
+      super(message, cause);
     }
   }
 }

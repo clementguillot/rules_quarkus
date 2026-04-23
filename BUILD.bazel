@@ -16,3 +16,13 @@ license(
     kind = "@package_metadata//licenses/spdx:Apache-2.0",
     text = "LICENSE",
 )
+
+alias(
+    name = "format",
+    actual = "//tools/format",
+)
+
+exports_files(
+    srcs = ["pmd.xml"],
+    visibility = ["//visibility:public"],
+)

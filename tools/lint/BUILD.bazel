@@ -1,0 +1,9 @@
+load("@rules_java//java:java_binary.bzl", "java_binary")
+
+package(default_visibility = ["//:__subpackages__"])
+
+java_binary(
+    name = "pmd",
+    main_class = "net.sourceforge.pmd.cli.PmdCli",
+    runtime_deps = ["@net_sourceforge_pmd"],
+)

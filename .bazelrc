@@ -36,3 +36,6 @@ try-import %workspace%/.bazelrc.user
 
 # Load Java 17 toolchain settings. Java 17 is the minimum version supported by Quarkus.
 try-import %workspace%/tools/java17.bazelrc
+
+# Add linters to `aspect lint` command
+common:lint --aspects=//tools/lint:linters.bzl%pmd

@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<ruleset name="rules_quarkus"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+
+    <description>PMD rules for rules_quarkus</description>
+
+    <rule ref="category/java/bestpractices.xml">
+        <!-- Loop variable increment (++i) is idiomatic for CLI arg parsing -->
+        <exclude name="AvoidReassigningLoopVariables"/>
+        <!-- Guarding ERROR-level log calls in error paths is unnecessary -->
+        <exclude name="GuardLogStatement"/>
+    </rule>
+
+    <rule ref="category/java/codestyle.xml">
+        <exclude name="AtLeastOneConstructor"/>
+        <exclude name="LocalVariableCouldBeFinal"/>
+        <exclude name="MethodArgumentCouldBeFinal"/>
+        <exclude name="OnlyOneReturn"/>
+        <exclude name="ShortVariable"/>
+        <exclude name="LongVariable"/>
+        <!-- var is idiomatic Java 10+ and improves readability -->
+        <exclude name="UseExplicitTypes"/>
+        <!-- Package-private methods in the same package don't need access modifier comments -->
+        <exclude name="CommentDefaultAccessModifier"/>
+    </rule>
+
+    <rule ref="category/java/design.xml">
+        <exclude name="LawOfDemeter"/>
+        <exclude name="LoosePackageCoupling"/>
+        <!-- CLI arg parser is inherently complex; thresholds are too low -->
+        <exclude name="CyclomaticComplexity"/>
+        <exclude name="NPathComplexity"/>
+        <exclude name="CognitiveComplexity"/>
+        <!-- Private methods wrapping third-party APIs that throw Exception -->
+        <exclude name="SignatureDeclareThrowsException"/>
+        <!-- Catching generic Exception is unavoidable when wrapping third-party APIs -->
+        <exclude name="AvoidCatchingGenericException"/>
+        <!-- Rethrowing a specific exception before a generic catch is a valid pattern -->
+        <exclude name="AvoidRethrowingException"/>
+    </rule>
+
+    <rule ref="category/java/errorprone.xml">
+        <!-- Literal comparisons in if-conditions (e.g., parts.length < 3) are clear -->
+        <exclude name="AvoidLiteralsInIfCondition"/>
+    </rule>
+
+    <rule ref="category/java/performance.xml">
+        <!-- Instantiating objects in loops is sometimes unavoidable (JarFile, ZipEntry) -->
+        <exclude name="AvoidInstantiatingObjectsInLoops"/>
+    </rule>
+</ruleset>

@@ -15,7 +15,6 @@ import io.quarkus.maven.dependency.ResolvedDependency;
 import io.quarkus.paths.PathList;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
-import java.io.FileOutputStream;
 import java.io.ObjectOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -70,10 +69,7 @@ public final class DevModeLauncher {
       cmd.add("--add-opens");
       cmd.add("java.base/java.lang=ALL-UNNAMED");
       cmd.add(
-          "-D"
-              + BootstrapConstants.SERIALIZED_APP_MODEL
-              + "="
-              + serializedModel.toAbsolutePath());
+          "-D" + BootstrapConstants.SERIALIZED_APP_MODEL + "=" + serializedModel.toAbsolutePath());
       cmd.add("-jar");
       cmd.add(devJar.toAbsolutePath().toString());
 
@@ -97,8 +93,8 @@ public final class DevModeLauncher {
   }
 
   /**
-   * Creates a minimal JAR with a serialized {@link DevModeContext} and a manifest {@code Class-Path}
-   * containing core deployment infrastructure jars and parent-first runtime artifacts.
+   * Creates a minimal JAR with a serialized {@link DevModeContext} and a manifest {@code
+   * Class-Path} containing core deployment infrastructure jars and parent-first runtime artifacts.
    */
   private static Path createDevJar(
       DevModeContext context, QuarkifierConfig config, ApplicationModel appModel) throws Exception {
@@ -132,7 +128,7 @@ public final class DevModeLauncher {
       }
     }
 
-    try (ZipOutputStream out = new ZipOutputStream(new FileOutputStream(tempFile.toFile()))) {
+    try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(tempFile))) {
       out.putNextEntry(new ZipEntry("META-INF/"));
 
       Manifest manifest = new Manifest();
@@ -154,11 +150,13 @@ public final class DevModeLauncher {
       Set<String> addedToManifest = new HashSet<>();
       for (Path jar : config.coreDeploymentClasspath()) {
         var coords = MavenCoordinateParser.parse(jar);
-        if (addedToManifest.contains(coords.artifactId())) continue;
+        if (addedToManifest.contains(coords.artifactId())) {
+          continue;
+        }
         // Prefer the application classpath version if available (same jar file
         // that the ApplicationModel references, avoiding class identity conflicts)
         Path effectiveJar = appCpByArtifactId.getOrDefault(coords.artifactId(), jar);
-        classPath.append(effectiveJar.toAbsolutePath().toUri()).append(" ");
+        classPath.append(effectiveJar.toAbsolutePath().toUri()).append(' ');
         addedToManifest.add(coords.artifactId());
       }
 
@@ -166,14 +164,12 @@ public final class DevModeLauncher {
       for (Path jar : parentFirstJars) {
         var coords = MavenCoordinateParser.parse(jar);
         if (!addedToManifest.contains(coords.artifactId())) {
-          classPath.append(jar.toAbsolutePath().toUri()).append(" ");
+          classPath.append(jar.toAbsolutePath().toUri()).append(' ');
           addedToManifest.add(coords.artifactId());
         }
       }
 
-      manifest
-          .getMainAttributes()
-          .put(Attributes.Name.CLASS_PATH, classPath.toString().trim());
+      manifest.getMainAttributes().put(Attributes.Name.CLASS_PATH, classPath.toString().trim());
 
       out.putNextEntry(new ZipEntry("META-INF/MANIFEST.MF"));
       manifest.write(out);

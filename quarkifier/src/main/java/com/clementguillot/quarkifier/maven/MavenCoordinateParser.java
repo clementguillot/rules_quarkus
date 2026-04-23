@@ -60,7 +60,9 @@ public final class MavenCoordinateParser {
     int groupIdEnd = parts.length - 4;
     int groupIdStart = groupIdEnd;
     for (int i = groupIdEnd; i >= 0; i--) {
-      if (isStopSegment(parts[i])) break;
+      if (isStopSegment(parts[i])) {
+        break;
+      }
       groupIdStart = i;
     }
 
@@ -86,9 +88,13 @@ public final class MavenCoordinateParser {
         || segment.contains(".")) {
       return true;
     }
-    if (STOP_SEGMENTS.contains(segment)) return true;
+    if (STOP_SEGMENTS.contains(segment)) {
+      return true;
+    }
     for (String prefix : STOP_PREFIXES) {
-      if (segment.startsWith(prefix)) return true;
+      if (segment.startsWith(prefix)) {
+        return true;
+      }
     }
     return false;
   }

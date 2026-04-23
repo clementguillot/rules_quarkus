@@ -1,6 +1,10 @@
 package com.clementguillot.quarkifier;
 
-/** Augmentation mode: NORMAL for production builds, TEST for test-scoped builds, DEV for dev mode. */
+import java.util.Locale;
+
+/**
+ * Augmentation mode: NORMAL for production builds, TEST for test-scoped builds, DEV for dev mode.
+ */
 public enum AugmentationMode {
   NORMAL,
   TEST,
@@ -12,7 +16,7 @@ public enum AugmentationMode {
    * @throws IllegalArgumentException if the string is not "normal", "test", or "dev"
    */
   public static AugmentationMode parse(String value) {
-    return switch (value.toLowerCase()) {
+    return switch (value.toLowerCase(Locale.ROOT)) {
       case "normal" -> NORMAL;
       case "test" -> TEST;
       case "dev" -> DEV;
