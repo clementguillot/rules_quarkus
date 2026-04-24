@@ -6,6 +6,11 @@ import com.clementguillot.quarkifier.maven.MavenCoordinateParser;
 import io.quarkus.bootstrap.model.ApplicationModel;
 import io.quarkus.bootstrap.model.ApplicationModelBuilder;
 import io.quarkus.bootstrap.model.CapabilityContract;
+import io.quarkus.bootstrap.workspace.ArtifactSources;
+import io.quarkus.bootstrap.workspace.DefaultArtifactSources;
+import io.quarkus.bootstrap.workspace.DefaultSourceDir;
+import io.quarkus.bootstrap.workspace.WorkspaceModule;
+import io.quarkus.bootstrap.workspace.WorkspaceModuleId;
 import io.quarkus.maven.dependency.ArtifactKey;
 import io.quarkus.maven.dependency.DependencyFlags;
 import io.quarkus.maven.dependency.ResolvedDependencyBuilder;
@@ -131,6 +136,42 @@ public final class QuarkusAppModelBuilder {
     }
   }
 
+  /**
+   * Builds an {@link ApplicationModel} for test mode, including a {@link WorkspaceModule} with test
+   * sources so that {@code AppMakerHelper} can locate test classes.
+   *
+   * @param appJar the application's own jar (first entry on the application classpath)
+   * @param runtimeJars remaining runtime dependency jars
+   * @param deployClasspath deployment-only jars
+   * @param appName optional application name override
+   * @param appVersion optional application version override
+   * @return a fully configured ApplicationModel with workspace module for test mode
+   */
+  public static ApplicationModel buildForTest(
+      Path appJar,
+      List<Path> runtimeJars,
+      List<Path> deployClasspath,
+      String appName,
+      String appVersion) {
+    var modelBuilder = new ApplicationModelBuilder();
+
+    // In test mode, skip extension scanning and capability registration entirely.
+    // The QuarkusTestExtension runs augmentation inside the test JVM, which
+    // discovers extensions from the classpath. Registering them here would cause
+    // duplicate capabilities (once from the model, once from augmentation).
+    // We only need the basic model structure: app artifact, dependencies, and
+    // classloader configuration (parent-first flags).
+    Set<Path> extensionJars = Set.of();
+
+    setAppArtifactForTest(modelBuilder, appJar, appName, appVersion);
+    Set<ArtifactKey> addedKeys = addRuntimeDependencies(modelBuilder, runtimeJars, extensionJars);
+    addDeploymentDependencies(modelBuilder, deployClasspath, addedKeys, extensionJars);
+    markParentFirstArtifacts(modelBuilder);
+    fixRunnerParentFirstFlags(modelBuilder);
+
+    return modelBuilder.build();
+  }
+
   // ---- Artifact registration ----
 
   private static void setAppArtifact(
@@ -142,6 +183,49 @@ public final class QuarkusAppModelBuilder {
             .setArtifactId(appName != null ? appName : coords.artifactId())
             .setVersion(appVersion != null ? appVersion : coords.version())
             .setResolvedPath(appJar)
+            .setRuntimeCp()
+            .setDeploymentCp());
+  }
+
+  /**
+   * Sets the app artifact with a minimal WorkspaceModule. The module must be non-null so that
+   * {@code PathTestHelper.getTestClassesDirOrNull} doesn't NPE, but test sources should be absent
+   * so the fallback path ({@code getTestClassesLocation(Class)}) is used — it locates test classes
+   * via the classloader, which works correctly with Bazel's jar-based classpath.
+   */
+  private static void setAppArtifactForTest(
+      ApplicationModelBuilder modelBuilder, Path appJar, String appName, String appVersion) {
+    var coords = MavenCoordinateParser.parse(appJar);
+    Path jarDir = appJar.getParent() != null ? appJar.getParent() : appJar;
+
+    // Minimal workspace module: only main sources pointing to the app jar.
+    // The output dir is set to the app jar itself so that AppMakerHelper adds
+    // it to the application root (needed for Quarkus to scan @Path endpoints).
+    // No test sources — getTestSources() returns null, triggering the fallback
+    // in PathTestHelper that uses the classloader to find test classes.
+    WorkspaceModule module =
+        WorkspaceModule.builder()
+            .setModuleId(
+                WorkspaceModuleId.of(
+                    coords.groupId(),
+                    appName != null ? appName : coords.artifactId(),
+                    appVersion != null ? appVersion : coords.version()))
+            .setModuleDir(jarDir)
+            .setBuildDir(jarDir)
+            .addArtifactSources(
+                new DefaultArtifactSources(
+                    ArtifactSources.MAIN,
+                    List.of(new DefaultSourceDir(jarDir, appJar, null)),
+                    List.of()))
+            .build();
+
+    modelBuilder.setAppArtifact(
+        ResolvedDependencyBuilder.newInstance()
+            .setGroupId(coords.groupId())
+            .setArtifactId(appName != null ? appName : coords.artifactId())
+            .setVersion(appVersion != null ? appVersion : coords.version())
+            .setResolvedPath(appJar)
+            .setWorkspaceModule(module)
             .setRuntimeCp()
             .setDeploymentCp());
   }
@@ -295,6 +379,17 @@ public final class QuarkusAppModelBuilder {
             "jakarta.annotation-api",
             "jakarta.el-api",
             "jakarta.transaction-api",
+            // JUnit Platform + Jupiter API — must be parent-first so that
+            // @Test and other JUnit annotations loaded by the QuarkusClassLoader
+            // are the same class instances as those used by JUnit's engine
+            // (which is loaded by the app classloader in ConsoleLauncher mode).
+            "junit-jupiter-api",
+            "junit-jupiter-engine",
+            "junit-jupiter-params",
+            "junit-platform-commons",
+            "junit-platform-engine",
+            "junit-platform-launcher",
+            "opentest4j",
             // Other infrastructure
             "quarkus-ide-launcher",
             "crac",

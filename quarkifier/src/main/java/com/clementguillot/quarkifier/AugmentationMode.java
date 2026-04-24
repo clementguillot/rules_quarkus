@@ -3,7 +3,8 @@ package com.clementguillot.quarkifier;
 import java.util.Locale;
 
 /**
- * Augmentation mode: NORMAL for production builds, TEST for test-scoped builds, DEV for dev mode.
+ * Augmentation mode: NORMAL for production builds, DEV for dev mode, TEST for serializing a test
+ * ApplicationModel without running augmentation.
  */
 public enum AugmentationMode {
   NORMAL,

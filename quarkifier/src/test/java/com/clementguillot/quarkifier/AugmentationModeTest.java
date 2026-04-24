@@ -13,6 +13,11 @@ class AugmentationModeTest {
   }
 
   @Test
+  void parse_dev() {
+    assertEquals(AugmentationMode.DEV, AugmentationMode.parse("dev"));
+  }
+
+  @Test
   void parse_test() {
     assertEquals(AugmentationMode.TEST, AugmentationMode.parse("test"));
   }
@@ -20,7 +25,8 @@ class AugmentationModeTest {
   @Test
   void parse_caseInsensitive() {
     assertEquals(AugmentationMode.NORMAL, AugmentationMode.parse("NORMAL"));
-    assertEquals(AugmentationMode.TEST, AugmentationMode.parse("Test"));
+    assertEquals(AugmentationMode.DEV, AugmentationMode.parse("Dev"));
+    assertEquals(AugmentationMode.TEST, AugmentationMode.parse("TEST"));
   }
 
   @Test

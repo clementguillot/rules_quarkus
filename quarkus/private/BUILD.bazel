@@ -3,8 +3,10 @@
 exports_files([
     "launcher.sh.tpl",
     "dev_launcher.sh.tpl",
+    "test_launcher.sh.tpl",
     "quarkus_app_impl.bzl",
     "quarkus_dev_impl.bzl",
+    "quarkus_test_impl.bzl",
     "classpath_utils.bzl",
     "versions.bzl",
 ])

@@ -7,21 +7,33 @@
     "com.google.guava:guava": 1943808618,
     "com.google.j2objc:j2objc-annotations": 2003271689,
     "io.quarkus:quarkus-arc": -941382592,
+    "io.quarkus:quarkus-junit5": -1874313091,
     "io.quarkus:quarkus-rest": 1630589770,
+    "io.rest-assured:rest-assured": -564555206,
+    "org.junit.jupiter:junit-jupiter": -2009586108,
+    "org.junit.platform:junit-platform-console-standalone": -1031571220,
+    "org.junit.platform:junit-platform-launcher": -730498031,
     "repositories": -1949687017
   },
   "__RESOLVED_ARTIFACTS_HASH": {
+    "aopalliance:aopalliance": 1403132272,
     "com.aayushatharva.brotli4j:brotli4j": -1115945584,
     "com.aayushatharva.brotli4j:native-osx-aarch64": -1499218582,
     "com.aayushatharva.brotli4j:service": -902872944,
     "com.fasterxml.jackson.core:jackson-core": -1263264115,
     "com.google.code.findbugs:jsr305": 870839855,
     "com.google.code.gson:gson": -1575757252,
-    "com.google.errorprone:error_prone_annotations": 833623751,
-    "com.google.guava:failureaccess": -1890754729,
-    "com.google.guava:guava": -163533230,
+    "com.google.errorprone:error_prone_annotations": 1014409728,
+    "com.google.guava:failureaccess": 1715931538,
+    "com.google.guava:guava": -2046459454,
     "com.google.guava:listenablefuture": 1079558157,
-    "com.google.j2objc:j2objc-annotations": 248818742,
+    "com.google.inject:guice:jar:classes": -1301081110,
+    "com.google.j2objc:j2objc-annotations": -404209759,
+    "commons-cli:commons-cli": -1049205324,
+    "commons-codec:commons-codec": 1545666683,
+    "commons-io:commons-io": -515402013,
+    "commons-logging:commons-logging": 1248790901,
+    "io.github.dmlloyd:jdk-classfile-backport": 1460246868,
     "io.netty:netty-buffer": 1883825690,
     "io.netty:netty-codec": 1759679007,
     "io.netty:netty-codec-dns": 1274940079,
@@ -37,6 +49,8 @@
     "io.netty:netty-transport": 764254626,
     "io.netty:netty-transport-native-unix-common": -1442019057,
     "io.quarkus.arc:arc": -946614674,
+    "io.quarkus.gizmo:gizmo": 1956106425,
+    "io.quarkus.gizmo:gizmo2": -1887871201,
     "io.quarkus.resteasy.reactive:resteasy-reactive": -990883686,
     "io.quarkus.resteasy.reactive:resteasy-reactive-common": 426536304,
     "io.quarkus.resteasy.reactive:resteasy-reactive-common-types": 495778097,
@@ -44,26 +58,45 @@
     "io.quarkus.security:quarkus-security": -2067497321,
     "io.quarkus.vertx.utils:quarkus-vertx-utils": -522583110,
     "io.quarkus:quarkus-arc": -8500249,
+    "io.quarkus:quarkus-bootstrap-app-model": -923513404,
+    "io.quarkus:quarkus-bootstrap-core": -343523199,
+    "io.quarkus:quarkus-bootstrap-gradle-resolver": 2015528676,
+    "io.quarkus:quarkus-bootstrap-maven-resolver": 1447305460,
+    "io.quarkus:quarkus-bootstrap-maven4-resolver": -1320010755,
     "io.quarkus:quarkus-bootstrap-runner": -116121396,
+    "io.quarkus:quarkus-builder": -17971146,
+    "io.quarkus:quarkus-class-change-agent": -672019621,
     "io.quarkus:quarkus-classloader-commons": 400218834,
     "io.quarkus:quarkus-core": -369929068,
+    "io.quarkus:quarkus-core-deployment": -1250745118,
     "io.quarkus:quarkus-credentials": -1773551951,
     "io.quarkus:quarkus-development-mode-spi": 2069582730,
     "io.quarkus:quarkus-fs-util": 2100134833,
+    "io.quarkus:quarkus-hibernate-validator-spi": -974025439,
     "io.quarkus:quarkus-ide-launcher": 1865115086,
     "io.quarkus:quarkus-jsonp": 790616827,
+    "io.quarkus:quarkus-junit5": 38753746,
+    "io.quarkus:quarkus-junit5-config": -811446494,
     "io.quarkus:quarkus-mutiny": -935450521,
     "io.quarkus:quarkus-netty": -1536774206,
     "io.quarkus:quarkus-rest": -1265130802,
     "io.quarkus:quarkus-rest-common": 2376637,
     "io.quarkus:quarkus-security-runtime-spi": 606704596,
     "io.quarkus:quarkus-smallrye-context-propagation": 2080318319,
+    "io.quarkus:quarkus-test-common": -1495018997,
     "io.quarkus:quarkus-tls-registry": -1075817764,
     "io.quarkus:quarkus-tls-registry-spi": -357051101,
     "io.quarkus:quarkus-vertx": -1774694625,
     "io.quarkus:quarkus-vertx-http": 902010035,
     "io.quarkus:quarkus-vertx-latebound-mdc-provider": 1610120483,
     "io.quarkus:quarkus-virtual-threads": 1525298093,
+    "io.rest-assured:json-path": -413446282,
+    "io.rest-assured:rest-assured": -936816612,
+    "io.rest-assured:rest-assured-common": -80772841,
+    "io.rest-assured:xml-path": 852680267,
+    "io.smallrye.beanbag:smallrye-beanbag": 268493159,
+    "io.smallrye.beanbag:smallrye-beanbag-maven": 442527383,
+    "io.smallrye.beanbag:smallrye-beanbag-sisu": -200206793,
     "io.smallrye.certs:smallrye-private-key-pem-parser": 1432098819,
     "io.smallrye.common:smallrye-common-annotation": -1541422257,
     "io.smallrye.common:smallrye-common-classloader": -805847306,
@@ -74,7 +107,9 @@
     "io.smallrye.common:smallrye-common-io": 1446872542,
     "io.smallrye.common:smallrye-common-net": -1730731989,
     "io.smallrye.common:smallrye-common-os": 1149622573,
+    "io.smallrye.common:smallrye-common-process": -457724872,
     "io.smallrye.common:smallrye-common-ref": 1084579247,
+    "io.smallrye.common:smallrye-common-resource": -975318444,
     "io.smallrye.common:smallrye-common-vertx-context": -326346208,
     "io.smallrye.config:smallrye-config": -914261764,
     "io.smallrye.config:smallrye-config-common": -1066906865,
@@ -90,6 +125,8 @@
     "io.smallrye.reactive:smallrye-mutiny-vertx-web": -1624165646,
     "io.smallrye.reactive:smallrye-mutiny-vertx-web-common": -1581837938,
     "io.smallrye.reactive:vertx-mutiny-generator": -902007735,
+    "io.smallrye:jandex": -359615195,
+    "io.smallrye:jandex-gizmo2": -1995464502,
     "io.smallrye:smallrye-context-propagation": -869810896,
     "io.smallrye:smallrye-context-propagation-api": 1222810252,
     "io.smallrye:smallrye-context-propagation-storage": 2063837407,
@@ -112,25 +149,100 @@
     "jakarta.transaction:jakarta.transaction-api": -1232049293,
     "jakarta.ws.rs:jakarta.ws.rs-api": 155773188,
     "jakarta.xml.bind:jakarta.xml.bind-api": -904326670,
-    "org.checkerframework:checker-qual": -1533199059,
+    "javax.annotation:javax.annotation-api": -1009230154,
+    "javax.inject:javax.inject": 698155243,
+    "org.aesh:aesh": -684107909,
+    "org.aesh:readline": 1066826701,
+    "org.apache.commons:commons-lang3": -850748327,
+    "org.apache.groovy:groovy": -643259552,
+    "org.apache.groovy:groovy-json": 1158320423,
+    "org.apache.groovy:groovy-xml": 134383575,
+    "org.apache.httpcomponents:httpclient": -494700490,
+    "org.apache.httpcomponents:httpcore": 67453319,
+    "org.apache.httpcomponents:httpmime": -290407403,
+    "org.apache.maven.resolver:maven-resolver-api": -272332498,
+    "org.apache.maven.resolver:maven-resolver-connector-basic": -1237334815,
+    "org.apache.maven.resolver:maven-resolver-impl": -134503071,
+    "org.apache.maven.resolver:maven-resolver-named-locks": 1209496506,
+    "org.apache.maven.resolver:maven-resolver-spi": 2001408525,
+    "org.apache.maven.resolver:maven-resolver-transport-http": -296100013,
+    "org.apache.maven.resolver:maven-resolver-transport-wagon": -662638404,
+    "org.apache.maven.resolver:maven-resolver-util": -1801460950,
+    "org.apache.maven.shared:maven-shared-utils": -1039911638,
+    "org.apache.maven.wagon:wagon-file": -1636600175,
+    "org.apache.maven.wagon:wagon-http": -2142547008,
+    "org.apache.maven.wagon:wagon-http-shared": 1702910847,
+    "org.apache.maven.wagon:wagon-provider-api": 928709642,
+    "org.apache.maven:maven-api-meta": 1272145502,
+    "org.apache.maven:maven-api-xml": -202637389,
+    "org.apache.maven:maven-artifact": 1355286828,
+    "org.apache.maven:maven-builder-support": -1710623758,
+    "org.apache.maven:maven-core": 242163210,
+    "org.apache.maven:maven-embedder": -1986219289,
+    "org.apache.maven:maven-model": -1937292581,
+    "org.apache.maven:maven-model-builder": 879655965,
+    "org.apache.maven:maven-plugin-api": -1550293866,
+    "org.apache.maven:maven-repository-metadata": 902525989,
+    "org.apache.maven:maven-resolver-provider": -1000478526,
+    "org.apache.maven:maven-settings": -871735431,
+    "org.apache.maven:maven-settings-builder": -967360817,
+    "org.apache.maven:maven-xml-impl": -501809864,
+    "org.apiguardian:apiguardian-api": 1279798469,
+    "org.ccil.cowan.tagsoup:tagsoup": 1163351168,
+    "org.codehaus.plexus:plexus-cipher": -547759620,
+    "org.codehaus.plexus:plexus-classworlds": 830297444,
+    "org.codehaus.plexus:plexus-component-annotations": -599131582,
+    "org.codehaus.plexus:plexus-interpolation": -455118382,
+    "org.codehaus.plexus:plexus-sec-dispatcher": -786406031,
+    "org.codehaus.plexus:plexus-utils": 37123609,
+    "org.codehaus.plexus:plexus-xml": -985076333,
     "org.crac:crac": 853021667,
     "org.eclipse.microprofile.config:microprofile-config-api": 1033345756,
     "org.eclipse.microprofile.context-propagation:microprofile-context-propagation-api": -482095317,
     "org.eclipse.parsson:parsson": 261021719,
+    "org.eclipse.sisu:org.eclipse.sisu.inject": -1006980622,
+    "org.eclipse.sisu:org.eclipse.sisu.plexus": 285799090,
+    "org.fusesource.jansi:jansi": -1665988609,
+    "org.graalvm.sdk:nativeimage": -1830909194,
+    "org.graalvm.sdk:word": 921752333,
+    "org.hamcrest:hamcrest": -820511133,
     "org.jboss.logging:commons-logging-jboss-logging": -1896182967,
     "org.jboss.logging:jboss-logging": -1889532189,
     "org.jboss.logmanager:jboss-logmanager": -1110999658,
     "org.jboss.slf4j:slf4j-jboss-logmanager": -1436669637,
     "org.jboss.threads:jboss-threads": -991353416,
     "org.jctools:jctools-core": 473448173,
+    "org.jspecify:jspecify": 117231129,
+    "org.junit.jupiter:junit-jupiter": 1893116253,
+    "org.junit.jupiter:junit-jupiter-api": 1459221310,
+    "org.junit.jupiter:junit-jupiter-engine": 1059684571,
+    "org.junit.jupiter:junit-jupiter-params": 1181569238,
+    "org.junit.platform:junit-platform-commons": -1965907552,
+    "org.junit.platform:junit-platform-console-standalone": -2037018322,
+    "org.junit.platform:junit-platform-engine": -163998054,
+    "org.junit.platform:junit-platform-launcher": -1024597016,
+    "org.opentest4j:opentest4j": -1711174392,
+    "org.ow2.asm:asm": 611381606,
+    "org.ow2.asm:asm-analysis": -254710036,
+    "org.ow2.asm:asm-commons": 1032323649,
+    "org.ow2.asm:asm-tree": -1593303232,
+    "org.ow2.asm:asm-util": 610725920,
     "org.reactivestreams:reactive-streams": 1281941191,
     "org.slf4j:slf4j-api": -1521593912,
     "org.wildfly.common:wildfly-common": 1915193746
   },
   "conflict_resolution": {
-    "com.google.errorprone:error_prone_annotations:2.5.1": "com.google.errorprone:error_prone_annotations:2.18.0"
+    "com.google.errorprone:error_prone_annotations:2.5.1": "com.google.errorprone:error_prone_annotations:2.36.0",
+    "com.google.guava:guava:32.0.1-jre": "com.google.guava:guava:33.4.8-jre",
+    "com.google.j2objc:j2objc-annotations:2.8": "com.google.j2objc:j2objc-annotations:3.0.0"
   },
   "artifacts": {
+    "aopalliance:aopalliance": {
+      "shasums": {
+        "jar": "0addec670fedcd3f113c5c8091d783280d23f75e3acb841b61a9cdb079376a08"
+      },
+      "version": "1.0"
+    },
     "com.aayushatharva.brotli4j:brotli4j": {
       "shasums": {
         "jar": "285a0b96150649db6fd9d8a0a22ea98fc2b8a558fc924b21836a59550975485e"
@@ -169,21 +281,21 @@
     },
     "com.google.errorprone:error_prone_annotations": {
       "shasums": {
-        "jar": "9e6814cb71816988a4fd1b07a993a8f21bb7058d522c162b1de849e19bea54ae"
+        "jar": "77440e270b0bc9a249903c5a076c36a722c4886ca4f42675f2903a1c53ed61a5"
       },
-      "version": "2.18.0"
+      "version": "2.36.0"
     },
     "com.google.guava:failureaccess": {
       "shasums": {
-        "jar": "a171ee4c734dd2da837e4b16be9df4661afab72a41adaf31eb84dfdaf936ca26"
+        "jar": "cbfc3906b19b8f55dd7cfd6dfe0aa4532e834250d7f080bd8d211a3e246b59cb"
       },
-      "version": "1.0.1"
+      "version": "1.0.3"
     },
     "com.google.guava:guava": {
       "shasums": {
-        "jar": "bd7fa227591fb8509677d0d1122cf95158f3b8a9f45653f58281d879f6dc48c5"
+        "jar": "f3d7f57f67fd622f4d468dfdd692b3a5e3909246c28017ac3263405f0fe617ed"
       },
-      "version": "32.0.1-jre"
+      "version": "33.4.8-jre"
     },
     "com.google.guava:listenablefuture": {
       "shasums": {
@@ -191,11 +303,47 @@
       },
       "version": "9999.0-empty-to-avoid-conflict-with-guava"
     },
+    "com.google.inject:guice": {
+      "shasums": {
+        "classes": "142ad4475e19524d2fe3ac995b3f7cbc962fc726f2edb9dbdccc61feab9b2bf9"
+      },
+      "version": "5.1.0"
+    },
     "com.google.j2objc:j2objc-annotations": {
       "shasums": {
-        "jar": "f02a95fa1a5e95edb3ed859fd0fb7df709d121a35290eff8b74dce2ab7f4d6ed"
+        "jar": "88241573467ddca44ffd4d74aa04c2bbfd11bf7c17e0c342c94c9de7a70a7c64"
       },
-      "version": "2.8"
+      "version": "3.0.0"
+    },
+    "commons-cli:commons-cli": {
+      "shasums": {
+        "jar": "d3d530d0f28fd0fbbffe2b0b338f70e8cb96f1605579e2e3abd4db29cac24e69"
+      },
+      "version": "1.9.0"
+    },
+    "commons-codec:commons-codec": {
+      "shasums": {
+        "jar": "5c3881e4f556855e9c532927ee0c9dfde94cc66760d5805c031a59887070af5f"
+      },
+      "version": "1.19.0"
+    },
+    "commons-io:commons-io": {
+      "shasums": {
+        "jar": "df90bba0fe3cb586b7f164e78fe8f8f4da3f2dd5c27fa645f888100ccc25dd72"
+      },
+      "version": "2.20.0"
+    },
+    "commons-logging:commons-logging": {
+      "shasums": {
+        "jar": "daddea1ea0be0f56978ab3006b8ac92834afeefbd9b7e4e6316fca57df0fa636"
+      },
+      "version": "1.2"
+    },
+    "io.github.dmlloyd:jdk-classfile-backport": {
+      "shasums": {
+        "jar": "34f5c9424d49bbfcc6277a28c3ac6da04520e8c6fcc49c59be7a2b1462ce5554"
+      },
+      "version": "24.0"
     },
     "io.netty:netty-buffer": {
       "shasums": {
@@ -287,6 +435,18 @@
       },
       "version": "3.27.3"
     },
+    "io.quarkus.gizmo:gizmo": {
+      "shasums": {
+        "jar": "6d463d670ea45cb9a8241e99dd02c7e422d9982a2ff6e8623d338ac2a6c892b1"
+      },
+      "version": "1.9.0"
+    },
+    "io.quarkus.gizmo:gizmo2": {
+      "shasums": {
+        "jar": "bcb1ade9db85101dcd42cd81f5a0de2c15e50e696928957943723593ec719c70"
+      },
+      "version": "2.0.0.Beta6"
+    },
     "io.quarkus.resteasy.reactive:resteasy-reactive": {
       "shasums": {
         "jar": "f699062675809e8c55899afdaf201fb6e0e4a4b20eaf3f51f119ef42f282540d"
@@ -329,9 +489,51 @@
       },
       "version": "3.27.3"
     },
+    "io.quarkus:quarkus-bootstrap-app-model": {
+      "shasums": {
+        "jar": "6b14b184ea655f193a88b5f4669c1258743b7cdf0591c640986e46d0828969b2"
+      },
+      "version": "3.27.3"
+    },
+    "io.quarkus:quarkus-bootstrap-core": {
+      "shasums": {
+        "jar": "9915dfac2f331b49140a60b74cd57d5a421d22951676a7a2c22a3dc37bc1032d"
+      },
+      "version": "3.27.3"
+    },
+    "io.quarkus:quarkus-bootstrap-gradle-resolver": {
+      "shasums": {
+        "jar": "0ef1076e36b163706061b6956a66b2eaa339e51ce1f61f07781c8285f9579756"
+      },
+      "version": "3.27.3"
+    },
+    "io.quarkus:quarkus-bootstrap-maven-resolver": {
+      "shasums": {
+        "jar": "45e174036d987a47fda104b6bf4799490bd1b574f486e9c8d9c333816f41c717"
+      },
+      "version": "3.27.3"
+    },
+    "io.quarkus:quarkus-bootstrap-maven4-resolver": {
+      "shasums": {
+        "jar": "ef966d241693ab829d3b7de30431b1a73e630b1fb6de7d9ed19cd9f9ab875c31"
+      },
+      "version": "3.27.3"
+    },
     "io.quarkus:quarkus-bootstrap-runner": {
       "shasums": {
         "jar": "78c6624086038638192ae262bf1769bc58b32a6d90ded85b896536c07408ce5c"
+      },
+      "version": "3.27.3"
+    },
+    "io.quarkus:quarkus-builder": {
+      "shasums": {
+        "jar": "98faace102e51108a7e91a611ed48fdcb865c0191dcb5fdb92e17ed931131c35"
+      },
+      "version": "3.27.3"
+    },
+    "io.quarkus:quarkus-class-change-agent": {
+      "shasums": {
+        "jar": "8b58582d2898386f5bd4ea4fd3fdac787b54a3826df237f622fecce0fbdcbe7e"
       },
       "version": "3.27.3"
     },
@@ -344,6 +546,12 @@
     "io.quarkus:quarkus-core": {
       "shasums": {
         "jar": "42ca682fd671eefcd700a5bec211d12b997d85ef19faac43d65cd822732b5888"
+      },
+      "version": "3.27.3"
+    },
+    "io.quarkus:quarkus-core-deployment": {
+      "shasums": {
+        "jar": "a9401f2699f490256083a2ec1140dfc3f036ae9eac1477118d9a2da1ec079ca9"
       },
       "version": "3.27.3"
     },
@@ -365,6 +573,12 @@
       },
       "version": "1.1.0"
     },
+    "io.quarkus:quarkus-hibernate-validator-spi": {
+      "shasums": {
+        "jar": "5c492045efcc2a4c1d8de1662becab2822c7da3fbdedccdb77ca5fac302224bb"
+      },
+      "version": "3.27.3"
+    },
     "io.quarkus:quarkus-ide-launcher": {
       "shasums": {
         "jar": "afd67053b3505b6e12708ddabb9fa45680e052780cc91e611cc90e62bb65bec9"
@@ -374,6 +588,18 @@
     "io.quarkus:quarkus-jsonp": {
       "shasums": {
         "jar": "237ecc779dc913120ebb131469a2c6ea79676aa14c371cce7b9345162f6d7137"
+      },
+      "version": "3.27.3"
+    },
+    "io.quarkus:quarkus-junit5": {
+      "shasums": {
+        "jar": "ae8e6d9f9b51b67b25a274bef5548186e2eeb824a2e8405b5d9ef99cde504bba"
+      },
+      "version": "3.27.3"
+    },
+    "io.quarkus:quarkus-junit5-config": {
+      "shasums": {
+        "jar": "3dd02712196e8933e2a66b82671c6387cd690fd5f29bef8e410f7fdf640949e3"
       },
       "version": "3.27.3"
     },
@@ -413,6 +639,12 @@
       },
       "version": "3.27.3"
     },
+    "io.quarkus:quarkus-test-common": {
+      "shasums": {
+        "jar": "891e86568c546cfc72c21bf2d9fb939e533d70636e40d45cf36a2eb1e7c95e24"
+      },
+      "version": "3.27.3"
+    },
     "io.quarkus:quarkus-tls-registry": {
       "shasums": {
         "jar": "c155d6303863027e1775f40a8177bfb8b986bc9b3a458ac2f0119f4dada803c4"
@@ -448,6 +680,48 @@
         "jar": "a552f80dddf8d5966161123a60c61ce6781628f2f8a0436436993f879b412125"
       },
       "version": "3.27.3"
+    },
+    "io.rest-assured:json-path": {
+      "shasums": {
+        "jar": "46f7c91ce540d33ceda741ad5db6eb5ee2d0ad000dbb8eb9837b2f5c1c2d3a46"
+      },
+      "version": "5.5.6"
+    },
+    "io.rest-assured:rest-assured": {
+      "shasums": {
+        "jar": "52a7014328070bbeb47457b4c1f79f63812191d37a28d4d7f5ee43fab724e5d1"
+      },
+      "version": "5.5.6"
+    },
+    "io.rest-assured:rest-assured-common": {
+      "shasums": {
+        "jar": "bfd0e0fd61e86be103772a03b045462439ea38e9ac5693ceefbe90c708902339"
+      },
+      "version": "5.5.6"
+    },
+    "io.rest-assured:xml-path": {
+      "shasums": {
+        "jar": "7e87fea7d7e51fc033052d72d08150ad46fcaffdf3ed7558a62c3e2c95e89585"
+      },
+      "version": "5.5.6"
+    },
+    "io.smallrye.beanbag:smallrye-beanbag": {
+      "shasums": {
+        "jar": "a98a1df267cdef1b7f305fbeacfa7d51e423fe2d02596314877196f5ce29a578"
+      },
+      "version": "1.5.3"
+    },
+    "io.smallrye.beanbag:smallrye-beanbag-maven": {
+      "shasums": {
+        "jar": "8cc96b5a16bd7d99d8a933b74626d2abe71b0b629ace250f6e95201bdb9a80c5"
+      },
+      "version": "1.5.3"
+    },
+    "io.smallrye.beanbag:smallrye-beanbag-sisu": {
+      "shasums": {
+        "jar": "5b709a4e0e62ce613550f3c9edaf7b2663fa797d5312eda7491f6837cd2fefad"
+      },
+      "version": "1.5.3"
     },
     "io.smallrye.certs:smallrye-private-key-pem-parser": {
       "shasums": {
@@ -509,9 +783,21 @@
       },
       "version": "2.13.9"
     },
+    "io.smallrye.common:smallrye-common-process": {
+      "shasums": {
+        "jar": "5c9fae9b4e3cb8e84c8b211aacfd1919b3e2f5a6aaf9664f34e2b2fa5b386e17"
+      },
+      "version": "2.13.9"
+    },
     "io.smallrye.common:smallrye-common-ref": {
       "shasums": {
         "jar": "72e147f76dc3a2d7aac9f18b812708390d1d8cf768ad32f556852068616575d7"
+      },
+      "version": "2.13.9"
+    },
+    "io.smallrye.common:smallrye-common-resource": {
+      "shasums": {
+        "jar": "9ba62b4cc6ae4cf2492966d19795cf3a150a4bcf8bc88d646b1d34b8c8019dc8"
       },
       "version": "2.13.9"
     },
@@ -604,6 +890,18 @@
         "jar": "969ca5e6fe7536cd08c85c24e0aa98c54e899d317101dbb916c0c0204825dd64"
       },
       "version": "3.21.5"
+    },
+    "io.smallrye:jandex": {
+      "shasums": {
+        "jar": "6be417290a1d343dd27b45cbd12e273deb4af30a2df5cb9e4bad880fb63945b2"
+      },
+      "version": "3.4.0"
+    },
+    "io.smallrye:jandex-gizmo2": {
+      "shasums": {
+        "jar": "6df02b54b40fa1b8bb4e7b9f6856815a2242d2221760522ef975258b405d5c81"
+      },
+      "version": "3.4.0"
     },
     "io.smallrye:smallrye-context-propagation": {
       "shasums": {
@@ -737,11 +1035,287 @@
       },
       "version": "4.0.2"
     },
-    "org.checkerframework:checker-qual": {
+    "javax.annotation:javax.annotation-api": {
       "shasums": {
-        "jar": "e316255bbfcd9fe50d165314b85abb2b33cb2a66a93c491db648e498a82c2de1"
+        "jar": "e04ba5195bcd555dc95650f7cc614d151e4bcd52d29a10b8aa2197f3ab89ab9b"
       },
-      "version": "3.33.0"
+      "version": "1.3.2"
+    },
+    "javax.inject:javax.inject": {
+      "shasums": {
+        "jar": "91c77044a50c481636c32d916fd89c9118a72195390452c81065080f957de7ff"
+      },
+      "version": "1"
+    },
+    "org.aesh:aesh": {
+      "shasums": {
+        "jar": "8c1e17fd1ab9d3a736bdee7fbd649e174f7dc26c1ceeac6e9ea596a9d63fcffd"
+      },
+      "version": "2.8.2"
+    },
+    "org.aesh:readline": {
+      "shasums": {
+        "jar": "601eb6cbc77a8b07b8014ba89cf3fbdda20fcdb96493e57466d3753fa26accde"
+      },
+      "version": "2.6"
+    },
+    "org.apache.commons:commons-lang3": {
+      "shasums": {
+        "jar": "4eeeae8d20c078abb64b015ec158add383ac581571cddc45c68f0c9ae0230720"
+      },
+      "version": "3.18.0"
+    },
+    "org.apache.groovy:groovy": {
+      "shasums": {
+        "jar": "f9d8bd4d65852c18194e353c77f3d2c23e0013856951c5430ba56972d2f67a1e"
+      },
+      "version": "4.0.22"
+    },
+    "org.apache.groovy:groovy-json": {
+      "shasums": {
+        "jar": "aba93254d9293881282bd639b7b3db8bdcb5bf6cca4cac0df7a0bd193743f652"
+      },
+      "version": "4.0.22"
+    },
+    "org.apache.groovy:groovy-xml": {
+      "shasums": {
+        "jar": "a8c6c845ed22feaaed8f0fd79798b8abea3e090afd5a9adaab96dbda152169cb"
+      },
+      "version": "4.0.22"
+    },
+    "org.apache.httpcomponents:httpclient": {
+      "shasums": {
+        "jar": "c8bc7e1c51a6d4ce72f40d2ebbabf1c4b68bfe76e732104b04381b493478e9d6"
+      },
+      "version": "4.5.14"
+    },
+    "org.apache.httpcomponents:httpcore": {
+      "shasums": {
+        "jar": "6c9b3dd142a09dc468e23ad39aad6f75a0f2b85125104469f026e52a474e464f"
+      },
+      "version": "4.4.16"
+    },
+    "org.apache.httpcomponents:httpmime": {
+      "shasums": {
+        "jar": "06e754d99245b98dcc2860dcb43d20e737d650da2bf2077a105f68accbd5c5cc"
+      },
+      "version": "4.5.13"
+    },
+    "org.apache.maven.resolver:maven-resolver-api": {
+      "shasums": {
+        "jar": "c0ce14849298720dcf3b09fe9e263b3c576d2d6cd43c61f8aa9d6117e04e5e47"
+      },
+      "version": "1.9.24"
+    },
+    "org.apache.maven.resolver:maven-resolver-connector-basic": {
+      "shasums": {
+        "jar": "18b7d557c41379db8b157ba95263c676f52c293f5416b67bd1db083e99b30383"
+      },
+      "version": "1.9.24"
+    },
+    "org.apache.maven.resolver:maven-resolver-impl": {
+      "shasums": {
+        "jar": "3cd88edda00c46242cdbe57aefb47703519d176d9e8a500333de15faf41b0e1d"
+      },
+      "version": "1.9.24"
+    },
+    "org.apache.maven.resolver:maven-resolver-named-locks": {
+      "shasums": {
+        "jar": "a222b0a5ca4c145e8e0f45207a23bcce18bdbe1f1c980e4e9fb332591ee8c91a"
+      },
+      "version": "1.9.24"
+    },
+    "org.apache.maven.resolver:maven-resolver-spi": {
+      "shasums": {
+        "jar": "e3153906e93333c106ee18babb72ba7984ccb15e9116ea08f88c71b8d9387e01"
+      },
+      "version": "1.9.24"
+    },
+    "org.apache.maven.resolver:maven-resolver-transport-http": {
+      "shasums": {
+        "jar": "7c4d762c4c604db5c8a9eeadd5c98b8f2e03556b853b48aa3346eb8cef67b54d"
+      },
+      "version": "1.9.23"
+    },
+    "org.apache.maven.resolver:maven-resolver-transport-wagon": {
+      "shasums": {
+        "jar": "78ed57fa2123a2d84fad7a0b15ca73b89df47c10294d02d6f8121c4d0e5050cb"
+      },
+      "version": "1.9.24"
+    },
+    "org.apache.maven.resolver:maven-resolver-util": {
+      "shasums": {
+        "jar": "aeb7e776a8c47b1c317a2581f299e2525b044cb8abde31164e970bbbefab12b1"
+      },
+      "version": "1.9.24"
+    },
+    "org.apache.maven.shared:maven-shared-utils": {
+      "shasums": {
+        "jar": "b613357e1bad4dfc1dead801691c9460f9585fe7c6b466bc25186212d7d18487"
+      },
+      "version": "3.4.2"
+    },
+    "org.apache.maven.wagon:wagon-file": {
+      "shasums": {
+        "jar": "afc9216fa97b78dad227b4a8d4d67b9897bf113a57f80598d62993841113e103"
+      },
+      "version": "3.5.3"
+    },
+    "org.apache.maven.wagon:wagon-http": {
+      "shasums": {
+        "jar": "d2b6e48c9fcbe579e1858c622d14464011ff265fa6e28e794004a6882154a509"
+      },
+      "version": "3.5.3"
+    },
+    "org.apache.maven.wagon:wagon-http-shared": {
+      "shasums": {
+        "jar": "8e7da766f55164fde8779aaaa125832506c2848cab4876b5305138873e28037f"
+      },
+      "version": "3.5.3"
+    },
+    "org.apache.maven.wagon:wagon-provider-api": {
+      "shasums": {
+        "jar": "5e72000338945ed3e96f8e4f578d1d0672e1af7e19c0e9014197ae5b31af3ef4"
+      },
+      "version": "3.5.3"
+    },
+    "org.apache.maven:maven-api-meta": {
+      "shasums": {
+        "jar": "c4f6f3868f5b280cc7e268f0f95e1bb1d2a824afe92a8029e861be7ec48b1272"
+      },
+      "version": "4.0.0-alpha-7"
+    },
+    "org.apache.maven:maven-api-xml": {
+      "shasums": {
+        "jar": "3388f4d0465f5a7e9a6264baf506da1b052c51f7cc10b7ce73f09723e6cf1d92"
+      },
+      "version": "4.0.0-alpha-7"
+    },
+    "org.apache.maven:maven-artifact": {
+      "shasums": {
+        "jar": "0bfd1c121f907642344311d81e4dfd93eba6c24dc712cc0aeae273eb22833022"
+      },
+      "version": "3.9.11"
+    },
+    "org.apache.maven:maven-builder-support": {
+      "shasums": {
+        "jar": "5b1de1560ec19c4c69a655f986455888f3a0bcc3c160cac1f1edb87de3825f77"
+      },
+      "version": "3.9.11"
+    },
+    "org.apache.maven:maven-core": {
+      "shasums": {
+        "jar": "93d3c0523dda6c86c6620d9e692e7df39d0e2e4e4cd860061a8c0d274c2ad185"
+      },
+      "version": "3.9.11"
+    },
+    "org.apache.maven:maven-embedder": {
+      "shasums": {
+        "jar": "7e15e05035331d0a7e0fe56d7354b2b30e15c0a8c60863cbf28df25190e197db"
+      },
+      "version": "3.9.11"
+    },
+    "org.apache.maven:maven-model": {
+      "shasums": {
+        "jar": "163aa596f976264384efeb50b4cb8a806086fd64a9b755ad1f69195fed3998ad"
+      },
+      "version": "3.9.11"
+    },
+    "org.apache.maven:maven-model-builder": {
+      "shasums": {
+        "jar": "c4c72accdcd848332c1a37995610a6a369d49fdaabc43e85f0022a5b77de3ba7"
+      },
+      "version": "3.9.11"
+    },
+    "org.apache.maven:maven-plugin-api": {
+      "shasums": {
+        "jar": "8e985a56412564cf687040efed8bcd3a63eac2202a824bb01e1d5ece2b87458f"
+      },
+      "version": "3.9.11"
+    },
+    "org.apache.maven:maven-repository-metadata": {
+      "shasums": {
+        "jar": "f8655f5f0060e0032944f2a23688d186e140d2184749bcfa1927f83cd6a8b1a2"
+      },
+      "version": "3.9.11"
+    },
+    "org.apache.maven:maven-resolver-provider": {
+      "shasums": {
+        "jar": "b5d6e52ae1ecf1cb62ede2234234ba3093149524066488e84415187ce478c582"
+      },
+      "version": "3.9.11"
+    },
+    "org.apache.maven:maven-settings": {
+      "shasums": {
+        "jar": "026718d47d19e360d978857bc63d3dc065884fc2c801563d8a2a77b5ab74ccf8"
+      },
+      "version": "3.9.11"
+    },
+    "org.apache.maven:maven-settings-builder": {
+      "shasums": {
+        "jar": "33c96e4ca5a15b7c93180f6b2f8deb15f511dfc15dda0d2b671c968b22108972"
+      },
+      "version": "3.9.11"
+    },
+    "org.apache.maven:maven-xml-impl": {
+      "shasums": {
+        "jar": "c89323b70dd491a3ef21432dba4cad2b74e26caaafd77178b0f15313fe0bd5f0"
+      },
+      "version": "4.0.0-alpha-7"
+    },
+    "org.apiguardian:apiguardian-api": {
+      "shasums": {
+        "jar": "b509448ac506d607319f182537f0b35d71007582ec741832a1f111e5b5b70b38"
+      },
+      "version": "1.1.2"
+    },
+    "org.ccil.cowan.tagsoup:tagsoup": {
+      "shasums": {
+        "jar": "ac97f7b4b1d8e9337edfa0e34044f8d0efe7223f6ad8f3a85d54cc1018ea2e04"
+      },
+      "version": "1.2.1"
+    },
+    "org.codehaus.plexus:plexus-cipher": {
+      "shasums": {
+        "jar": "9a7f1b5c5a9effd61eadfd8731452a2f76a8e79111fac391ef75ea801bea203a"
+      },
+      "version": "2.0"
+    },
+    "org.codehaus.plexus:plexus-classworlds": {
+      "shasums": {
+        "jar": "52f77c5ec49f787c9c417ebed5d6efd9922f44a202f217376e4f94c0d74f3549"
+      },
+      "version": "2.6.0"
+    },
+    "org.codehaus.plexus:plexus-component-annotations": {
+      "shasums": {
+        "jar": "bde3617ce9b5bcf9584126046080043af6a4b3baea40a3b153f02e7bbc32acac"
+      },
+      "version": "2.1.0"
+    },
+    "org.codehaus.plexus:plexus-interpolation": {
+      "shasums": {
+        "jar": "b3b5412ce17889103ea564bcdfcf9fb3dfa540344ffeac6b538a73c9d7182662"
+      },
+      "version": "1.26"
+    },
+    "org.codehaus.plexus:plexus-sec-dispatcher": {
+      "shasums": {
+        "jar": "873139960c4c780176dda580b003a2c4bf82188bdce5bb99234e224ef7acfceb"
+      },
+      "version": "2.0"
+    },
+    "org.codehaus.plexus:plexus-utils": {
+      "shasums": {
+        "jar": "86e0255d4c879c61b4833ed7f13124e8bb679df47debb127326e7db7dd49a07b"
+      },
+      "version": "3.5.1"
+    },
+    "org.codehaus.plexus:plexus-xml": {
+      "shasums": {
+        "jar": "e55f26425ad1ce948e4fca7b0fde5ecc9b0ba90d326c6ecc25a8e0e56ccfb6fd"
+      },
+      "version": "4.0.2"
     },
     "org.crac:crac": {
       "shasums": {
@@ -766,6 +1340,42 @@
         "jar": "c21db018f8ac6cf79893f1af77f1cd337937bd12ae6fa3d4b10f5a00819ee56c"
       },
       "version": "1.1.7"
+    },
+    "org.eclipse.sisu:org.eclipse.sisu.inject": {
+      "shasums": {
+        "jar": "1cbd7a965a5e2a9ea823bab311962a4e5aa5c240705bdbad5a52b40ffdfa1004"
+      },
+      "version": "0.9.0.M4"
+    },
+    "org.eclipse.sisu:org.eclipse.sisu.plexus": {
+      "shasums": {
+        "jar": "b90579bc652eac7331436e0a25533fce14130b9c6e015f2dd3a3d4bb07e942b7"
+      },
+      "version": "0.9.0.M4"
+    },
+    "org.fusesource.jansi:jansi": {
+      "shasums": {
+        "jar": "6cd91991323dd7b2fb28ca93d7ac12af5a86a2f53279e2b35827b30313fd0b9f"
+      },
+      "version": "2.4.0"
+    },
+    "org.graalvm.sdk:nativeimage": {
+      "shasums": {
+        "jar": "b20c00823c194cadcafc8e853b96a5754e641b467dc56634e738d756b308ad9a"
+      },
+      "version": "23.1.2"
+    },
+    "org.graalvm.sdk:word": {
+      "shasums": {
+        "jar": "2ae7a71ff3f53f61d1d7360a6152f67ce3902ae86ca22b30b70208dc0cf4e039"
+      },
+      "version": "23.1.2"
+    },
+    "org.hamcrest:hamcrest": {
+      "shasums": {
+        "jar": "5e62846a89f05cd78cd9c1a553f340d002458380c320455dd1f8fc5497a8a1c1"
+      },
+      "version": "2.2"
     },
     "org.jboss.logging:commons-logging-jboss-logging": {
       "shasums": {
@@ -803,6 +1413,96 @@
       },
       "version": "4.0.5"
     },
+    "org.jspecify:jspecify": {
+      "shasums": {
+        "jar": "1fad6e6be7557781e4d33729d49ae1cdc8fdda6fe477bb0cc68ce351eafdfbab"
+      },
+      "version": "1.0.0"
+    },
+    "org.junit.jupiter:junit-jupiter": {
+      "shasums": {
+        "jar": "b960f79217dd01c863031b678f07df4730bbf1eac650c74ad6b0c61faad78379"
+      },
+      "version": "5.13.4"
+    },
+    "org.junit.jupiter:junit-jupiter-api": {
+      "shasums": {
+        "jar": "d1bb81abfd9e03418306b4e6a3390c8db52c58372e749c2980ac29f0c08278f1"
+      },
+      "version": "5.13.4"
+    },
+    "org.junit.jupiter:junit-jupiter-engine": {
+      "shasums": {
+        "jar": "027404a92fe618b72465792a257951495c503a7d5751e2791e0f51c87f67f5bc"
+      },
+      "version": "5.13.4"
+    },
+    "org.junit.jupiter:junit-jupiter-params": {
+      "shasums": {
+        "jar": "3a8c6365716dbb698c0d49a05456c1e1ad05c406613c550f9dd50037872efc41"
+      },
+      "version": "5.13.4"
+    },
+    "org.junit.platform:junit-platform-commons": {
+      "shasums": {
+        "jar": "1c25ca641ebaae44ff3ad21ca1b2ef68d0dd84bfeb07c4805ba7840899b77408"
+      },
+      "version": "1.13.4"
+    },
+    "org.junit.platform:junit-platform-console-standalone": {
+      "shasums": {
+        "jar": "3fdfc37e29744a9a67dd5365e81467e26fbde0b7aa204e6f8bbe79eeaa7ae892"
+      },
+      "version": "1.13.4"
+    },
+    "org.junit.platform:junit-platform-engine": {
+      "shasums": {
+        "jar": "390c5f77b84283a64b644f88251b397e0b0debb80bdcc50f899881aecff43a5a"
+      },
+      "version": "1.13.4"
+    },
+    "org.junit.platform:junit-platform-launcher": {
+      "shasums": {
+        "jar": "0b0beaeb6880a31149641d2d848b863712885469670c12099586d7f798522564"
+      },
+      "version": "1.13.4"
+    },
+    "org.opentest4j:opentest4j": {
+      "shasums": {
+        "jar": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b"
+      },
+      "version": "1.3.0"
+    },
+    "org.ow2.asm:asm": {
+      "shasums": {
+        "jar": "876eab6a83daecad5ca67eb9fcabb063c97b5aeb8cf1fca7a989ecde17522051"
+      },
+      "version": "9.8"
+    },
+    "org.ow2.asm:asm-analysis": {
+      "shasums": {
+        "jar": "e640732fbcd3c6271925a504f125e38384688f4dfbbf92c8622dfcee0d09edb9"
+      },
+      "version": "9.8"
+    },
+    "org.ow2.asm:asm-commons": {
+      "shasums": {
+        "jar": "3301a1c1cb4c59fcc5292648dac1d7c5aed4c0f067dfbe88873b8cdfe77404f4"
+      },
+      "version": "9.8"
+    },
+    "org.ow2.asm:asm-tree": {
+      "shasums": {
+        "jar": "14b7880cb7c85eed101e2710432fc3ffb83275532a6a894dc4c4095d49ad59f1"
+      },
+      "version": "9.8"
+    },
+    "org.ow2.asm:asm-util": {
+      "shasums": {
+        "jar": "8ba0460ecb28fd0e2980e5f3ef3433a513a457bc077f81a53bdc75b587a08d15"
+      },
+      "version": "9.8"
+    },
     "org.reactivestreams:reactive-streams": {
       "shasums": {
         "jar": "f75ca597789b3dac58f61857b9ac2e1034a68fa672db35055a8fb4509e325f28"
@@ -828,12 +1528,15 @@
       "com.aayushatharva.brotli4j:service"
     ],
     "com.google.guava:guava": [
-      "com.google.code.findbugs:jsr305",
       "com.google.errorprone:error_prone_annotations",
       "com.google.guava:failureaccess",
       "com.google.guava:listenablefuture",
       "com.google.j2objc:j2objc-annotations",
-      "org.checkerframework:checker-qual"
+      "org.jspecify:jspecify"
+    ],
+    "com.google.inject:guice:jar:classes": [
+      "aopalliance:aopalliance",
+      "javax.inject:javax.inject"
     ],
     "io.netty:netty-buffer": [
       "io.netty:netty-common"
@@ -920,6 +1623,16 @@
       "jakarta.transaction:jakarta.transaction-api",
       "org.jboss.logging:jboss-logging"
     ],
+    "io.quarkus.gizmo:gizmo": [
+      "io.smallrye:jandex",
+      "org.ow2.asm:asm",
+      "org.ow2.asm:asm-util"
+    ],
+    "io.quarkus.gizmo:gizmo2": [
+      "io.github.dmlloyd:jdk-classfile-backport",
+      "io.smallrye.common:smallrye-common-constraint",
+      "io.smallrye.common:smallrye-common-resource"
+    ],
     "io.quarkus.resteasy.reactive:resteasy-reactive": [
       "io.quarkus.resteasy.reactive:resteasy-reactive-common",
       "jakarta.annotation:jakarta.annotation-api",
@@ -968,12 +1681,52 @@
       "io.quarkus:quarkus-core",
       "org.eclipse.microprofile.context-propagation:microprofile-context-propagation-api"
     ],
+    "io.quarkus:quarkus-bootstrap-app-model": [
+      "io.quarkus:quarkus-fs-util",
+      "org.jboss.logging:commons-logging-jboss-logging",
+      "org.jboss.logging:jboss-logging"
+    ],
+    "io.quarkus:quarkus-bootstrap-core": [
+      "io.quarkus:quarkus-bootstrap-app-model",
+      "io.quarkus:quarkus-classloader-commons",
+      "io.smallrye.common:smallrye-common-io"
+    ],
+    "io.quarkus:quarkus-bootstrap-gradle-resolver": [
+      "io.quarkus:quarkus-bootstrap-app-model",
+      "org.jboss.logging:jboss-logging",
+      "org.jboss.slf4j:slf4j-jboss-logmanager"
+    ],
+    "io.quarkus:quarkus-bootstrap-maven-resolver": [
+      "io.quarkus:quarkus-bootstrap-app-model",
+      "io.quarkus:quarkus-bootstrap-maven4-resolver",
+      "io.quarkus:quarkus-classloader-commons",
+      "io.quarkus:quarkus-fs-util",
+      "io.smallrye.beanbag:smallrye-beanbag-maven",
+      "org.apache.maven.resolver:maven-resolver-connector-basic",
+      "org.apache.maven.resolver:maven-resolver-transport-wagon",
+      "org.apache.maven.wagon:wagon-file",
+      "org.apache.maven.wagon:wagon-http",
+      "org.apache.maven:maven-embedder",
+      "org.apache.maven:maven-resolver-provider",
+      "org.apache.maven:maven-settings-builder",
+      "org.eclipse.sisu:org.eclipse.sisu.plexus",
+      "org.jboss.logging:jboss-logging",
+      "org.jboss.logmanager:jboss-logmanager",
+      "org.jboss.slf4j:slf4j-jboss-logmanager",
+      "org.slf4j:slf4j-api"
+    ],
     "io.quarkus:quarkus-bootstrap-runner": [
       "io.quarkus:quarkus-classloader-commons",
       "io.smallrye.common:smallrye-common-io",
       "org.crac:crac",
       "org.jboss.logging:jboss-logging",
       "org.jboss.logmanager:jboss-logmanager"
+    ],
+    "io.quarkus:quarkus-builder": [
+      "io.smallrye.common:smallrye-common-constraint",
+      "org.jboss.logging:jboss-logging",
+      "org.jboss.threads:jboss-threads",
+      "org.wildfly.common:wildfly-common"
     ],
     "io.quarkus:quarkus-core": [
       "io.quarkus:quarkus-bootstrap-runner",
@@ -992,15 +1745,58 @@
       "org.slf4j:slf4j-api",
       "org.wildfly.common:wildfly-common"
     ],
+    "io.quarkus:quarkus-core-deployment": [
+      "io.quarkus.gizmo:gizmo",
+      "io.quarkus.gizmo:gizmo2",
+      "io.quarkus:quarkus-bootstrap-core",
+      "io.quarkus:quarkus-builder",
+      "io.quarkus:quarkus-class-change-agent",
+      "io.quarkus:quarkus-classloader-commons",
+      "io.quarkus:quarkus-core",
+      "io.quarkus:quarkus-development-mode-spi",
+      "io.quarkus:quarkus-hibernate-validator-spi",
+      "io.smallrye.common:smallrye-common-os",
+      "io.smallrye.common:smallrye-common-process",
+      "io.smallrye:jandex",
+      "io.smallrye:jandex-gizmo2",
+      "org.aesh:aesh",
+      "org.aesh:readline",
+      "org.apache.commons:commons-lang3",
+      "org.eclipse.sisu:org.eclipse.sisu.inject",
+      "org.graalvm.sdk:nativeimage",
+      "org.junit.jupiter:junit-jupiter",
+      "org.junit.platform:junit-platform-launcher",
+      "org.ow2.asm:asm",
+      "org.ow2.asm:asm-commons",
+      "org.wildfly.common:wildfly-common"
+    ],
     "io.quarkus:quarkus-credentials": [
       "io.quarkus.arc:arc"
     ],
     "io.quarkus:quarkus-development-mode-spi": [
       "org.jboss.logging:jboss-logging"
     ],
+    "io.quarkus:quarkus-hibernate-validator-spi": [
+      "io.quarkus:quarkus-builder",
+      "io.smallrye:jandex"
+    ],
     "io.quarkus:quarkus-jsonp": [
       "io.quarkus:quarkus-core",
       "org.eclipse.parsson:parsson"
+    ],
+    "io.quarkus:quarkus-junit5": [
+      "io.quarkus:quarkus-bootstrap-core",
+      "io.quarkus:quarkus-core",
+      "io.quarkus:quarkus-junit5-config",
+      "io.quarkus:quarkus-test-common",
+      "org.eclipse.sisu:org.eclipse.sisu.inject",
+      "org.junit.jupiter:junit-jupiter"
+    ],
+    "io.quarkus:quarkus-junit5-config": [
+      "io.quarkus:quarkus-core",
+      "io.quarkus:quarkus-core-deployment",
+      "io.smallrye.config:smallrye-config",
+      "org.junit.jupiter:junit-jupiter-api"
     ],
     "io.quarkus:quarkus-mutiny": [
       "io.quarkus:quarkus-core",
@@ -1038,6 +1834,14 @@
       "io.quarkus:quarkus-core",
       "io.smallrye:smallrye-context-propagation",
       "jakarta.enterprise:jakarta.enterprise.cdi-api"
+    ],
+    "io.quarkus:quarkus-test-common": [
+      "commons-io:commons-io",
+      "io.quarkus:quarkus-bootstrap-gradle-resolver",
+      "io.quarkus:quarkus-bootstrap-maven-resolver",
+      "io.quarkus:quarkus-core-deployment",
+      "io.smallrye:jandex",
+      "org.jboss.logging:commons-logging-jboss-logging"
     ],
     "io.quarkus:quarkus-tls-registry": [
       "io.quarkus:quarkus-arc",
@@ -1084,6 +1888,78 @@
       "io.quarkus:quarkus-core",
       "io.vertx:vertx-core"
     ],
+    "io.rest-assured:json-path": [
+      "io.rest-assured:rest-assured-common",
+      "org.apache.groovy:groovy",
+      "org.apache.groovy:groovy-json"
+    ],
+    "io.rest-assured:rest-assured": [
+      "io.rest-assured:json-path",
+      "io.rest-assured:xml-path",
+      "org.apache.groovy:groovy",
+      "org.apache.groovy:groovy-xml",
+      "org.apache.httpcomponents:httpclient",
+      "org.apache.httpcomponents:httpmime",
+      "org.ccil.cowan.tagsoup:tagsoup",
+      "org.hamcrest:hamcrest"
+    ],
+    "io.rest-assured:rest-assured-common": [
+      "org.apache.commons:commons-lang3",
+      "org.apache.groovy:groovy"
+    ],
+    "io.rest-assured:xml-path": [
+      "io.rest-assured:rest-assured-common",
+      "org.apache.commons:commons-lang3",
+      "org.apache.groovy:groovy",
+      "org.apache.groovy:groovy-xml",
+      "org.ccil.cowan.tagsoup:tagsoup"
+    ],
+    "io.smallrye.beanbag:smallrye-beanbag": [
+      "io.smallrye.common:smallrye-common-constraint",
+      "org.jboss.logging:jboss-logging"
+    ],
+    "io.smallrye.beanbag:smallrye-beanbag-maven": [
+      "commons-codec:commons-codec",
+      "io.smallrye.beanbag:smallrye-beanbag-sisu",
+      "io.smallrye.common:smallrye-common-constraint",
+      "javax.inject:javax.inject",
+      "org.apache.commons:commons-lang3",
+      "org.apache.httpcomponents:httpclient",
+      "org.apache.httpcomponents:httpcore",
+      "org.apache.maven.resolver:maven-resolver-api",
+      "org.apache.maven.resolver:maven-resolver-connector-basic",
+      "org.apache.maven.resolver:maven-resolver-impl",
+      "org.apache.maven.resolver:maven-resolver-spi",
+      "org.apache.maven.resolver:maven-resolver-transport-http",
+      "org.apache.maven.resolver:maven-resolver-transport-wagon",
+      "org.apache.maven.resolver:maven-resolver-util",
+      "org.apache.maven.wagon:wagon-file",
+      "org.apache.maven.wagon:wagon-http",
+      "org.apache.maven.wagon:wagon-http-shared",
+      "org.apache.maven.wagon:wagon-provider-api",
+      "org.apache.maven:maven-artifact",
+      "org.apache.maven:maven-builder-support",
+      "org.apache.maven:maven-model",
+      "org.apache.maven:maven-model-builder",
+      "org.apache.maven:maven-repository-metadata",
+      "org.apache.maven:maven-resolver-provider",
+      "org.apache.maven:maven-settings",
+      "org.apache.maven:maven-settings-builder",
+      "org.codehaus.plexus:plexus-cipher",
+      "org.codehaus.plexus:plexus-interpolation",
+      "org.codehaus.plexus:plexus-sec-dispatcher",
+      "org.codehaus.plexus:plexus-utils",
+      "org.codehaus.plexus:plexus-xml",
+      "org.eclipse.sisu:org.eclipse.sisu.inject",
+      "org.eclipse.sisu:org.eclipse.sisu.plexus",
+      "org.jboss.logging:jboss-logging"
+    ],
+    "io.smallrye.beanbag:smallrye-beanbag-sisu": [
+      "io.smallrye.beanbag:smallrye-beanbag",
+      "io.smallrye.common:smallrye-common-constraint",
+      "javax.inject:javax.inject",
+      "org.jboss.logging:jboss-logging"
+    ],
     "io.smallrye.certs:smallrye-private-key-pem-parser": [
       "io.smallrye.common:smallrye-common-constraint",
       "io.vertx:vertx-core"
@@ -1103,7 +1979,15 @@
       "io.smallrye.common:smallrye-common-constraint",
       "org.jboss.logging:jboss-logging"
     ],
+    "io.smallrye.common:smallrye-common-process": [
+      "io.smallrye.common:smallrye-common-function",
+      "io.smallrye.common:smallrye-common-os",
+      "org.jboss.logging:jboss-logging"
+    ],
     "io.smallrye.common:smallrye-common-ref": [
+      "io.smallrye.common:smallrye-common-constraint"
+    ],
+    "io.smallrye.common:smallrye-common-resource": [
       "io.smallrye.common:smallrye-common-constraint"
     ],
     "io.smallrye.common:smallrye-common-vertx-context": [
@@ -1180,6 +2064,10 @@
       "io.smallrye.reactive:smallrye-mutiny-vertx-runtime",
       "io.vertx:vertx-codegen"
     ],
+    "io.smallrye:jandex-gizmo2": [
+      "io.quarkus.gizmo:gizmo2",
+      "io.smallrye:jandex"
+    ],
     "io.smallrye:smallrye-context-propagation": [
       "io.smallrye:smallrye-context-propagation-api",
       "io.smallrye:smallrye-context-propagation-storage",
@@ -1233,8 +2121,194 @@
     "jakarta.xml.bind:jakarta.xml.bind-api": [
       "jakarta.activation:jakarta.activation-api"
     ],
+    "org.aesh:aesh": [
+      "org.aesh:readline"
+    ],
+    "org.aesh:readline": [
+      "org.fusesource.jansi:jansi"
+    ],
+    "org.apache.groovy:groovy-json": [
+      "org.apache.groovy:groovy"
+    ],
+    "org.apache.groovy:groovy-xml": [
+      "org.apache.groovy:groovy"
+    ],
+    "org.apache.httpcomponents:httpclient": [
+      "commons-codec:commons-codec",
+      "commons-logging:commons-logging",
+      "org.apache.httpcomponents:httpcore"
+    ],
+    "org.apache.httpcomponents:httpmime": [
+      "org.apache.httpcomponents:httpclient"
+    ],
+    "org.apache.maven.resolver:maven-resolver-connector-basic": [
+      "org.apache.maven.resolver:maven-resolver-api",
+      "org.apache.maven.resolver:maven-resolver-spi",
+      "org.apache.maven.resolver:maven-resolver-util"
+    ],
+    "org.apache.maven.resolver:maven-resolver-impl": [
+      "org.apache.maven.resolver:maven-resolver-api",
+      "org.apache.maven.resolver:maven-resolver-named-locks",
+      "org.apache.maven.resolver:maven-resolver-spi",
+      "org.apache.maven.resolver:maven-resolver-util",
+      "org.slf4j:slf4j-api"
+    ],
+    "org.apache.maven.resolver:maven-resolver-named-locks": [
+      "org.slf4j:slf4j-api"
+    ],
+    "org.apache.maven.resolver:maven-resolver-spi": [
+      "org.apache.maven.resolver:maven-resolver-api"
+    ],
+    "org.apache.maven.resolver:maven-resolver-transport-http": [
+      "commons-codec:commons-codec",
+      "org.apache.httpcomponents:httpclient",
+      "org.apache.httpcomponents:httpcore",
+      "org.apache.maven.resolver:maven-resolver-api",
+      "org.apache.maven.resolver:maven-resolver-spi",
+      "org.apache.maven.resolver:maven-resolver-util",
+      "org.slf4j:slf4j-api"
+    ],
+    "org.apache.maven.resolver:maven-resolver-transport-wagon": [
+      "org.apache.maven.resolver:maven-resolver-api",
+      "org.apache.maven.resolver:maven-resolver-spi",
+      "org.apache.maven.resolver:maven-resolver-util"
+    ],
+    "org.apache.maven.resolver:maven-resolver-util": [
+      "org.apache.maven.resolver:maven-resolver-api"
+    ],
+    "org.apache.maven.wagon:wagon-file": [
+      "org.apache.maven.wagon:wagon-provider-api"
+    ],
+    "org.apache.maven.wagon:wagon-http": [
+      "org.apache.httpcomponents:httpclient",
+      "org.apache.maven.wagon:wagon-http-shared",
+      "org.apache.maven.wagon:wagon-provider-api"
+    ],
+    "org.apache.maven.wagon:wagon-http-shared": [
+      "org.apache.httpcomponents:httpclient",
+      "org.apache.httpcomponents:httpcore",
+      "org.apache.maven.wagon:wagon-provider-api"
+    ],
+    "org.apache.maven.wagon:wagon-provider-api": [
+      "org.codehaus.plexus:plexus-utils"
+    ],
+    "org.apache.maven:maven-api-xml": [
+      "org.apache.maven:maven-api-meta"
+    ],
+    "org.apache.maven:maven-artifact": [
+      "org.codehaus.plexus:plexus-utils"
+    ],
+    "org.apache.maven:maven-core": [
+      "com.google.guava:failureaccess",
+      "com.google.guava:guava",
+      "com.google.inject:guice:jar:classes",
+      "javax.inject:javax.inject",
+      "org.apache.maven.resolver:maven-resolver-api",
+      "org.apache.maven.resolver:maven-resolver-impl",
+      "org.apache.maven.resolver:maven-resolver-spi",
+      "org.apache.maven.resolver:maven-resolver-util",
+      "org.apache.maven.shared:maven-shared-utils",
+      "org.apache.maven:maven-artifact",
+      "org.apache.maven:maven-builder-support",
+      "org.apache.maven:maven-model",
+      "org.apache.maven:maven-model-builder",
+      "org.apache.maven:maven-plugin-api",
+      "org.apache.maven:maven-repository-metadata",
+      "org.apache.maven:maven-resolver-provider",
+      "org.apache.maven:maven-settings",
+      "org.apache.maven:maven-settings-builder",
+      "org.codehaus.plexus:plexus-classworlds",
+      "org.codehaus.plexus:plexus-component-annotations",
+      "org.codehaus.plexus:plexus-interpolation",
+      "org.eclipse.sisu:org.eclipse.sisu.inject",
+      "org.eclipse.sisu:org.eclipse.sisu.plexus",
+      "org.ow2.asm:asm"
+    ],
+    "org.apache.maven:maven-embedder": [
+      "com.google.guava:failureaccess",
+      "com.google.guava:guava",
+      "com.google.inject:guice:jar:classes",
+      "commons-cli:commons-cli",
+      "javax.annotation:javax.annotation-api",
+      "javax.inject:javax.inject",
+      "org.apache.maven.resolver:maven-resolver-api",
+      "org.apache.maven.resolver:maven-resolver-util",
+      "org.apache.maven.shared:maven-shared-utils",
+      "org.apache.maven:maven-builder-support",
+      "org.apache.maven:maven-core",
+      "org.apache.maven:maven-model",
+      "org.apache.maven:maven-model-builder",
+      "org.apache.maven:maven-plugin-api",
+      "org.apache.maven:maven-settings",
+      "org.apache.maven:maven-settings-builder",
+      "org.codehaus.plexus:plexus-cipher",
+      "org.codehaus.plexus:plexus-classworlds",
+      "org.codehaus.plexus:plexus-interpolation",
+      "org.codehaus.plexus:plexus-sec-dispatcher",
+      "org.eclipse.sisu:org.eclipse.sisu.plexus"
+    ],
+    "org.apache.maven:maven-model": [
+      "org.codehaus.plexus:plexus-utils"
+    ],
+    "org.apache.maven:maven-model-builder": [
+      "org.apache.maven:maven-artifact",
+      "org.apache.maven:maven-builder-support",
+      "org.apache.maven:maven-model",
+      "org.codehaus.plexus:plexus-interpolation",
+      "org.eclipse.sisu:org.eclipse.sisu.inject",
+      "org.ow2.asm:asm"
+    ],
+    "org.apache.maven:maven-plugin-api": [
+      "org.apache.maven:maven-artifact",
+      "org.apache.maven:maven-model",
+      "org.codehaus.plexus:plexus-classworlds",
+      "org.eclipse.sisu:org.eclipse.sisu.plexus"
+    ],
+    "org.apache.maven:maven-repository-metadata": [
+      "org.codehaus.plexus:plexus-utils"
+    ],
+    "org.apache.maven:maven-resolver-provider": [
+      "javax.inject:javax.inject",
+      "org.apache.maven.resolver:maven-resolver-api",
+      "org.apache.maven.resolver:maven-resolver-impl",
+      "org.apache.maven.resolver:maven-resolver-spi",
+      "org.apache.maven.resolver:maven-resolver-util",
+      "org.apache.maven:maven-model",
+      "org.apache.maven:maven-model-builder",
+      "org.apache.maven:maven-repository-metadata",
+      "org.codehaus.plexus:plexus-utils"
+    ],
+    "org.apache.maven:maven-settings": [
+      "org.codehaus.plexus:plexus-utils"
+    ],
+    "org.apache.maven:maven-settings-builder": [
+      "javax.inject:javax.inject",
+      "org.apache.maven:maven-builder-support",
+      "org.apache.maven:maven-settings",
+      "org.codehaus.plexus:plexus-interpolation",
+      "org.codehaus.plexus:plexus-sec-dispatcher"
+    ],
+    "org.apache.maven:maven-xml-impl": [
+      "org.apache.maven:maven-api-xml"
+    ],
+    "org.codehaus.plexus:plexus-cipher": [
+      "javax.inject:javax.inject"
+    ],
+    "org.codehaus.plexus:plexus-sec-dispatcher": [
+      "javax.inject:javax.inject",
+      "org.codehaus.plexus:plexus-cipher"
+    ],
+    "org.codehaus.plexus:plexus-xml": [
+      "org.apache.maven:maven-xml-impl"
+    ],
     "org.eclipse.parsson:parsson": [
       "jakarta.json:jakarta.json-api"
+    ],
+    "org.eclipse.sisu:org.eclipse.sisu.inject": [
+      "org.ow2.asm:asm"
+    ],
+    "org.graalvm.sdk:nativeimage": [
+      "org.graalvm.sdk:word"
     ],
     "org.jboss.logging:commons-logging-jboss-logging": [
       "org.jboss.logging:jboss-logging"
@@ -1258,6 +2332,52 @@
       "org.jboss.logging:jboss-logging",
       "org.wildfly.common:wildfly-common"
     ],
+    "org.junit.jupiter:junit-jupiter": [
+      "org.junit.jupiter:junit-jupiter-api",
+      "org.junit.jupiter:junit-jupiter-engine",
+      "org.junit.jupiter:junit-jupiter-params"
+    ],
+    "org.junit.jupiter:junit-jupiter-api": [
+      "org.apiguardian:apiguardian-api",
+      "org.junit.platform:junit-platform-commons",
+      "org.opentest4j:opentest4j"
+    ],
+    "org.junit.jupiter:junit-jupiter-engine": [
+      "org.apiguardian:apiguardian-api",
+      "org.junit.jupiter:junit-jupiter-api",
+      "org.junit.platform:junit-platform-engine"
+    ],
+    "org.junit.jupiter:junit-jupiter-params": [
+      "org.apiguardian:apiguardian-api",
+      "org.junit.jupiter:junit-jupiter-api"
+    ],
+    "org.junit.platform:junit-platform-commons": [
+      "org.apiguardian:apiguardian-api"
+    ],
+    "org.junit.platform:junit-platform-engine": [
+      "org.apiguardian:apiguardian-api",
+      "org.junit.platform:junit-platform-commons",
+      "org.opentest4j:opentest4j"
+    ],
+    "org.junit.platform:junit-platform-launcher": [
+      "org.apiguardian:apiguardian-api",
+      "org.junit.platform:junit-platform-engine"
+    ],
+    "org.ow2.asm:asm-analysis": [
+      "org.ow2.asm:asm-tree"
+    ],
+    "org.ow2.asm:asm-commons": [
+      "org.ow2.asm:asm",
+      "org.ow2.asm:asm-tree"
+    ],
+    "org.ow2.asm:asm-tree": [
+      "org.ow2.asm:asm"
+    ],
+    "org.ow2.asm:asm-util": [
+      "org.ow2.asm:asm",
+      "org.ow2.asm:asm-analysis",
+      "org.ow2.asm:asm-tree"
+    ],
     "org.wildfly.common:wildfly-common": [
       "io.smallrye.common:smallrye-common-cpu",
       "io.smallrye.common:smallrye-common-expression",
@@ -1267,6 +2387,10 @@
     ]
   },
   "packages": {
+    "aopalliance:aopalliance": [
+      "org.aopalliance.aop",
+      "org.aopalliance.intercept"
+    ],
     "com.aayushatharva.brotli4j:brotli4j": [
       "com.aayushatharva.brotli4j",
       "com.aayushatharva.brotli4j.common",
@@ -1339,8 +2463,65 @@
       "com.google.common.xml",
       "com.google.thirdparty.publicsuffix"
     ],
+    "com.google.inject:guice:jar:classes": [
+      "com.google.inject",
+      "com.google.inject.binder",
+      "com.google.inject.internal",
+      "com.google.inject.internal.aop",
+      "com.google.inject.internal.util",
+      "com.google.inject.matcher",
+      "com.google.inject.multibindings",
+      "com.google.inject.name",
+      "com.google.inject.spi",
+      "com.google.inject.util"
+    ],
     "com.google.j2objc:j2objc-annotations": [
       "com.google.j2objc.annotations"
+    ],
+    "commons-cli:commons-cli": [
+      "org.apache.commons.cli"
+    ],
+    "commons-codec:commons-codec": [
+      "org.apache.commons.codec",
+      "org.apache.commons.codec.binary",
+      "org.apache.commons.codec.cli",
+      "org.apache.commons.codec.digest",
+      "org.apache.commons.codec.language",
+      "org.apache.commons.codec.language.bm",
+      "org.apache.commons.codec.net"
+    ],
+    "commons-io:commons-io": [
+      "org.apache.commons.io",
+      "org.apache.commons.io.build",
+      "org.apache.commons.io.channels",
+      "org.apache.commons.io.charset",
+      "org.apache.commons.io.comparator",
+      "org.apache.commons.io.file",
+      "org.apache.commons.io.file.attribute",
+      "org.apache.commons.io.file.spi",
+      "org.apache.commons.io.filefilter",
+      "org.apache.commons.io.function",
+      "org.apache.commons.io.input",
+      "org.apache.commons.io.input.buffer",
+      "org.apache.commons.io.monitor",
+      "org.apache.commons.io.output",
+      "org.apache.commons.io.serialization"
+    ],
+    "commons-logging:commons-logging": [
+      "org.apache.commons.logging",
+      "org.apache.commons.logging.impl"
+    ],
+    "io.github.dmlloyd:jdk-classfile-backport": [
+      "io.github.dmlloyd.classfile",
+      "io.github.dmlloyd.classfile.attribute",
+      "io.github.dmlloyd.classfile.components",
+      "io.github.dmlloyd.classfile.constantpool",
+      "io.github.dmlloyd.classfile.extras",
+      "io.github.dmlloyd.classfile.extras.constant",
+      "io.github.dmlloyd.classfile.extras.reflect",
+      "io.github.dmlloyd.classfile.impl",
+      "io.github.dmlloyd.classfile.impl.verifier",
+      "io.github.dmlloyd.classfile.instruction"
     ],
     "io.netty:netty-buffer": [
       "io.netty.buffer",
@@ -1444,6 +2625,17 @@
       "io.quarkus.arc.impl",
       "io.quarkus.arc.impl.bcextensions"
     ],
+    "io.quarkus.gizmo:gizmo": [
+      "io.quarkus.gizmo"
+    ],
+    "io.quarkus.gizmo:gizmo2": [
+      "io.quarkus.gizmo2",
+      "io.quarkus.gizmo2.creator",
+      "io.quarkus.gizmo2.creator.ops",
+      "io.quarkus.gizmo2.desc",
+      "io.quarkus.gizmo2.impl",
+      "io.quarkus.gizmo2.impl.constant"
+    ],
     "io.quarkus.resteasy.reactive:resteasy-reactive": [
       "org.jboss.resteasy.reactive.server",
       "org.jboss.resteasy.reactive.server.core",
@@ -1510,12 +2702,207 @@
       "io.quarkus.arc.runtime.logging",
       "io.quarkus.arc.runtime.test"
     ],
+    "io.quarkus:quarkus-bootstrap-app-model": [
+      "io.quarkus.bootstrap",
+      "io.quarkus.bootstrap.model",
+      "io.quarkus.bootstrap.model.gradle",
+      "io.quarkus.bootstrap.model.gradle.impl",
+      "io.quarkus.bootstrap.resolver",
+      "io.quarkus.bootstrap.util",
+      "io.quarkus.bootstrap.workspace",
+      "io.quarkus.maven",
+      "io.quarkus.maven.dependency",
+      "io.quarkus.paths",
+      "io.quarkus.sbom",
+      "io.quarkus.util"
+    ],
+    "io.quarkus:quarkus-bootstrap-core": [
+      "io.quarkus.bootstrap",
+      "io.quarkus.bootstrap.app",
+      "io.quarkus.bootstrap.classloading",
+      "io.quarkus.bootstrap.devmode",
+      "io.quarkus.bootstrap.jbang",
+      "io.quarkus.bootstrap.prebuild",
+      "io.quarkus.bootstrap.utils"
+    ],
+    "io.quarkus:quarkus-bootstrap-gradle-resolver": [
+      "io.quarkus.bootstrap",
+      "io.quarkus.bootstrap.resolver",
+      "org.gradle",
+      "org.gradle.api",
+      "org.gradle.api.artifacts.verification",
+      "org.gradle.api.internal",
+      "org.gradle.api.internal.classpath",
+      "org.gradle.api.internal.file",
+      "org.gradle.api.internal.jvm",
+      "org.gradle.api.launcher.cli",
+      "org.gradle.api.logging",
+      "org.gradle.api.logging.configuration",
+      "org.gradle.api.problems",
+      "org.gradle.api.problems.internal",
+      "org.gradle.api.reflect",
+      "org.gradle.api.specs",
+      "org.gradle.cli",
+      "org.gradle.concurrent",
+      "org.gradle.initialization",
+      "org.gradle.initialization.layout",
+      "org.gradle.internal",
+      "org.gradle.internal.buildoption",
+      "org.gradle.internal.classloader",
+      "org.gradle.internal.classpath",
+      "org.gradle.internal.code",
+      "org.gradle.internal.concurrent",
+      "org.gradle.internal.deprecation",
+      "org.gradle.internal.dispatch",
+      "org.gradle.internal.event",
+      "org.gradle.internal.exceptions",
+      "org.gradle.internal.featurelifecycle",
+      "org.gradle.internal.file",
+      "org.gradle.internal.file.locking",
+      "org.gradle.internal.hash",
+      "org.gradle.internal.impldep.com.google.common.annotations",
+      "org.gradle.internal.impldep.com.google.common.base",
+      "org.gradle.internal.impldep.com.google.common.cache",
+      "org.gradle.internal.impldep.com.google.common.collect",
+      "org.gradle.internal.impldep.com.google.common.math",
+      "org.gradle.internal.impldep.com.google.common.primitives",
+      "org.gradle.internal.impldep.com.google.common.reflect",
+      "org.gradle.internal.impldep.com.google.common.util.concurrent",
+      "org.gradle.internal.impldep.com.google.common.util.concurrent.internal",
+      "org.gradle.internal.impldep.com.google.errorprone.annotations",
+      "org.gradle.internal.impldep.com.google.errorprone.annotations.concurrent",
+      "org.gradle.internal.impldep.javax.annotation",
+      "org.gradle.internal.impldep.javax.annotation.concurrent",
+      "org.gradle.internal.impldep.javax.annotation.meta",
+      "org.gradle.internal.impldep.javax.inject",
+      "org.gradle.internal.impldep.org.apache.commons.io",
+      "org.gradle.internal.impldep.org.apache.commons.io.build",
+      "org.gradle.internal.impldep.org.apache.commons.io.channels",
+      "org.gradle.internal.impldep.org.apache.commons.io.charset",
+      "org.gradle.internal.impldep.org.apache.commons.io.file",
+      "org.gradle.internal.impldep.org.apache.commons.io.file.attribute",
+      "org.gradle.internal.impldep.org.apache.commons.io.filefilter",
+      "org.gradle.internal.impldep.org.apache.commons.io.function",
+      "org.gradle.internal.impldep.org.apache.commons.io.input",
+      "org.gradle.internal.impldep.org.apache.commons.io.output",
+      "org.gradle.internal.impldep.org.apache.commons.lang3",
+      "org.gradle.internal.impldep.org.apache.commons.lang3.builder",
+      "org.gradle.internal.impldep.org.apache.commons.lang3.exception",
+      "org.gradle.internal.impldep.org.apache.commons.lang3.function",
+      "org.gradle.internal.impldep.org.apache.commons.lang3.math",
+      "org.gradle.internal.impldep.org.apache.commons.lang3.mutable",
+      "org.gradle.internal.impldep.org.apache.commons.lang3.reflect",
+      "org.gradle.internal.impldep.org.apache.commons.lang3.stream",
+      "org.gradle.internal.impldep.org.apache.commons.lang3.text",
+      "org.gradle.internal.impldep.org.apache.commons.lang3.text.translate",
+      "org.gradle.internal.impldep.org.apache.commons.lang3.time",
+      "org.gradle.internal.impldep.org.apache.commons.lang3.tuple",
+      "org.gradle.internal.impldep.org.jspecify.annotations",
+      "org.gradle.internal.impldep.org.objectweb.asm",
+      "org.gradle.internal.impldep.org.objectweb.asm.signature",
+      "org.gradle.internal.installation",
+      "org.gradle.internal.instrumentation.api.annotations",
+      "org.gradle.internal.io",
+      "org.gradle.internal.isolation",
+      "org.gradle.internal.logging",
+      "org.gradle.internal.logging.events",
+      "org.gradle.internal.logging.events.operations",
+      "org.gradle.internal.logging.progress",
+      "org.gradle.internal.operations",
+      "org.gradle.internal.operations.logging",
+      "org.gradle.internal.operations.trace",
+      "org.gradle.internal.problems",
+      "org.gradle.internal.problems.failure",
+      "org.gradle.internal.reflect",
+      "org.gradle.internal.scripts",
+      "org.gradle.internal.serialize",
+      "org.gradle.internal.service",
+      "org.gradle.internal.service.scopes",
+      "org.gradle.internal.snapshot",
+      "org.gradle.internal.time",
+      "org.gradle.internal.watch.registry",
+      "org.gradle.model.internal.asm",
+      "org.gradle.problems",
+      "org.gradle.problems.buildtree",
+      "org.gradle.scripts",
+      "org.gradle.tooling",
+      "org.gradle.tooling.events",
+      "org.gradle.tooling.events.configuration",
+      "org.gradle.tooling.events.configuration.internal",
+      "org.gradle.tooling.events.download",
+      "org.gradle.tooling.events.download.internal",
+      "org.gradle.tooling.events.internal",
+      "org.gradle.tooling.events.lifecycle",
+      "org.gradle.tooling.events.lifecycle.internal",
+      "org.gradle.tooling.events.problems",
+      "org.gradle.tooling.events.problems.internal",
+      "org.gradle.tooling.events.task",
+      "org.gradle.tooling.events.task.internal",
+      "org.gradle.tooling.events.task.internal.java",
+      "org.gradle.tooling.events.task.java",
+      "org.gradle.tooling.events.test",
+      "org.gradle.tooling.events.test.internal",
+      "org.gradle.tooling.events.transform",
+      "org.gradle.tooling.events.transform.internal",
+      "org.gradle.tooling.events.work",
+      "org.gradle.tooling.events.work.internal",
+      "org.gradle.tooling.exceptions",
+      "org.gradle.tooling.internal.adapter",
+      "org.gradle.tooling.internal.build",
+      "org.gradle.tooling.internal.consumer",
+      "org.gradle.tooling.internal.consumer.async",
+      "org.gradle.tooling.internal.consumer.connection",
+      "org.gradle.tooling.internal.consumer.converters",
+      "org.gradle.tooling.internal.consumer.loader",
+      "org.gradle.tooling.internal.consumer.parameters",
+      "org.gradle.tooling.internal.consumer.versioning",
+      "org.gradle.tooling.internal.gradle",
+      "org.gradle.tooling.internal.protocol",
+      "org.gradle.tooling.internal.protocol.cpp",
+      "org.gradle.tooling.internal.protocol.events",
+      "org.gradle.tooling.internal.protocol.exceptions",
+      "org.gradle.tooling.internal.protocol.problem",
+      "org.gradle.tooling.internal.protocol.test",
+      "org.gradle.tooling.internal.provider.serialization",
+      "org.gradle.tooling.model",
+      "org.gradle.tooling.model.build",
+      "org.gradle.tooling.model.cpp",
+      "org.gradle.tooling.model.eclipse",
+      "org.gradle.tooling.model.gradle",
+      "org.gradle.tooling.model.idea",
+      "org.gradle.tooling.model.internal",
+      "org.gradle.tooling.model.java",
+      "org.gradle.util",
+      "org.gradle.util.internal",
+      "org.gradle.wrapper"
+    ],
+    "io.quarkus:quarkus-bootstrap-maven-resolver": [
+      "io.quarkus.bootstrap",
+      "io.quarkus.bootstrap.resolver",
+      "io.quarkus.bootstrap.resolver.maven",
+      "io.quarkus.bootstrap.resolver.maven.options",
+      "io.quarkus.bootstrap.resolver.maven.workspace",
+      "io.quarkus.bootstrap.util"
+    ],
+    "io.quarkus:quarkus-bootstrap-maven4-resolver": [
+      "io.quarkus.bootstrap.resolver.maven"
+    ],
     "io.quarkus:quarkus-bootstrap-runner": [
       "io.quarkus.bootstrap.forkjoin",
       "io.quarkus.bootstrap.graal",
       "io.quarkus.bootstrap.logging",
       "io.quarkus.bootstrap.naming",
       "io.quarkus.bootstrap.runner"
+    ],
+    "io.quarkus:quarkus-builder": [
+      "io.quarkus.builder",
+      "io.quarkus.builder.diag",
+      "io.quarkus.builder.item",
+      "io.quarkus.builder.json",
+      "io.quarkus.builder.location"
+    ],
+    "io.quarkus:quarkus-class-change-agent": [
+      "io.quarkus.changeagent"
     ],
     "io.quarkus:quarkus-classloader-commons": [
       "io.quarkus.commons.classloading"
@@ -1542,6 +2929,48 @@
       "io.quarkus.runtime.types",
       "io.quarkus.runtime.util"
     ],
+    "io.quarkus:quarkus-core-deployment": [
+      "io.quarkus.banner",
+      "io.quarkus.deployment",
+      "io.quarkus.deployment.annotations",
+      "io.quarkus.deployment.bean",
+      "io.quarkus.deployment.builditem",
+      "io.quarkus.deployment.builditem.nativeimage",
+      "io.quarkus.deployment.cmd",
+      "io.quarkus.deployment.codegen",
+      "io.quarkus.deployment.configuration",
+      "io.quarkus.deployment.configuration.matching",
+      "io.quarkus.deployment.configuration.tracker",
+      "io.quarkus.deployment.console",
+      "io.quarkus.deployment.dev",
+      "io.quarkus.deployment.dev.devservices",
+      "io.quarkus.deployment.dev.filesystem",
+      "io.quarkus.deployment.dev.filesystem.watch",
+      "io.quarkus.deployment.dev.io",
+      "io.quarkus.deployment.dev.remote",
+      "io.quarkus.deployment.dev.testing",
+      "io.quarkus.deployment.execannotations",
+      "io.quarkus.deployment.ide",
+      "io.quarkus.deployment.images",
+      "io.quarkus.deployment.index",
+      "io.quarkus.deployment.jbang",
+      "io.quarkus.deployment.logging",
+      "io.quarkus.deployment.metrics",
+      "io.quarkus.deployment.mutability",
+      "io.quarkus.deployment.naming",
+      "io.quarkus.deployment.pkg",
+      "io.quarkus.deployment.pkg.builditem",
+      "io.quarkus.deployment.pkg.steps",
+      "io.quarkus.deployment.proxy",
+      "io.quarkus.deployment.recording",
+      "io.quarkus.deployment.recording.substitutions",
+      "io.quarkus.deployment.sbom",
+      "io.quarkus.deployment.shutdown",
+      "io.quarkus.deployment.steps",
+      "io.quarkus.deployment.types",
+      "io.quarkus.deployment.util",
+      "io.quarkus.runner.bootstrap"
+    ],
     "io.quarkus:quarkus-credentials": [
       "io.quarkus.credentials",
       "io.quarkus.credentials.runtime"
@@ -1561,11 +2990,28 @@
       "io.quarkus.fs.util.base",
       "io.quarkus.fs.util.sysfs"
     ],
+    "io.quarkus:quarkus-hibernate-validator-spi": [
+      "io.quarkus.hibernate.validator.spi"
+    ],
     "io.quarkus:quarkus-ide-launcher": [
       "io.quarkus.launcher"
     ],
     "io.quarkus:quarkus-jsonp": [
       "io.quarkus.jsonp"
+    ],
+    "io.quarkus:quarkus-junit5": [
+      "io.quarkus.test.junit",
+      "io.quarkus.test.junit.buildchain",
+      "io.quarkus.test.junit.callback",
+      "io.quarkus.test.junit.classloading",
+      "io.quarkus.test.junit.internal",
+      "io.quarkus.test.junit.launcher",
+      "io.quarkus.test.junit.main",
+      "io.quarkus.test.junit.nativeimage",
+      "io.quarkus.test.junit.util"
+    ],
+    "io.quarkus:quarkus-junit5-config": [
+      "io.quarkus.test.config"
     ],
     "io.quarkus:quarkus-mutiny": [
       "io.quarkus.mutiny.runtime"
@@ -1592,6 +3038,12 @@
     ],
     "io.quarkus:quarkus-smallrye-context-propagation": [
       "io.quarkus.smallrye.context.runtime"
+    ],
+    "io.quarkus:quarkus-test-common": [
+      "io.quarkus.test",
+      "io.quarkus.test.common",
+      "io.quarkus.test.common.http",
+      "io.quarkus.test.util.annotations"
     ],
     "io.quarkus:quarkus-tls-registry": [
       "io.quarkus.tls.runtime",
@@ -1634,6 +3086,78 @@
     "io.quarkus:quarkus-virtual-threads": [
       "io.quarkus.virtual.threads"
     ],
+    "io.rest-assured:json-path": [
+      "io.restassured.internal.path.json",
+      "io.restassured.internal.path.json.mapping",
+      "io.restassured.path.json",
+      "io.restassured.path.json.config",
+      "io.restassured.path.json.exception",
+      "io.restassured.path.json.mapper.factory",
+      "io.restassured.path.json.mapping"
+    ],
+    "io.rest-assured:rest-assured": [
+      "io.restassured",
+      "io.restassured.assertion",
+      "io.restassured.authentication",
+      "io.restassured.builder",
+      "io.restassured.config",
+      "io.restassured.filter",
+      "io.restassured.filter.cookie",
+      "io.restassured.filter.log",
+      "io.restassured.filter.session",
+      "io.restassured.filter.time",
+      "io.restassured.http",
+      "io.restassured.internal",
+      "io.restassured.internal.assertion",
+      "io.restassured.internal.csrf",
+      "io.restassured.internal.filter",
+      "io.restassured.internal.http",
+      "io.restassured.internal.log",
+      "io.restassured.internal.mapping",
+      "io.restassured.internal.matcher.xml",
+      "io.restassured.internal.multipart",
+      "io.restassured.internal.print",
+      "io.restassured.internal.proxy",
+      "io.restassured.internal.serialization",
+      "io.restassured.internal.support",
+      "io.restassured.internal.util",
+      "io.restassured.listener",
+      "io.restassured.mapper",
+      "io.restassured.matcher",
+      "io.restassured.parsing",
+      "io.restassured.response",
+      "io.restassured.specification",
+      "io.restassured.spi"
+    ],
+    "io.rest-assured:rest-assured-common": [
+      "io.restassured.common.exception",
+      "io.restassured.common.mapper",
+      "io.restassured.common.mapper.factory",
+      "io.restassured.common.mapper.resolver",
+      "io.restassured.internal.common",
+      "io.restassured.internal.common.assertion",
+      "io.restassured.internal.common.classpath",
+      "io.restassured.internal.common.path"
+    ],
+    "io.rest-assured:xml-path": [
+      "io.restassured.internal.path.xml",
+      "io.restassured.internal.path.xml.mapping",
+      "io.restassured.path.xml",
+      "io.restassured.path.xml.config",
+      "io.restassured.path.xml.element",
+      "io.restassured.path.xml.exception",
+      "io.restassured.path.xml.mapper.factory",
+      "io.restassured.path.xml.mapping"
+    ],
+    "io.smallrye.beanbag:smallrye-beanbag": [
+      "io.smallrye.beanbag"
+    ],
+    "io.smallrye.beanbag:smallrye-beanbag-maven": [
+      "io.smallrye.beanbag.maven"
+    ],
+    "io.smallrye.beanbag:smallrye-beanbag-sisu": [
+      "io.smallrye.beanbag.sisu"
+    ],
     "io.smallrye.certs:smallrye-private-key-pem-parser": [
       "io.smallrye.certs.pem.der",
       "io.smallrye.certs.pem.parsers"
@@ -1665,8 +3189,14 @@
     "io.smallrye.common:smallrye-common-os": [
       "io.smallrye.common.os"
     ],
+    "io.smallrye.common:smallrye-common-process": [
+      "io.smallrye.common.process"
+    ],
     "io.smallrye.common:smallrye-common-ref": [
       "io.smallrye.common.ref"
+    ],
+    "io.smallrye.common:smallrye-common-resource": [
+      "io.smallrye.common.resource"
     ],
     "io.smallrye.common:smallrye-common-vertx-context": [
       "io.smallrye.common.vertx"
@@ -1765,6 +3295,12 @@
       "io.smallrye.mutiny.vertx.codegen",
       "io.smallrye.mutiny.vertx.codegen.lang",
       "io.smallrye.mutiny.vertx.codegen.methods"
+    ],
+    "io.smallrye:jandex": [
+      "org.jboss.jandex"
+    ],
+    "io.smallrye:jandex-gizmo2": [
+      "org.jboss.jandex.gizmo2"
     ],
     "io.smallrye:smallrye-context-propagation": [
       "io.smallrye.context",
@@ -1964,37 +3500,595 @@
       "jakarta.xml.bind.helpers",
       "jakarta.xml.bind.util"
     ],
-    "org.checkerframework:checker-qual": [
-      "org.checkerframework.checker.builder.qual",
-      "org.checkerframework.checker.calledmethods.qual",
-      "org.checkerframework.checker.compilermsgs.qual",
-      "org.checkerframework.checker.fenum.qual",
-      "org.checkerframework.checker.formatter.qual",
-      "org.checkerframework.checker.guieffect.qual",
-      "org.checkerframework.checker.i18n.qual",
-      "org.checkerframework.checker.i18nformatter.qual",
-      "org.checkerframework.checker.index.qual",
-      "org.checkerframework.checker.initialization.qual",
-      "org.checkerframework.checker.interning.qual",
-      "org.checkerframework.checker.lock.qual",
-      "org.checkerframework.checker.mustcall.qual",
-      "org.checkerframework.checker.nullness.qual",
-      "org.checkerframework.checker.optional.qual",
-      "org.checkerframework.checker.propkey.qual",
-      "org.checkerframework.checker.regex.qual",
-      "org.checkerframework.checker.signature.qual",
-      "org.checkerframework.checker.signedness.qual",
-      "org.checkerframework.checker.tainting.qual",
-      "org.checkerframework.checker.units.qual",
-      "org.checkerframework.common.aliasing.qual",
-      "org.checkerframework.common.initializedfields.qual",
-      "org.checkerframework.common.reflection.qual",
-      "org.checkerframework.common.returnsreceiver.qual",
-      "org.checkerframework.common.subtyping.qual",
-      "org.checkerframework.common.util.report.qual",
-      "org.checkerframework.common.value.qual",
-      "org.checkerframework.dataflow.qual",
-      "org.checkerframework.framework.qual"
+    "javax.annotation:javax.annotation-api": [
+      "javax.annotation",
+      "javax.annotation.security",
+      "javax.annotation.sql"
+    ],
+    "javax.inject:javax.inject": [
+      "javax.inject"
+    ],
+    "org.aesh:aesh": [
+      "org.aesh",
+      "org.aesh.command",
+      "org.aesh.command.activator",
+      "org.aesh.command.alias",
+      "org.aesh.command.builder",
+      "org.aesh.command.completer",
+      "org.aesh.command.container",
+      "org.aesh.command.converter",
+      "org.aesh.command.export",
+      "org.aesh.command.impl",
+      "org.aesh.command.impl.activator",
+      "org.aesh.command.impl.completer",
+      "org.aesh.command.impl.container",
+      "org.aesh.command.impl.converter",
+      "org.aesh.command.impl.internal",
+      "org.aesh.command.impl.invocation",
+      "org.aesh.command.impl.operator",
+      "org.aesh.command.impl.parser",
+      "org.aesh.command.impl.populator",
+      "org.aesh.command.impl.registry",
+      "org.aesh.command.impl.renderer",
+      "org.aesh.command.impl.result",
+      "org.aesh.command.impl.shell",
+      "org.aesh.command.impl.validator",
+      "org.aesh.command.invocation",
+      "org.aesh.command.man",
+      "org.aesh.command.man.parser",
+      "org.aesh.command.map",
+      "org.aesh.command.operator",
+      "org.aesh.command.option",
+      "org.aesh.command.parser",
+      "org.aesh.command.populator",
+      "org.aesh.command.registry",
+      "org.aesh.command.renderer",
+      "org.aesh.command.result",
+      "org.aesh.command.settings",
+      "org.aesh.command.shell",
+      "org.aesh.command.validator",
+      "org.aesh.comparators",
+      "org.aesh.complete",
+      "org.aesh.constants",
+      "org.aesh.converter",
+      "org.aesh.graphics",
+      "org.aesh.impl.util",
+      "org.aesh.io",
+      "org.aesh.io.filter",
+      "org.aesh.io.scanner",
+      "org.aesh.parser",
+      "org.aesh.readline",
+      "org.aesh.selector",
+      "org.aesh.util",
+      "org.aesh.util.completer",
+      "org.aesh.util.graal"
+    ],
+    "org.aesh:readline": [
+      "org.aesh.readline",
+      "org.aesh.readline.action",
+      "org.aesh.readline.action.mappings",
+      "org.aesh.readline.alias",
+      "org.aesh.readline.completion",
+      "org.aesh.readline.cursor",
+      "org.aesh.readline.editing",
+      "org.aesh.readline.history",
+      "org.aesh.readline.paste",
+      "org.aesh.readline.terminal",
+      "org.aesh.readline.terminal.formatting",
+      "org.aesh.readline.terminal.impl",
+      "org.aesh.readline.terminal.utils",
+      "org.aesh.readline.tty.terminal",
+      "org.aesh.readline.undo",
+      "org.aesh.readline.util",
+      "org.aesh.terminal",
+      "org.aesh.terminal.io",
+      "org.aesh.terminal.tty",
+      "org.aesh.terminal.utils"
+    ],
+    "org.apache.commons:commons-lang3": [
+      "org.apache.commons.lang3",
+      "org.apache.commons.lang3.arch",
+      "org.apache.commons.lang3.builder",
+      "org.apache.commons.lang3.compare",
+      "org.apache.commons.lang3.concurrent",
+      "org.apache.commons.lang3.concurrent.locks",
+      "org.apache.commons.lang3.event",
+      "org.apache.commons.lang3.exception",
+      "org.apache.commons.lang3.function",
+      "org.apache.commons.lang3.math",
+      "org.apache.commons.lang3.mutable",
+      "org.apache.commons.lang3.reflect",
+      "org.apache.commons.lang3.stream",
+      "org.apache.commons.lang3.text",
+      "org.apache.commons.lang3.text.translate",
+      "org.apache.commons.lang3.time",
+      "org.apache.commons.lang3.tuple",
+      "org.apache.commons.lang3.util"
+    ],
+    "org.apache.groovy:groovy": [
+      "groovy.beans",
+      "groovy.cli",
+      "groovy.cli.internal",
+      "groovy.grape",
+      "groovy.inspect",
+      "groovy.io",
+      "groovy.lang",
+      "groovy.lang.groovydoc",
+      "groovy.namespace",
+      "groovy.security",
+      "groovy.time",
+      "groovy.transform",
+      "groovy.transform.builder",
+      "groovy.transform.options",
+      "groovy.transform.stc",
+      "groovy.ui",
+      "groovy.util",
+      "groovy.util.logging",
+      "groovyjarjarantlr4.runtime",
+      "groovyjarjarantlr4.runtime.debug",
+      "groovyjarjarantlr4.runtime.misc",
+      "groovyjarjarantlr4.runtime.tree",
+      "groovyjarjarantlr4.v4",
+      "groovyjarjarantlr4.v4.analysis",
+      "groovyjarjarantlr4.v4.automata",
+      "groovyjarjarantlr4.v4.codegen",
+      "groovyjarjarantlr4.v4.codegen.model",
+      "groovyjarjarantlr4.v4.codegen.model.chunk",
+      "groovyjarjarantlr4.v4.codegen.model.decl",
+      "groovyjarjarantlr4.v4.codegen.target",
+      "groovyjarjarantlr4.v4.gui",
+      "groovyjarjarantlr4.v4.misc",
+      "groovyjarjarantlr4.v4.parse",
+      "groovyjarjarantlr4.v4.runtime",
+      "groovyjarjarantlr4.v4.runtime.atn",
+      "groovyjarjarantlr4.v4.runtime.dfa",
+      "groovyjarjarantlr4.v4.runtime.misc",
+      "groovyjarjarantlr4.v4.runtime.tree",
+      "groovyjarjarantlr4.v4.runtime.tree.pattern",
+      "groovyjarjarantlr4.v4.runtime.tree.xpath",
+      "groovyjarjarantlr4.v4.semantics",
+      "groovyjarjarantlr4.v4.tool",
+      "groovyjarjarantlr4.v4.tool.ast",
+      "groovyjarjarantlr4.v4.unicode",
+      "groovyjarjarasm.asm",
+      "groovyjarjarasm.asm.commons",
+      "groovyjarjarasm.asm.signature",
+      "groovyjarjarasm.asm.tree",
+      "groovyjarjarasm.asm.util",
+      "groovyjarjarpicocli",
+      "org.apache.groovy.antlr",
+      "org.apache.groovy.ast.tools",
+      "org.apache.groovy.internal.metaclass",
+      "org.apache.groovy.internal.util",
+      "org.apache.groovy.io",
+      "org.apache.groovy.lang",
+      "org.apache.groovy.lang.annotation",
+      "org.apache.groovy.metaclass",
+      "org.apache.groovy.parser.antlr4",
+      "org.apache.groovy.parser.antlr4.internal",
+      "org.apache.groovy.parser.antlr4.internal.atnmanager",
+      "org.apache.groovy.parser.antlr4.util",
+      "org.apache.groovy.plugin",
+      "org.apache.groovy.runtime",
+      "org.apache.groovy.util",
+      "org.apache.groovy.util.concurrent",
+      "org.apache.groovy.util.concurrent.concurrentlinkedhashmap",
+      "org.codehaus.groovy",
+      "org.codehaus.groovy.antlr",
+      "org.codehaus.groovy.ast",
+      "org.codehaus.groovy.ast.builder",
+      "org.codehaus.groovy.ast.decompiled",
+      "org.codehaus.groovy.ast.expr",
+      "org.codehaus.groovy.ast.stmt",
+      "org.codehaus.groovy.ast.tools",
+      "org.codehaus.groovy.classgen",
+      "org.codehaus.groovy.classgen.asm",
+      "org.codehaus.groovy.classgen.asm.indy",
+      "org.codehaus.groovy.classgen.asm.indy.sc",
+      "org.codehaus.groovy.classgen.asm.sc",
+      "org.codehaus.groovy.classgen.asm.util",
+      "org.codehaus.groovy.control",
+      "org.codehaus.groovy.control.customizers",
+      "org.codehaus.groovy.control.customizers.builder",
+      "org.codehaus.groovy.control.io",
+      "org.codehaus.groovy.control.messages",
+      "org.codehaus.groovy.reflection",
+      "org.codehaus.groovy.reflection.android",
+      "org.codehaus.groovy.reflection.stdclasses",
+      "org.codehaus.groovy.reflection.v7",
+      "org.codehaus.groovy.runtime",
+      "org.codehaus.groovy.runtime.callsite",
+      "org.codehaus.groovy.runtime.dgmimpl",
+      "org.codehaus.groovy.runtime.dgmimpl.arrays",
+      "org.codehaus.groovy.runtime.m12n",
+      "org.codehaus.groovy.runtime.memoize",
+      "org.codehaus.groovy.runtime.metaclass",
+      "org.codehaus.groovy.runtime.powerassert",
+      "org.codehaus.groovy.runtime.typehandling",
+      "org.codehaus.groovy.runtime.wrappers",
+      "org.codehaus.groovy.syntax",
+      "org.codehaus.groovy.tools",
+      "org.codehaus.groovy.tools.ast",
+      "org.codehaus.groovy.tools.gse",
+      "org.codehaus.groovy.tools.javac",
+      "org.codehaus.groovy.tools.shell",
+      "org.codehaus.groovy.tools.shell.util",
+      "org.codehaus.groovy.transform",
+      "org.codehaus.groovy.transform.sc",
+      "org.codehaus.groovy.transform.sc.transformers",
+      "org.codehaus.groovy.transform.stc",
+      "org.codehaus.groovy.transform.tailrec",
+      "org.codehaus.groovy.transform.trait",
+      "org.codehaus.groovy.util",
+      "org.codehaus.groovy.vmplugin",
+      "org.codehaus.groovy.vmplugin.v10",
+      "org.codehaus.groovy.vmplugin.v16",
+      "org.codehaus.groovy.vmplugin.v7",
+      "org.codehaus.groovy.vmplugin.v8",
+      "org.codehaus.groovy.vmplugin.v9"
+    ],
+    "org.apache.groovy:groovy-json": [
+      "groovy.json",
+      "org.apache.groovy.json",
+      "org.apache.groovy.json.internal"
+    ],
+    "org.apache.groovy:groovy-xml": [
+      "groovy.xml",
+      "groovy.xml.dom",
+      "groovy.xml.markupsupport",
+      "groovy.xml.slurpersupport",
+      "groovy.xml.streamingmarkupsupport",
+      "org.apache.groovy.xml.extensions",
+      "org.apache.groovy.xml.tools"
+    ],
+    "org.apache.httpcomponents:httpclient": [
+      "org.apache.http.auth",
+      "org.apache.http.auth.params",
+      "org.apache.http.client",
+      "org.apache.http.client.config",
+      "org.apache.http.client.entity",
+      "org.apache.http.client.methods",
+      "org.apache.http.client.params",
+      "org.apache.http.client.protocol",
+      "org.apache.http.client.utils",
+      "org.apache.http.conn",
+      "org.apache.http.conn.params",
+      "org.apache.http.conn.routing",
+      "org.apache.http.conn.scheme",
+      "org.apache.http.conn.socket",
+      "org.apache.http.conn.ssl",
+      "org.apache.http.conn.util",
+      "org.apache.http.cookie",
+      "org.apache.http.cookie.params",
+      "org.apache.http.impl.auth",
+      "org.apache.http.impl.client",
+      "org.apache.http.impl.conn",
+      "org.apache.http.impl.conn.tsccm",
+      "org.apache.http.impl.cookie",
+      "org.apache.http.impl.execchain"
+    ],
+    "org.apache.httpcomponents:httpcore": [
+      "org.apache.http",
+      "org.apache.http.annotation",
+      "org.apache.http.concurrent",
+      "org.apache.http.config",
+      "org.apache.http.entity",
+      "org.apache.http.impl",
+      "org.apache.http.impl.bootstrap",
+      "org.apache.http.impl.entity",
+      "org.apache.http.impl.io",
+      "org.apache.http.impl.pool",
+      "org.apache.http.io",
+      "org.apache.http.message",
+      "org.apache.http.params",
+      "org.apache.http.pool",
+      "org.apache.http.protocol",
+      "org.apache.http.ssl",
+      "org.apache.http.util"
+    ],
+    "org.apache.httpcomponents:httpmime": [
+      "org.apache.http.entity.mime",
+      "org.apache.http.entity.mime.content"
+    ],
+    "org.apache.maven.resolver:maven-resolver-api": [
+      "org.eclipse.aether",
+      "org.eclipse.aether.artifact",
+      "org.eclipse.aether.collection",
+      "org.eclipse.aether.deployment",
+      "org.eclipse.aether.graph",
+      "org.eclipse.aether.installation",
+      "org.eclipse.aether.metadata",
+      "org.eclipse.aether.repository",
+      "org.eclipse.aether.resolution",
+      "org.eclipse.aether.transfer",
+      "org.eclipse.aether.transform",
+      "org.eclipse.aether.version"
+    ],
+    "org.apache.maven.resolver:maven-resolver-connector-basic": [
+      "org.eclipse.aether.connector.basic"
+    ],
+    "org.apache.maven.resolver:maven-resolver-impl": [
+      "org.eclipse.aether.impl",
+      "org.eclipse.aether.impl.guice",
+      "org.eclipse.aether.internal.impl",
+      "org.eclipse.aether.internal.impl.checksum",
+      "org.eclipse.aether.internal.impl.collect",
+      "org.eclipse.aether.internal.impl.collect.bf",
+      "org.eclipse.aether.internal.impl.collect.df",
+      "org.eclipse.aether.internal.impl.filter",
+      "org.eclipse.aether.internal.impl.resolution",
+      "org.eclipse.aether.internal.impl.slf4j",
+      "org.eclipse.aether.internal.impl.synccontext",
+      "org.eclipse.aether.internal.impl.synccontext.legacy",
+      "org.eclipse.aether.internal.impl.synccontext.named",
+      "org.eclipse.aether.internal.impl.synccontext.named.providers"
+    ],
+    "org.apache.maven.resolver:maven-resolver-named-locks": [
+      "org.eclipse.aether.named",
+      "org.eclipse.aether.named.providers",
+      "org.eclipse.aether.named.support"
+    ],
+    "org.apache.maven.resolver:maven-resolver-spi": [
+      "org.eclipse.aether.spi.checksums",
+      "org.eclipse.aether.spi.connector",
+      "org.eclipse.aether.spi.connector.checksum",
+      "org.eclipse.aether.spi.connector.filter",
+      "org.eclipse.aether.spi.connector.layout",
+      "org.eclipse.aether.spi.connector.transport",
+      "org.eclipse.aether.spi.io",
+      "org.eclipse.aether.spi.localrepo",
+      "org.eclipse.aether.spi.locator",
+      "org.eclipse.aether.spi.log",
+      "org.eclipse.aether.spi.resolution",
+      "org.eclipse.aether.spi.synccontext"
+    ],
+    "org.apache.maven.resolver:maven-resolver-transport-http": [
+      "org.eclipse.aether.transport.http"
+    ],
+    "org.apache.maven.resolver:maven-resolver-transport-wagon": [
+      "org.eclipse.aether.internal.transport.wagon",
+      "org.eclipse.aether.transport.wagon"
+    ],
+    "org.apache.maven.resolver:maven-resolver-util": [
+      "org.eclipse.aether.util",
+      "org.eclipse.aether.util.artifact",
+      "org.eclipse.aether.util.concurrency",
+      "org.eclipse.aether.util.filter",
+      "org.eclipse.aether.util.graph.manager",
+      "org.eclipse.aether.util.graph.selector",
+      "org.eclipse.aether.util.graph.transformer",
+      "org.eclipse.aether.util.graph.traverser",
+      "org.eclipse.aether.util.graph.version",
+      "org.eclipse.aether.util.graph.visitor",
+      "org.eclipse.aether.util.listener",
+      "org.eclipse.aether.util.repository",
+      "org.eclipse.aether.util.version"
+    ],
+    "org.apache.maven.shared:maven-shared-utils": [
+      "org.apache.maven.shared.utils",
+      "org.apache.maven.shared.utils.cli",
+      "org.apache.maven.shared.utils.cli.javatool",
+      "org.apache.maven.shared.utils.cli.shell",
+      "org.apache.maven.shared.utils.introspection",
+      "org.apache.maven.shared.utils.io",
+      "org.apache.maven.shared.utils.logging",
+      "org.apache.maven.shared.utils.xml",
+      "org.apache.maven.shared.utils.xml.pull"
+    ],
+    "org.apache.maven.wagon:wagon-file": [
+      "org.apache.maven.wagon.providers.file"
+    ],
+    "org.apache.maven.wagon:wagon-http": [
+      "org.apache.maven.wagon.providers.http"
+    ],
+    "org.apache.maven.wagon:wagon-http-shared": [
+      "org.apache.maven.wagon.shared.http"
+    ],
+    "org.apache.maven.wagon:wagon-provider-api": [
+      "org.apache.maven.wagon",
+      "org.apache.maven.wagon.authentication",
+      "org.apache.maven.wagon.authorization",
+      "org.apache.maven.wagon.events",
+      "org.apache.maven.wagon.observers",
+      "org.apache.maven.wagon.proxy",
+      "org.apache.maven.wagon.repository",
+      "org.apache.maven.wagon.resource"
+    ],
+    "org.apache.maven:maven-api-meta": [
+      "org.apache.maven.api.annotations"
+    ],
+    "org.apache.maven:maven-api-xml": [
+      "org.apache.maven.api.xml"
+    ],
+    "org.apache.maven:maven-artifact": [
+      "org.apache.maven.artifact",
+      "org.apache.maven.artifact.handler",
+      "org.apache.maven.artifact.metadata",
+      "org.apache.maven.artifact.repository",
+      "org.apache.maven.artifact.repository.layout",
+      "org.apache.maven.artifact.repository.metadata",
+      "org.apache.maven.artifact.resolver",
+      "org.apache.maven.artifact.resolver.filter",
+      "org.apache.maven.artifact.versioning",
+      "org.apache.maven.repository",
+      "org.apache.maven.repository.legacy.metadata"
+    ],
+    "org.apache.maven:maven-builder-support": [
+      "org.apache.maven.building"
+    ],
+    "org.apache.maven:maven-core": [
+      "org.apache.maven",
+      "org.apache.maven.artifact",
+      "org.apache.maven.artifact.factory",
+      "org.apache.maven.artifact.handler",
+      "org.apache.maven.artifact.handler.manager",
+      "org.apache.maven.artifact.metadata",
+      "org.apache.maven.artifact.repository",
+      "org.apache.maven.artifact.repository.layout",
+      "org.apache.maven.artifact.repository.metadata",
+      "org.apache.maven.artifact.repository.metadata.io",
+      "org.apache.maven.artifact.resolver",
+      "org.apache.maven.artifact.resolver.filter",
+      "org.apache.maven.bridge",
+      "org.apache.maven.classrealm",
+      "org.apache.maven.configuration",
+      "org.apache.maven.configuration.internal",
+      "org.apache.maven.eventspy",
+      "org.apache.maven.eventspy.internal",
+      "org.apache.maven.exception",
+      "org.apache.maven.execution",
+      "org.apache.maven.execution.scope",
+      "org.apache.maven.execution.scope.internal",
+      "org.apache.maven.extension.internal",
+      "org.apache.maven.graph",
+      "org.apache.maven.internal",
+      "org.apache.maven.internal.aether",
+      "org.apache.maven.lifecycle",
+      "org.apache.maven.lifecycle.internal",
+      "org.apache.maven.lifecycle.internal.builder",
+      "org.apache.maven.lifecycle.internal.builder.multithreaded",
+      "org.apache.maven.lifecycle.internal.builder.singlethreaded",
+      "org.apache.maven.lifecycle.mapping",
+      "org.apache.maven.model.plugin",
+      "org.apache.maven.monitor.event",
+      "org.apache.maven.plugin",
+      "org.apache.maven.plugin.internal",
+      "org.apache.maven.plugin.prefix",
+      "org.apache.maven.plugin.prefix.internal",
+      "org.apache.maven.plugin.version",
+      "org.apache.maven.plugin.version.internal",
+      "org.apache.maven.project",
+      "org.apache.maven.project.artifact",
+      "org.apache.maven.project.path",
+      "org.apache.maven.properties.internal",
+      "org.apache.maven.repository",
+      "org.apache.maven.repository.legacy.metadata",
+      "org.apache.maven.rtinfo",
+      "org.apache.maven.rtinfo.internal",
+      "org.apache.maven.session.scope.internal",
+      "org.apache.maven.settings",
+      "org.apache.maven.toolchain",
+      "org.apache.maven.toolchain.building",
+      "org.apache.maven.toolchain.io",
+      "org.apache.maven.toolchain.java",
+      "org.apache.maven.toolchain.merge",
+      "org.apache.maven.toolchain.model",
+      "org.apache.maven.toolchain.model.io.xpp3"
+    ],
+    "org.apache.maven:maven-embedder": [
+      "org.apache.maven.cli",
+      "org.apache.maven.cli.configuration",
+      "org.apache.maven.cli.event",
+      "org.apache.maven.cli.internal",
+      "org.apache.maven.cli.internal.extension.model",
+      "org.apache.maven.cli.internal.extension.model.io.xpp3",
+      "org.apache.maven.cli.logging",
+      "org.apache.maven.cli.logging.impl",
+      "org.apache.maven.cli.transfer",
+      "org.slf4j",
+      "org.slf4j.impl"
+    ],
+    "org.apache.maven:maven-model": [
+      "org.apache.maven.model",
+      "org.apache.maven.model.io.xpp3",
+      "org.apache.maven.model.merge"
+    ],
+    "org.apache.maven:maven-model-builder": [
+      "org.apache.maven.model.building",
+      "org.apache.maven.model.composition",
+      "org.apache.maven.model.inheritance",
+      "org.apache.maven.model.interpolation",
+      "org.apache.maven.model.io",
+      "org.apache.maven.model.locator",
+      "org.apache.maven.model.management",
+      "org.apache.maven.model.merge",
+      "org.apache.maven.model.normalization",
+      "org.apache.maven.model.path",
+      "org.apache.maven.model.plugin",
+      "org.apache.maven.model.profile",
+      "org.apache.maven.model.profile.activation",
+      "org.apache.maven.model.resolution",
+      "org.apache.maven.model.superpom",
+      "org.apache.maven.model.validation",
+      "org.apache.maven.utils"
+    ],
+    "org.apache.maven:maven-plugin-api": [
+      "org.apache.maven.monitor.logging",
+      "org.apache.maven.plugin",
+      "org.apache.maven.plugin.descriptor",
+      "org.apache.maven.plugin.lifecycle",
+      "org.apache.maven.plugin.lifecycle.io.xpp3",
+      "org.apache.maven.plugin.logging"
+    ],
+    "org.apache.maven:maven-repository-metadata": [
+      "org.apache.maven.artifact.repository.metadata",
+      "org.apache.maven.artifact.repository.metadata.io.xpp3"
+    ],
+    "org.apache.maven:maven-resolver-provider": [
+      "org.apache.maven.repository.internal"
+    ],
+    "org.apache.maven:maven-settings": [
+      "org.apache.maven.settings",
+      "org.apache.maven.settings.io.xpp3"
+    ],
+    "org.apache.maven:maven-settings-builder": [
+      "org.apache.maven.settings.building",
+      "org.apache.maven.settings.crypto",
+      "org.apache.maven.settings.io",
+      "org.apache.maven.settings.merge",
+      "org.apache.maven.settings.validation"
+    ],
+    "org.apache.maven:maven-xml-impl": [
+      "org.apache.maven.internal.xml"
+    ],
+    "org.apiguardian:apiguardian-api": [
+      "org.apiguardian.api"
+    ],
+    "org.ccil.cowan.tagsoup:tagsoup": [
+      "org.ccil.cowan.tagsoup",
+      "org.ccil.cowan.tagsoup.jaxp"
+    ],
+    "org.codehaus.plexus:plexus-cipher": [
+      "org.sonatype.plexus.components.cipher"
+    ],
+    "org.codehaus.plexus:plexus-classworlds": [
+      "org.codehaus.classworlds",
+      "org.codehaus.plexus.classworlds",
+      "org.codehaus.plexus.classworlds.launcher",
+      "org.codehaus.plexus.classworlds.realm",
+      "org.codehaus.plexus.classworlds.strategy"
+    ],
+    "org.codehaus.plexus:plexus-component-annotations": [
+      "org.codehaus.plexus.component.annotations"
+    ],
+    "org.codehaus.plexus:plexus-interpolation": [
+      "org.codehaus.plexus.interpolation",
+      "org.codehaus.plexus.interpolation.fixed",
+      "org.codehaus.plexus.interpolation.multi",
+      "org.codehaus.plexus.interpolation.object",
+      "org.codehaus.plexus.interpolation.os",
+      "org.codehaus.plexus.interpolation.reflection",
+      "org.codehaus.plexus.interpolation.util"
+    ],
+    "org.codehaus.plexus:plexus-sec-dispatcher": [
+      "org.sonatype.plexus.components.sec.dispatcher",
+      "org.sonatype.plexus.components.sec.dispatcher.model",
+      "org.sonatype.plexus.components.sec.dispatcher.model.io.xpp3"
+    ],
+    "org.codehaus.plexus:plexus-utils": [
+      "org.codehaus.plexus.util",
+      "org.codehaus.plexus.util.cli",
+      "org.codehaus.plexus.util.cli.shell",
+      "org.codehaus.plexus.util.dag",
+      "org.codehaus.plexus.util.introspection",
+      "org.codehaus.plexus.util.io",
+      "org.codehaus.plexus.util.reflection",
+      "org.codehaus.plexus.util.xml",
+      "org.codehaus.plexus.util.xml.pull"
+    ],
+    "org.codehaus.plexus:plexus-xml": [
+      "org.codehaus.plexus.util.xml",
+      "org.codehaus.plexus.util.xml.pull"
     ],
     "org.crac:crac": [
       "org.crac",
@@ -2012,6 +4106,72 @@
     "org.eclipse.parsson:parsson": [
       "org.eclipse.parsson",
       "org.eclipse.parsson.api"
+    ],
+    "org.eclipse.sisu:org.eclipse.sisu.inject": [
+      "org.eclipse.sisu",
+      "org.eclipse.sisu.bean",
+      "org.eclipse.sisu.inject",
+      "org.eclipse.sisu.launch",
+      "org.eclipse.sisu.osgi",
+      "org.eclipse.sisu.space",
+      "org.eclipse.sisu.wire",
+      "org.sonatype.inject"
+    ],
+    "org.eclipse.sisu:org.eclipse.sisu.plexus": [
+      "org.codehaus.plexus",
+      "org.codehaus.plexus.component",
+      "org.codehaus.plexus.component.composition",
+      "org.codehaus.plexus.component.configurator",
+      "org.codehaus.plexus.component.configurator.converters",
+      "org.codehaus.plexus.component.configurator.converters.basic",
+      "org.codehaus.plexus.component.configurator.converters.composite",
+      "org.codehaus.plexus.component.configurator.converters.lookup",
+      "org.codehaus.plexus.component.configurator.converters.special",
+      "org.codehaus.plexus.component.configurator.expression",
+      "org.codehaus.plexus.component.factory",
+      "org.codehaus.plexus.component.repository",
+      "org.codehaus.plexus.component.repository.exception",
+      "org.codehaus.plexus.configuration",
+      "org.codehaus.plexus.configuration.xml",
+      "org.codehaus.plexus.context",
+      "org.codehaus.plexus.logging",
+      "org.codehaus.plexus.logging.console",
+      "org.codehaus.plexus.personality.plexus.lifecycle.phase",
+      "org.eclipse.sisu.plexus"
+    ],
+    "org.fusesource.jansi:jansi": [
+      "org.fusesource.jansi",
+      "org.fusesource.jansi.internal",
+      "org.fusesource.jansi.io"
+    ],
+    "org.graalvm.sdk:nativeimage": [
+      "com.oracle.svm.core.annotate",
+      "org.graalvm.nativeimage",
+      "org.graalvm.nativeimage.c",
+      "org.graalvm.nativeimage.c.constant",
+      "org.graalvm.nativeimage.c.function",
+      "org.graalvm.nativeimage.c.struct",
+      "org.graalvm.nativeimage.c.type",
+      "org.graalvm.nativeimage.hosted",
+      "org.graalvm.nativeimage.impl",
+      "org.graalvm.nativeimage.impl.clinit"
+    ],
+    "org.graalvm.sdk:word": [
+      "org.graalvm.word",
+      "org.graalvm.word.impl"
+    ],
+    "org.hamcrest:hamcrest": [
+      "org.hamcrest",
+      "org.hamcrest.beans",
+      "org.hamcrest.collection",
+      "org.hamcrest.comparator",
+      "org.hamcrest.core",
+      "org.hamcrest.internal",
+      "org.hamcrest.io",
+      "org.hamcrest.number",
+      "org.hamcrest.object",
+      "org.hamcrest.text",
+      "org.hamcrest.xml"
     ],
     "org.jboss.logging:commons-logging-jboss-logging": [
       "org.apache.commons.logging",
@@ -2044,6 +4204,219 @@
       "org.jctools.queues.atomic.unpadded",
       "org.jctools.queues.unpadded",
       "org.jctools.util"
+    ],
+    "org.jspecify:jspecify": [
+      "org.jspecify.annotations"
+    ],
+    "org.junit.jupiter:junit-jupiter-api": [
+      "org.junit.jupiter.api",
+      "org.junit.jupiter.api.condition",
+      "org.junit.jupiter.api.extension",
+      "org.junit.jupiter.api.extension.support",
+      "org.junit.jupiter.api.function",
+      "org.junit.jupiter.api.io",
+      "org.junit.jupiter.api.parallel"
+    ],
+    "org.junit.jupiter:junit-jupiter-engine": [
+      "org.junit.jupiter.engine",
+      "org.junit.jupiter.engine.config",
+      "org.junit.jupiter.engine.descriptor",
+      "org.junit.jupiter.engine.discovery",
+      "org.junit.jupiter.engine.discovery.predicates",
+      "org.junit.jupiter.engine.execution",
+      "org.junit.jupiter.engine.extension",
+      "org.junit.jupiter.engine.support"
+    ],
+    "org.junit.jupiter:junit-jupiter-params": [
+      "org.junit.jupiter.params",
+      "org.junit.jupiter.params.aggregator",
+      "org.junit.jupiter.params.converter",
+      "org.junit.jupiter.params.provider",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.annotations",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.annotations.helpers",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.common",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.beans",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.fields",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.input",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.input.concurrent",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.iterators",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.processor",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.processor.core",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.record",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.routine",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.conversions",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.csv",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.fixed",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.tsv",
+      "org.junit.jupiter.params.support"
+    ],
+    "org.junit.platform:junit-platform-commons": [
+      "org.junit.platform.commons",
+      "org.junit.platform.commons.annotation",
+      "org.junit.platform.commons.function",
+      "org.junit.platform.commons.logging",
+      "org.junit.platform.commons.support",
+      "org.junit.platform.commons.support.conversion",
+      "org.junit.platform.commons.support.scanning",
+      "org.junit.platform.commons.util"
+    ],
+    "org.junit.platform:junit-platform-console-standalone": [
+      "junit.extensions",
+      "junit.framework",
+      "junit.runner",
+      "junit.textui",
+      "org.apiguardian.api",
+      "org.hamcrest",
+      "org.hamcrest.core",
+      "org.hamcrest.internal",
+      "org.junit",
+      "org.junit.experimental",
+      "org.junit.experimental.categories",
+      "org.junit.experimental.max",
+      "org.junit.experimental.results",
+      "org.junit.experimental.runners",
+      "org.junit.experimental.theories",
+      "org.junit.experimental.theories.internal",
+      "org.junit.experimental.theories.suppliers",
+      "org.junit.function",
+      "org.junit.internal",
+      "org.junit.internal.builders",
+      "org.junit.internal.management",
+      "org.junit.internal.matchers",
+      "org.junit.internal.requests",
+      "org.junit.internal.runners",
+      "org.junit.internal.runners.model",
+      "org.junit.internal.runners.rules",
+      "org.junit.internal.runners.statements",
+      "org.junit.jupiter.api",
+      "org.junit.jupiter.api.condition",
+      "org.junit.jupiter.api.extension",
+      "org.junit.jupiter.api.extension.support",
+      "org.junit.jupiter.api.function",
+      "org.junit.jupiter.api.io",
+      "org.junit.jupiter.api.parallel",
+      "org.junit.jupiter.engine",
+      "org.junit.jupiter.engine.config",
+      "org.junit.jupiter.engine.descriptor",
+      "org.junit.jupiter.engine.discovery",
+      "org.junit.jupiter.engine.discovery.predicates",
+      "org.junit.jupiter.engine.execution",
+      "org.junit.jupiter.engine.extension",
+      "org.junit.jupiter.engine.support",
+      "org.junit.jupiter.params",
+      "org.junit.jupiter.params.aggregator",
+      "org.junit.jupiter.params.converter",
+      "org.junit.jupiter.params.provider",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.annotations",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.annotations.helpers",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.common",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.beans",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.fields",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.input",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.input.concurrent",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.iterators",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.processor",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.processor.core",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.record",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.common.routine",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.conversions",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.csv",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.fixed",
+      "org.junit.jupiter.params.shadow.com.univocity.parsers.tsv",
+      "org.junit.jupiter.params.support",
+      "org.junit.matchers",
+      "org.junit.platform.commons",
+      "org.junit.platform.commons.annotation",
+      "org.junit.platform.commons.function",
+      "org.junit.platform.commons.logging",
+      "org.junit.platform.commons.support",
+      "org.junit.platform.commons.support.conversion",
+      "org.junit.platform.commons.support.scanning",
+      "org.junit.platform.commons.util",
+      "org.junit.platform.console",
+      "org.junit.platform.console.options",
+      "org.junit.platform.console.shadow.picocli",
+      "org.junit.platform.console.tasks",
+      "org.junit.platform.engine",
+      "org.junit.platform.engine.discovery",
+      "org.junit.platform.engine.reporting",
+      "org.junit.platform.engine.support.config",
+      "org.junit.platform.engine.support.descriptor",
+      "org.junit.platform.engine.support.discovery",
+      "org.junit.platform.engine.support.filter",
+      "org.junit.platform.engine.support.hierarchical",
+      "org.junit.platform.engine.support.store",
+      "org.junit.platform.launcher",
+      "org.junit.platform.launcher.core",
+      "org.junit.platform.launcher.listeners",
+      "org.junit.platform.launcher.listeners.discovery",
+      "org.junit.platform.launcher.listeners.session",
+      "org.junit.platform.launcher.tagexpression",
+      "org.junit.platform.reporting.legacy",
+      "org.junit.platform.reporting.legacy.xml",
+      "org.junit.platform.reporting.open.xml",
+      "org.junit.platform.reporting.shadow.org.opentest4j.reporting.events.api",
+      "org.junit.platform.reporting.shadow.org.opentest4j.reporting.events.core",
+      "org.junit.platform.reporting.shadow.org.opentest4j.reporting.events.git",
+      "org.junit.platform.reporting.shadow.org.opentest4j.reporting.events.java",
+      "org.junit.platform.reporting.shadow.org.opentest4j.reporting.events.root",
+      "org.junit.platform.reporting.shadow.org.opentest4j.reporting.schema",
+      "org.junit.platform.suite.api",
+      "org.junit.platform.suite.commons",
+      "org.junit.platform.suite.engine",
+      "org.junit.rules",
+      "org.junit.runner",
+      "org.junit.runner.manipulation",
+      "org.junit.runner.notification",
+      "org.junit.runners",
+      "org.junit.runners.model",
+      "org.junit.runners.parameterized",
+      "org.junit.validator",
+      "org.junit.vintage.engine",
+      "org.junit.vintage.engine.descriptor",
+      "org.junit.vintage.engine.discovery",
+      "org.junit.vintage.engine.execution",
+      "org.junit.vintage.engine.support",
+      "org.opentest4j",
+      "org.opentest4j.reporting.tooling.spi.htmlreport"
+    ],
+    "org.junit.platform:junit-platform-engine": [
+      "org.junit.platform.engine",
+      "org.junit.platform.engine.discovery",
+      "org.junit.platform.engine.reporting",
+      "org.junit.platform.engine.support.config",
+      "org.junit.platform.engine.support.descriptor",
+      "org.junit.platform.engine.support.discovery",
+      "org.junit.platform.engine.support.filter",
+      "org.junit.platform.engine.support.hierarchical",
+      "org.junit.platform.engine.support.store"
+    ],
+    "org.junit.platform:junit-platform-launcher": [
+      "org.junit.platform.launcher",
+      "org.junit.platform.launcher.core",
+      "org.junit.platform.launcher.listeners",
+      "org.junit.platform.launcher.listeners.discovery",
+      "org.junit.platform.launcher.listeners.session",
+      "org.junit.platform.launcher.tagexpression"
+    ],
+    "org.opentest4j:opentest4j": [
+      "org.opentest4j"
+    ],
+    "org.ow2.asm:asm": [
+      "org.objectweb.asm",
+      "org.objectweb.asm.signature"
+    ],
+    "org.ow2.asm:asm-analysis": [
+      "org.objectweb.asm.tree.analysis"
+    ],
+    "org.ow2.asm:asm-commons": [
+      "org.objectweb.asm.commons"
+    ],
+    "org.ow2.asm:asm-tree": [
+      "org.objectweb.asm.tree"
+    ],
+    "org.ow2.asm:asm-util": [
+      "org.objectweb.asm.util"
     ],
     "org.reactivestreams:reactive-streams": [
       "org.reactivestreams"
@@ -2081,6 +4454,7 @@
   },
   "repositories": {
     "https://repo1.maven.org/maven2/": [
+      "aopalliance:aopalliance",
       "com.aayushatharva.brotli4j:brotli4j",
       "com.aayushatharva.brotli4j:native-osx-aarch64",
       "com.aayushatharva.brotli4j:service",
@@ -2091,7 +4465,13 @@
       "com.google.guava:failureaccess",
       "com.google.guava:guava",
       "com.google.guava:listenablefuture",
+      "com.google.inject:guice:jar:classes",
       "com.google.j2objc:j2objc-annotations",
+      "commons-cli:commons-cli",
+      "commons-codec:commons-codec",
+      "commons-io:commons-io",
+      "commons-logging:commons-logging",
+      "io.github.dmlloyd:jdk-classfile-backport",
       "io.netty:netty-buffer",
       "io.netty:netty-codec",
       "io.netty:netty-codec-dns",
@@ -2107,6 +4487,8 @@
       "io.netty:netty-transport",
       "io.netty:netty-transport-native-unix-common",
       "io.quarkus.arc:arc",
+      "io.quarkus.gizmo:gizmo",
+      "io.quarkus.gizmo:gizmo2",
       "io.quarkus.resteasy.reactive:resteasy-reactive",
       "io.quarkus.resteasy.reactive:resteasy-reactive-common",
       "io.quarkus.resteasy.reactive:resteasy-reactive-common-types",
@@ -2114,26 +4496,45 @@
       "io.quarkus.security:quarkus-security",
       "io.quarkus.vertx.utils:quarkus-vertx-utils",
       "io.quarkus:quarkus-arc",
+      "io.quarkus:quarkus-bootstrap-app-model",
+      "io.quarkus:quarkus-bootstrap-core",
+      "io.quarkus:quarkus-bootstrap-gradle-resolver",
+      "io.quarkus:quarkus-bootstrap-maven-resolver",
+      "io.quarkus:quarkus-bootstrap-maven4-resolver",
       "io.quarkus:quarkus-bootstrap-runner",
+      "io.quarkus:quarkus-builder",
+      "io.quarkus:quarkus-class-change-agent",
       "io.quarkus:quarkus-classloader-commons",
       "io.quarkus:quarkus-core",
+      "io.quarkus:quarkus-core-deployment",
       "io.quarkus:quarkus-credentials",
       "io.quarkus:quarkus-development-mode-spi",
       "io.quarkus:quarkus-fs-util",
+      "io.quarkus:quarkus-hibernate-validator-spi",
       "io.quarkus:quarkus-ide-launcher",
       "io.quarkus:quarkus-jsonp",
+      "io.quarkus:quarkus-junit5",
+      "io.quarkus:quarkus-junit5-config",
       "io.quarkus:quarkus-mutiny",
       "io.quarkus:quarkus-netty",
       "io.quarkus:quarkus-rest",
       "io.quarkus:quarkus-rest-common",
       "io.quarkus:quarkus-security-runtime-spi",
       "io.quarkus:quarkus-smallrye-context-propagation",
+      "io.quarkus:quarkus-test-common",
       "io.quarkus:quarkus-tls-registry",
       "io.quarkus:quarkus-tls-registry-spi",
       "io.quarkus:quarkus-vertx",
       "io.quarkus:quarkus-vertx-http",
       "io.quarkus:quarkus-vertx-latebound-mdc-provider",
       "io.quarkus:quarkus-virtual-threads",
+      "io.rest-assured:json-path",
+      "io.rest-assured:rest-assured",
+      "io.rest-assured:rest-assured-common",
+      "io.rest-assured:xml-path",
+      "io.smallrye.beanbag:smallrye-beanbag",
+      "io.smallrye.beanbag:smallrye-beanbag-maven",
+      "io.smallrye.beanbag:smallrye-beanbag-sisu",
       "io.smallrye.certs:smallrye-private-key-pem-parser",
       "io.smallrye.common:smallrye-common-annotation",
       "io.smallrye.common:smallrye-common-classloader",
@@ -2144,7 +4545,9 @@
       "io.smallrye.common:smallrye-common-io",
       "io.smallrye.common:smallrye-common-net",
       "io.smallrye.common:smallrye-common-os",
+      "io.smallrye.common:smallrye-common-process",
       "io.smallrye.common:smallrye-common-ref",
+      "io.smallrye.common:smallrye-common-resource",
       "io.smallrye.common:smallrye-common-vertx-context",
       "io.smallrye.config:smallrye-config",
       "io.smallrye.config:smallrye-config-common",
@@ -2160,6 +4563,8 @@
       "io.smallrye.reactive:smallrye-mutiny-vertx-web",
       "io.smallrye.reactive:smallrye-mutiny-vertx-web-common",
       "io.smallrye.reactive:vertx-mutiny-generator",
+      "io.smallrye:jandex",
+      "io.smallrye:jandex-gizmo2",
       "io.smallrye:smallrye-context-propagation",
       "io.smallrye:smallrye-context-propagation-api",
       "io.smallrye:smallrye-context-propagation-storage",
@@ -2182,17 +4587,84 @@
       "jakarta.transaction:jakarta.transaction-api",
       "jakarta.ws.rs:jakarta.ws.rs-api",
       "jakarta.xml.bind:jakarta.xml.bind-api",
-      "org.checkerframework:checker-qual",
+      "javax.annotation:javax.annotation-api",
+      "javax.inject:javax.inject",
+      "org.aesh:aesh",
+      "org.aesh:readline",
+      "org.apache.commons:commons-lang3",
+      "org.apache.groovy:groovy",
+      "org.apache.groovy:groovy-json",
+      "org.apache.groovy:groovy-xml",
+      "org.apache.httpcomponents:httpclient",
+      "org.apache.httpcomponents:httpcore",
+      "org.apache.httpcomponents:httpmime",
+      "org.apache.maven.resolver:maven-resolver-api",
+      "org.apache.maven.resolver:maven-resolver-connector-basic",
+      "org.apache.maven.resolver:maven-resolver-impl",
+      "org.apache.maven.resolver:maven-resolver-named-locks",
+      "org.apache.maven.resolver:maven-resolver-spi",
+      "org.apache.maven.resolver:maven-resolver-transport-http",
+      "org.apache.maven.resolver:maven-resolver-transport-wagon",
+      "org.apache.maven.resolver:maven-resolver-util",
+      "org.apache.maven.shared:maven-shared-utils",
+      "org.apache.maven.wagon:wagon-file",
+      "org.apache.maven.wagon:wagon-http",
+      "org.apache.maven.wagon:wagon-http-shared",
+      "org.apache.maven.wagon:wagon-provider-api",
+      "org.apache.maven:maven-api-meta",
+      "org.apache.maven:maven-api-xml",
+      "org.apache.maven:maven-artifact",
+      "org.apache.maven:maven-builder-support",
+      "org.apache.maven:maven-core",
+      "org.apache.maven:maven-embedder",
+      "org.apache.maven:maven-model",
+      "org.apache.maven:maven-model-builder",
+      "org.apache.maven:maven-plugin-api",
+      "org.apache.maven:maven-repository-metadata",
+      "org.apache.maven:maven-resolver-provider",
+      "org.apache.maven:maven-settings",
+      "org.apache.maven:maven-settings-builder",
+      "org.apache.maven:maven-xml-impl",
+      "org.apiguardian:apiguardian-api",
+      "org.ccil.cowan.tagsoup:tagsoup",
+      "org.codehaus.plexus:plexus-cipher",
+      "org.codehaus.plexus:plexus-classworlds",
+      "org.codehaus.plexus:plexus-component-annotations",
+      "org.codehaus.plexus:plexus-interpolation",
+      "org.codehaus.plexus:plexus-sec-dispatcher",
+      "org.codehaus.plexus:plexus-utils",
+      "org.codehaus.plexus:plexus-xml",
       "org.crac:crac",
       "org.eclipse.microprofile.config:microprofile-config-api",
       "org.eclipse.microprofile.context-propagation:microprofile-context-propagation-api",
       "org.eclipse.parsson:parsson",
+      "org.eclipse.sisu:org.eclipse.sisu.inject",
+      "org.eclipse.sisu:org.eclipse.sisu.plexus",
+      "org.fusesource.jansi:jansi",
+      "org.graalvm.sdk:nativeimage",
+      "org.graalvm.sdk:word",
+      "org.hamcrest:hamcrest",
       "org.jboss.logging:commons-logging-jboss-logging",
       "org.jboss.logging:jboss-logging",
       "org.jboss.logmanager:jboss-logmanager",
       "org.jboss.slf4j:slf4j-jboss-logmanager",
       "org.jboss.threads:jboss-threads",
       "org.jctools:jctools-core",
+      "org.jspecify:jspecify",
+      "org.junit.jupiter:junit-jupiter",
+      "org.junit.jupiter:junit-jupiter-api",
+      "org.junit.jupiter:junit-jupiter-engine",
+      "org.junit.jupiter:junit-jupiter-params",
+      "org.junit.platform:junit-platform-commons",
+      "org.junit.platform:junit-platform-console-standalone",
+      "org.junit.platform:junit-platform-engine",
+      "org.junit.platform:junit-platform-launcher",
+      "org.opentest4j:opentest4j",
+      "org.ow2.asm:asm",
+      "org.ow2.asm:asm-analysis",
+      "org.ow2.asm:asm-commons",
+      "org.ow2.asm:asm-tree",
+      "org.ow2.asm:asm-util",
       "org.reactivestreams:reactive-streams",
       "org.slf4j:slf4j-api",
       "org.wildfly.common:wildfly-common"
@@ -2253,9 +4725,58 @@
         "io.quarkus.runtime.logging.LevelConverter"
       ]
     },
+    "io.quarkus:quarkus-core-deployment": {
+      "io.quarkus.deployment.dev.CompilationProvider": [
+        "io.quarkus.deployment.dev.JavaCompilationProvider"
+      ],
+      "io.smallrye.config.SmallRyeConfigBuilderCustomizer": [
+        "io.quarkus.deployment.configuration.BuildTimeConfigBuilderCustomizer"
+      ]
+    },
+    "io.quarkus:quarkus-junit5": {
+      "io.quarkus.test.junit.callback.QuarkusTestAfterConstructCallback": [
+        "io.quarkus.test.junit.internal.VerifyMockitoMocksCallback"
+      ],
+      "io.quarkus.test.junit.launcher.ArtifactLauncherProvider": [
+        "io.quarkus.test.junit.launcher.DockerContainerLauncherProvider",
+        "io.quarkus.test.junit.launcher.JarLauncherProvider",
+        "io.quarkus.test.junit.launcher.NativeImageLauncherProvider"
+      ],
+      "org.junit.platform.launcher.LauncherDiscoveryListener": [
+        "io.quarkus.test.junit.launcher.CustomLauncherInterceptor"
+      ],
+      "org.junit.platform.launcher.LauncherSessionListener": [
+        "io.quarkus.test.junit.launcher.CustomLauncherInterceptor"
+      ],
+      "org.junit.platform.launcher.TestExecutionListener": [
+        "io.quarkus.test.junit.launcher.CustomLauncherInterceptor",
+        "io.quarkus.test.junit.launcher.ExecutionListener"
+      ]
+    },
+    "io.quarkus:quarkus-junit5-config": {
+      "org.junit.jupiter.api.extension.Extension": [
+        "io.quarkus.test.config.LoggingSetupExtension"
+      ],
+      "org.junit.platform.launcher.LauncherSessionListener": [
+        "io.quarkus.test.config.ConfigLauncherSession"
+      ]
+    },
     "io.quarkus:quarkus-rest": {
       "io.quarkus.runtime.test.TestHttpEndpointProvider": [
         "io.quarkus.resteasy.reactive.server.runtime.ResteasyReactiveTestHttpProvider"
+      ]
+    },
+    "io.quarkus:quarkus-test-common": {
+      "io.quarkus.test.common.http.TestHTTPResourceProvider": [
+        "io.quarkus.test.common.http.StringTestHTTPResourceProvider",
+        "io.quarkus.test.common.http.URITestHTTPResourceProvider",
+        "io.quarkus.test.common.http.URLTestHTTPResourceProvider"
+      ],
+      "io.smallrye.config.ConfigSourceInterceptor": [
+        "io.quarkus.test.common.http.TestHTTPConfigSourceInterceptor"
+      ],
+      "org.eclipse.microprofile.config.spi.ConfigSourceProvider": [
+        "io.quarkus.test.common.http.TestHTTPConfigSourceProvider"
       ]
     },
     "io.quarkus:quarkus-vertx": {
@@ -2368,9 +4889,33 @@
         "io.vertx.core.impl.launcher.commands.VersionCommandFactory"
       ]
     },
+    "org.apache.groovy:groovy": {
+      "org.codehaus.groovy.transform.ASTTransformation": [
+        "groovy.grape.GrabAnnotationTransformation"
+      ]
+    },
+    "org.apache.groovy:groovy-json": {
+      "org.apache.groovy.json.FastStringServiceFactory": [
+        "org.apache.groovy.json.DefaultFastStringServiceFactory"
+      ]
+    },
     "org.eclipse.parsson:parsson": {
       "jakarta.json.spi.JsonProvider": [
         "org.eclipse.parsson.JsonProviderImpl"
+      ]
+    },
+    "org.graalvm.sdk:nativeimage": {
+      "org.graalvm.nativeimage.Platform": [
+        "org.graalvm.nativeimage.Platform$ANDROID_AARCH64",
+        "org.graalvm.nativeimage.Platform$IOS_AARCH64",
+        "org.graalvm.nativeimage.Platform$IOS_AMD64",
+        "org.graalvm.nativeimage.Platform$LINUX_AARCH64",
+        "org.graalvm.nativeimage.Platform$LINUX_AMD64",
+        "org.graalvm.nativeimage.Platform$LINUX_RISCV64",
+        "org.graalvm.nativeimage.Platform$MACOS_AARCH64",
+        "org.graalvm.nativeimage.Platform$MACOS_AMD64",
+        "org.graalvm.nativeimage.Platform$WINDOWS_AARCH64",
+        "org.graalvm.nativeimage.Platform$WINDOWS_AMD64"
       ]
     },
     "org.jboss.logging:commons-logging-jboss-logging": {
@@ -2392,6 +4937,65 @@
     "org.jboss.slf4j:slf4j-jboss-logmanager": {
       "org.slf4j.spi.SLF4JServiceProvider": [
         "org.slf4j.impl.JBossSlf4jServiceProvider"
+      ]
+    },
+    "org.junit.jupiter:junit-jupiter-engine": {
+      "org.junit.platform.engine.TestEngine": [
+        "org.junit.jupiter.engine.JupiterTestEngine"
+      ]
+    },
+    "org.junit.platform:junit-platform-console-standalone": {
+      "java.util.spi.ToolProvider": [
+        "org.junit.platform.console.ConsoleLauncherToolProvider"
+      ],
+      "org.junit.platform.engine.TestEngine": [
+        "org.junit.jupiter.engine.JupiterTestEngine",
+        "org.junit.platform.suite.engine.SuiteTestEngine",
+        "org.junit.vintage.engine.VintageTestEngine"
+      ],
+      "org.junit.platform.engine.discovery.DiscoverySelectorIdentifierParser": [
+        "org.junit.platform.engine.discovery.ClassSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.ClasspathResourceSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.ClasspathRootSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.DirectorySelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.FileSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.IterationSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.MethodSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.ModuleSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.NestedClassSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.NestedMethodSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.PackageSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.UniqueIdSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.UriSelector$IdentifierParser"
+      ],
+      "org.junit.platform.launcher.TestExecutionListener": [
+        "org.junit.platform.launcher.listeners.UniqueIdTrackingListener",
+        "org.junit.platform.reporting.open.xml.OpenTestReportGeneratingListener"
+      ],
+      "org.opentest4j.reporting.tooling.spi.htmlreport.Contributor": [
+        "org.junit.platform.reporting.open.xml.JUnitContributor"
+      ]
+    },
+    "org.junit.platform:junit-platform-engine": {
+      "org.junit.platform.engine.discovery.DiscoverySelectorIdentifierParser": [
+        "org.junit.platform.engine.discovery.ClassSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.ClasspathResourceSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.ClasspathRootSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.DirectorySelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.FileSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.IterationSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.MethodSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.ModuleSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.NestedClassSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.NestedMethodSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.PackageSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.UniqueIdSelector$IdentifierParser",
+        "org.junit.platform.engine.discovery.UriSelector$IdentifierParser"
+      ]
+    },
+    "org.junit.platform:junit-platform-launcher": {
+      "org.junit.platform.launcher.TestExecutionListener": [
+        "org.junit.platform.launcher.listeners.UniqueIdTrackingListener"
       ]
     }
   },
