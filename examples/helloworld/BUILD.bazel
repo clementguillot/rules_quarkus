@@ -1,5 +1,5 @@
 load("@rules_java//java:java_library.bzl", "java_library")
-load("@rules_quarkus_toolchains//:defs.bzl", "quarkus_app", "quarkus_dev")
+load("@rules_quarkus_toolchains//:defs.bzl", "quarkus_app", "quarkus_dev", "quarkus_test")
 
 java_library(
     name = "lib",
@@ -21,4 +21,19 @@ quarkus_app(
 quarkus_dev(
     name = "dev",
     deps = [":lib"],
+)
+
+quarkus_test(
+    name = "test",
+    srcs = glob(["src/test/java/**/*.java"]),
+    deps = [
+        ":lib",
+        "@maven//:io_quarkus_quarkus_junit5",
+        "@maven//:io_rest_assured_rest_assured",
+        "@maven//:org_hamcrest_hamcrest",
+        "@maven//:org_junit_jupiter_junit_jupiter",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+        "@maven//:org_junit_platform_junit_platform_console_standalone",
+        "@maven//:org_junit_platform_junit_platform_launcher",
+    ],
 )

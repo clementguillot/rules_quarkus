@@ -17,9 +17,10 @@ exports_files(["defs.bzl"])
 """)
 
     rctx.file("defs.bzl", content = """\
-\"\"\"Public API — load quarkus_app and quarkus_dev from here.\"\"\"
+\"\"\"Public API — load quarkus_app, quarkus_dev, and quarkus_test from here.\"\"\"
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_app_impl.bzl", "quarkus_app_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_dev_impl.bzl", "quarkus_dev_rule")
+load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_test_impl.bzl", _quarkus_test = "quarkus_test")
 
 _QUARKUS_VERSION = "{version}"
 _QUARKIFIER_TOOL = "{tool}"
@@ -43,6 +44,41 @@ def quarkus_dev(name, **kwargs):
         deployment_deps = _DEPLOYMENT_DEPS,
         core_deployment_deps = _CORE_DEPLOYMENT_DEPS,
         **kwargs
+    )
+
+def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_classes = None, jvm_flags = None, **kwargs):
+    \"\"\"Runs @QuarkusTest-annotated JUnit 5 tests with full Quarkus augmentation.
+
+    If srcs is provided, a java_library is created internally to compile the
+    test sources. If srcs is omitted, deps must include a pre-compiled
+    java_library containing the test classes.
+    \"\"\"
+    test_deps = deps or []
+    if srcs:
+        native.java_library(
+            name = name + "_lib",
+            srcs = srcs,
+            deps = test_deps,
+            testonly = True,
+        )
+        test_deps = [":" + name + "_lib"]
+
+    test_kwargs = {{}}
+    if test_packages:
+        test_kwargs["test_packages"] = test_packages
+    if test_classes:
+        test_kwargs["test_classes"] = test_classes
+    if jvm_flags:
+        test_kwargs["jvm_flags"] = jvm_flags
+    test_kwargs.update(kwargs)
+
+    _quarkus_test(
+        name = name,
+        quarkus_version = _QUARKUS_VERSION,
+        quarkifier_tool = _QUARKIFIER_TOOL,
+        deployment_deps = _DEPLOYMENT_DEPS,
+        deps = test_deps,
+        **test_kwargs
     )
 """.format(
         version = rctx.attr.quarkus_version,

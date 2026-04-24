@@ -11,6 +11,7 @@ import io.quarkus.bootstrap.app.AugmentResult;
 import io.quarkus.bootstrap.app.CuratedApplication;
 import io.quarkus.bootstrap.app.QuarkusBootstrap;
 import io.quarkus.bootstrap.model.ApplicationModel;
+import java.io.ObjectOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -47,14 +48,32 @@ public final class AugmentationExecutor {
 
       Path appJar = appCp.get(0);
       List<Path> runtimeJars = appCp.subList(1, appCp.size());
-      ApplicationModel appModel =
-          QuarkusAppModelBuilder.build(
-              appJar, runtimeJars, deployCp, config.appName(), config.appVersion());
+
+      ApplicationModel appModel;
+      if (config.mode() == AugmentationMode.TEST) {
+        appModel =
+            QuarkusAppModelBuilder.buildForTest(
+                appJar, runtimeJars, deployCp, config.appName(), config.appVersion());
+      } else {
+        appModel =
+            QuarkusAppModelBuilder.build(
+                appJar, runtimeJars, deployCp, config.appName(), config.appVersion());
+      }
 
       // DEV mode: delegate to DevModeLauncher which starts IsolatedDevModeMain
       // with full Dev UI and hot-reload support.
       if (config.mode() == AugmentationMode.DEV) {
         DevModeLauncher.launch(config, appModel);
+        return;
+      }
+
+      // TEST mode: serialize the ApplicationModel for use by QuarkusTestExtension.
+      // No augmentation is run — the test JVM handles that via QuarkusBootstrap.Mode.TEST.
+      if (config.mode() == AugmentationMode.TEST) {
+        Path modelFile = outputDir.resolve("test-app-model.dat");
+        try (ObjectOutputStream out = new ObjectOutputStream(Files.newOutputStream(modelFile))) {
+          out.writeObject(appModel);
+        }
         return;
       }
 
