@@ -21,6 +21,8 @@ import java.util.regex.Pattern;
  * @param appName application name for Quarkus startup banner (may be {@code null})
  * @param appVersion application version for Quarkus startup banner (may be {@code null})
  * @param sourceDirs source directories for hot-reload in dev mode (comma-separated on CLI)
+ * @param classesDir mutable directory for .class files in dev mode (may be {@code null})
+ * @param bazelTargets Bazel targets to rebuild on source changes (comma-separated on CLI)
  */
 public record QuarkifierConfig(
     List<Path> applicationClasspath,
@@ -32,7 +34,9 @@ public record QuarkifierConfig(
     String expectedQuarkusVersion,
     String appName,
     String appVersion,
-    List<Path> sourceDirs) {
+    List<Path> sourceDirs,
+    Path classesDir,
+    List<String> bazelTargets) {
 
   private static final String USAGE =
       """
@@ -46,7 +50,9 @@ public record QuarkifierConfig(
               [--expected-quarkus-version <version>] \\
               [--app-name <name>] \\
               [--app-version <version>] \\
-              [--source-dirs <dir,dir,...>]""";
+              [--source-dirs <dir,dir,...>] \\
+              [--classes-dir <path>] \\
+              [--bazel-targets <label,label,...>]""";
 
   /**
    * Parses CLI arguments into an {@link QuarkifierConfig}.
@@ -68,6 +74,8 @@ public record QuarkifierConfig(
     String appName = null;
     String appVersion = null;
     String sourceDirs = null;
+    String classesDir = null;
+    String bazelTargets = null;
 
     for (int i = 0; i < args.length; i++) {
       switch (args[i]) {
@@ -81,6 +89,8 @@ public record QuarkifierConfig(
         case "--app-name" -> appName = requireValue(args, ++i, args[i - 1]);
         case "--app-version" -> appVersion = requireValue(args, ++i, args[i - 1]);
         case "--source-dirs" -> sourceDirs = requireValue(args, ++i, args[i - 1]);
+        case "--classes-dir" -> classesDir = requireValue(args, ++i, args[i - 1]);
+        case "--bazel-targets" -> bazelTargets = requireValue(args, ++i, args[i - 1]);
         default -> throw new InvalidArgumentsException("Unknown argument: " + args[i]);
       }
     }
@@ -112,7 +122,9 @@ public record QuarkifierConfig(
         expectedVersion,
         appName,
         appVersion,
-        sourceDirs != null ? splitPaths(sourceDirs, ",") : List.of());
+        sourceDirs != null ? splitPaths(sourceDirs, ",") : List.of(),
+        classesDir != null ? Path.of(classesDir) : null,
+        bazelTargets != null ? splitStrings(bazelTargets, ",") : List.of());
   }
 
   /** Serializes this config back to a CLI argument array, suitable for round-trip testing. */
@@ -161,6 +173,16 @@ public record QuarkifierConfig(
       list.add(joinPaths(sourceDirs, ","));
     }
 
+    if (classesDir != null) {
+      list.add("--classes-dir");
+      list.add(classesDir.toString());
+    }
+
+    if (!bazelTargets.isEmpty()) {
+      list.add("--bazel-targets");
+      list.add(String.join(",", bazelTargets));
+    }
+
     return list.toArray(String[]::new);
   }
 
@@ -184,6 +206,13 @@ public record QuarkifierConfig(
       return List.of();
     }
     return Arrays.stream(value.split(Pattern.quote(separator))).map(Path::of).toList();
+  }
+
+  private static List<String> splitStrings(String value, String separator) {
+    if (value.isEmpty()) {
+      return List.of();
+    }
+    return Arrays.asList(value.split(Pattern.quote(separator)));
   }
 
   private static String joinPaths(List<Path> paths, String separator) {

@@ -32,6 +32,13 @@ java_binary(
     runtime_deps = [":quarkifier_lib"],
 )
 
+java_binary(
+    name = "bazel_file_watcher",
+    main_class = "com.clementguillot.quarkifier.watcher.BazelFileWatcher",
+    visibility = ["//quarkus:__subpackages__"],
+    runtime_deps = [":quarkifier_lib"],
+)
+
 java_test(
     name = "quarkifier_test",
     srcs = glob(["src/test/java/**/*.java"]),

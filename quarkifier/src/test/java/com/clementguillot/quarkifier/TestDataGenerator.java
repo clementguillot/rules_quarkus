@@ -29,7 +29,9 @@ final class TestDataGenerator {
         RNG.nextDouble() < 0.3 ? null : randomVersion(),
         RNG.nextDouble() < 0.3 ? null : randomAlpha(3, 10),
         RNG.nextDouble() < 0.3 ? null : randomVersion(),
-        randomPathList(0, 3));
+        randomPathList(0, 3),
+        RNG.nextDouble() < 0.3 ? null : randomSafePath(),
+        randomBazelTargetList(0, 3));
   }
 
   private static List<Path> randomPathList(int min, int max) {
@@ -53,5 +55,12 @@ final class TestDataGenerator {
     var sb = new StringBuilder(len);
     for (int i = 0; i < len; i++) sb.append((char) ('a' + RNG.nextInt(26)));
     return sb.toString();
+  }
+
+  private static List<String> randomBazelTargetList(int min, int max) {
+    int size = min + RNG.nextInt(max - min + 1);
+    return IntStream.range(0, size)
+        .mapToObj(i -> "//" + randomAlpha(2, 8) + ":" + randomAlpha(2, 8))
+        .toList();
   }
 }

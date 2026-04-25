@@ -170,4 +170,87 @@ class QuarkifierConfigTest {
             });
     assertTrue(config.sourceDirs().isEmpty());
   }
+
+  @Test
+  void parse_classesDir() throws QuarkifierConfig.InvalidArgumentsException {
+    var config =
+        QuarkifierConfig.parse(
+            new String[] {
+              "--application-classpath", "a.jar",
+              "--deployment-classpath", "d.jar",
+              "--output-dir", "/out",
+              "--classes-dir", "/tmp/classes"
+            });
+    assertEquals(Path.of("/tmp/classes"), config.classesDir());
+  }
+
+  @Test
+  void parse_absentClassesDirDefaultsToNull() throws QuarkifierConfig.InvalidArgumentsException {
+    var config =
+        QuarkifierConfig.parse(
+            new String[] {
+              "--application-classpath", "a.jar",
+              "--deployment-classpath", "d.jar",
+              "--output-dir", "/out"
+            });
+    assertNull(config.classesDir());
+  }
+
+  @Test
+  void parse_bazelTargets() throws QuarkifierConfig.InvalidArgumentsException {
+    var config =
+        QuarkifierConfig.parse(
+            new String[] {
+              "--application-classpath", "a.jar",
+              "--deployment-classpath", "d.jar",
+              "--output-dir", "/out",
+              "--bazel-targets", "//pkg:lib,//pkg:other"
+            });
+    assertEquals(List.of("//pkg:lib", "//pkg:other"), config.bazelTargets());
+  }
+
+  @Test
+  void parse_absentBazelTargetsDefaultsToEmptyList()
+      throws QuarkifierConfig.InvalidArgumentsException {
+    var config =
+        QuarkifierConfig.parse(
+            new String[] {
+              "--application-classpath", "a.jar",
+              "--deployment-classpath", "d.jar",
+              "--output-dir", "/out"
+            });
+    assertTrue(config.bazelTargets().isEmpty());
+  }
+
+  @Test
+  void parse_classesDirMissingValue() {
+    var ex =
+        assertThrows(
+            QuarkifierConfig.InvalidArgumentsException.class,
+            () ->
+                QuarkifierConfig.parse(
+                    new String[] {
+                      "--application-classpath", "a.jar",
+                      "--deployment-classpath", "d.jar",
+                      "--output-dir", "/out",
+                      "--classes-dir"
+                    }));
+    assertTrue(ex.getMessage().contains("--classes-dir"));
+  }
+
+  @Test
+  void parse_bazelTargetsMissingValue() {
+    var ex =
+        assertThrows(
+            QuarkifierConfig.InvalidArgumentsException.class,
+            () ->
+                QuarkifierConfig.parse(
+                    new String[] {
+                      "--application-classpath", "a.jar",
+                      "--deployment-classpath", "d.jar",
+                      "--output-dir", "/out",
+                      "--bazel-targets"
+                    }));
+    assertTrue(ex.getMessage().contains("--bazel-targets"));
+  }
 }

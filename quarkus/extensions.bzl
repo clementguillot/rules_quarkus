@@ -24,6 +24,7 @@ load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_test_impl.bzl",
 
 _QUARKUS_VERSION = "{version}"
 _QUARKIFIER_TOOL = "{tool}"
+_FILE_WATCHER_TOOL = "{watcher_tool}"
 _DEPLOYMENT_DEPS = "@quarkus_deployment//:all"
 _CORE_DEPLOYMENT_DEPS = "@quarkus_deployment//:core"
 
@@ -41,6 +42,7 @@ def quarkus_dev(name, **kwargs):
         name = name,
         quarkus_version = _QUARKUS_VERSION,
         quarkifier_tool = _QUARKIFIER_TOOL,
+        file_watcher_tool = _FILE_WATCHER_TOOL,
         deployment_deps = _DEPLOYMENT_DEPS,
         core_deployment_deps = _CORE_DEPLOYMENT_DEPS,
         **kwargs
@@ -83,6 +85,7 @@ def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_clas
 """.format(
         version = rctx.attr.quarkus_version,
         tool = rctx.attr.quarkifier_tool,
+        watcher_tool = rctx.attr.quarkifier_tool.replace("quarkifier.jar", "bazel_file_watcher.jar"),
     ))
 
 _quarkus_toolchains_repo = repository_rule(
@@ -94,12 +97,16 @@ _quarkus_toolchains_repo = repository_rule(
 )
 
 def _quarkus_quarkifier_download_repo_impl(rctx):
-    """Downloads the quarkifier JAR from a URL (GitHub release or Maven Central)."""
+    """Downloads the quarkifier JAR and file watcher JAR from a URL (GitHub release or Maven Central)."""
     rctx.download(url = rctx.attr.url, output = "tool/quarkifier.jar")
+
+    # Download the file watcher jar (same release, different artifact name)
+    watcher_url = rctx.attr.url.replace("quarkifier-deploy.jar", "bazel-file-watcher-deploy.jar")
+    rctx.download(url = watcher_url, output = "tool/bazel_file_watcher.jar", allow_fail = True)
 
     rctx.file("BUILD.bazel", content = """\
 package(default_visibility = ["//visibility:public"])
-exports_files(["tool/quarkifier.jar"])
+exports_files(["tool/quarkifier.jar", "tool/bazel_file_watcher.jar"])
 """)
 
 _quarkus_quarkifier_download_repo = repository_rule(
@@ -167,9 +174,38 @@ def _quarkus_quarkifier_local_build_repo_impl(rctx):
 
     rctx.symlink(deploy_jar, "tool/quarkifier.jar")
 
+    # Also build and symlink the file watcher deploy jar for hot-reload
+    watcher_deploy_jar = bazel_bin + "/quarkifier/bazel_file_watcher_deploy.jar"
+    watcher_exists = rctx.execute(["test", "-f", watcher_deploy_jar]).return_code == 0
+
+    if not watcher_exists:
+        rctx.report_progress("Building file watcher deploy jar from source...")
+        build_result = rctx.execute(
+            [
+                "bazel",
+                "build",
+                "//quarkifier:bazel_file_watcher_deploy.jar",
+            ],
+            working_directory = src_workspace,
+            timeout = 300,
+        )
+        if build_result.return_code != 0:
+            fail(
+                "Failed to build file watcher deploy jar in {}:\n{}".format(
+                    src_workspace,
+                    build_result.stderr,
+                ),
+            )
+
+    watcher_result = rctx.execute(["test", "-f", watcher_deploy_jar])
+    if watcher_result.return_code != 0:
+        fail("File watcher deploy jar not found at: {}\n".format(watcher_deploy_jar))
+
+    rctx.symlink(watcher_deploy_jar, "tool/bazel_file_watcher.jar")
+
     rctx.file("BUILD.bazel", content = """\
 package(default_visibility = ["//visibility:public"])
-exports_files(["tool/quarkifier.jar"])
+exports_files(["tool/quarkifier.jar", "tool/bazel_file_watcher.jar"])
 """)
 
 _quarkus_quarkifier_local_build_repo = repository_rule(

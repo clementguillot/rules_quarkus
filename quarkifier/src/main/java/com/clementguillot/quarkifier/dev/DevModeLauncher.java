@@ -203,13 +203,16 @@ public final class DevModeLauncher {
     Path appJar = config.applicationClasspath().get(0);
     var coords = MavenCoordinateParser.parse(appJar);
 
+    // Key: classesPath points to mutable directory when available, otherwise the jar
+    Path classesPath = config.classesDir() != null ? config.classesDir() : appJar;
+
     var moduleInfo =
         new DevModeContext.ModuleInfo.Builder()
             .setArtifactKey(ArtifactKey.ga(coords.groupId(), coords.artifactId()))
             .setName(config.appName() != null ? config.appName() : coords.artifactId())
             .setProjectDirectory(config.outputDir().toAbsolutePath().toString())
             .setSourcePaths(PathList.from(config.sourceDirs()))
-            .setClassesPath(appJar.toAbsolutePath().toString())
+            .setClassesPath(classesPath.toAbsolutePath().toString())
             .setResourcePaths(PathList.from(config.resources()))
             .setTargetDir(config.outputDir().toAbsolutePath().toString())
             .build();
