@@ -25,5 +25,9 @@ class QuarkifierConfigPropertyTest {
     assertEquals(original.appName(), parsed.appName());
     assertEquals(original.appVersion(), parsed.appVersion());
     assertEquals(original.sourceDirs(), parsed.sourceDirs());
+    assertEquals(original.classesDir(), parsed.classesDir());
+    assertEquals(original.bazelTargets(), parsed.bazelTargets());
+    assertEquals(original.classesOutputDirs(), parsed.classesOutputDirs());
+    assertEquals(original.workspaceDir(), parsed.workspaceDir());
   }
 }

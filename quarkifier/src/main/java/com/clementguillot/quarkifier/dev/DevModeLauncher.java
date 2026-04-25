@@ -4,6 +4,7 @@ import com.clementguillot.quarkifier.AugmentationException;
 import com.clementguillot.quarkifier.BuildProperties;
 import com.clementguillot.quarkifier.QuarkifierConfig;
 import com.clementguillot.quarkifier.maven.MavenCoordinateParser;
+import com.clementguillot.quarkifier.watcher.BazelFileWatcher;
 import io.quarkus.bootstrap.BootstrapConstants;
 import io.quarkus.bootstrap.app.QuarkusBootstrap;
 import io.quarkus.bootstrap.model.ApplicationModel;
@@ -27,6 +28,7 @@ import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import org.jboss.logging.Logger;
 
 /**
  * Launches Quarkus in dev mode with full Dev UI support via {@code IsolatedDevModeMain}.
@@ -39,6 +41,8 @@ import java.util.zip.ZipOutputStream;
  * @see <a href="../../../../../../docs/dev-mode.md">docs/dev-mode.md</a> for the full architecture
  */
 public final class DevModeLauncher {
+
+  private static final Logger LOGGER = Logger.getLogger(DevModeLauncher.class);
 
   private DevModeLauncher() {}
 
@@ -78,9 +82,34 @@ public final class DevModeLauncher {
       pb.inheritIO();
       Process process = pb.start();
 
-      // 5. Wait for the child process
-      Runtime.getRuntime().addShutdownHook(new Thread(process::destroyForcibly));
+      // 5. Start file watcher for hot-reload (if configured)
+      final BazelFileWatcher watcher;
+      if (config.classesDir() != null
+          && !config.bazelTargets().isEmpty()
+          && !config.sourceDirs().isEmpty()) {
+        LOGGER.debug("[hot-reload] Starting file watcher...");
+        watcher = BazelFileWatcher.startInBackground(config);
+      } else {
+        watcher = null;
+      }
+
+      // 6. Wait for the child process
+      Runtime.getRuntime()
+          .addShutdownHook(
+              new Thread(
+                  () -> {
+                    process.destroyForcibly();
+                    if (watcher != null) {
+                      watcher.close();
+                    }
+                  }));
       int exitCode = process.waitFor();
+
+      // Close watcher after child exits
+      if (watcher != null) {
+        watcher.close();
+      }
+
       if (exitCode != 0) {
         throw new AugmentationException("Dev mode process exited with code " + exitCode);
       }
@@ -203,13 +232,16 @@ public final class DevModeLauncher {
     Path appJar = config.applicationClasspath().get(0);
     var coords = MavenCoordinateParser.parse(appJar);
 
+    // Key: classesPath points to mutable directory when available, otherwise the jar
+    Path classesPath = config.classesDir() != null ? config.classesDir() : appJar;
+
     var moduleInfo =
         new DevModeContext.ModuleInfo.Builder()
             .setArtifactKey(ArtifactKey.ga(coords.groupId(), coords.artifactId()))
             .setName(config.appName() != null ? config.appName() : coords.artifactId())
             .setProjectDirectory(config.outputDir().toAbsolutePath().toString())
             .setSourcePaths(PathList.from(config.sourceDirs()))
-            .setClassesPath(appJar.toAbsolutePath().toString())
+            .setClassesPath(classesPath.toAbsolutePath().toString())
             .setResourcePaths(PathList.from(config.resources()))
             .setTargetDir(config.outputDir().toAbsolutePath().toString())
             .build();

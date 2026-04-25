@@ -6,6 +6,7 @@ load("//tools/lint:linters.bzl", "pmd_test")
 java_library(
     name = "quarkifier_lib",
     srcs = glob(["src/main/java/**/*.java"]),
+    resources = glob(["src/main/resources/**/*"]),
     visibility = ["//quarkifier:__pkg__"],
     deps = [
         # Quarkus Bootstrap
