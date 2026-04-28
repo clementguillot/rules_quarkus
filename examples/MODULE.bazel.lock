@@ -257,7 +257,7 @@
   "moduleExtensions": {
     "@@com_clementguillot_rules_quarkus~//quarkus:extensions.bzl%quarkus": {
       "general": {
-        "bzlTransitiveDigest": "aW0r+begcOwUT5+ATFTMzlFvmD57tS8EokKbJ8dVOvw=",
+        "bzlTransitiveDigest": "RgrlpyHPDbuHFbCtRWOrcTcUYJvqMK1EqdwxdR5PazQ=",
         "usagesDigest": "Y8cVuvDn5b1PJ79y27no7379GwZf9SFHgjEsdutOomI=",
         "recordedFileInputs": {
           "@@//maven_install.json": "f89ef83739ae6ee3eaec36cf43454239290f6f89371a32580c0b643d1465dfc9"

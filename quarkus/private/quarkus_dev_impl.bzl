@@ -193,6 +193,7 @@ def _quarkus_dev_impl(ctx):
             "%{core_deploy_cp_file}": core_deploy_cp_file.short_path,
             "%{quarkus_version}": ctx.attr.quarkus_version,
             "%{app_name}": ctx.label.name,
+            "%{app_version_flag}": "--app-version " + ctx.attr.version if ctx.attr.version else "",
             "%{source_dirs_file}": source_dirs_file.short_path,
             "%{bazel_targets_file}": bazel_targets_file.short_path,
             "%{classes_output_dirs_file}": classes_output_dirs_file.short_path,
@@ -228,6 +229,9 @@ quarkus_dev_rule = rule(
             mandatory = True,
             providers = [JavaInfo],
             doc = "java_library and Maven artifact targets.",
+        ),
+        "version": attr.string(
+            doc = "Application version shown in Quarkus startup banner.",
         ),
         "quarkus_version": attr.string(doc = "Quarkus version (set by macro)."),
         "quarkifier_tool": attr.label(

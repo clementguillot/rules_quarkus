@@ -109,5 +109,6 @@ java \
   --mode dev \
   --expected-quarkus-version %{quarkus_version} \
   --app-name %{app_name} \
+  %{app_version_flag} \
   ${HOT_RELOAD_ARGS[@]+"${HOT_RELOAD_ARGS[@]}"} \
   "$@" || exit $?

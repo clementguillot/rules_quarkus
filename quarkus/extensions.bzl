@@ -17,7 +17,11 @@ exports_files(["defs.bzl"])
 """)
 
     rctx.file("defs.bzl", content = """\
-\"\"\"Public API — load quarkus_app, quarkus_dev, and quarkus_test from here.\"\"\"
+\"\"\"Public API — load quarkus_app and quarkus_test from here.
+
+quarkus_app() automatically creates a <name>_dev target for Quarkus dev mode
+with hot-reload support. Use dev=False to opt out.
+\"\"\"
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_app_impl.bzl", "quarkus_app_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_dev_impl.bzl", "quarkus_dev_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_test_impl.bzl", _quarkus_test = "quarkus_test")
@@ -27,7 +31,18 @@ _QUARKIFIER_TOOL = "{tool}"
 _DEPLOYMENT_DEPS = "@quarkus_deployment//:all"
 _CORE_DEPLOYMENT_DEPS = "@quarkus_deployment//:core"
 
-def quarkus_app(name, **kwargs):
+def quarkus_app(name, dev = True, **kwargs):
+    \"\"\"Builds a Quarkus application and optionally creates a dev-mode target.
+
+    Creates:
+      - <name>: production Fast_Jar target (bazel run //pkg:<name>)
+      - <name>_dev: dev mode with hot-reload (bazel run //pkg:<name>_dev), unless dev=False
+
+    Args:
+        name: Target name.
+        dev: If True (default), also creates a <name>_dev target for dev mode.
+        **kwargs: Passed to the underlying quarkus_app_rule (deps, version, jvm_flags, etc.).
+    \"\"\"
     quarkus_app_rule(
         name = name,
         quarkus_version = _QUARKUS_VERSION,
@@ -35,16 +50,18 @@ def quarkus_app(name, **kwargs):
         deployment_deps = _DEPLOYMENT_DEPS,
         **kwargs
     )
-
-def quarkus_dev(name, **kwargs):
-    quarkus_dev_rule(
-        name = name,
-        quarkus_version = _QUARKUS_VERSION,
-        quarkifier_tool = _QUARKIFIER_TOOL,
-        deployment_deps = _DEPLOYMENT_DEPS,
-        core_deployment_deps = _CORE_DEPLOYMENT_DEPS,
-        **kwargs
-    )
+    if dev:
+        deps = kwargs.get("deps", [])
+        version = kwargs.get("version", "")
+        quarkus_dev_rule(
+            name = name + "_dev",
+            quarkus_version = _QUARKUS_VERSION,
+            quarkifier_tool = _QUARKIFIER_TOOL,
+            deployment_deps = _DEPLOYMENT_DEPS,
+            core_deployment_deps = _CORE_DEPLOYMENT_DEPS,
+            deps = deps,
+            version = version,
+        )
 
 def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_classes = None, jvm_flags = None, **kwargs):
     \"\"\"Runs @QuarkusTest-annotated JUnit 5 tests with full Quarkus augmentation.
