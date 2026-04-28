@@ -8,14 +8,14 @@ output, and generating a launcher script for `bazel run`.
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusAppInfo")
-load("//quarkus/private:classpath_utils.bzl", "collect_runtime_classpath", "collect_source_dirs")
+load("//quarkus/private:classpath_utils.bzl", "collect_runtime_classpath", "collect_source_jars")
 
 def _quarkus_app_impl(ctx):
     if not ctx.attr.deps:
         fail("quarkus_app rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
 
     runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
-    source_dirs = collect_source_dirs(ctx.attr.deps)
+    source_jars = collect_source_jars(ctx.attr.deps)
     output_dir = ctx.actions.declare_directory(ctx.label.name + "-quarkus-app")
 
     deployment_classpath = collect_runtime_classpath([ctx.attr.deployment_deps]) if ctx.attr.deployment_deps else depset()
@@ -67,10 +67,10 @@ def _quarkus_app_impl(ctx):
         template = ctx.file._launcher_template,
         output = launcher,
         substitutions = {
-            "%{workspace}": ctx.workspace_name,
-            "%{output_dir}": output_dir.short_path,
             "%{jvm_flags}": jvm_flags,
             "%{main_class_flag}": main_class_flag,
+            "%{output_dir}": output_dir.short_path,
+            "%{workspace}": ctx.workspace_name,
         },
         is_executable = True,
     )
@@ -86,7 +86,7 @@ def _quarkus_app_impl(ctx):
         QuarkusAppInfo(
             fast_jar_dir = output_dir,
             application_classpath = runtime_classpath,
-            source_dirs = source_dirs,
+            source_jars = source_jars,
             quarkus_version = ctx.attr.quarkus_version,
         ),
     ]
@@ -95,6 +95,7 @@ quarkus_app_rule = rule(
     implementation = _quarkus_app_impl,
     executable = True,
     attrs = {
+        "deployment_deps": attr.label(doc = "Deployment deps (set by macro)."),
         "deps": attr.label_list(
             mandatory = True,
             providers = [JavaInfo],
@@ -106,15 +107,14 @@ quarkus_app_rule = rule(
         "main_class": attr.string(
             doc = "Override main class. Defaults to the Quarkus runner.",
         ),
-        "version": attr.string(
-            doc = "Application version shown in Quarkus startup banner.",
-        ),
-        "quarkus_version": attr.string(doc = "Quarkus version (set by macro)."),
         "quarkifier_tool": attr.label(
             allow_single_file = [".jar"],
             doc = "Quarkifier deploy jar (fat jar with all tool deps bundled).",
         ),
-        "deployment_deps": attr.label(doc = "Deployment deps (set by macro)."),
+        "quarkus_version": attr.string(doc = "Quarkus version (set by macro)."),
+        "version": attr.string(
+            doc = "Application version shown in Quarkus startup banner.",
+        ),
         "_java_runtime": attr.label(
             default = "@bazel_tools//tools/jdk:current_java_runtime",
         ),

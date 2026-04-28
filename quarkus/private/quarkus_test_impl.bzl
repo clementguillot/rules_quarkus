@@ -13,11 +13,7 @@ that jar paths in the ApplicationModel match the actual runfiles locations.
 
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
-load("//quarkus/private:classpath_utils.bzl", "collect_runtime_classpath")
-
-def _short_path(file):
-    """Returns the short_path of a File for use with args.add_joined map_each."""
-    return file.short_path
+load("//quarkus/private:classpath_utils.bzl", "collect_runtime_classpath", "short_path")
 
 def _build_test_args(test_packages, test_classes):
     """Builds JUnit ConsoleLauncher CLI arguments."""
@@ -56,13 +52,13 @@ def _quarkus_test_impl(ctx):
     # Write runtime classpath file (for both JUnit -cp and quarkifier --application-classpath)
     cp_file = ctx.actions.declare_file(ctx.label.name + "_cp.txt")
     cp_args = ctx.actions.args()
-    cp_args.add_joined(runtime_classpath, join_with = ":", map_each = _short_path)
+    cp_args.add_joined(runtime_classpath, join_with = ":", map_each = short_path)
     ctx.actions.write(output = cp_file, content = cp_args)
 
     # Write deployment classpath file (for quarkifier only, NOT on JUnit -cp)
     deploy_cp_file = ctx.actions.declare_file(ctx.label.name + "_deploy_cp.txt")
     deploy_cp_args = ctx.actions.args()
-    deploy_cp_args.add_joined(deploy_classpath, join_with = ":", map_each = _short_path)
+    deploy_cp_args.add_joined(deploy_classpath, join_with = ":", map_each = short_path)
     ctx.actions.write(output = deploy_cp_file, content = deploy_cp_args)
 
     # Write direct dep jars file (comma-separated, for OUTPUT_SOURCES_DIR).
@@ -71,7 +67,7 @@ def _quarkus_test_impl(ctx):
     direct_jars = _collect_direct_jars(ctx.attr.deps)
     direct_jars_file = ctx.actions.declare_file(ctx.label.name + "_direct_jars.txt")
     direct_jars_args = ctx.actions.args()
-    direct_jars_args.add_joined(direct_jars, join_with = ",", map_each = _short_path)
+    direct_jars_args.add_joined(direct_jars, join_with = ",", map_each = short_path)
     ctx.actions.write(output = direct_jars_file, content = direct_jars_args)
 
     # Build test arguments
@@ -88,16 +84,16 @@ def _quarkus_test_impl(ctx):
         template = ctx.file._launcher_template,
         output = launcher,
         substitutions = {
-            "%{workspace}": ctx.workspace_name,
+            "%{app_name}": ctx.label.name,
             "%{classpath_file}": cp_file.short_path,
             "%{deploy_cp_file}": deploy_cp_file.short_path,
             "%{direct_jars_file}": direct_jars_file.short_path,
-            "%{tool_jar}": tool_jar.short_path,
-            "%{jvm_flags}": " ".join(ctx.attr.jvm_flags),
-            "%{test_args}": test_args,
             "%{java_home}": java_home,
+            "%{jvm_flags}": " ".join(ctx.attr.jvm_flags),
             "%{quarkus_version}": ctx.attr.quarkus_version,
-            "%{app_name}": ctx.label.name,
+            "%{test_args}": test_args,
+            "%{tool_jar}": tool_jar.short_path,
+            "%{workspace}": ctx.workspace_name,
         },
         is_executable = True,
     )
@@ -117,6 +113,7 @@ quarkus_test = rule(
     implementation = _quarkus_test_impl,
     test = True,
     attrs = {
+        "deployment_deps": attr.label(doc = "Deployment deps (set by macro)."),
         "deps": attr.label_list(
             mandatory = True,
             providers = [JavaInfo],
@@ -125,18 +122,17 @@ quarkus_test = rule(
         "jvm_flags": attr.string_list(
             doc = "JVM flags passed to the java command when running tests.",
         ),
-        "test_packages": attr.string_list(
-            doc = "Java packages to scan for test classes (--select-package).",
-        ),
-        "test_classes": attr.string_list(
-            doc = "Fully-qualified test class names to run (--select-class).",
-        ),
-        "quarkus_version": attr.string(doc = "Quarkus version (set by macro)."),
         "quarkifier_tool": attr.label(
             allow_single_file = [".jar"],
             doc = "Quarkifier deploy jar (fat jar with all tool deps bundled).",
         ),
-        "deployment_deps": attr.label(doc = "Deployment deps (set by macro)."),
+        "quarkus_version": attr.string(doc = "Quarkus version (set by macro)."),
+        "test_classes": attr.string_list(
+            doc = "Fully-qualified test class names to run (--select-class).",
+        ),
+        "test_packages": attr.string_list(
+            doc = "Java packages to scan for test classes (--select-package).",
+        ),
         "_java_runtime": attr.label(
             default = "@bazel_tools//tools/jdk:current_java_runtime",
         ),

@@ -11,55 +11,7 @@ mutable directory for Quarkus hot-reload.
 
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
-load("//quarkus/private:classpath_utils.bzl", "collect_runtime_classpath")
-
-def _short_path(f):
-    return f.short_path
-
-def _collect_java_source_dirs(deps):
-    """Extracts source directory paths from java_library deps.
-
-    Derives source root directories from each dep's package path using
-    standard Maven-layout markers (src/main/java, src/test/java).
-    For a dep at //pkg:lib, checks for pkg/src/main/java.
-
-    Args:
-        deps: List of targets providing JavaInfo.
-    Returns:
-        A deduplicated list of workspace-relative source directory path strings.
-    """
-    source_dirs = []
-    seen = {}
-    for dep in deps:
-        if JavaInfo in dep:
-            # Use the dep's package path to derive source directories
-            pkg_path = dep.label.package
-            for marker in ["src/main/java", "src/test/java"]:
-                candidate = pkg_path + "/" + marker if pkg_path else marker
-                if candidate not in seen:
-                    seen[candidate] = True
-                    source_dirs.append(candidate)
-    return source_dirs
-
-def _is_local_artifact(file):
-    return file.owner != None and not file.owner.workspace_name
-
-def _collect_transitive_java_source_dirs(runtime_classpath):
-    """Derives candidate source roots from transitive local Java output jars."""
-    source_dirs = []
-    seen = {}
-    for jar in runtime_classpath.to_list():
-        if not _is_local_artifact(jar):
-            continue
-
-        pkg_path = jar.owner.package
-
-        for marker in ["src/main/java", "src/test/java"]:
-            candidate = pkg_path + "/" + marker if pkg_path else marker
-            if candidate not in seen:
-                seen[candidate] = True
-                source_dirs.append(candidate)
-    return source_dirs
+load("//quarkus/private:classpath_utils.bzl", "collect_runtime_classpath", "collect_source_dir_paths", "is_local_artifact", "short_path")
 
 def _collect_bazel_targets(deps):
     """Collects Bazel target labels from deps that have JavaInfo.
@@ -125,7 +77,7 @@ def _collect_classes_output_dirs(deps, runtime_classpath):
             jars.append(jar_path)
     for jar in runtime_classpath.to_list():
         jar_path = jar.path
-        if not _is_local_artifact(jar):
+        if not is_local_artifact(jar):
             continue
         if jar_path in seen:
             continue
@@ -151,22 +103,19 @@ def _quarkus_dev_impl(ctx):
     core_deploy_cp_file = ctx.actions.declare_file(ctx.label.name + "_core_deploy_cp.txt")
 
     app_cp_args = ctx.actions.args()
-    app_cp_args.add_joined(runtime_classpath, join_with = ":", map_each = _short_path)
+    app_cp_args.add_joined(runtime_classpath, join_with = ":", map_each = short_path)
     ctx.actions.write(output = app_cp_file, content = app_cp_args)
 
     deploy_cp_args = ctx.actions.args()
-    deploy_cp_args.add_joined(depset(transitive = [runtime_classpath, deployment_classpath]), join_with = ":", map_each = _short_path)
+    deploy_cp_args.add_joined(depset(transitive = [runtime_classpath, deployment_classpath]), join_with = ":", map_each = short_path)
     ctx.actions.write(output = deploy_cp_file, content = deploy_cp_args)
 
     core_deploy_cp_args = ctx.actions.args()
-    core_deploy_cp_args.add_joined(core_deployment_classpath, join_with = ":", map_each = _short_path)
+    core_deploy_cp_args.add_joined(core_deployment_classpath, join_with = ":", map_each = short_path)
     ctx.actions.write(output = core_deploy_cp_file, content = core_deploy_cp_args)
 
-    # Collect source directories from java_library deps for hot-reload support.
-    source_dirs = _collect_java_source_dirs(ctx.attr.deps)
-    for source_dir in _collect_transitive_java_source_dirs(runtime_classpath):
-        if source_dir not in source_dirs:
-            source_dirs.append(source_dir)
+    # Collect source directories from deps and transitive classpath for hot-reload.
+    source_dirs = collect_source_dir_paths(ctx.attr.deps, runtime_classpath)
     source_dirs_file = ctx.actions.declare_file(ctx.label.name + "_source_dirs.txt")
     ctx.actions.write(output = source_dirs_file, content = ",".join(source_dirs))
 
@@ -186,17 +135,17 @@ def _quarkus_dev_impl(ctx):
         template = ctx.file._dev_launcher_template,
         output = launcher,
         substitutions = {
-            "%{workspace}": ctx.workspace_name,
-            "%{tool_jar}": tool_jar.short_path,
             "%{app_cp_file}": app_cp_file.short_path,
-            "%{deploy_cp_file}": deploy_cp_file.short_path,
-            "%{core_deploy_cp_file}": core_deploy_cp_file.short_path,
-            "%{quarkus_version}": ctx.attr.quarkus_version,
-            "%{app_name}": ctx.label.name,
+            "%{app_name}": ctx.label.name[:-4] if ctx.label.name.endswith("_dev") else ctx.label.name,
             "%{app_version_flag}": "--app-version " + ctx.attr.version if ctx.attr.version else "",
-            "%{source_dirs_file}": source_dirs_file.short_path,
             "%{bazel_targets_file}": bazel_targets_file.short_path,
             "%{classes_output_dirs_file}": classes_output_dirs_file.short_path,
+            "%{core_deploy_cp_file}": core_deploy_cp_file.short_path,
+            "%{deploy_cp_file}": deploy_cp_file.short_path,
+            "%{quarkus_version}": ctx.attr.quarkus_version,
+            "%{source_dirs_file}": source_dirs_file.short_path,
+            "%{tool_jar}": tool_jar.short_path,
+            "%{workspace}": ctx.workspace_name,
         },
         is_executable = True,
     )
@@ -225,27 +174,27 @@ quarkus_dev_rule = rule(
     implementation = _quarkus_dev_impl,
     executable = True,
     attrs = {
+        "core_deployment_deps": attr.label(doc = "Core deployment deps only — quarkus-core-deployment transitive closure (set by macro)."),
+        "deployment_deps": attr.label(doc = "All deployment deps including extensions (set by macro)."),
         "deps": attr.label_list(
             mandatory = True,
             providers = [JavaInfo],
             doc = "java_library and Maven artifact targets.",
         ),
-        "version": attr.string(
-            doc = "Application version shown in Quarkus startup banner.",
-        ),
-        "quarkus_version": attr.string(doc = "Quarkus version (set by macro)."),
         "quarkifier_tool": attr.label(
             allow_single_file = [".jar"],
             doc = "Quarkifier deploy jar.",
         ),
-        "deployment_deps": attr.label(doc = "All deployment deps including extensions (set by macro)."),
-        "core_deployment_deps": attr.label(doc = "Core deployment deps only — quarkus-core-deployment transitive closure (set by macro)."),
-        "_java_runtime": attr.label(
-            default = "@bazel_tools//tools/jdk:current_java_runtime",
+        "quarkus_version": attr.string(doc = "Quarkus version (set by macro)."),
+        "version": attr.string(
+            doc = "Application version shown in Quarkus startup banner.",
         ),
         "_dev_launcher_template": attr.label(
             default = Label("//quarkus/private:dev_launcher.sh.tpl"),
             allow_single_file = True,
+        ),
+        "_java_runtime": attr.label(
+            default = "@bazel_tools//tools/jdk:current_java_runtime",
         ),
     },
 )

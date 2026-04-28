@@ -397,22 +397,12 @@ def _quarkus_impl(mctx):
 
 _toolchain_tag = tag_class(
     attrs = {
-        "quarkus_version": attr.string(
-            mandatory = True,
-            doc = "The Quarkus version to use (e.g. '3.27.3').",
-        ),
-        "lock_file": attr.label(
-            doc = "Path to maven_install.json for auto-discovering Quarkus extensions.",
-        ),
         "extension_group_prefixes": attr.string_list(
             default = ["io.quarkus", "io.quarkiverse."],
             doc = "Maven groupId prefixes that identify Quarkus extensions.",
         ),
-        "quarkifier_tool": attr.label(
-            doc = """\
-Override the quarkifier tool target with a pre-built deploy jar label.
-Example: '//:quarkifier_deploy.jar'
-""",
+        "lock_file": attr.label(
+            doc = "Path to maven_install.json for auto-discovering Quarkus extensions.",
         ),
         "quarkifier_source_dir": attr.label(
             doc = """\
@@ -421,6 +411,16 @@ directory is used to build the quarkifier deploy jar locally.
 Used for local development and e2e testing.
 Example: '@com_clementguillot_rules_quarkus//:MODULE.bazel'
 """,
+        ),
+        "quarkifier_tool": attr.label(
+            doc = """\
+Override the quarkifier tool target with a pre-built deploy jar label.
+Example: '//:quarkifier_deploy.jar'
+""",
+        ),
+        "quarkus_version": attr.string(
+            mandatory = True,
+            doc = "The Quarkus version to use (e.g. '3.27.3').",
         ),
     },
 )
