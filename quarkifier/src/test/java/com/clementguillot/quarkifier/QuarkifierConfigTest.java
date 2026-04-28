@@ -95,11 +95,9 @@ class QuarkifierConfigTest {
   void parse_defaultModeIsNormal() throws QuarkifierConfig.InvalidArgumentsException {
     var config =
         QuarkifierConfig.parse(
-            new String[] {
-              "--application-classpath", "a.jar",
-              "--deployment-classpath", "d.jar",
-              "--output-dir", "/out"
-            });
+            "--application-classpath", "a.jar",
+            "--deployment-classpath", "d.jar",
+            "--output-dir", "/out");
     assertEquals(AugmentationMode.NORMAL, config.mode());
   }
 
@@ -107,11 +105,9 @@ class QuarkifierConfigTest {
   void parse_emptyApplicationClasspath() throws QuarkifierConfig.InvalidArgumentsException {
     var config =
         QuarkifierConfig.parse(
-            new String[] {
-              "--application-classpath", "",
-              "--deployment-classpath", "d.jar",
-              "--output-dir", "/out"
-            });
+            "--application-classpath", "",
+            "--deployment-classpath", "d.jar",
+            "--output-dir", "/out");
     assertTrue(config.applicationClasspath().isEmpty());
   }
 
@@ -119,12 +115,10 @@ class QuarkifierConfigTest {
   void parse_testMode() throws QuarkifierConfig.InvalidArgumentsException {
     var config =
         QuarkifierConfig.parse(
-            new String[] {
-              "--application-classpath", "a.jar",
-              "--deployment-classpath", "d.jar",
-              "--output-dir", "/out",
-              "--mode", "test"
-            });
+            "--application-classpath", "a.jar",
+            "--deployment-classpath", "d.jar",
+            "--output-dir", "/out",
+            "--mode", "test");
     assertEquals(AugmentationMode.TEST, config.mode());
   }
 
@@ -132,12 +126,10 @@ class QuarkifierConfigTest {
   void parse_sourceDirs() throws QuarkifierConfig.InvalidArgumentsException {
     var config =
         QuarkifierConfig.parse(
-            new String[] {
-              "--application-classpath", "a.jar",
-              "--deployment-classpath", "d.jar",
-              "--output-dir", "/out",
-              "--source-dirs", "src/main/java,lib/src/main/java"
-            });
+            "--application-classpath", "a.jar",
+            "--deployment-classpath", "d.jar",
+            "--output-dir", "/out",
+            "--source-dirs", "src/main/java,lib/src/main/java");
     assertEquals(
         List.of(Path.of("src/main/java"), Path.of("lib/src/main/java")), config.sourceDirs());
   }
@@ -163,11 +155,161 @@ class QuarkifierConfigTest {
       throws QuarkifierConfig.InvalidArgumentsException {
     var config =
         QuarkifierConfig.parse(
-            new String[] {
-              "--application-classpath", "a.jar",
-              "--deployment-classpath", "d.jar",
-              "--output-dir", "/out"
-            });
+            "--application-classpath", "a.jar",
+            "--deployment-classpath", "d.jar",
+            "--output-dir", "/out");
     assertTrue(config.sourceDirs().isEmpty());
+  }
+
+  @Test
+  void parse_classesDir() throws QuarkifierConfig.InvalidArgumentsException {
+    var config =
+        QuarkifierConfig.parse(
+            "--application-classpath", "a.jar",
+            "--deployment-classpath", "d.jar",
+            "--output-dir", "/out",
+            "--classes-dir", "/tmp/classes");
+    assertEquals(Path.of("/tmp/classes"), config.classesDir());
+  }
+
+  @Test
+  void parse_absentClassesDirDefaultsToNull() throws QuarkifierConfig.InvalidArgumentsException {
+    var config =
+        QuarkifierConfig.parse(
+            "--application-classpath", "a.jar",
+            "--deployment-classpath", "d.jar",
+            "--output-dir", "/out");
+    assertNull(config.classesDir());
+  }
+
+  @Test
+  void parse_bazelTargets() throws QuarkifierConfig.InvalidArgumentsException {
+    var config =
+        QuarkifierConfig.parse(
+            "--application-classpath", "a.jar",
+            "--deployment-classpath", "d.jar",
+            "--output-dir", "/out",
+            "--bazel-targets", "//pkg:lib,//pkg:other");
+    assertEquals(List.of("//pkg:lib", "//pkg:other"), config.bazelTargets());
+  }
+
+  @Test
+  void parse_absentBazelTargetsDefaultsToEmptyList()
+      throws QuarkifierConfig.InvalidArgumentsException {
+    var config =
+        QuarkifierConfig.parse(
+            "--application-classpath", "a.jar",
+            "--deployment-classpath", "d.jar",
+            "--output-dir", "/out");
+    assertTrue(config.bazelTargets().isEmpty());
+  }
+
+  @Test
+  void parse_classesDirMissingValue() {
+    var ex =
+        assertThrows(
+            QuarkifierConfig.InvalidArgumentsException.class,
+            () ->
+                QuarkifierConfig.parse(
+                    new String[] {
+                      "--application-classpath", "a.jar",
+                      "--deployment-classpath", "d.jar",
+                      "--output-dir", "/out",
+                      "--classes-dir"
+                    }));
+    assertTrue(ex.getMessage().contains("--classes-dir"));
+  }
+
+  @Test
+  void parse_bazelTargetsMissingValue() {
+    var ex =
+        assertThrows(
+            QuarkifierConfig.InvalidArgumentsException.class,
+            () ->
+                QuarkifierConfig.parse(
+                    new String[] {
+                      "--application-classpath", "a.jar",
+                      "--deployment-classpath", "d.jar",
+                      "--output-dir", "/out",
+                      "--bazel-targets"
+                    }));
+    assertTrue(ex.getMessage().contains("--bazel-targets"));
+  }
+
+  @Test
+  void parse_classesOutputDirs() throws QuarkifierConfig.InvalidArgumentsException {
+    var config =
+        QuarkifierConfig.parse(
+            "--application-classpath", "a.jar",
+            "--deployment-classpath", "d.jar",
+            "--output-dir", "/out",
+            "--classes-output-dirs", "bazel-bin/pkg/lib,bazel-bin/pkg/other");
+    assertEquals(
+        List.of(Path.of("bazel-bin/pkg/lib"), Path.of("bazel-bin/pkg/other")),
+        config.classesOutputDirs());
+  }
+
+  @Test
+  void parse_absentClassesOutputDirsDefaultsToEmptyList()
+      throws QuarkifierConfig.InvalidArgumentsException {
+    var config =
+        QuarkifierConfig.parse(
+            "--application-classpath", "a.jar",
+            "--deployment-classpath", "d.jar",
+            "--output-dir", "/out");
+    assertTrue(config.classesOutputDirs().isEmpty());
+  }
+
+  @Test
+  void parse_classesOutputDirsMissingValue() {
+    var ex =
+        assertThrows(
+            QuarkifierConfig.InvalidArgumentsException.class,
+            () ->
+                QuarkifierConfig.parse(
+                    new String[] {
+                      "--application-classpath", "a.jar",
+                      "--deployment-classpath", "d.jar",
+                      "--output-dir", "/out",
+                      "--classes-output-dirs"
+                    }));
+    assertTrue(ex.getMessage().contains("--classes-output-dirs"));
+  }
+
+  @Test
+  void parse_workspaceDir() throws QuarkifierConfig.InvalidArgumentsException {
+    var config =
+        QuarkifierConfig.parse(
+            "--application-classpath", "a.jar",
+            "--deployment-classpath", "d.jar",
+            "--output-dir", "/out",
+            "--workspace-dir", "/home/user/project");
+    assertEquals(Path.of("/home/user/project"), config.workspaceDir());
+  }
+
+  @Test
+  void parse_absentWorkspaceDirDefaultsToNull() throws QuarkifierConfig.InvalidArgumentsException {
+    var config =
+        QuarkifierConfig.parse(
+            "--application-classpath", "a.jar",
+            "--deployment-classpath", "d.jar",
+            "--output-dir", "/out");
+    assertNull(config.workspaceDir());
+  }
+
+  @Test
+  void parse_workspaceDirMissingValue() {
+    var ex =
+        assertThrows(
+            QuarkifierConfig.InvalidArgumentsException.class,
+            () ->
+                QuarkifierConfig.parse(
+                    new String[] {
+                      "--application-classpath", "a.jar",
+                      "--deployment-classpath", "d.jar",
+                      "--output-dir", "/out",
+                      "--workspace-dir"
+                    }));
+    assertTrue(ex.getMessage().contains("--workspace-dir"));
   }
 }

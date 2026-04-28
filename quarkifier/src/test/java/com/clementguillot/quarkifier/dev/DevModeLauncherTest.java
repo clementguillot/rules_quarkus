@@ -24,7 +24,12 @@ class DevModeLauncherTest {
         "3.27.3",
         "my-app",
         "1.0.0",
-        sourceDirs);
+        sourceDirs,
+        null,
+        List.of(),
+        List.of(),
+        null,
+        60);
   }
 
   @Test
@@ -93,7 +98,12 @@ class DevModeLauncherTest {
             "3.27.3",
             "my-app",
             "1.0.0",
-            List.of(Path.of("src/main/java")));
+            List.of(Path.of("src/main/java")),
+            null,
+            List.of(),
+            List.of(),
+            null,
+            60);
 
     var context = DevModeLauncher.buildDevModeContext(config);
 
@@ -102,5 +112,44 @@ class DevModeLauncherTest {
     assertEquals(
         config.outputDir().toAbsolutePath().toString(),
         context.getApplicationRoot().getTargetDir());
+  }
+
+  @Test
+  void buildDevModeContext_withClassesDir_usesClassesDirForClassesPath() {
+    var classesDir = Path.of("/tmp/mutable-classes");
+    var config =
+        new QuarkifierConfig(
+            List.of(Path.of("app.jar")),
+            List.of(Path.of("deploy.jar")),
+            List.of(),
+            Path.of("/tmp/output"),
+            List.of(),
+            AugmentationMode.DEV,
+            "3.27.3",
+            "my-app",
+            "1.0.0",
+            List.of(Path.of("src/main/java")),
+            classesDir,
+            List.of("//pkg:lib"),
+            List.of(),
+            null,
+            60);
+
+    var context = DevModeLauncher.buildDevModeContext(config);
+
+    assertEquals(
+        classesDir.toAbsolutePath().toString(),
+        context.getApplicationRoot().getMain().getClassesPath());
+  }
+
+  @Test
+  void buildDevModeContext_withoutClassesDir_usesAppJarForClassesPath() {
+    var config = configWithSourceDirs(List.of(Path.of("src/main/java")));
+
+    var context = DevModeLauncher.buildDevModeContext(config);
+
+    assertEquals(
+        Path.of("app.jar").toAbsolutePath().toString(),
+        context.getApplicationRoot().getMain().getClassesPath());
   }
 }

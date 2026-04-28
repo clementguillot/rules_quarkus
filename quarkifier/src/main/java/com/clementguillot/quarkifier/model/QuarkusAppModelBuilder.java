@@ -203,13 +203,11 @@ public final class QuarkusAppModelBuilder {
     // it to the application root (needed for Quarkus to scan @Path endpoints).
     // No test sources — getTestSources() returns null, triggering the fallback
     // in PathTestHelper that uses the classloader to find test classes.
+    String artifactId = appName != null ? appName : coords.artifactId();
+    String version = appVersion != null ? appVersion : coords.version();
     WorkspaceModule module =
         WorkspaceModule.builder()
-            .setModuleId(
-                WorkspaceModuleId.of(
-                    coords.groupId(),
-                    appName != null ? appName : coords.artifactId(),
-                    appVersion != null ? appVersion : coords.version()))
+            .setModuleId(WorkspaceModuleId.of(coords.groupId(), artifactId, version))
             .setModuleDir(jarDir)
             .setBuildDir(jarDir)
             .addArtifactSources(
@@ -222,8 +220,8 @@ public final class QuarkusAppModelBuilder {
     modelBuilder.setAppArtifact(
         ResolvedDependencyBuilder.newInstance()
             .setGroupId(coords.groupId())
-            .setArtifactId(appName != null ? appName : coords.artifactId())
-            .setVersion(appVersion != null ? appVersion : coords.version())
+            .setArtifactId(artifactId)
+            .setVersion(version)
             .setResolvedPath(appJar)
             .setWorkspaceModule(module)
             .setRuntimeCp()
