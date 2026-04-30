@@ -117,7 +117,7 @@ quarkus_test = rule(
         "deps": attr.label_list(
             mandatory = True,
             providers = [JavaInfo],
-            doc = "Test java_library targets. Transitive deps (app code, quarkus-junit5, etc.) are included automatically.",
+            doc = "Test java_library targets. Transitive deps (app code, quarkus-junit, etc.) are included automatically.",
         ),
         "jvm_flags": attr.string_list(
             doc = "JVM flags passed to the java command when running tests.",

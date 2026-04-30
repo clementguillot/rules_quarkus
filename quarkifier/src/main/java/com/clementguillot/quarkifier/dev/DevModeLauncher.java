@@ -8,7 +8,6 @@ import com.clementguillot.quarkifier.watcher.BazelFileWatcher;
 import io.quarkus.bootstrap.BootstrapConstants;
 import io.quarkus.bootstrap.app.QuarkusBootstrap;
 import io.quarkus.bootstrap.model.ApplicationModel;
-import io.quarkus.bootstrap.util.BootstrapUtils;
 import io.quarkus.deployment.dev.DevModeContext;
 import io.quarkus.deployment.dev.DevModeMain;
 import io.quarkus.maven.dependency.ArtifactKey;
@@ -58,8 +57,12 @@ public final class DevModeLauncher {
     try {
       DevModeContext context = buildDevModeContext(config);
 
-      // 1. Serialize the ApplicationModel to a temp file
-      Path serializedModel = BootstrapUtils.serializeAppModel(appModel, false);
+      // 1. Serialize the ApplicationModel to a temp file.
+      // Uses AppModelSerializerImpl which is version-specific:
+      // - 3.27: Java Object Serialization (BootstrapUtils)
+      // - 3.33+: JSON format (ApplicationModelSerializer)
+      AppModelSerializerStrategy serializer = new AppModelSerializerImpl();
+      Path serializedModel = serializer.serialize(appModel);
 
       // 2. Create the dev jar (like Maven's DevMojo / DevModeCommandLineBuilder)
       Path devJar = createDevJar(context, config, appModel);
@@ -72,6 +75,9 @@ public final class DevModeLauncher {
       // Required for jboss-threads on Java 24+
       cmd.add("--add-opens");
       cmd.add("java.base/java.lang=ALL-UNNAMED");
+      // Required for Quarkus 3.33+
+      cmd.add("--add-opens");
+      cmd.add("java.base/java.lang.invoke=ALL-UNNAMED");
       cmd.add(
           "-D" + BootstrapConstants.SERIALIZED_APP_MODEL + "=" + serializedModel.toAbsolutePath());
       cmd.add("-jar");

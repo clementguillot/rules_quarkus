@@ -4,6 +4,8 @@ import com.clementguillot.quarkifier.AugmentationException;
 import com.clementguillot.quarkifier.AugmentationMode;
 import com.clementguillot.quarkifier.BuildProperties;
 import com.clementguillot.quarkifier.QuarkifierConfig;
+import com.clementguillot.quarkifier.dev.AppModelSerializerImpl;
+import com.clementguillot.quarkifier.dev.AppModelSerializerStrategy;
 import com.clementguillot.quarkifier.dev.DevModeLauncher;
 import com.clementguillot.quarkifier.model.QuarkusAppModelBuilder;
 import io.quarkus.bootstrap.app.AugmentAction;
@@ -11,9 +13,9 @@ import io.quarkus.bootstrap.app.AugmentResult;
 import io.quarkus.bootstrap.app.CuratedApplication;
 import io.quarkus.bootstrap.app.QuarkusBootstrap;
 import io.quarkus.bootstrap.model.ApplicationModel;
-import java.io.ObjectOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Properties;
 
@@ -71,8 +73,11 @@ public final class AugmentationExecutor {
       // No augmentation is run — the test JVM handles that via QuarkusBootstrap.Mode.TEST.
       if (config.mode() == AugmentationMode.TEST) {
         Path modelFile = outputDir.resolve("test-app-model.dat");
-        try (ObjectOutputStream out = new ObjectOutputStream(Files.newOutputStream(modelFile))) {
-          out.writeObject(appModel);
+        AppModelSerializerStrategy serializer = new AppModelSerializerImpl();
+        Path serializedModel = serializer.serialize(appModel);
+        if (!serializedModel.equals(modelFile)) {
+          Files.copy(serializedModel, modelFile, StandardCopyOption.REPLACE_EXISTING);
+          Files.deleteIfExists(serializedModel);
         }
         return;
       }

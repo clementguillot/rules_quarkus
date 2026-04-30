@@ -2,7 +2,6 @@ package com.clementguillot.quarkifier.augmentation;
 
 import com.clementguillot.quarkifier.maven.MavenCoordinateParser;
 import io.quarkus.bootstrap.model.ApplicationModel;
-import io.quarkus.bootstrap.runner.SerializedApplication;
 import io.quarkus.maven.dependency.DependencyFlags;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -183,13 +182,8 @@ public final class FastJarAssembler {
 
     makeWritable(datFile);
     try (OutputStream os = Files.newOutputStream(datFile)) {
-      SerializedApplication.write(
-          os,
-          "io.quarkus.runner.GeneratedMain",
-          quarkusAppDir,
-          allJars,
-          parentFirstJars,
-          List.of());
+      ApplicationDatWriter.INSTANCE.write(
+          os, "io.quarkus.runner.GeneratedMain", quarkusAppDir, allJars, parentFirstJars);
     }
   }
 

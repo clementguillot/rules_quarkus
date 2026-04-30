@@ -1,59 +1,13 @@
-load("@rules_java//java:java_binary.bzl", "java_binary")
-load("@rules_java//java:java_library.bzl", "java_library")
-load("@rules_java//java:java_test.bzl", "java_test")
-load("//tools/lint:linters.bzl", "pmd_test")
+load("//quarkifier:quarkifier.bzl", "quarkifier_targets")
 
-java_library(
-    name = "quarkifier_lib",
-    srcs = glob(["src/main/java/**/*.java"]),
-    resources = glob(["src/main/resources/**/*"]),
-    visibility = ["//quarkifier:__pkg__"],
-    deps = [
-        # Quarkus Bootstrap
-        "@maven//:io_quarkus_quarkus_bootstrap_app_model",
-        "@maven//:io_quarkus_quarkus_bootstrap_core",
-        "@maven//:io_quarkus_quarkus_bootstrap_runner",
-        # Quarkus Core + deployment (contains AugmentActionImpl)
-        "@maven//:io_quarkus_quarkus_core",
-        "@maven//:io_quarkus_quarkus_core_deployment",
-        # ArC runtime — needed in the deploy jar so ASM's ClassWriter can resolve
-        # types like io.quarkus.arc.impl.ParameterizedTypeImpl during augmentation.
-        # This is a transitive dep of quarkus-core, so always available.
-        "@maven//:io_quarkus_arc_arc",
-        # Logging
-        "@maven//:org_jboss_logging_jboss_logging",
-    ],
+# Per-minor quarkifier targets.
+# Each call creates: quarkifier_lib_X_Y, quarkifier_X_Y, quarkifier_test_X_Y, pmd_test_X_Y
+quarkifier_targets(
+    maven_repo = "@maven_3_27",
+    minor = "3_27",
 )
 
-java_binary(
-    name = "quarkifier",
-    # jvm_flags = ["-Djava.util.logging.manager=org.jboss.logmanager.LogManager"],
-    main_class = "com.clementguillot.quarkifier.QuarkifierLauncher",
-    visibility = ["//visibility:public"],
-    runtime_deps = [":quarkifier_lib"],
-)
-
-java_test(
-    name = "quarkifier_test",
-    srcs = glob(["src/test/java/**/*.java"]),
-    args = [
-        "execute",
-        "--select-package=com.clementguillot.quarkifier",
-        "--fail-if-no-tests",
-    ],
-    main_class = "org.junit.platform.console.ConsoleLauncher",
-    use_testrunner = False,
-    deps = [
-        ":quarkifier_lib",
-        "@maven//:io_quarkus_quarkus_bootstrap_app_model",
-        "@maven//:io_quarkus_quarkus_bootstrap_core",
-        "@maven//:org_junit_jupiter_junit_jupiter",
-        "@maven//:org_junit_platform_junit_platform_console_standalone",
-        "@maven//:org_junit_platform_junit_platform_launcher",
-    ],
-)
-
-pmd_test(
-    name = "pmd_test",
-    srcs = [":quarkifier_lib"],
+quarkifier_targets(
+    maven_repo = "@maven_3_33",
+    minor = "3_33",
 )

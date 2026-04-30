@@ -6,6 +6,7 @@ import com.clementguillot.quarkifier.maven.MavenCoordinateParser;
 import io.quarkus.bootstrap.model.ApplicationModel;
 import io.quarkus.bootstrap.model.ApplicationModelBuilder;
 import io.quarkus.bootstrap.model.CapabilityContract;
+import io.quarkus.bootstrap.model.PlatformImportsImpl;
 import io.quarkus.bootstrap.workspace.ArtifactSources;
 import io.quarkus.bootstrap.workspace.DefaultArtifactSources;
 import io.quarkus.bootstrap.workspace.DefaultSourceDir;
@@ -80,6 +81,10 @@ public final class QuarkusAppModelBuilder {
     addDeploymentDependencies(modelBuilder, deployClasspath, addedKeys, extensionJars);
     markParentFirstArtifacts(modelBuilder);
     fixRunnerParentFirstFlags(modelBuilder);
+    // ApplicationModel.asMap() (used by ApplicationModelSerializer for JSON serialization)
+    // calls getPlatforms().asMap() without a null check. Set an empty PlatformImports so
+    // serialization works when no Quarkus platform BOMs are imported (Bazel-managed deps).
+    modelBuilder.setPlatformImports(new PlatformImportsImpl());
 
     return modelBuilder.build();
   }
@@ -168,6 +173,9 @@ public final class QuarkusAppModelBuilder {
     addDeploymentDependencies(modelBuilder, deployClasspath, addedKeys, extensionJars);
     markParentFirstArtifacts(modelBuilder);
     fixRunnerParentFirstFlags(modelBuilder);
+    // ApplicationModel.asMap() (used by ApplicationModelSerializer for JSON serialization)
+    // calls getPlatforms().asMap() without a null check. Test-mode models are serialized too.
+    modelBuilder.setPlatformImports(new PlatformImportsImpl());
 
     return modelBuilder.build();
   }
@@ -188,21 +196,19 @@ public final class QuarkusAppModelBuilder {
   }
 
   /**
-   * Sets the app artifact with a minimal WorkspaceModule. The module must be non-null so that
-   * {@code PathTestHelper.getTestClassesDirOrNull} doesn't NPE, but test sources should be absent
-   * so the fallback path ({@code getTestClassesLocation(Class)}) is used — it locates test classes
-   * via the classloader, which works correctly with Bazel's jar-based classpath.
+   * Sets the app artifact with a minimal WorkspaceModule for test mode.
+   *
+   * <p>The module is required (non-null) because {@code AppMakerHelper} calls {@code
+   * getWorkspaceModule().getTestSources()}. Source dirs point to the jar's parent directory (a real
+   * directory) rather than the jar itself, avoiding {@code NotDirectoryException}. Test sources are
+   * left empty so the fallback path in {@code PathTestHelper} is used, which locates test classes
+   * via the classloader (works with Bazel's jar-based classpath).
    */
   private static void setAppArtifactForTest(
       ApplicationModelBuilder modelBuilder, Path appJar, String appName, String appVersion) {
     var coords = MavenCoordinateParser.parse(appJar);
     Path jarDir = appJar.getParent() != null ? appJar.getParent() : appJar;
 
-    // Minimal workspace module: only main sources pointing to the app jar.
-    // The output dir is set to the app jar itself so that AppMakerHelper adds
-    // it to the application root (needed for Quarkus to scan @Path endpoints).
-    // No test sources — getTestSources() returns null, triggering the fallback
-    // in PathTestHelper that uses the classloader to find test classes.
     String artifactId = appName != null ? appName : coords.artifactId();
     String version = appVersion != null ? appVersion : coords.version();
     WorkspaceModule module =
@@ -210,10 +216,11 @@ public final class QuarkusAppModelBuilder {
             .setModuleId(WorkspaceModuleId.of(coords.groupId(), artifactId, version))
             .setModuleDir(jarDir)
             .setBuildDir(jarDir)
+            .setBuildFile(jarDir.resolve("BUILD.bazel"))
             .addArtifactSources(
                 new DefaultArtifactSources(
                     ArtifactSources.MAIN,
-                    List.of(new DefaultSourceDir(jarDir, appJar, null)),
+                    List.of(new DefaultSourceDir(jarDir, jarDir, null)),
                     List.of()))
             .build();
 
@@ -305,6 +312,14 @@ public final class QuarkusAppModelBuilder {
         dep.setRuntimeCp();
       }
 
+      // Quarkus SPI jars (e.g., quarkus-devui-spi) contain SPI classes referenced
+      // by generated ArC beans. They have no extension metadata so they won't be
+      // auto-detected as runtime extensions, but they must be on the runtime
+      // classpath so the generated code can load them.
+      if ("io.quarkus".equals(coords.groupId()) && coords.artifactId().endsWith("-spi")) {
+        dep.setRuntimeCp();
+      }
+
       if (!addedKeys.contains(dep.getKey())) {
         modelBuilder.addDependency(dep);
         addedKeys.add(dep.getKey());
@@ -334,8 +349,13 @@ public final class QuarkusAppModelBuilder {
             "quarkus-development-mode-spi",
             "quarkus-fs-util",
             "quarkus-bootstrap-maven-resolver",
-            // Core (needed by IsolatedDevModeMain)
+            // Core (needed by IsolatedDevModeMain and test mode classloader delegation)
             "quarkus-core",
+            // Value registry — must be parent-first to avoid LinkageError in dev mode.
+            // ExtensionLoader (in augment classloader) calls ValueRegistryImpl$Builder.build()
+            // which returns ValueRegistry; if ValueRegistry is loaded by two different
+            // classloaders the JVM throws a loader constraint violation.
+            "quarkus-value-registry",
             // Config infrastructure. Note: smallrye-config itself is NOT parent-first
             // because it contains CDI beans (ConfigProducer) whose ArC proxies cause
             // VerifyError across classloader boundaries. Only the core/common/api jars

@@ -29,8 +29,8 @@ Use `rules_jvm_external` to declare your Quarkus runtime dependencies. Only decl
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.install(
     artifacts = [
-        "io.quarkus:quarkus-rest:3.27.3",
-        "io.quarkus:quarkus-arc:3.27.3",
+        "io.quarkus:quarkus-rest:3.33.1",
+        "io.quarkus:quarkus-arc:3.33.1",
     ],
     lock_file = "//:maven_install.json",
 )
@@ -38,6 +38,10 @@ use_repo(maven, "maven")
 ```
 
 Run `bazel run @maven//:pin` to generate the `maven_install.json` lock file.
+
+> **Supported versions**: 3.27.x LTS and 3.33.x. Replace the version above with your preferred Quarkus version.
+>
+> **Known limitation**: a single Bazel workspace can configure only one `quarkus.toolchain()` today. You can choose 3.27.x or 3.33.x per workspace, but you cannot build different Quarkus minor versions side by side in the same workspace yet.
 
 ## 3. Configure the Quarkus Toolchain
 
@@ -47,19 +51,21 @@ quarkus = use_extension(
     "quarkus",
 )
 quarkus.toolchain(
-    quarkus_version = "3.27.3",
+    quarkus_version = "3.33.1",
     lock_file = "//:maven_install.json",
 )
-use_repo(quarkus, "quarkus_deployment", "rules_quarkus_toolchains")
+use_repo(quarkus, "quarkus_deployment", "rules_quarkus_quarkifier", "rules_quarkus_toolchains")
 ```
 
 The `lock_file` is used to auto-discover which Quarkus extensions you're using and download their `-deployment` counterparts.
+
+The configured `quarkus_version` applies to every `quarkus_app`, generated `<name>_dev` target, and `quarkus_test` target in the workspace. For projects that need to validate multiple Quarkus minors, use separate workspaces, separate example directories, or separate CI jobs with different `MODULE.bazel` configurations.
 
 ### Toolchain Options
 
 | Attribute | Default | Description |
 |---|---|---|
-| `quarkus_version` | (required) | Quarkus version, e.g. `"3.27.3"` |
+| `quarkus_version` | (required) | Quarkus version, e.g. `"3.33.1"` or `"3.27.3"` |
 | `lock_file` | `None` | Path to `maven_install.json` for extension auto-discovery |
 | `extension_group_prefixes` | `["io.quarkus", "io.quarkiverse."]` | Maven groupId prefixes identifying Quarkus extensions |
 | `quarkifier_tool` | `None` | Override quarkifier tool with a pre-built jar label |
@@ -140,21 +146,10 @@ The application starts on `http://localhost:8080`. Visit `http://localhost:8080/
 
 ## 6. Dev Mode (Hot-Reload + Dev UI)
 
-Add a `quarkus_dev` target for dev mode:
-
-```python
-load("@rules_quarkus_toolchains//:defs.bzl", "quarkus_dev")
-
-quarkus_dev(
-    name = "dev",
-    deps = [":lib"],
-)
-```
-
-Run it:
+The `quarkus_app` macro automatically creates a `<name>_dev` target for dev mode:
 
 ```bash
-bazel run //:dev
+bazel run //:helloworld_dev
 ```
 
 This launches Quarkus in dev mode with:
@@ -162,6 +157,16 @@ This launches Quarkus in dev mode with:
 - **Hot-reload** watching your source directories for changes
 
 Dev mode runs in a separate JVM process. Press `Ctrl+C` to stop.
+
+To opt out of the dev target, pass `dev = False` to `quarkus_app`:
+
+```python
+quarkus_app(
+    name = "helloworld",
+    dev = False,
+    deps = [":lib"],
+)
+```
 
 See [Dev Mode & Dev UI Integration](dev-mode.md) for details on how this works under the hood.
 
@@ -203,33 +208,41 @@ All transitive dependencies are collected via `JavaInfo` providers and included 
 
 ## Complete MODULE.bazel Example
 
-This is the full `MODULE.bazel` from the `examples/` workspace:
+This is the full `MODULE.bazel` from the `examples/helloworld_3_33` workspace:
 
 ```python
-module(name = "examples")
+module(name = "helloworld_3_33")
 
-bazel_dep(name = "com_clementguillot_rules_quarkus", version = "0.1.0")
+bazel_dep(name = "com_clementguillot_rules_quarkus", version = "0.0.0", dev_dependency = True)
+local_path_override(
+    module_name = "com_clementguillot_rules_quarkus",
+    path = "../..",
+)
 
+# JVM rules
 bazel_dep(name = "rules_java", version = "9.6.1")
 bazel_dep(name = "rules_jvm_external", version = "6.10")
 
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.install(
     artifacts = [
-        "io.quarkus:quarkus-rest:3.27.3",
-        "io.quarkus:quarkus-arc:3.27.3",
+        "io.quarkus:quarkus-rest:3.33.1",
+        "io.quarkus:quarkus-arc:3.33.1",
+        # Test dependencies
+        "io.quarkus:quarkus-junit:3.33.1",
+        "io.rest-assured:rest-assured:5.5.6",
+        "org.junit.jupiter:junit-jupiter:5.13.4",
+        "org.junit.platform:junit-platform-console-standalone:1.13.4",
+        "org.junit.platform:junit-platform-launcher:1.13.4",
     ],
     lock_file = "//:maven_install.json",
 )
 use_repo(maven, "maven")
 
-quarkus = use_extension(
-    "@com_clementguillot_rules_quarkus//quarkus:extensions.bzl",
-    "quarkus",
-)
+quarkus = use_extension("@com_clementguillot_rules_quarkus//quarkus:extensions.bzl", "quarkus")
 quarkus.toolchain(
-    quarkus_version = "3.27.3",
     lock_file = "//:maven_install.json",
+    quarkus_version = "3.33.1",
 )
-use_repo(quarkus, "quarkus_deployment", "rules_quarkus_toolchains")
+use_repo(quarkus, "quarkus_deployment", "rules_quarkus_quarkifier", "rules_quarkus_toolchains")
 ```

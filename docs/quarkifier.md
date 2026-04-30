@@ -3,12 +3,12 @@
 The Quarkifier (`com.clementguillot.quarkifier`) is a standalone Java tool that invokes the Quarkus internal build API (`io.quarkus.deployment`) to perform build-time augmentation. It is the core engine behind `rules_quarkus`.
 
 - **Main class**: `com.clementguillot.quarkifier.QuarkifierLauncher`
-- **Built against**: Quarkus 3.27.3 LTS
+- **Built against**: Quarkus 3.27.3 LTS and 3.33.1
 
 ## CLI Interface
 
 ```
-java -jar quarkifier_deploy.jar \
+java -jar quarkifier_<minor>_deploy.jar \
   --application-classpath <jar:jar:...> \
   --deployment-classpath <jar:jar:...> \
   [--core-deployment-classpath <jar:jar:...>] \
@@ -18,7 +18,12 @@ java -jar quarkifier_deploy.jar \
   [--expected-quarkus-version <version>] \
   [--app-name <name>] \
   [--app-version <version>] \
-  [--source-dirs <dir,dir,...>]
+  [--source-dirs <dir,dir,...>] \
+  [--classes-dir <path>] \
+  [--bazel-targets <label,label,...>] \
+  [--classes-output-dirs <dir,dir,...>] \
+  [--workspace-dir <path>] \
+  [--bazel-build-timeout-seconds <seconds>]
 ```
 
 ### Flags
@@ -35,6 +40,11 @@ java -jar quarkifier_deploy.jar \
 | `--app-name` | No | `null` | Application name for Quarkus startup banner |
 | `--app-version` | No | `null` | Application version for Quarkus startup banner |
 | `--source-dirs` | No | `[]` | Comma-separated source directories for dev mode hot-reload |
+| `--classes-dir` | No | `null` | Mutable directory for .class files in dev mode |
+| `--bazel-targets` | No | `[]` | Comma-separated Bazel targets to rebuild on source changes |
+| `--classes-output-dirs` | No | `[]` | Comma-separated bazel-bin output directories containing .class files |
+| `--workspace-dir` | No | `null` | Bazel workspace root directory for running bazel build |
+| `--bazel-build-timeout-seconds` | No | `60` | Timeout in seconds for bazel build process |
 
 ### Exit Codes
 
@@ -52,6 +62,7 @@ com.clementguillot.quarkifier
 ├── QuarkifierConfig                Immutable record for CLI config
 ├── AugmentationMode                Enum: NORMAL, TEST, DEV
 ├── AugmentationException           Checked exception wrapping build errors
+├── BuildProperties                 Default build system properties
 │
 ├── extension/                      Extension discovery and validation
 │   ├── ExtensionInfo               Record: groupId, artifactId, version, sourceJar
@@ -68,10 +79,16 @@ com.clementguillot.quarkifier
 │
 ├── augmentation/                   Augmentation execution and post-processing
 │   ├── AugmentationExecutor        Orchestrates bootstrap + augmentation
-│   └── FastJarAssembler            Post-processes output into runnable Fast_Jar
+│   ├── FastJarAssembler            Post-processes output into runnable Fast_Jar
+│   └── ApplicationDatWriter        Version-safe reflection wrapper for SerializedApplication.write()
 │
-└── dev/                            Dev mode (room to grow)
-    └── DevModeLauncher             Builds DevModeContext, launches subprocess
+├── dev/                            Dev mode
+│   ├── DevModeLauncher             Builds DevModeContext, launches subprocess
+│   ├── AppModelSerializerStrategy  Interface for version-specific model serialization
+│   └── AppModelSerializerImpl      (in java_3_27/ or java_3_33/) Version-specific implementation
+│
+└── watcher/                        File watching for hot-reload
+    └── BazelFileWatcher            Watches source dirs, triggers bazel build on changes
 ```
 
 ## QuarkifierConfig Record
@@ -89,7 +106,12 @@ public record QuarkifierConfig(
     String expectedQuarkusVersion,
     String appName,
     String appVersion,
-    List<Path> sourceDirs
+    List<Path> sourceDirs,
+    Path classesDir,
+    List<String> bazelTargets,
+    List<Path> classesOutputDirs,
+    Path workspaceDir,
+    long bazelBuildTimeoutSeconds
 ) { ... }
 ```
 
@@ -164,9 +186,10 @@ graph LR
 1. **Register extensions** — scans runtime jars for `quarkus-extension.properties`, calls `modelBuilder.handleExtensionProperties()`, and manually registers capabilities (`provides-capabilities`, `requires-capabilities`)
 2. **Set app artifact** — uses `MavenCoordinateParser` to extract coordinates from the app jar path
 3. **Add runtime dependencies** — adds all runtime jars, marking extension jars with `setRuntimeExtensionArtifact()`
-4. **Add deployment dependencies** — adds deployment-only jars, deduplicating by both `ArtifactKey` and `artifactId`
+4. **Add deployment dependencies** — adds deployment-only jars, deduplicating by both `ArtifactKey` and `artifactId`. Marks `-dev` jars and `io.quarkus` `-spi` jars as runtime classpath entries
 5. **Mark parent-first artifacts** — marks bootstrap/infrastructure jars as parent-first for the augment classloader
 6. **Fix runner-parent-first flags** — workaround for the GACT key mismatch bug (see [Dev Mode](dev-mode.md#the-gact-key-mismatch-bug))
+7. **Set empty PlatformImports** — required for JSON serialization in Quarkus 3.31+ (`ApplicationModel.asMap()` NPEs without it)
 
 ## Post-Processing (FastJarAssembler)
 

@@ -31,12 +31,12 @@ sequenceDiagram
     participant DMM as DevModeMain
     participant IDM as IsolatedDevModeMain
 
-    Script->>QC: java -jar quarkifier_deploy.jar --mode dev ...
+    Script->>QC: java -jar quarkifier_<minor>_deploy.jar --mode dev ...
     QC->>AE: execute(config)
     AE->>AE: buildApplicationModel(...)
     AE->>DML: launch(config, appModel)
     DML->>DML: buildDevModeContext(config)
-    DML->>DML: BootstrapUtils.serializeAppModel(appModel)
+    DML->>DML: AppModelSerializerImpl.serialize(appModel)
     DML->>DML: createDevJar(context, config, appModel)
     DML->>Child: ProcessBuilder: java -jar dev.jar
     Child->>DMM: DevModeMain.main()
@@ -103,19 +103,31 @@ graph TD
 Many Quarkus extensions declare `conditional-dev-dependencies` in their `quarkus-extension.properties`. These are runtime modules activated only in dev mode. Maven's resolver handles them automatically; we resolve them explicitly in `extensions.bzl`:
 
 - **`quarkus-devui-deployment`** — conditional dev dep of `quarkus-vertx-http` (provides the Dev UI)
+- **`quarkus-devui`** — the Dev UI runtime jar; its generated ArC beans reference classes that must be on the runtime classpath
+- **`quarkus-devui-spi`** — contains SPI classes (e.g., `McpServerConfiguration`) referenced by generated ArC beans; has no extension metadata so it won't be auto-detected
 - **`{extension}-dev` jars** (e.g., `quarkus-arc-dev`, `quarkus-rest-dev`) — contain dev-mode-specific classes like `EventsMonitor` that Dev UI build steps reference
 
-The `QuarkusAppModelBuilder` also scans the deployment classpath for runtime extensions pulled in transitively (e.g., `quarkus-devui` via `quarkus-devui-deployment`) and marks them appropriately in the `ApplicationModel`.
+The `QuarkusAppModelBuilder` also scans the deployment classpath for runtime extensions pulled in transitively (e.g., `quarkus-devui` via `quarkus-devui-deployment`) and marks them appropriately in the `ApplicationModel`. Additionally, `io.quarkus` jars ending with `-spi` are automatically marked as runtime classpath entries.
 
 ## Parent-First Artifacts
 
 `QuarkusAppModelBuilder.markParentFirstArtifacts()` marks infrastructure jars as parent-first so the augment classloader delegates to the system classloader for them. This prevents `LinkageError` and `ClassCastException`.
 
-Key categories: bootstrap (`quarkus-bootstrap-core`, etc.), core (`quarkus-core`), config (`smallrye-config-core`, `smallrye-config-common`, `microprofile-config-api`), logging (`jboss-logmanager`, `jboss-logging`), Jakarta APIs.
+Key categories: bootstrap (`quarkus-bootstrap-core`, `quarkus-bootstrap-maven-resolver`, etc.), core (`quarkus-core`, `quarkus-value-registry`), config (`smallrye-config-core`, `smallrye-config-common`, `microprofile-config-api`), logging (`jboss-logmanager`, `jboss-logging`), Jakarta APIs.
 
 **Important**: `smallrye-config` itself is NOT parent-first. In SmallRye Config 3.13+, the main jar contains CDI beans (`ConfigProducer`) whose ArC-generated proxies cause `VerifyError` when the bean class and proxy are loaded by different classloaders.
 
 ## Known Quarkus Bootstrap Workarounds
+
+### ApplicationModel Serialization Format
+
+Quarkus 3.31+ changed `ApplicationModelSerializer` to use JSON format by default instead of Java Object Serialization. The `DevModeLauncher` uses a version-specific `AppModelSerializerStrategy`:
+- **3.27**: `BootstrapUtils.serializeAppModel()` (Java Object Serialization)
+- **3.33+**: `ApplicationModelSerializer.serialize()` (JSON)
+
+### PlatformImports Null Check
+
+`ApplicationModel.asMap()` (used by the JSON serializer) calls `getPlatforms().asMap()` without a null check. Since we bypass Maven/Gradle resolution, `platformImports` is never set. Workaround: `QuarkusAppModelBuilder` sets an empty `PlatformImportsImpl()`.
 
 ### GACT Key Mismatch
 
@@ -136,9 +148,15 @@ When source dirs are empty, hot-reload is disabled but the Dev UI still works.
 
 ## Known Limitations
 
-- **Extensions panel**: The Dev UI Extensions panel doesn't work — it uses Maven resolver classes unavailable in Bazel.
+- **Extensions panel**: The Dev UI Extensions panel doesn't work — it uses Maven resolver classes unavailable in Bazel (produces `ClassCastException` for `RemoteRepository` across classloaders).
 - **No in-process dev mode**: Always uses a separate JVM process (~2-3s startup overhead).
 - **Docker required for Dev Services**: Dev Services need Docker on the host.
+
+## Dev UI Static Resources
+
+The Dev UI serves static resources (Vaadin web components, flag-icons, etc.) from jars in the deployment classpath. These jars contain resources under `META-INF/resources/_static/`. The `BuildTimeContentProcessor.extractJsVersionsFor()` method parses the version from the jar URL path by finding the artifact name and taking the next path segment.
+
+For this to work correctly, the `@quarkus_deployment` repo preserves the Maven directory structure in its symlinks (e.g., `jars/org/mvnpm/flag-icons/7.5.0/flag-icons-7.5.0.jar`). A flat `jars/filename.jar` layout would cause the version extraction to include `.jar` in the version string, producing broken URLs like `/q/_static/flag-icons/7.5.0.jar/...`.
 
 ## Troubleshooting
 
