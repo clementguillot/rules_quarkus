@@ -4,9 +4,11 @@ This guide walks you through building and running a Quarkus application with Baz
 
 ## Prerequisites
 
-- **Bazel 7+** with Bzlmod enabled (the default)
+- **Bazel 7+, 8+, or 9+** with Bzlmod enabled (the default)
 - **Java 17+** (JDK, not just JRE)
 - **Docker** (optional, required for Dev Services)
+
+> **Note**: Only bzlmod is supported. WORKSPACE mode is not supported.
 
 ## 1. Add rules_quarkus to MODULE.bazel
 

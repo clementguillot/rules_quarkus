@@ -1,3 +1,5 @@
+module(name = "smoke_test")
+
 bazel_dep(name = "com_clementguillot_rules_quarkus", version = "0.0.0", dev_dependency = True)
 bazel_dep(name = "bazel_skylib", version = "1.8.2", dev_dependency = True)
 
@@ -10,3 +12,30 @@ local_path_override(
 bazel_dep(name = "rules_cc", version = "0.2.18")
 bazel_dep(name = "rules_android", version = "0.7.2", repo_name = "rules_android")
 bazel_dep(name = "rules_go", version = "0.60.0", repo_name = "rules_go")
+
+# JVM rules
+bazel_dep(name = "rules_java", version = "8.12.0")
+bazel_dep(name = "rules_jvm_external", version = "7.0")
+
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+maven.install(
+    artifacts = [
+        "io.quarkus:quarkus-rest:3.33.1",
+        "io.quarkus:quarkus-arc:3.33.1",
+        "io.quarkus:quarkus-junit:3.33.1",
+        "io.rest-assured:rest-assured:5.5.6",
+        "org.junit.jupiter:junit-jupiter:5.13.4",
+        "org.junit.platform:junit-platform-console-standalone:1.13.4",
+        "org.junit.platform:junit-platform-launcher:1.13.4",
+    ],
+    lock_file = "//:maven_install.json",
+)
+use_repo(maven, "maven")
+
+quarkus = use_extension("@com_clementguillot_rules_quarkus//quarkus:extensions.bzl", "quarkus")
+quarkus.toolchain(
+    lock_file = "//:maven_install.json",
+    quarkifier_source_dir = "@com_clementguillot_rules_quarkus//:MODULE.bazel",
+    quarkus_version = "3.33.1",
+)
+use_repo(quarkus, "quarkus_deployment", "rules_quarkus_quarkifier", "rules_quarkus_toolchains")

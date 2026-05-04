@@ -11,9 +11,12 @@ TAG=$1
 PREFIX="rules_quarkus-${TAG:1}"
 ARCHIVE="rules_quarkus-$TAG.tar.gz"
 
+# Resolve the commit SHA for the tag
+COMMIT=$(git rev-list -n 1 ${TAG})
+
 # NB: configuration for 'git archive' is in /.gitattributes
 git archive --format=tar --prefix=${PREFIX}/ ${TAG} | gzip > $ARCHIVE
-SHA=$(shasum -a 256 $ARCHIVE | awk '{print $1}')
+INTEGRITY=$(openssl dgst -sha256 -binary "$ARCHIVE" | openssl base64 -A)
 
 # Add generated API docs to the release, see https://github.com/bazelbuild/bazel-central-registry/issues/5593
 docs="$(mktemp -d)"; targets="$(mktemp)"
@@ -33,19 +36,29 @@ cat << EOF
 bazel_dep(name = "com_clementguillot_rules_quarkus", version = "${TAG:1}")
 \`\`\`
 
-## Using WORKSPACE
-
-Paste this snippet into your \`WORKSPACE.bazel\` file:
+### Git override
 
 \`\`\`starlark
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-http_archive(
-    name = "com_clementguillot_rules_quarkus",
-    sha256 = "${SHA}",
-    strip_prefix = "${PREFIX}",
-    url = "https://github.com/clementguillot/rules_quarkus/releases/download/${TAG}/${ARCHIVE}",
-)
-EOF
+bazel_dep(name = "com_clementguillot_rules_quarkus")
 
-awk 'f;/--SNIP--/{f=1}' e2e/smoke/WORKSPACE.bazel
-echo "\`\`\`"
+git_override(
+    module_name = "com_clementguillot_rules_quarkus",
+    remote = "https://github.com/clementguillot/rules_quarkus.git",
+    commit = "${COMMIT}",
+)
+\`\`\`
+
+### Archive override
+
+\`\`\`starlark
+bazel_dep(name = "com_clementguillot_rules_quarkus")
+
+archive_override(
+    module_name = "com_clementguillot_rules_quarkus",
+    urls = ["https://github.com/clementguillot/rules_quarkus/releases/download/${TAG}/rules_quarkus-${TAG}.tar.gz"],
+    strip_prefix = "${PREFIX}",
+    integrity = "sha256-${INTEGRITY}",
+)
+\`\`\`
+
+EOF

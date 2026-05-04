@@ -5,3 +5,6 @@ bazel-*
 .bazelbsp/
 .DS_Store
 e2e/smoke/MODULE.bazel.lock
+
+# Nested Bazel output base (used by quarkifier local build repo rule)
+.bazel-nested-build/
