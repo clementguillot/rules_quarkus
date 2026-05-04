@@ -35,10 +35,10 @@ def _quarkus_app_impl(ctx):
     if ctx.attr.version:
         args.add("--app-version", ctx.attr.version)
 
-    # Invoke: java -jar quarkifier_deploy.jar <args>
-    # The deploy jar is a fat jar containing all tool classes + dependencies,
-    # so no -cp assembly is needed. The tool handles classloader isolation
-    # internally via the augment classloader + TCCL.
+    # Invoke the selected version-specific deploy jar. The deploy jar is a fat
+    # jar containing all tool classes + dependencies, so no -cp assembly is
+    # needed. The tool handles classloader isolation internally via the augment
+    # classloader + TCCL.
     jar_args = ctx.actions.args()
     jar_args.add("-Djava.util.logging.manager=org.jboss.logmanager.LogManager")
     jar_args.add("-jar")

@@ -71,10 +71,12 @@ bazel_dep(name = "rules_java", version = "9.6.1")
 
 bazel_dep(name = "rules_jvm_external", version = "6.10", dev_dependency = True)
 
+# Quarkus 3.27 LTS dependencies
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven", dev_dependency = True)
 maven.install(
+    name = "maven_3_27",
     artifacts = [
-        # Quarkifier deps
+        # Quarkifier deps (Quarkus 3.27)
         "io.quarkus:quarkus-core:3.27.3",
         "io.quarkus:quarkus-core-deployment:3.27.3",
         "io.quarkus.arc:arc:3.27.3",
@@ -87,6 +89,27 @@ maven.install(
         "bazel_worker_java",
         "protobuf",
     ],
-    lock_file = "//:maven_install.json",
+    lock_file = "//:maven_install_3_27.json",
 )
-use_repo(maven, "maven")
+use_repo(maven, "maven_3_27")
+
+# Quarkus 3.33 LTS dependencies
+maven.install(
+    name = "maven_3_33",
+    artifacts = [
+        # Quarkifier deps (Quarkus 3.33)
+        "io.quarkus:quarkus-core:3.33.1",
+        "io.quarkus:quarkus-core-deployment:3.33.1",
+        "io.quarkus.arc:arc:3.33.1",
+        # Test framework
+        "org.junit.platform:junit-platform-launcher:6.0.3",
+        "org.junit.platform:junit-platform-console-standalone:6.0.3",
+        "org.junit.jupiter:junit-jupiter:6.0.3",
+    ],
+    known_contributing_modules = [
+        "bazel_worker_java",
+        "protobuf",
+    ],
+    lock_file = "//:maven_install_3_33.json",
+)
+use_repo(maven, "maven_3_33")

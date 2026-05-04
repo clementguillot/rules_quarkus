@@ -25,8 +25,40 @@ jobs:
       release_files: rules_quarkus-*.tar.gz
       prerelease: false
       tag_name: ${{ inputs.tag_name || github.ref_name }}
-  publish:
+  quarkifier-jars:
     needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag_name || github.ref_name }}
+      - name: Build per-minor quarkifier deploy JARs
+        run: |
+          # Extract supported minor versions from versions.bzl
+          # Build each per-minor deploy jar and rename for release
+          for target in $(bazel query 'filter("quarkifier_[0-9]+_[0-9]+_deploy.jar$", //quarkifier:*)' --lockfile_mode=off); do
+            bazel build "$target" --lockfile_mode=off
+          done
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-jars
+          tag="${{ inputs.tag_name || github.ref_name }}"
+          for jar in bazel-bin/quarkifier/quarkifier_*_deploy.jar; do
+            # quarkifier_3_27_deploy.jar → quarkifier-3.27-v0.1.0.jar
+            basename=$(basename "$jar")
+            minor=$(echo "$basename" | sed -E 's/quarkifier_([0-9]+)_([0-9]+)_deploy\.jar/\1.\2/')
+            cp "$jar" "release-jars/quarkifier-${minor}-${tag}.jar"
+          done
+      - name: Upload quarkifier JARs to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ inputs.tag_name || github.ref_name }}"
+          for jar in release-jars/*.jar; do
+            gh release upload "$tag" "$jar" --clobber
+          done
+  publish:
+    needs: quarkifier-jars
     uses: ./.github/workflows/publish.yaml
     with:
       tag_name: ${{ inputs.tag_name || github.ref_name }}

@@ -3,7 +3,8 @@
 `rules_quarkus` provides Bazel-native rules for building and running Quarkus JVM applications. Instead of wrapping Maven/Gradle plugins, it invokes the Quarkus internal build API (`io.quarkus.deployment`) directly through a custom Java tool called the **Quarkifier**. This gives Bazel full control over caching, sandboxing, and dependency tracking.
 
 - **Module**: `com_clementguillot_rules_quarkus`
-- **Quarkus version**: 3.27.3 LTS
+- **Quarkus versions**: 3.27.x LTS, 3.33.x LTS
+- **Version scope**: one configured Quarkus minor per Bazel workspace
 - **Java**: 17+
 - **Bazel**: 7+
 
@@ -72,6 +73,8 @@ graph TD
 
 The `quarkus` module extension (`quarkus/extensions.bzl`) creates **three repositories**:
 
+Current limitation: the extension consumes the first `quarkus.toolchain()` tag and creates fixed repository names (`@rules_quarkus_toolchains`, `@rules_quarkus_quarkifier`, and `@quarkus_deployment`). This means version selection is workspace-wide. Multiple supported Quarkus minors are available across workspaces, but one workspace cannot currently expose versioned toolchain repos for 3.27 and 3.33 at the same time.
+
 ### @rules_quarkus_toolchains
 
 Generated repo containing `defs.bzl` with `quarkus_app` and `quarkus_dev` macros. These macros wrap the internal rule implementations with toolchain-specific defaults (quarkus version, quarkifier tool path, deployment deps target).
@@ -87,6 +90,12 @@ Contains the quarkifier JAR. Resolved in priority order:
 
 Downloads all deployment jars with transitive dependencies using Coursier. Auto-discovers Quarkus extensions from the user's `maven_install.json` by scanning for artifacts matching configurable group prefixes (default: `io.quarkus`, `io.quarkiverse.`), then appends `-deployment` to each artifact ID.
 
+Produces two `java_library` targets:
+- `:core` — transitive deps of `quarkus-core-deployment` + extra core artifacts (used for the dev jar manifest classpath)
+- `:all` — all deployment jars including extension-specific deployment jars, conditional dev dependencies, and `-dev` runtime modules
+
+Jar symlinks preserve the Maven directory structure from the Coursier cache (e.g., `jars/org/mvnpm/flag-icons/7.5.0/flag-icons-7.5.0.jar`) so that the Dev UI's version extraction logic works correctly.
+
 ## Build Flow
 
 ```mermaid
@@ -100,7 +109,7 @@ sequenceDiagram
     User->>Bazel: bazel build //:my_app
     Bazel->>quarkus_app_rule: Resolve deps, collect classpath
     quarkus_app_rule->>quarkus_app_rule: Collect runtime + deployment classpath via JavaInfo
-    quarkus_app_rule->>Quarkifier: ctx.actions.run(java -jar quarkifier_deploy.jar ...)
+    quarkus_app_rule->>Quarkifier: ctx.actions.run(java -jar quarkifier_<minor>_deploy.jar ...)
     Quarkifier->>Quarkifier: 1. Parse CLI args → QuarkifierConfig
     Quarkifier->>Quarkifier: 2. Scan classpath for extensions (ExtensionScanner)
     Quarkifier->>Quarkifier: 3. Resolve deployment artifacts (DeploymentArtifactResolver)
@@ -184,9 +193,12 @@ rules_quarkus/
 ├── quarkifier/
 │   ├── BUILD.bazel                 # java_library, java_binary, java_test targets
 │   └── src/
-│       ├── main/java/...           # Quarkifier tool source
+│       ├── main/java/...           # Quarkifier tool source (shared across versions)
+│       ├── main/java_3_27/...      # Version-specific source for Quarkus 3.27
+│       ├── main/java_3_33/...      # Version-specific source for Quarkus 3.33
 │       └── test/java/...           # Unit + property-based tests
 ├── examples/
-│   └── helloworld/                 # Full example project
+│   ├── helloworld_3_27/            # Example project using Quarkus 3.27
+│   └── helloworld_3_33/            # Example project using Quarkus 3.33
 └── e2e/smoke/                      # Smoke test as external workspace
 ```

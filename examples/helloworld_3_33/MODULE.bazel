@@ -1,9 +1,9 @@
-module(name = "examples")
+module(name = "helloworld_3_33")
 
 bazel_dep(name = "com_clementguillot_rules_quarkus", version = "0.0.0", dev_dependency = True)
 local_path_override(
     module_name = "com_clementguillot_rules_quarkus",
-    path = "..",
+    path = "../..",
 )
 
 # Fix bazel 9.x issues
@@ -18,10 +18,10 @@ bazel_dep(name = "rules_jvm_external", version = "6.10")
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.install(
     artifacts = [
-        "io.quarkus:quarkus-rest:3.27.3",
-        "io.quarkus:quarkus-arc:3.27.3",
+        "io.quarkus:quarkus-rest:3.33.1",
+        "io.quarkus:quarkus-arc:3.33.1",
         # Test dependencies
-        "io.quarkus:quarkus-junit5:3.27.3",
+        "io.quarkus:quarkus-junit:3.33.1",
         "io.rest-assured:rest-assured:5.5.6",
         "org.junit.jupiter:junit-jupiter:5.13.4",
         "org.junit.platform:junit-platform-console-standalone:1.13.4",
@@ -39,6 +39,6 @@ quarkus = use_extension("@com_clementguillot_rules_quarkus//quarkus:extensions.b
 quarkus.toolchain(
     lock_file = "//:maven_install.json",
     quarkifier_source_dir = "@com_clementguillot_rules_quarkus//:MODULE.bazel",
-    quarkus_version = "3.27.3",
+    quarkus_version = "3.33.1",
 )
 use_repo(quarkus, "quarkus_deployment", "rules_quarkus_quarkifier", "rules_quarkus_toolchains")
