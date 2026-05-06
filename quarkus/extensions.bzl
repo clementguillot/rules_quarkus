@@ -52,6 +52,7 @@ with hot-reload support. Use dev=False to opt out.
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_app_impl.bzl", "quarkus_app_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_dev_impl.bzl", "quarkus_dev_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_test_impl.bzl", _quarkus_test = "quarkus_test")
+load("@rules_java//java:java_library.bzl", "java_library")
 
 _QUARKUS_VERSION = "{version}"
 _QUARKIFIER_TOOL = "{tool}"
@@ -99,7 +100,7 @@ def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_clas
     \"\"\"
     test_deps = deps or []
     if srcs:
-        native.java_library(
+        java_library(
             name = name + "_lib",
             srcs = srcs,
             deps = test_deps,
@@ -167,10 +168,17 @@ def _quarkus_quarkifier_local_build_repo_impl(rctx):
     realpath_result = rctx.execute(["realpath", src_workspace_raw])
     src_workspace = realpath_result.stdout.strip() if realpath_result.return_code == 0 else src_workspace_raw
 
+    # Use a dedicated output base for the nested build to avoid deadlocking
+    # with the outer Bazel instance that holds the workspace lock.
+    # --lockfile_mode=off is required because the consuming workspace may run a
+    # different Bazel version than the one pinned at the repo root (e.g. e2e/smoke
+    # uses Bazel 9+ while the root .bazelversion is 7.x), causing lock mismatches.
+    nested_output_base = src_workspace + "/.bazel-nested-build"
+
     # Resolve the actual bazel-bin path using 'bazel info' instead of relying
     # on the bazel-bin convenience symlink (which may not exist after clean).
     bin_result = rctx.execute(
-        ["bazel", "info", "bazel-bin"],
+        ["bazel", "--output_base=" + nested_output_base, "info", "bazel-bin", "--lockfile_mode=off"],
         working_directory = src_workspace,
         timeout = 60,
     )
@@ -193,8 +201,10 @@ def _quarkus_quarkifier_local_build_repo_impl(rctx):
         build_result = rctx.execute(
             [
                 "bazel",
+                "--output_base=" + nested_output_base,
                 "build",
                 target,
+                "--lockfile_mode=off",
             ],
             working_directory = src_workspace,
             timeout = 300,
@@ -429,22 +439,23 @@ def _quarkus_impl(mctx):
 
     if tc.lock_file:
         lock_content = mctx.read(tc.lock_file)
-        lock_data = json.decode(lock_content)
-        artifacts_map = lock_data.get("artifacts", lock_data.get("dependencies", {}))
+        if lock_content:
+            lock_data = json.decode(lock_content)
+            artifacts_map = lock_data.get("artifacts", lock_data.get("dependencies", {}))
 
-        for coord_key in artifacts_map:
-            parts = coord_key.split(":")
-            if len(parts) < 2:
-                continue
-            group_id = parts[0]
-            artifact_id = parts[1]
-            if artifact_id.endswith("-deployment"):
-                continue
-            if not _matches_prefix(group_id, prefixes):
-                continue
-            deployment_gav = group_id + ":" + artifact_id + "-deployment:" + version
-            if deployment_gav not in deployment_artifacts:
-                deployment_artifacts.append(deployment_gav)
+            for coord_key in artifacts_map:
+                parts = coord_key.split(":")
+                if len(parts) < 2:
+                    continue
+                group_id = parts[0]
+                artifact_id = parts[1]
+                if artifact_id.endswith("-deployment"):
+                    continue
+                if not _matches_prefix(group_id, prefixes):
+                    continue
+                deployment_gav = group_id + ":" + artifact_id + "-deployment:" + version
+                if deployment_gav not in deployment_artifacts:
+                    deployment_artifacts.append(deployment_gav)
 
     # Add conditional dev deployment artifacts after extension discovery
     for gav in conditional_dev_deployment_artifacts:

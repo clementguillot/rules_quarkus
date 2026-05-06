@@ -6,7 +6,7 @@
 - **Quarkus versions**: 3.27.x LTS, 3.33.x LTS
 - **Version scope**: one configured Quarkus minor per Bazel workspace
 - **Java**: 17+
-- **Bazel**: 7+
+- **Bazel**: 7+, 8+, or 9+ (bzlmod only, WORKSPACE not supported)
 
 ## Key Design Decisions
 
@@ -186,6 +186,7 @@ rules_quarkus/
 │   └── private/
 │       ├── quarkus_app_impl.bzl    # quarkus_app rule implementation
 │       ├── quarkus_dev_impl.bzl    # quarkus_dev rule implementation
+│       ├── quarkus_test_impl.bzl   # quarkus_test rule implementation
 │       ├── classpath_utils.bzl     # collect_runtime_classpath, collect_source_dirs
 │       ├── launcher.sh.tpl         # Production launcher script template
 │       ├── dev_launcher.sh.tpl     # Dev mode launcher script template
@@ -200,5 +201,5 @@ rules_quarkus/
 ├── examples/
 │   ├── helloworld_3_27/            # Example project using Quarkus 3.27
 │   └── helloworld_3_33/            # Example project using Quarkus 3.33
-└── e2e/smoke/                      # Smoke test as external workspace
+└── e2e/smoke/                      # E2E smoke tests (bzlmod, Bazel 7/8/9)
 ```

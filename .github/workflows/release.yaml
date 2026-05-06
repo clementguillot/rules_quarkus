@@ -36,8 +36,8 @@ jobs:
         run: |
           # Extract supported minor versions from versions.bzl
           # Build each per-minor deploy jar and rename for release
-          for target in $(bazel query 'filter("quarkifier_[0-9]+_[0-9]+_deploy.jar$", //quarkifier:*)' --lockfile_mode=off); do
-            bazel build "$target" --lockfile_mode=off
+          for target in $(bazel query 'filter("quarkifier_[0-9]+_[0-9]+_deploy.jar$", //quarkifier:*)'); do
+            bazel build "$target"
           done
       - name: Prepare release assets
         run: |

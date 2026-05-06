@@ -41,7 +41,7 @@ rules_quarkus/
 ├── examples/                 # Example workspaces
 │   ├── helloworld_3_27/      # Quarkus 3.27 example
 │   └── helloworld_3_33/      # Quarkus 3.33 example
-├── e2e/smoke/                # Smoke test as external workspace
+├── e2e/smoke/                # E2E smoke tests (bzlmod, Bazel 7/8/9)
 └── dev/                      # Gazelle and dev tooling
 ```
 
@@ -71,10 +71,14 @@ bazel test //quarkifier:quarkifier_test_3_33
 
 ### Smoke test (e2e)
 
+The `e2e/smoke` workspace validates the full `rules_quarkus` pipeline from an external consumer's perspective (bzlmod only):
+
 ```bash
 cd e2e/smoke
-bazel build //...
+bazel test //...
 ```
+
+This exercises `quarkus_app`, `quarkus_test`, and the module extension end-to-end.
 
 ## Testing with the Examples Workspace
 
