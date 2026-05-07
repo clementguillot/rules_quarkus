@@ -1,7 +1,14 @@
 {
   "homepage": "https://github.com/clementguillot/rules_quarkus",
-  "maintainers": [],
-  "repository": ["github:clementguillot/rules_quarkus"],
+  "maintainers": [
+    {
+      "name": "Clément Guillot",
+      "github": "clementguillot"
+    }
+  ],
+  "repository": [
+    "github:clementguillot/rules_quarkus"
+  ],
   "versions": [],
   "yanked_versions": {}
 }
