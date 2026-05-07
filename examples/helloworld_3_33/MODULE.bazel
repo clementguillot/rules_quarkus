@@ -41,4 +41,4 @@ quarkus.toolchain(
     quarkifier_source_dir = "@com_clementguillot_rules_quarkus//:MODULE.bazel",
     quarkus_version = "3.33.1",
 )
-use_repo(quarkus, "quarkus_deployment", "rules_quarkus_quarkifier", "rules_quarkus_toolchains")
+use_repo(quarkus, "rules_quarkus")

@@ -1,6 +1,6 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@rules_java//java:java_library.bzl", "java_library")
-load("@rules_quarkus_toolchains//:defs.bzl", "quarkus_app", "quarkus_test")
+load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_test")
 
 java_library(
     name = "lib",

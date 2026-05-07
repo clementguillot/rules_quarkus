@@ -124,6 +124,6 @@ quarkus_app_rule = rule(
         ),
     },
     doc = """\
-Internal rule — use quarkus_app() macro from @rules_quarkus_toolchains//:defs.bzl instead.
+Internal rule — use quarkus_app() macro from @rules_quarkus//quarkus:defs.bzl instead.
 """,
 )

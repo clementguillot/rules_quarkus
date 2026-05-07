@@ -142,7 +142,7 @@ quarkus_test = rule(
         ),
     },
     doc = """\
-Internal rule — use quarkus_test() macro from @rules_quarkus_toolchains//:defs.bzl instead.
+Internal rule — use quarkus_test() macro from @rules_quarkus//quarkus:defs.bzl instead.
 
 Runs @QuarkusTest-annotated JUnit 5 tests with full Quarkus augmentation.
 At test time, the quarkifier serializes an ApplicationModel from the actual

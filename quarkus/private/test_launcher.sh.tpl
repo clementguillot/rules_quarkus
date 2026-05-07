@@ -46,19 +46,31 @@ done < "${WORKSPACE_DIR}/%{direct_jars_file}"
 MODEL_DIR=$(mktemp -d)
 trap "rm -rf $MODEL_DIR" EXIT
 
+# Write the combined deployment classpath (app + deploy) to a temp file.
+# This avoids "Argument list too long" on Linux when the classpath contains
+# many jars with long paths (the unified @rules_quarkus repo has longer paths).
+APP_CP_FILE=$(mktemp)
+echo -n "$CLASSPATH" > "$APP_CP_FILE"
+COMBINED_DEPLOY_CP_FILE=$(mktemp)
+echo -n "$CLASSPATH:$DEPLOY_CP" > "$COMBINED_DEPLOY_CP_FILE"
+
 "$JAVA" \
   -Djava.util.logging.manager=org.jboss.logmanager.LogManager \
   -jar "$TOOL_JAR" \
-  --application-classpath "$CLASSPATH" \
-  --deployment-classpath "$CLASSPATH:$DEPLOY_CP" \
+  --application-classpath-file "$APP_CP_FILE" \
+  --deployment-classpath-file "$COMBINED_DEPLOY_CP_FILE" \
   --output-dir "$MODEL_DIR" \
   --mode test \
   --expected-quarkus-version %{quarkus_version} \
   --app-name %{app_name}
+
 if [ $? -ne 0 ]; then
+  rm -f "$APP_CP_FILE" "$COMBINED_DEPLOY_CP_FILE"
   echo "ERROR: Quarkifier test model generation failed" >&2
   exit 1
 fi
+
+rm -f "$APP_CP_FILE" "$COMBINED_DEPLOY_CP_FILE"
 
 if [ ! -f "$MODEL_DIR/test-app-model.dat" ]; then
   echo "ERROR: test-app-model.dat was not generated" >&2
@@ -91,6 +103,8 @@ fi
 
 REPORTS_DIR=$(mktemp -d)
 "$JAVA" \
+  --add-opens=java.base/java.lang=ALL-UNNAMED \
+  --add-opens=java.base/java.lang.invoke=ALL-UNNAMED \
   -Djava.util.logging.manager=org.jboss.logmanager.LogManager \
   -Dquarkus-internal-test.serialized-app-model.path="$MODEL_DIR/test-app-model.dat" \
   -DOUTPUT_SOURCES_DIR="$DIRECT_JARS" \

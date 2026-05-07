@@ -1,7 +1,10 @@
 # Public API package for rules_quarkus.
 
-exports_files([
-    "defs.bzl",
-    "extensions.bzl",
-    "providers.bzl",
-])
+exports_files(
+    [
+        "defs.bzl",
+        "extensions.bzl",
+        "providers.bzl",
+    ],
+    visibility = ["//visibility:public"],
+)

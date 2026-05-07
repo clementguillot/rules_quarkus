@@ -18,7 +18,7 @@ bazel_dep(name = "com_clementguillot_rules_quarkus", version = "<VERSION>")
 ## Usage
 
 ```starlark
-load("@rules_quarkus_toolchains//:defs.bzl", "quarkus_app", "quarkus_test")
+load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_test")
 
 quarkus_app(
     name = "app",
