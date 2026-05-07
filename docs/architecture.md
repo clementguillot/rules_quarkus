@@ -37,9 +37,7 @@ graph TD
 
     subgraph "Module Extension Layer"
         EXT["extensions.bzl — quarkus module extension"]
-        TOOLCHAINS_REPO["@rules_quarkus_toolchains"]
-        QUARKIFIER_REPO["@rules_quarkus_quarkifier"]
-        DEPLOY_REPO["@quarkus_deployment"]
+        RULES_REPO["@rules_quarkus (unified repo)"]
     end
 
     subgraph "Quarkifier Tool (Java)"
@@ -53,14 +51,12 @@ graph TD
     end
 
     JL --> QA
-    QA --> TOOLCHAINS_REPO
-    TOOLCHAINS_REPO --> QA_IMPL
-    TOOLCHAINS_REPO --> QD_IMPL
+    QA --> RULES_REPO
+    RULES_REPO --> QA_IMPL
+    RULES_REPO --> QD_IMPL
     QA_IMPL --> PROVIDERS
     QA_IMPL --> CP_UTILS
-    EXT --> TOOLCHAINS_REPO
-    EXT --> QUARKIFIER_REPO
-    EXT --> DEPLOY_REPO
+    EXT --> RULES_REPO
     LAUNCHER --> CONFIG
     LAUNCHER --> SCANNER
     LAUNCHER --> RESOLVER
@@ -71,30 +67,23 @@ graph TD
 
 ## Module Extension System
 
-The `quarkus` module extension (`quarkus/extensions.bzl`) creates **three repositories**:
+The `quarkus` module extension (`quarkus/extensions.bzl`) creates a single unified repository:
 
-Current limitation: the extension consumes the first `quarkus.toolchain()` tag and creates fixed repository names (`@rules_quarkus_toolchains`, `@rules_quarkus_quarkifier`, and `@quarkus_deployment`). This means version selection is workspace-wide. Multiple supported Quarkus minors are available across workspaces, but one workspace cannot currently expose versioned toolchain repos for 3.27 and 3.33 at the same time.
+Current limitation: the extension consumes the first `quarkus.toolchain()` tag and creates a fixed repository name (`@rules_quarkus`). This means version selection is workspace-wide. Multiple supported Quarkus minors are available across workspaces, but one workspace cannot currently build different Quarkus minor versions side by side.
 
-### @rules_quarkus_toolchains
+### @rules_quarkus
 
-Generated repo containing `defs.bzl` with `quarkus_app` and `quarkus_dev` macros. These macros wrap the internal rule implementations with toolchain-specific defaults (quarkus version, quarkifier tool path, deployment deps target).
+A single generated repository containing everything needed to build Quarkus applications:
 
-### @rules_quarkus_quarkifier
+- **`quarkus/defs.bzl`** — public API macros (`quarkus_app`, `quarkus_test`) with toolchain-specific defaults injected (quarkus version, quarkifier tool path, deployment deps)
+- **`quarkifier/tool.jar`** — the quarkifier deploy jar, resolved in priority order:
+  1. **Local source build** — user provides `quarkifier_source_dir`, the extension builds and symlinks the deploy jar
+  2. **GitHub release download** — fetches from `https://github.com/clementguillot/rules_quarkus/releases/`
+- **`deployment/`** — deployment jars downloaded with transitive dependencies using Coursier. Auto-discovers Quarkus extensions from the user's `maven_install.json` by scanning for artifacts matching configurable group prefixes (default: `io.quarkus`, `io.quarkiverse.`), then appends `-deployment` to each artifact ID. Produces two `java_library` targets:
+  - `:core` — transitive deps of `quarkus-core-deployment` (used for the dev jar manifest classpath)
+  - `:all` — all deployment jars including extension-specific deployment jars and conditional dev dependencies
 
-Contains the quarkifier JAR. Resolved in priority order:
-1. **Direct override** — user provides a `quarkifier_tool` label
-2. **Local source build** — user provides `quarkifier_source_dir`, the extension symlinks deploy jars from `bazel-bin/`
-3. **GitHub release download** — fetches from `https://github.com/clementguillot/rules_quarkus/releases/`
-
-### @quarkus_deployment
-
-Downloads all deployment jars with transitive dependencies using Coursier. Auto-discovers Quarkus extensions from the user's `maven_install.json` by scanning for artifacts matching configurable group prefixes (default: `io.quarkus`, `io.quarkiverse.`), then appends `-deployment` to each artifact ID.
-
-Produces two `java_library` targets:
-- `:core` — transitive deps of `quarkus-core-deployment` + extra core artifacts (used for the dev jar manifest classpath)
-- `:all` — all deployment jars including extension-specific deployment jars, conditional dev dependencies, and `-dev` runtime modules
-
-Jar symlinks preserve the Maven directory structure from the Coursier cache (e.g., `jars/org/mvnpm/flag-icons/7.5.0/flag-icons-7.5.0.jar`) so that the Dev UI's version extraction logic works correctly.
+Jar symlinks preserve the Maven directory structure from the Coursier cache so that the Dev UI's version extraction logic works correctly.
 
 ## Build Flow
 

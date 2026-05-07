@@ -1,6 +1,7 @@
 package com.clementguillot.quarkifier;
 
 import java.io.Serial;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -49,7 +50,9 @@ public record QuarkifierConfig(
       """
             Usage: quarkifier \\
               --application-classpath <jar:jar:...> \\
+              [--application-classpath-file <path>] \\
               --deployment-classpath <jar:jar:...> \\
+              [--deployment-classpath-file <path>] \\
               [--core-deployment-classpath <jar:jar:...>] \\
               --output-dir <path> \\
               [--resources <path,path,...>] \\
@@ -93,7 +96,11 @@ public record QuarkifierConfig(
     for (int i = 0; i < args.length; i++) {
       switch (args[i]) {
         case "--application-classpath" -> appCp = requireValue(args, ++i, args[i - 1]);
+        case "--application-classpath-file" -> appCp =
+            readFileContent(requireValue(args, ++i, args[i - 1]));
         case "--deployment-classpath" -> deployCp = requireValue(args, ++i, args[i - 1]);
+        case "--deployment-classpath-file" -> deployCp =
+            readFileContent(requireValue(args, ++i, args[i - 1]));
         case "--core-deployment-classpath" -> coreDeployCp = requireValue(args, ++i, args[i - 1]);
         case "--output-dir" -> outputDir = requireValue(args, ++i, args[i - 1]);
         case "--resources" -> resources = requireValue(args, ++i, args[i - 1]);
@@ -246,6 +253,14 @@ public record QuarkifierConfig(
       throw new InvalidArgumentsException("Missing value for " + flag);
     }
     return args[index];
+  }
+
+  private static String readFileContent(String filePath) throws InvalidArgumentsException {
+    try {
+      return Files.readString(Path.of(filePath)).strip();
+    } catch (java.io.IOException e) {
+      throw new InvalidArgumentsException("Failed to read classpath file: " + filePath, e);
+    }
   }
 
   private static List<Path> splitPaths(String value, String separator) {

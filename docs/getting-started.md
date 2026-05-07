@@ -56,7 +56,7 @@ quarkus.toolchain(
     quarkus_version = "3.33.1",
     lock_file = "//:maven_install.json",
 )
-use_repo(quarkus, "quarkus_deployment", "rules_quarkus_quarkifier", "rules_quarkus_toolchains")
+use_repo(quarkus, "rules_quarkus")
 ```
 
 The `lock_file` is used to auto-discover which Quarkus extensions you're using and download their `-deployment` counterparts.
@@ -70,7 +70,6 @@ The configured `quarkus_version` applies to every `quarkus_app`, generated `<nam
 | `quarkus_version` | (required) | Quarkus version, e.g. `"3.33.1"` or `"3.27.3"` |
 | `lock_file` | `None` | Path to `maven_install.json` for extension auto-discovery |
 | `extension_group_prefixes` | `["io.quarkus", "io.quarkiverse."]` | Maven groupId prefixes identifying Quarkus extensions |
-| `quarkifier_tool` | `None` | Override quarkifier tool with a pre-built jar label |
 | `quarkifier_source_dir` | `None` | Label in the rules_quarkus source dir for local dev builds |
 
 ## 4. Create Your Application
@@ -96,7 +95,7 @@ java_library(
 ### quarkus_app for the runnable application
 
 ```python
-load("@rules_quarkus_toolchains//:defs.bzl", "quarkus_app")
+load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app")
 
 quarkus_app(
     name = "helloworld",
@@ -181,7 +180,7 @@ See [Dev Mode & Dev UI Integration](dev-mode.md) for details on how this works u
 | `jvm_flags` | `string_list` | `[]` | JVM flags for runtime execution |
 | `main_class` | `string` | `""` | Override main class (default: Quarkus runner) |
 
-The `quarkus_version`, `quarkifier_tool`, and `deployment_deps` attributes are injected automatically by the toolchains macro.
+The `quarkus_version`, `quarkifier_tool`, and `deployment_deps` attributes are injected automatically by the `@rules_quarkus//quarkus:defs.bzl` macros.
 
 ## Multi-Module Projects
 
@@ -246,5 +245,5 @@ quarkus.toolchain(
     lock_file = "//:maven_install.json",
     quarkus_version = "3.33.1",
 )
-use_repo(quarkus, "quarkus_deployment", "rules_quarkus_quarkifier", "rules_quarkus_toolchains")
+use_repo(quarkus, "rules_quarkus")
 ```

@@ -58,7 +58,7 @@ sequenceDiagram
 
 The manifest classpath contains two categories of jars, matching Maven's `DevMojo`:
 
-1. **Core deployment infrastructure** — the transitive closure of `quarkus-core-deployment`, resolved separately via `@quarkus_deployment//:core`. For jars that also exist on the application classpath, the `@maven` version is preferred to avoid class identity conflicts between Coursier and `rules_jvm_external` copies.
+1. **Core deployment infrastructure** — the transitive closure of `quarkus-core-deployment`, resolved separately via `@rules_quarkus//deployment:core`. For jars that also exist on the application classpath, the `@maven` version is preferred to avoid class identity conflicts between Coursier and `rules_jvm_external` copies.
 
 2. **Parent-first runtime artifacts** — runtime jars flagged as `CLASSLOADER_PARENT_FIRST` in the `ApplicationModel` (logging, Jakarta APIs, etc.).
 
@@ -71,10 +71,10 @@ The `quarkus_dev` rule manages three separate classpaths:
 | Classpath | Source | Purpose |
 |-----------|--------|---------|
 | `application_classpath` | `deps` runtime jars | Runtime deps for the ApplicationModel |
-| `deployment_classpath` | `@quarkus_deployment//:all` | All deployment jars for the ApplicationModel |
-| `core_deployment_classpath` | `@quarkus_deployment//:core` | Core deployment infrastructure for the dev jar manifest |
+| `deployment_classpath` | `@rules_quarkus//deployment:all` | All deployment jars for the ApplicationModel |
+| `core_deployment_classpath` | `@rules_quarkus//deployment:core` | Core deployment infrastructure for the dev jar manifest |
 
-The `@quarkus_deployment` repo resolves these in two Coursier phases:
+The `@rules_quarkus//deployment` package resolves these in two Coursier phases:
 1. `coursier fetch io.quarkus:quarkus-core-deployment:VERSION` → `:core` target (~70 jars)
 2. `coursier fetch` all extension deployment GAVs → `:all` target (superset of `:core`, ~300 jars)
 
@@ -156,7 +156,7 @@ When source dirs are empty, hot-reload is disabled but the Dev UI still works.
 
 The Dev UI serves static resources (Vaadin web components, flag-icons, etc.) from jars in the deployment classpath. These jars contain resources under `META-INF/resources/_static/`. The `BuildTimeContentProcessor.extractJsVersionsFor()` method parses the version from the jar URL path by finding the artifact name and taking the next path segment.
 
-For this to work correctly, the `@quarkus_deployment` repo preserves the Maven directory structure in its symlinks (e.g., `jars/org/mvnpm/flag-icons/7.5.0/flag-icons-7.5.0.jar`). A flat `jars/filename.jar` layout would cause the version extraction to include `.jar` in the version string, producing broken URLs like `/q/_static/flag-icons/7.5.0.jar/...`.
+For this to work correctly, the `@rules_quarkus//deployment` package preserves the Maven directory structure in its symlinks (e.g., `jars/org/mvnpm/flag-icons/7.5.0/flag-icons-7.5.0.jar`). A flat `jars/filename.jar` layout would cause the version extraction to include `.jar` in the version string, producing broken URLs like `/q/_static/flag-icons/7.5.0.jar/...`.
 
 ## Troubleshooting
 

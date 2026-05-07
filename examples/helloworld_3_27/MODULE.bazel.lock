@@ -257,7 +257,7 @@
   "moduleExtensions": {
     "@@com_clementguillot_rules_quarkus~//quarkus:extensions.bzl%quarkus": {
       "general": {
-        "bzlTransitiveDigest": "k/TaeeBgAnWR0F5f2y3SqzTdAsR/qeawQ7SZZtrL+Mw=",
+        "bzlTransitiveDigest": "uFaq9JAUdze7a0cgnMcS6tBJsxdueFNaxtxztV0DvZk=",
         "usagesDigest": "6CKDKZ3zH4qJwRJG/orvAmLsq5epkmUJNXUropNZy/g=",
         "recordedFileInputs": {
           "@@//maven_install.json": "f89ef83739ae6ee3eaec36cf43454239290f6f89371a32580c0b643d1465dfc9"
@@ -265,27 +265,12 @@
         "recordedDirentsInputs": {},
         "envVariables": {},
         "generatedRepoSpecs": {
-          "rules_quarkus_quarkifier": {
+          "rules_quarkus": {
             "bzlFile": "@@com_clementguillot_rules_quarkus~//quarkus:extensions.bzl",
-            "ruleClassName": "_quarkus_quarkifier_local_build_repo",
+            "ruleClassName": "_rules_quarkus_repo",
             "attributes": {
-              "source_dir": "@@com_clementguillot_rules_quarkus~//:MODULE.bazel",
-              "target": "//quarkifier:quarkifier_3_27_deploy.jar"
-            }
-          },
-          "rules_quarkus_toolchains": {
-            "bzlFile": "@@com_clementguillot_rules_quarkus~//quarkus:extensions.bzl",
-            "ruleClassName": "_quarkus_toolchains_repo",
-            "attributes": {
-              "quarkifier_tool": "@rules_quarkus_quarkifier//:tool/quarkifier.jar",
-              "quarkus_version": "3.27.3"
-            }
-          },
-          "quarkus_deployment": {
-            "bzlFile": "@@com_clementguillot_rules_quarkus~//quarkus:extensions.bzl",
-            "ruleClassName": "_quarkus_deployment_repo",
-            "attributes": {
-              "artifacts": [
+              "quarkus_version": "3.27.3",
+              "deployment_artifacts": [
                 "io.quarkus:quarkus-core-deployment:3.27.3",
                 "io.quarkus:quarkus-arc-deployment:3.27.3",
                 "io.quarkus:quarkus-bootstrap-app-model-deployment:3.27.3",
@@ -319,7 +304,9 @@
                 "io.quarkus:quarkus-vertx-latebound-mdc-provider-deployment:3.27.3",
                 "io.quarkus:quarkus-virtual-threads-deployment:3.27.3",
                 "io.quarkus:quarkus-devui-deployment:3.27.3"
-              ]
+              ],
+              "quarkifier_source_dir": "@@com_clementguillot_rules_quarkus~//:MODULE.bazel",
+              "quarkifier_build_target": "//quarkifier:quarkifier_3_27_deploy.jar"
             }
           }
         },

@@ -11,6 +11,8 @@ The Quarkifier (`com.clementguillot.quarkifier`) is a standalone Java tool that 
 java -jar quarkifier_<minor>_deploy.jar \
   --application-classpath <jar:jar:...> \
   --deployment-classpath <jar:jar:...> \
+  [--application-classpath-file <path>] \
+  [--deployment-classpath-file <path>] \
   [--core-deployment-classpath <jar:jar:...>] \
   --output-dir <path> \
   [--resources <path,path,...>] \
@@ -30,8 +32,10 @@ java -jar quarkifier_<minor>_deploy.jar \
 
 | Flag | Required | Default | Description |
 |---|---|---|---|
-| `--application-classpath` | Yes | — | Colon-separated list of runtime jars |
-| `--deployment-classpath` | Yes | — | Colon-separated list of runtime + deployment jars |
+| `--application-classpath` | Yes* | — | Colon-separated list of runtime jars |
+| `--application-classpath-file` | No | — | File containing the application classpath (alternative to `--application-classpath`) |
+| `--deployment-classpath` | Yes* | — | Colon-separated list of runtime + deployment jars |
+| `--deployment-classpath-file` | No | — | File containing the deployment classpath (alternative to `--deployment-classpath`) |
 | `--core-deployment-classpath` | No | `[]` | Colon-separated list of core deployment jars (dev mode only) |
 | `--output-dir` | Yes | — | Directory where Fast_Jar output is written |
 | `--resources` | No | `[]` | Comma-separated list of resource file paths |
@@ -45,6 +49,8 @@ java -jar quarkifier_<minor>_deploy.jar \
 | `--classes-output-dirs` | No | `[]` | Comma-separated bazel-bin output directories containing .class files |
 | `--workspace-dir` | No | `null` | Bazel workspace root directory for running bazel build |
 | `--bazel-build-timeout-seconds` | No | `60` | Timeout in seconds for bazel build process |
+
+*Either the inline flag or the `-file` variant must be provided. The `-file` variants read the classpath from a file (one line, colon-separated paths) to avoid "Argument list too long" errors on Linux when the classpath is very long.
 
 ### Exit Codes
 
