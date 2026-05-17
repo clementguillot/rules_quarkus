@@ -95,7 +95,6 @@ if [ -n "$SOURCE_DIRS" ] && [ -n "$BAZEL_TARGETS" ]; then
       "--classes-dir" "$CLASSES_DIR"
       "--bazel-targets" "$BAZEL_TARGETS"
       "--classes-output-dirs" "$ABS_CLASSES_OUTPUT_DIRS"
-      "--workspace-dir" "$WORKSPACE_ROOT"
     )
 fi
 
@@ -110,5 +109,6 @@ java \
   --expected-quarkus-version %{quarkus_version} \
   --app-name %{app_name} \
   %{app_version_flag} \
+  --workspace-dir "$WORKSPACE_ROOT" \
   ${HOT_RELOAD_ARGS[@]+"${HOT_RELOAD_ARGS[@]}"} \
   "$@" || exit $?

@@ -86,7 +86,7 @@ class DevModeLauncherTest {
   }
 
   @Test
-  void buildDevModeContext_setsCorrectBaseNameProjectDirTargetDir() {
+  void buildDevModeContext_fallsBackToOutputDir_whenWorkspaceDirNull() {
     var config =
         new QuarkifierConfig(
             List.of(Path.of("app.jar")),
@@ -108,9 +108,70 @@ class DevModeLauncherTest {
     var context = DevModeLauncher.buildDevModeContext(config);
 
     assertEquals("my-app", context.getBaseName());
+    // Falls back to outputDir when workspaceDir is null
     assertEquals(config.outputDir().toAbsolutePath().toFile(), context.getProjectDir());
     assertEquals(
+        config.outputDir().resolve("target").toAbsolutePath().toString(),
+        context.getApplicationRoot().getTargetDir());
+    assertEquals(
         config.outputDir().toAbsolutePath().toString(),
+        context.getApplicationRoot().getProjectDirectory());
+  }
+
+  @Test
+  void buildDevModeContext_setsProjectDir_fromWorkspaceDir() {
+    var workspaceDir = Path.of("/home/user/project");
+    var config =
+        new QuarkifierConfig(
+            List.of(Path.of("app.jar")),
+            List.of(Path.of("deploy.jar")),
+            List.of(),
+            Path.of("/tmp/output"),
+            List.of(),
+            AugmentationMode.DEV,
+            "3.27.3",
+            "my-app",
+            "1.0.0",
+            List.of(Path.of("src/main/java")),
+            null,
+            List.of(),
+            List.of(),
+            workspaceDir,
+            60);
+
+    var context = DevModeLauncher.buildDevModeContext(config);
+
+    assertEquals(workspaceDir.toAbsolutePath().toFile(), context.getProjectDir());
+    assertEquals(
+        workspaceDir.toAbsolutePath().toString(),
+        context.getApplicationRoot().getProjectDirectory());
+  }
+
+  @Test
+  void buildDevModeContext_setsTargetDir_asSubdirOfWorkspaceDir() {
+    var workspaceDir = Path.of("/home/user/project");
+    var config =
+        new QuarkifierConfig(
+            List.of(Path.of("app.jar")),
+            List.of(Path.of("deploy.jar")),
+            List.of(),
+            Path.of("/tmp/output"),
+            List.of(),
+            AugmentationMode.DEV,
+            "3.27.3",
+            "my-app",
+            "1.0.0",
+            List.of(Path.of("src/main/java")),
+            null,
+            List.of(),
+            List.of(),
+            workspaceDir,
+            60);
+
+    var context = DevModeLauncher.buildDevModeContext(config);
+
+    assertEquals(
+        workspaceDir.resolve("target").toAbsolutePath().toString(),
         context.getApplicationRoot().getTargetDir());
   }
 

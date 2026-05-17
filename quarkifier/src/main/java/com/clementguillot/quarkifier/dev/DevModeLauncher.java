@@ -228,7 +228,16 @@ public final class DevModeLauncher {
     context.setMode(QuarkusBootstrap.Mode.DEV);
     context.setBaseName(config.appName() != null ? config.appName() : "quarkus-app");
     context.setArgs(new String[0]);
-    context.setProjectDir(config.outputDir().toAbsolutePath().toFile());
+
+    // Use workspaceDir as the project root so the Dev UI "Workspace" tab
+    // displays the user's actual source tree instead of Bazel's output directory.
+    Path projectRoot = config.workspaceDir() != null ? config.workspaceDir() : config.outputDir();
+    if (config.workspaceDir() == null) {
+      LOGGER.warn(
+          "Workspace directory not set. Dev UI workspace tab will not show source files."
+              + " Use 'bazel run' to launch dev mode.");
+    }
+    context.setProjectDir(projectRoot.toAbsolutePath().toFile());
 
     // Platform properties for SmallRye Config expression resolution
     BuildProperties.defaults()
@@ -245,11 +254,11 @@ public final class DevModeLauncher {
         new DevModeContext.ModuleInfo.Builder()
             .setArtifactKey(ArtifactKey.ga(coords.groupId(), coords.artifactId()))
             .setName(config.appName() != null ? config.appName() : coords.artifactId())
-            .setProjectDirectory(config.outputDir().toAbsolutePath().toString())
+            .setProjectDirectory(projectRoot.toAbsolutePath().toString())
             .setSourcePaths(PathList.from(config.sourceDirs()))
             .setClassesPath(classesPath.toAbsolutePath().toString())
             .setResourcePaths(PathList.from(config.resources()))
-            .setTargetDir(config.outputDir().toAbsolutePath().toString())
+            .setTargetDir(projectRoot.resolve("target").toAbsolutePath().toString())
             .build();
 
     context.setApplicationRoot(moduleInfo);
