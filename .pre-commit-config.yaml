@@ -51,6 +51,6 @@ repos:
             .bcr/config.yml
           )
   - repo: https://github.com/crate-ci/typos
-    rev: v1.46.0
+    rev: v1.46.2
     hooks:
       - id: typos
