@@ -43,6 +43,18 @@ class MavenCoordinateParserTest {
     assertEquals("3.27.3", coords.version());
   }
 
+  @Test
+  void parseBazelCanonicalExternalRepoPath() {
+    var path =
+        Path.of(
+            "/private/var/bazel/external/rules_jvm_external~~maven~maven/"
+                + "io/smallrye/reactive/mutiny/3.1.1/processed_mutiny-3.1.1.jar");
+    var coords = MavenCoordinateParser.parse(path);
+    assertEquals("io.smallrye.reactive", coords.groupId());
+    assertEquals("mutiny", coords.artifactId());
+    assertEquals("3.1.1", coords.version());
+  }
+
   @ParameterizedTest
   @CsvSource({
     "quarkus-arc-3.27.3.jar, quarkus-arc, 3.27.3",

@@ -78,12 +78,13 @@ public final class MavenCoordinateParser {
 
   /**
    * Checks whether a path segment is a boundary marker that precedes the Maven groupId. Segments
-   * containing dots (e.g. "repo1.maven.org"), special characters, or known Bazel/OS prefixes are
-   * not part of the groupId.
+   * containing dots (e.g. "repo1.maven.org"), Bazel canonical repo markers, or known Bazel/OS
+   * prefixes are not part of the groupId.
    */
   private static boolean isStopSegment(String segment) {
     if (segment.isEmpty()
         || segment.contains("+")
+        || segment.contains("~")
         || segment.contains("=")
         || segment.contains(".")) {
       return true;
