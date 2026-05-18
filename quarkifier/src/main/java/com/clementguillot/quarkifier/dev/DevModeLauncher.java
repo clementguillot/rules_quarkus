@@ -85,6 +85,9 @@ public final class DevModeLauncher {
 
       // 4. Start the child process
       ProcessBuilder pb = new ProcessBuilder(cmd);
+      if (config.workspaceDir() != null) {
+        pb.directory(config.workspaceDir().toFile());
+      }
       pb.inheritIO();
       Process process = pb.start();
 
