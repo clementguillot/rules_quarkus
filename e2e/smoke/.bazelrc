@@ -2,3 +2,9 @@ common --java_language_version=17
 common --tool_java_language_version=17
 common --java_runtime_version=remotejdk_17
 common --tool_java_runtime_version=remotejdk_17
+
+# Unset ANDROID_HOME to prevent rules_android from trying to configure an
+# Android SDK repository. This workspace does not use Android, but rules_android
+# is a transitive dep pulled in to fix Bazel 9.x issues. Without this, CI
+# runners with an outdated Android SDK (< 35.0.0) will fail during analysis.
+common --repo_env=ANDROID_HOME=
