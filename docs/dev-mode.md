@@ -148,6 +148,7 @@ When source dirs are empty, hot-reload is disabled but the Dev UI still works.
 
 ## Known Limitations
 
+- **Dependencies graph direct links**: The Dev UI "Application Dependencies" graph shows all runtime extensions as direct deps of the root node (instead of only user-declared ones like Maven does), because Bazel's flat classpath doesn't distinguish user-declared from transitive extensions ([#51](https://github.com/clementguillot/rules_quarkus/issues/51)).
 - **Extensions panel**: The Dev UI Extensions panel doesn't work — it uses Maven resolver classes unavailable in Bazel (produces `ClassCastException` for `RemoteRepository` across classloaders).
 - **No in-process dev mode**: Always uses a separate JVM process (~2-3s startup overhead).
 - **Docker required for Dev Services**: Dev Services need Docker on the host.

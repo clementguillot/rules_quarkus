@@ -15,10 +15,10 @@ public final class MavenCoordinateParser {
 
   /** Path segments that mark the boundary before Maven groupId segments begin. */
   private static final Set<String> STOP_SEGMENTS =
-      Set.of("external", "v1", "https", "file", "bin", "repo", "jars");
+      Set.of("external", "v1", "https", "file", "bin", "repo", "jars", "maven2");
 
   /** Prefixes that mark non-groupId segments (Bazel/OS roots). */
-  private static final String[] STOP_PREFIXES = {"maven", "bazel-", "darwin", "linux", "windows"};
+  private static final String[] STOP_PREFIXES = {"bazel-", "darwin", "linux", "windows"};
 
   private MavenCoordinateParser() {}
 

@@ -12,16 +12,23 @@ import io.quarkus.bootstrap.workspace.DefaultArtifactSources;
 import io.quarkus.bootstrap.workspace.DefaultSourceDir;
 import io.quarkus.bootstrap.workspace.WorkspaceModule;
 import io.quarkus.bootstrap.workspace.WorkspaceModuleId;
+import io.quarkus.maven.dependency.ArtifactCoords;
 import io.quarkus.maven.dependency.ArtifactKey;
 import io.quarkus.maven.dependency.DependencyFlags;
 import io.quarkus.maven.dependency.ResolvedDependencyBuilder;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.jar.JarFile;
+import javax.xml.stream.XMLInputFactory;
+import javax.xml.stream.XMLStreamReader;
 
 /**
  * Builds a Quarkus {@link ApplicationModel} from classpath jars, bypassing Maven/Gradle resolution.
@@ -30,7 +37,10 @@ import java.util.jar.JarFile;
  * scans jars for extension metadata, registers dependencies with the correct flags, and configures
  * parent-first classloading for infrastructure jars.
  */
+@SuppressWarnings({"PMD.GodClass", "PMD.TooManyMethods", "PMD.NcssCount"})
 public final class QuarkusAppModelBuilder {
+
+  private static final String JAR_TYPE = "jar";
 
   private QuarkusAppModelBuilder() {}
 
@@ -81,6 +91,7 @@ public final class QuarkusAppModelBuilder {
     addDeploymentDependencies(modelBuilder, deployClasspath, addedKeys, extensionJars);
     markParentFirstArtifacts(modelBuilder);
     fixRunnerParentFirstFlags(modelBuilder);
+    populateDependencyLinks(modelBuilder, runtimeJars);
     // ApplicationModel.asMap() (used by ApplicationModelSerializer for JSON serialization)
     // calls getPlatforms().asMap() without a null check. Set an empty PlatformImports so
     // serialization works when no Quarkus platform BOMs are imported (Bazel-managed deps).
@@ -190,6 +201,7 @@ public final class QuarkusAppModelBuilder {
             .setGroupId(coords.groupId())
             .setArtifactId(appName != null ? appName : coords.artifactId())
             .setVersion(appVersion != null ? appVersion : coords.version())
+            .setType(JAR_TYPE)
             .setResolvedPath(appJar)
             .setRuntimeCp()
             .setDeploymentCp());
@@ -229,6 +241,7 @@ public final class QuarkusAppModelBuilder {
             .setGroupId(coords.groupId())
             .setArtifactId(artifactId)
             .setVersion(version)
+            .setType(JAR_TYPE)
             .setResolvedPath(appJar)
             .setWorkspaceModule(module)
             .setRuntimeCp()
@@ -246,6 +259,7 @@ public final class QuarkusAppModelBuilder {
               .setGroupId(coords.groupId())
               .setArtifactId(coords.artifactId())
               .setVersion(coords.version())
+              .setType(JAR_TYPE)
               .setResolvedPath(jar)
               .setRuntimeCp()
               .setDeploymentCp()
@@ -295,6 +309,7 @@ public final class QuarkusAppModelBuilder {
               .setGroupId(coords.groupId())
               .setArtifactId(coords.artifactId())
               .setVersion(coords.version())
+              .setType(JAR_TYPE)
               .setResolvedPath(jar)
               .setDeploymentCp()
               .setDirect(true);
@@ -312,11 +327,11 @@ public final class QuarkusAppModelBuilder {
         dep.setRuntimeCp();
       }
 
-      // Quarkus SPI jars (e.g., quarkus-devui-spi) contain SPI classes referenced
-      // by generated ArC beans. They have no extension metadata so they won't be
-      // auto-detected as runtime extensions, but they must be on the runtime
+      // quarkus-devui-spi contains SPI classes (e.g., McpServerConfiguration) referenced
+      // by generated ArC beans. It has no extension metadata so it won't be
+      // auto-detected as a runtime extension, but it must be on the runtime
       // classpath so the generated code can load them.
-      if ("io.quarkus".equals(coords.groupId()) && coords.artifactId().endsWith("-spi")) {
+      if ("quarkus-devui-spi".equals(coords.artifactId())) {
         dep.setRuntimeCp();
       }
 
@@ -453,5 +468,279 @@ public final class QuarkusAppModelBuilder {
         dep.setFlags(DependencyFlags.CLASSLOADER_RUNNER_PARENT_FIRST);
       }
     }
+  }
+
+  // ---- Dependency graph links ----
+
+  /**
+   * Populates sub-dependency links on each {@link ResolvedDependencyBuilder} by reading the
+   * embedded POM from each jar. This enables the Dev UI "Application Dependencies" graph to show
+   * edges between nodes.
+   */
+  private static void populateDependencyLinks(
+      ApplicationModelBuilder modelBuilder, List<Path> runtimeJars) {
+    Map<String, ResolvedDependencyBuilder> depsByGa = buildGaIndex(modelBuilder);
+    List<ArtifactCoords> appDeps = computeRootEdges(modelBuilder, runtimeJars, depsByGa);
+    wireSubDependencies(modelBuilder, depsByGa);
+    adoptOrphans(modelBuilder, depsByGa, appDeps);
+    modelBuilder.getApplicationArtifact().setDependencies(appDeps);
+  }
+
+  /** Builds a lookup of all model dependencies keyed by "groupId:artifactId". */
+  private static Map<String, ResolvedDependencyBuilder> buildGaIndex(
+      ApplicationModelBuilder modelBuilder) {
+    Map<String, ResolvedDependencyBuilder> depsByGa = new HashMap<>();
+    for (var dep : modelBuilder.getDependencies()) {
+      depsByGa.put(dep.getGroupId() + ":" + dep.getArtifactId(), dep);
+    }
+    return depsByGa;
+  }
+
+  /**
+   * Computes root-node edges: runtime extensions and their deployment counterparts become direct
+   * dependencies of the application artifact.
+   */
+  private static List<ArtifactCoords> computeRootEdges(
+      ApplicationModelBuilder modelBuilder,
+      List<Path> runtimeJars,
+      Map<String, ResolvedDependencyBuilder> depsByGa) {
+    Set<String> runtimeExtensionGas = new HashSet<>();
+    for (Path jar : runtimeJars) {
+      var coords = MavenCoordinateParser.parse(jar);
+      var dep = depsByGa.get(coords.groupId() + ":" + coords.artifactId());
+      if (dep != null && dep.isFlagSet(DependencyFlags.RUNTIME_EXTENSION_ARTIFACT)) {
+        runtimeExtensionGas.add(coords.groupId() + ":" + coords.artifactId());
+      }
+    }
+    List<ArtifactCoords> appDeps = new ArrayList<>();
+    for (var dep : modelBuilder.getDependencies()) {
+      String ga = dep.getGroupId() + ":" + dep.getArtifactId();
+      String aid = dep.getArtifactId();
+      if (runtimeExtensionGas.contains(ga)
+          || (aid.endsWith("-deployment")
+              && runtimeExtensionGas.contains(
+                  dep.getGroupId()
+                      + ":"
+                      + aid.substring(0, aid.length() - "-deployment".length())))) {
+        appDeps.add(
+            ArtifactCoords.of(
+                dep.getGroupId(),
+                dep.getArtifactId(),
+                dep.getClassifier(),
+                dep.getType(),
+                dep.getVersion()));
+      }
+    }
+    return appDeps;
+  }
+
+  /** Reads embedded POMs and wires sub-dependency links on each model dependency. */
+  private static void wireSubDependencies(
+      ApplicationModelBuilder modelBuilder, Map<String, ResolvedDependencyBuilder> depsByGa) {
+    for (var dep : modelBuilder.getDependencies()) {
+      var resolvedPaths = dep.getResolvedPaths();
+      if (resolvedPaths == null || resolvedPaths.isEmpty()) {
+        continue;
+      }
+      Path jarPath = resolvedPaths.iterator().next();
+      if (!jarPath.toString().endsWith(".jar")) {
+        continue;
+      }
+      List<ArtifactCoords> subDeps =
+          readDependenciesFromJar(jarPath, dep.getGroupId(), dep.getArtifactId());
+      List<ArtifactCoords> filtered = new ArrayList<>();
+      for (ArtifactCoords subDep : subDeps) {
+        var modelDep = depsByGa.get(subDep.getGroupId() + ":" + subDep.getArtifactId());
+        if (modelDep != null && modelDep != dep) {
+          filtered.add(
+              ArtifactCoords.of(
+                  modelDep.getGroupId(),
+                  modelDep.getArtifactId(),
+                  modelDep.getClassifier(),
+                  modelDep.getType(),
+                  modelDep.getVersion()));
+        }
+      }
+      if (!filtered.isEmpty()) {
+        dep.setDependencies(filtered);
+      }
+    }
+  }
+
+  /**
+   * Finds orphan nodes (no incoming edges) and attaches them. Runtime orphans become direct deps of
+   * the root; deployment-only orphans are adopted by quarkus-core-deployment.
+   */
+  private static void adoptOrphans(
+      ApplicationModelBuilder modelBuilder,
+      Map<String, ResolvedDependencyBuilder> depsByGa,
+      List<ArtifactCoords> appDeps) {
+    Set<String> allTargets = new HashSet<>();
+    for (var dep : modelBuilder.getDependencies()) {
+      for (ArtifactCoords subDep : dep.getDependencies()) {
+        allTargets.add(subDep.getGroupId() + ":" + subDep.getArtifactId());
+      }
+    }
+    for (ArtifactCoords c : appDeps) {
+      allTargets.add(c.getGroupId() + ":" + c.getArtifactId());
+    }
+    List<String> deploymentOrphans = new ArrayList<>();
+    for (var dep : modelBuilder.getDependencies()) {
+      String ga = dep.getGroupId() + ":" + dep.getArtifactId();
+      if (!allTargets.contains(ga)) {
+        if (dep.isFlagSet(DependencyFlags.RUNTIME_CP)) {
+          appDeps.add(
+              ArtifactCoords.of(
+                  dep.getGroupId(),
+                  dep.getArtifactId(),
+                  dep.getClassifier(),
+                  dep.getType(),
+                  dep.getVersion()));
+        } else {
+          deploymentOrphans.add(ga);
+        }
+      }
+    }
+    if (!deploymentOrphans.isEmpty()) {
+      var coreDeployment = depsByGa.get("io.quarkus:quarkus-core-deployment");
+      if (coreDeployment != null) {
+        List<ArtifactCoords> coreDeps = new ArrayList<>(coreDeployment.getDependencies());
+        for (String orphanGa : deploymentOrphans) {
+          if ("io.quarkus:quarkus-core-deployment".equals(orphanGa)) {
+            continue;
+          }
+          var orphan = depsByGa.get(orphanGa);
+          if (orphan != null) {
+            coreDeps.add(
+                ArtifactCoords.of(
+                    orphan.getGroupId(),
+                    orphan.getArtifactId(),
+                    orphan.getClassifier(),
+                    orphan.getType(),
+                    orphan.getVersion()));
+          }
+        }
+        coreDeployment.setDependencies(coreDeps);
+      }
+    }
+  }
+
+  /**
+   * Reads the {@code <dependencies>} section from a jar's embedded POM using StAX streaming.
+   * Returns an empty list if the POM is missing or cannot be parsed.
+   */
+  private static List<ArtifactCoords> readDependenciesFromJar(
+      Path jarPath, String groupId, String artifactId) {
+    String pomPath = "META-INF/maven/" + groupId + "/" + artifactId + "/pom.xml";
+    try (var jf = new JarFile(jarPath.toFile())) {
+      var entry = jf.getEntry(pomPath);
+      if (entry == null) {
+        return List.of();
+      }
+      // Read version from pom.properties for accurate ${project.version} resolution
+      String version = "0";
+      var propsEntry =
+          jf.getEntry("META-INF/maven/" + groupId + "/" + artifactId + "/pom.properties");
+      if (propsEntry != null) {
+        var props = new Properties();
+        try (InputStream pis = jf.getInputStream(propsEntry)) {
+          props.load(pis);
+        }
+        version = props.getProperty("version", version);
+      }
+      try (InputStream is = jf.getInputStream(entry)) {
+        return parsePomDependencies(is, groupId, version);
+      }
+    } catch (Exception ignored) {
+      return List.of();
+    }
+  }
+
+  /** Parses compile/runtime dependencies from a POM input stream using StAX. */
+  private static List<ArtifactCoords> parsePomDependencies(
+      InputStream is, String parentGroupId, String parentVersion) throws Exception {
+    List<ArtifactCoords> result = new ArrayList<>();
+    XMLInputFactory factory = XMLInputFactory.newInstance();
+    factory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
+    XMLStreamReader reader = factory.createXMLStreamReader(is);
+
+    // Track nesting: only parse <dependency> elements directly under <dependencies>
+    // that are NOT inside <dependencyManagement>
+    boolean inDependencyManagement = false;
+    boolean inDependencies = false;
+    boolean inDependency = false;
+    String depGroupId = "";
+    String depArtifactId = "";
+    String depVersion = "";
+    String depScope = "";
+    String currentElement = "";
+    StringBuilder textBuffer = new StringBuilder();
+
+    while (reader.hasNext()) {
+      int event = reader.next();
+      if (event == XMLStreamReader.START_ELEMENT) {
+        String name = reader.getLocalName();
+        if ("dependencyManagement".equals(name)) {
+          inDependencyManagement = true;
+        } else if ("dependencies".equals(name) && !inDependencyManagement) {
+          inDependencies = true;
+        } else if ("dependency".equals(name) && inDependencies && !inDependencyManagement) {
+          inDependency = true;
+          depGroupId = "";
+          depArtifactId = "";
+          depVersion = "";
+          depScope = "";
+        }
+        currentElement = name;
+        textBuffer.setLength(0);
+      } else if (event == XMLStreamReader.END_ELEMENT) {
+        String name = reader.getLocalName();
+        if (inDependency && !currentElement.isEmpty()) {
+          String text = textBuffer.toString().trim();
+          if (!text.isEmpty()) {
+            switch (currentElement) {
+              case "groupId" -> depGroupId = text;
+              case "artifactId" -> depArtifactId = text;
+              case "version" -> depVersion = text;
+              case "scope" -> depScope = text;
+              default -> {
+                /* ignore */
+              }
+            }
+          }
+        }
+        if ("dependencyManagement".equals(name)) {
+          inDependencyManagement = false;
+        } else if ("dependencies".equals(name) && !inDependencyManagement) {
+          inDependencies = false;
+        } else if ("dependency".equals(name) && inDependency) {
+          inDependency = false;
+          // Only include compile and runtime scope (exclude test, provided, system)
+          if (!depGroupId.isEmpty()
+              && !depArtifactId.isEmpty()
+              && (depScope.isEmpty() || "compile".equals(depScope) || "runtime".equals(depScope))) {
+            String gid = resolveProperty(depGroupId, parentGroupId, parentVersion);
+            String version = depVersion.isEmpty() ? "0" : depVersion;
+            version = resolveProperty(version, parentGroupId, parentVersion);
+            if (!gid.contains("$")) {
+              result.add(ArtifactCoords.jar(gid, depArtifactId, version));
+            }
+          }
+        }
+        currentElement = "";
+        textBuffer.setLength(0);
+      } else if (event == XMLStreamReader.CHARACTERS && inDependency) {
+        textBuffer.append(reader.getText());
+      }
+    }
+    reader.close();
+    return result;
+  }
+
+  private static String resolveProperty(String value, String groupId, String version) {
+    if (value.isEmpty() || !value.contains("$")) {
+      return value;
+    }
+    return value.replace("${project.groupId}", groupId).replace("${project.version}", version);
   }
 }
