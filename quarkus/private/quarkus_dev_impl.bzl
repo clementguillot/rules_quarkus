@@ -11,7 +11,7 @@ mutable directory for Quarkus hot-reload.
 
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
-load("//quarkus/private:classpath_utils.bzl", "collect_runtime_classpath", "collect_source_dir_paths", "is_local_artifact", "short_path")
+load("//quarkus/private:classpath_utils.bzl", "collect_resource_dir_paths", "collect_runtime_classpath", "collect_source_dir_paths", "is_local_artifact", "short_path")
 
 def _collect_bazel_targets(deps):
     """Collects Bazel target labels from deps that have JavaInfo.
@@ -119,6 +119,11 @@ def _quarkus_dev_impl(ctx):
     source_dirs_file = ctx.actions.declare_file(ctx.label.name + "_source_dirs.txt")
     ctx.actions.write(output = source_dirs_file, content = ",".join(source_dirs))
 
+    # Collect resource directories from deps for Quarkus to find them.
+    resource_dirs = collect_resource_dir_paths(ctx.attr.deps, runtime_classpath)
+    resource_dirs_file = ctx.actions.declare_file(ctx.label.name + "_resource_dirs.txt")
+    ctx.actions.write(output = resource_dirs_file, content = ",".join(resource_dirs))
+
     # Collect Bazel target labels for the file watcher to rebuild on changes.
     bazel_targets = _collect_bazel_targets(ctx.attr.deps)
     bazel_targets_file = ctx.actions.declare_file(ctx.label.name + "_bazel_targets.txt")
@@ -143,6 +148,7 @@ def _quarkus_dev_impl(ctx):
             "%{core_deploy_cp_file}": core_deploy_cp_file.short_path,
             "%{deploy_cp_file}": deploy_cp_file.short_path,
             "%{quarkus_version}": ctx.attr.quarkus_version,
+            "%{resource_dirs_file}": resource_dirs_file.short_path,
             "%{source_dirs_file}": source_dirs_file.short_path,
             "%{tool_jar}": tool_jar.short_path,
             "%{workspace}": ctx.workspace_name,
@@ -157,6 +163,7 @@ def _quarkus_dev_impl(ctx):
             deploy_cp_file,
             core_deploy_cp_file,
             source_dirs_file,
+            resource_dirs_file,
             bazel_targets_file,
             classes_output_dirs_file,
         ],
