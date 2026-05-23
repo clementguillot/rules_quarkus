@@ -168,16 +168,35 @@ public final class QuarkusAppModelBuilder {
       List<Path> runtimeJars,
       List<Path> deployClasspath,
       String appName,
-      String appVersion) {
+      String appVersion)
+      throws IOException {
     var modelBuilder = new ApplicationModelBuilder();
 
-    // In test mode, skip extension scanning and capability registration entirely.
-    // The QuarkusTestExtension runs augmentation inside the test JVM, which
-    // discovers extensions from the classpath. Registering them here would cause
-    // duplicate capabilities (once from the model, once from augmentation).
-    // We only need the basic model structure: app artifact, dependencies, and
-    // classloader configuration (parent-first flags).
-    Set<Path> extensionJars = Set.of();
+    // Scan extensions and register their metadata so the augmentation classloader
+    // can correctly map runtime extensions to their deployment counterparts.
+    // Without this, deployment processors (e.g., NarayanaJtaProcessor) won't be
+    // discovered and critical beans (e.g., TransactionSessions) won't be registered.
+    Set<Path> extensionJars = registerExtensions(modelBuilder, runtimeJars);
+
+    // Also scan deployment jars for runtime extensions pulled in as transitive
+    // deps of deployment artifacts (conditional dev dependencies).
+    Set<String> knownExtensionGas = new HashSet<>();
+    for (Path jar : extensionJars) {
+      var coords = MavenCoordinateParser.parse(jar);
+      knownExtensionGas.add(coords.groupId() + ":" + coords.artifactId());
+    }
+    Set<Path> deployExtensionJars =
+        registerExtensions(
+            modelBuilder,
+            deployClasspath.stream()
+                .filter(
+                    jar -> {
+                      var coords = MavenCoordinateParser.parse(jar);
+                      return !knownExtensionGas.contains(
+                          coords.groupId() + ":" + coords.artifactId());
+                    })
+                .toList());
+    extensionJars.addAll(deployExtensionJars);
 
     setAppArtifactForTest(modelBuilder, appJar, appName, appVersion);
     Set<ArtifactKey> addedKeys = addRuntimeDependencies(modelBuilder, runtimeJars, extensionJars);
