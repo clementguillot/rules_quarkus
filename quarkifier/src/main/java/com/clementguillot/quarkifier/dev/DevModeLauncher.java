@@ -261,6 +261,10 @@ public final class DevModeLauncher {
             .setSourcePaths(PathList.from(config.sourceDirs()))
             .setClassesPath(classesPath.toAbsolutePath().toString())
             .setResourcePaths(PathList.from(config.resources()))
+            .setResourcesOutputPath(
+                config.resources().isEmpty()
+                    ? null
+                    : config.resources().get(0).toAbsolutePath().toString())
             .setTargetDir(projectRoot.resolve("target").toAbsolutePath().toString())
             .build();
 

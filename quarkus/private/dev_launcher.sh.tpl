@@ -48,6 +48,13 @@ if [ -f "$SOURCE_DIRS_FILE" ]; then
     SOURCE_DIRS=$(cat "$SOURCE_DIRS_FILE")
 fi
 
+# Read resource directories
+RESOURCE_DIRS_FILE="${RUNFILES_DIR}/%{workspace}/%{resource_dirs_file}"
+RESOURCE_DIRS=""
+if [ -f "$RESOURCE_DIRS_FILE" ]; then
+    RESOURCE_DIRS=$(cat "$RESOURCE_DIRS_FILE")
+fi
+
 # Read Bazel targets and classes output dirs for hot-reload
 BAZEL_TARGETS_FILE="${RUNFILES_DIR}/%{workspace}/%{bazel_targets_file}"
 BAZEL_TARGETS=""
@@ -69,6 +76,24 @@ CLASSES_DIR=""
 WORKSPACE_ROOT="${BUILD_WORKSPACE_DIRECTORY:-$(pwd)}"
 BAZEL_EXEC_ROOT=$(bazel info execution_root 2>/dev/null || printf '%s' "$WORKSPACE_ROOT")
 HOT_RELOAD_ARGS=()
+RESOURCES_ARG=""
+
+# Resolve resource dirs to absolute paths
+if [ -n "$RESOURCE_DIRS" ]; then
+    ABS_RESOURCE_DIRS=""
+    IFS=',' read -ra RD_ENTRIES <<< "$RESOURCE_DIRS"
+    for rd in "${RD_ENTRIES[@]}"; do
+        abs_rd="${WORKSPACE_ROOT}/${rd}"
+        if [ -d "$abs_rd" ]; then
+            if [ -n "$ABS_RESOURCE_DIRS" ]; then ABS_RESOURCE_DIRS="${ABS_RESOURCE_DIRS},"; fi
+            ABS_RESOURCE_DIRS="${ABS_RESOURCE_DIRS}${abs_rd}"
+        fi
+    done
+    if [ -n "$ABS_RESOURCE_DIRS" ]; then
+        RESOURCES_ARG="--resources ${ABS_RESOURCE_DIRS}"
+    fi
+fi
+
 if [ -n "$SOURCE_DIRS" ] && [ -n "$BAZEL_TARGETS" ]; then
     CLASSES_DIR=$(mktemp -d "quarkus_hotreload_classes_XXXXXX")
 
@@ -110,5 +135,6 @@ java \
   --app-name %{app_name} \
   %{app_version_flag} \
   --workspace-dir "$WORKSPACE_ROOT" \
+  ${RESOURCES_ARG} \
   ${HOT_RELOAD_ARGS[@]+"${HOT_RELOAD_ARGS[@]}"} \
   "$@" || exit $?
