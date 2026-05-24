@@ -34,6 +34,8 @@ def _quarkus_app_impl(ctx):
     args.add("--app-name", ctx.label.name)
     if ctx.attr.version:
         args.add("--app-version", ctx.attr.version)
+    if ctx.attr.main_class:
+        args.add("--main-class", ctx.attr.main_class)
 
     # Invoke the selected version-specific deploy jar. The deploy jar is a fat
     # jar containing all tool classes + dependencies, so no -cp assembly is

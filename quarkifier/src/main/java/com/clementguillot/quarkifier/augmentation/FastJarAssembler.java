@@ -53,9 +53,30 @@ public final class FastJarAssembler {
   public static void assemble(
       Path outputDir, List<Path> runtimeJars, ApplicationModel appModel, List<Path> resources)
       throws IOException {
+    assemble(outputDir, runtimeJars, appModel, resources, null);
+  }
+
+  /**
+   * Runs all four post-processing steps to produce a complete Fast_Jar.
+   *
+   * @param outputDir the augmentation output directory
+   * @param runtimeJars runtime dependency jars (excluding the app jar itself)
+   * @param appModel the ApplicationModel used during augmentation
+   * @param resources user resource files (e.g., application.properties)
+   * @param mainClass the fully-qualified main class name, or {@code null} to use the default {@code
+   *     io.quarkus.runner.GeneratedMain}
+   * @throws IOException if any I/O operation fails
+   */
+  public static void assemble(
+      Path outputDir,
+      List<Path> runtimeJars,
+      ApplicationModel appModel,
+      List<Path> resources,
+      String mainClass)
+      throws IOException {
     assembleLibDirectories(outputDir, runtimeJars, appModel);
     assembleResourcesJar(outputDir, resources);
-    regenerateApplicationDat(outputDir);
+    regenerateApplicationDat(outputDir, mainClass);
     fixRunnerManifest(outputDir);
   }
 
@@ -153,6 +174,18 @@ public final class FastJarAssembler {
    * initializes. All other jars are indexed normally for the RunnerClassLoader.
    */
   static void regenerateApplicationDat(Path outputDir) throws IOException {
+    regenerateApplicationDat(outputDir, null);
+  }
+
+  /**
+   * Regenerates {@code quarkus-application.dat} with correct relative paths and the specified main
+   * class.
+   *
+   * @param outputDir the augmentation output directory
+   * @param mainClass the fully-qualified main class name, or {@code null} to use the default {@code
+   *     io.quarkus.runner.GeneratedMain}
+   */
+  static void regenerateApplicationDat(Path outputDir, String mainClass) throws IOException {
     Path quarkusAppDir = resolveQuarkusAppDir(outputDir).toAbsolutePath();
     Path datFile = quarkusAppDir.resolve("quarkus").resolve("quarkus-application.dat");
     if (!Files.exists(datFile)) {
@@ -180,10 +213,13 @@ public final class FastJarAssembler {
       }
     }
 
+    String effectiveMainClass =
+        (mainClass != null && !mainClass.isEmpty()) ? mainClass : "io.quarkus.runner.GeneratedMain";
+
     makeWritable(datFile);
     try (OutputStream os = Files.newOutputStream(datFile)) {
       ApplicationDatWriter.INSTANCE.write(
-          os, "io.quarkus.runner.GeneratedMain", quarkusAppDir, allJars, parentFirstJars);
+          os, effectiveMainClass, quarkusAppDir, allJars, parentFirstJars);
     }
   }
 
