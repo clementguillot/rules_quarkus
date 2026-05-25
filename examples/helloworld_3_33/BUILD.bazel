@@ -12,17 +12,30 @@ java_library(
     ],
 )
 
+java_library(
+    name = "test_lib",
+    srcs = glob(["src/test/java/**/*.java"]),
+    deps = [
+        ":lib",
+        "@maven//:io_quarkus_quarkus_junit",
+        "@maven//:io_rest_assured_rest_assured",
+        "@maven//:org_hamcrest_hamcrest",
+        "@maven//:org_junit_jupiter_junit_jupiter",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
 quarkus_app(
     name = "helloworld",
+    test_deps = [":test_lib"],
     version = "1.0.0",
     deps = [":lib"],
 )
 
 quarkus_test(
     name = "test",
-    srcs = glob(["src/test/java/**/*.java"]),
     deps = [
-        ":lib",
+        ":test_lib",
         "@maven//:io_quarkus_quarkus_junit",
         "@maven//:io_rest_assured_rest_assured",
         "@maven//:org_hamcrest_hamcrest",

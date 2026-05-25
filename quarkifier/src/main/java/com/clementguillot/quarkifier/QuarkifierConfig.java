@@ -30,6 +30,8 @@ import java.util.regex.Pattern;
  *     CLI)
  * @param workspaceDir Bazel workspace root directory for running bazel build (may be {@code null})
  * @param bazelBuildTimeoutSeconds timeout in seconds for bazel build process (default: 60)
+ * @param testClasspath test jars for Continuous Testing support (colon-separated on CLI, optional,
+ *     defaults to empty list)
  */
 public record QuarkifierConfig(
     List<Path> applicationClasspath,
@@ -47,7 +49,8 @@ public record QuarkifierConfig(
     List<String> bazelTargets,
     List<Path> classesOutputDirs,
     Path workspaceDir,
-    long bazelBuildTimeoutSeconds) {
+    long bazelBuildTimeoutSeconds,
+    List<Path> testClasspath) {
 
   private static final String USAGE =
       """
@@ -69,7 +72,8 @@ public record QuarkifierConfig(
               [--bazel-targets <label,label,...>] \\
               [--classes-output-dirs <dir,dir,...>] \\
               [--workspace-dir <path>] \\
-              [--bazel-build-timeout-seconds <seconds>]""";
+              [--bazel-build-timeout-seconds <seconds>] \\
+              [--test-classpath <jar:jar:...>]""";
 
   /**
    * Parses CLI arguments into an {@link QuarkifierConfig}.
@@ -97,6 +101,7 @@ public record QuarkifierConfig(
     String classesOutputDirs = null;
     String workspaceDir = null;
     String bazelBuildTimeoutSeconds = null;
+    String testCp = null;
 
     for (int i = 0; i < args.length; i++) {
       switch (args[i]) {
@@ -126,6 +131,7 @@ public record QuarkifierConfig(
         case "--workspace-dir" -> workspaceDir = requireValue(args, ++i, args[i - 1]);
         case "--bazel-build-timeout-seconds" -> bazelBuildTimeoutSeconds =
             requireValue(args, ++i, args[i - 1]);
+        case "--test-classpath" -> testCp = requireValue(args, ++i, args[i - 1]);
         default -> throw new InvalidArgumentsException("Unknown argument: " + args[i]);
       }
     }
@@ -159,7 +165,8 @@ public record QuarkifierConfig(
         bazelTargets != null ? splitStrings(bazelTargets, ",") : List.of(),
         classesOutputDirs != null ? splitPaths(classesOutputDirs, ",") : List.of(),
         workspaceDir != null ? Path.of(workspaceDir) : null,
-        parsedTimeout);
+        parsedTimeout,
+        testCp != null ? splitPaths(testCp, ":") : List.of());
   }
 
   /** Serializes this config back to a CLI argument array, suitable for round-trip testing. */
@@ -236,6 +243,11 @@ public record QuarkifierConfig(
     // Always include timeout for round-trip consistency
     list.add("--bazel-build-timeout-seconds");
     list.add(String.valueOf(bazelBuildTimeoutSeconds));
+
+    if (!testClasspath.isEmpty()) {
+      list.add("--test-classpath");
+      list.add(joinPaths(testClasspath, ":"));
+    }
 
     return list.toArray(String[]::new);
   }

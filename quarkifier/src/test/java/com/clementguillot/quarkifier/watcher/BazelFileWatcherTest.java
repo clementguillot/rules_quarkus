@@ -36,7 +36,8 @@ class BazelFileWatcherTest {
         List.of("//pkg:lib"),
         List.of(),
         tempDir,
-        5);
+        5,
+        List.of());
   }
 
   @Test

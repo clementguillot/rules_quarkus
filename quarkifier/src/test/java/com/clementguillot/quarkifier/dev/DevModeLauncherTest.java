@@ -30,11 +30,12 @@ class DevModeLauncherTest {
         List.of(),
         List.of(),
         null,
-        60);
+        60,
+        List.of());
   }
 
   @Test
-  void buildDevModeContext_withSourceDirs_setsSourcePaths() {
+  void buildDevModeContext_withSourceDirs_setsSourcePaths() throws Exception {
     var sourceDirs = List.of(Path.of("src/main/java"), Path.of("lib/src/main/java"));
     var config = configWithSourceDirs(sourceDirs);
 
@@ -54,7 +55,7 @@ class DevModeLauncherTest {
   }
 
   @Test
-  void buildDevModeContext_withoutSourceDirs_emptySourcePaths() {
+  void buildDevModeContext_withoutSourceDirs_emptySourcePaths() throws Exception {
     var config = configWithSourceDirs(List.of());
 
     var context = DevModeLauncher.buildDevModeContext(config);
@@ -69,7 +70,7 @@ class DevModeLauncherTest {
   }
 
   @Test
-  void buildDevModeContext_abortOnFailedStart_alwaysTrue() {
+  void buildDevModeContext_abortOnFailedStart_alwaysTrue() throws Exception {
     var config = configWithSourceDirs(List.of());
 
     var context = DevModeLauncher.buildDevModeContext(config);
@@ -78,7 +79,7 @@ class DevModeLauncherTest {
   }
 
   @Test
-  void buildDevModeContext_localProjectDiscovery_alwaysFalse() {
+  void buildDevModeContext_localProjectDiscovery_alwaysFalse() throws Exception {
     var config = configWithSourceDirs(List.of(Path.of("src/main/java")));
 
     var context = DevModeLauncher.buildDevModeContext(config);
@@ -87,7 +88,7 @@ class DevModeLauncherTest {
   }
 
   @Test
-  void buildDevModeContext_fallsBackToOutputDir_whenWorkspaceDirNull() {
+  void buildDevModeContext_fallsBackToOutputDir_whenWorkspaceDirNull() throws Exception {
     var config =
         new QuarkifierConfig(
             List.of(Path.of("app.jar")),
@@ -105,7 +106,8 @@ class DevModeLauncherTest {
             List.of(),
             List.of(),
             null,
-            60);
+            60,
+            List.of());
 
     var context = DevModeLauncher.buildDevModeContext(config);
 
@@ -121,7 +123,7 @@ class DevModeLauncherTest {
   }
 
   @Test
-  void buildDevModeContext_setsProjectDir_fromWorkspaceDir() {
+  void buildDevModeContext_setsProjectDir_fromWorkspaceDir() throws Exception {
     var workspaceDir = Path.of("/home/user/project");
     var config =
         new QuarkifierConfig(
@@ -140,7 +142,8 @@ class DevModeLauncherTest {
             List.of(),
             List.of(),
             workspaceDir,
-            60);
+            60,
+            List.of());
 
     var context = DevModeLauncher.buildDevModeContext(config);
 
@@ -151,7 +154,7 @@ class DevModeLauncherTest {
   }
 
   @Test
-  void buildDevModeContext_setsTargetDir_asSubdirOfWorkspaceDir() {
+  void buildDevModeContext_setsTargetDir_asSubdirOfWorkspaceDir() throws Exception {
     var workspaceDir = Path.of("/home/user/project");
     var config =
         new QuarkifierConfig(
@@ -170,7 +173,8 @@ class DevModeLauncherTest {
             List.of(),
             List.of(),
             workspaceDir,
-            60);
+            60,
+            List.of());
 
     var context = DevModeLauncher.buildDevModeContext(config);
 
@@ -180,7 +184,7 @@ class DevModeLauncherTest {
   }
 
   @Test
-  void buildDevModeContext_withClassesDir_usesClassesDirForClassesPath() {
+  void buildDevModeContext_withClassesDir_usesClassesDirForClassesPath() throws Exception {
     var classesDir = Path.of("/tmp/mutable-classes");
     var config =
         new QuarkifierConfig(
@@ -199,7 +203,8 @@ class DevModeLauncherTest {
             List.of("//pkg:lib"),
             List.of(),
             null,
-            60);
+            60,
+            List.of());
 
     var context = DevModeLauncher.buildDevModeContext(config);
 
@@ -209,7 +214,7 @@ class DevModeLauncherTest {
   }
 
   @Test
-  void buildDevModeContext_withoutClassesDir_usesAppJarForClassesPath() {
+  void buildDevModeContext_withoutClassesDir_usesAppJarForClassesPath() throws Exception {
     var config = configWithSourceDirs(List.of(Path.of("src/main/java")));
 
     var context = DevModeLauncher.buildDevModeContext(config);

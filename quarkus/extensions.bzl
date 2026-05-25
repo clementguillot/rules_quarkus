@@ -246,8 +246,11 @@ def quarkus_app(name, dev = True, **kwargs):
     Args:
         name: Target name.
         dev: If True (default), also creates a <name>_dev target for dev mode.
-        **kwargs: Passed to the underlying quarkus_app_rule (deps, version, jvm_flags, etc.).
+        **kwargs: Passed to the underlying quarkus_app_rule (deps, version, jvm_flags, test_deps, etc.).
     \"\"\"
+    # Extract test_deps before passing kwargs to quarkus_app_rule (which doesn't accept it)
+    test_deps = kwargs.pop("test_deps", [])
+
     quarkus_app_rule(
         name = name,
         quarkus_version = _QUARKUS_VERSION,
@@ -266,6 +269,7 @@ def quarkus_app(name, dev = True, **kwargs):
             core_deployment_deps = _CORE_DEPLOYMENT_DEPS,
             deps = deps,
             version = version,
+            test_deps = test_deps,
         )
 
 def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_classes = None, jvm_flags = None, **kwargs):

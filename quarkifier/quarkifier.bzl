@@ -64,6 +64,7 @@ def quarkifier_targets(minor, maven_repo):
             ":" + lib_name,
             maven_repo + "//:io_quarkus_quarkus_bootstrap_app_model",
             maven_repo + "//:io_quarkus_quarkus_bootstrap_core",
+            maven_repo + "//:io_quarkus_quarkus_core_deployment",
             maven_repo + "//:org_junit_jupiter_junit_jupiter",
             maven_repo + "//:org_junit_platform_junit_platform_console_standalone",
             maven_repo + "//:org_junit_platform_junit_platform_launcher",
