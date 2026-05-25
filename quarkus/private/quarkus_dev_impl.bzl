@@ -92,6 +92,7 @@ def _quarkus_dev_impl(ctx):
     runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
     deployment_classpath = collect_runtime_classpath([ctx.attr.deployment_deps]) if ctx.attr.deployment_deps else depset()
     core_deployment_classpath = collect_runtime_classpath([ctx.attr.core_deployment_deps]) if ctx.attr.core_deployment_deps else depset()
+    test_classpath = collect_runtime_classpath(ctx.attr.test_deps) if ctx.attr.test_deps else depset()
 
     tool_jar = ctx.file.quarkifier_tool
     java_runtime = ctx.attr._java_runtime[java_common.JavaRuntimeInfo]
@@ -101,6 +102,7 @@ def _quarkus_dev_impl(ctx):
     app_cp_file = ctx.actions.declare_file(ctx.label.name + "_app_cp.txt")
     deploy_cp_file = ctx.actions.declare_file(ctx.label.name + "_deploy_cp.txt")
     core_deploy_cp_file = ctx.actions.declare_file(ctx.label.name + "_core_deploy_cp.txt")
+    test_cp_file = ctx.actions.declare_file(ctx.label.name + "_test_cp.txt")
 
     app_cp_args = ctx.actions.args()
     app_cp_args.add_joined(runtime_classpath, join_with = ":", map_each = short_path)
@@ -113,6 +115,10 @@ def _quarkus_dev_impl(ctx):
     core_deploy_cp_args = ctx.actions.args()
     core_deploy_cp_args.add_joined(core_deployment_classpath, join_with = ":", map_each = short_path)
     ctx.actions.write(output = core_deploy_cp_file, content = core_deploy_cp_args)
+
+    test_cp_args = ctx.actions.args()
+    test_cp_args.add_joined(test_classpath, join_with = ":", map_each = short_path)
+    ctx.actions.write(output = test_cp_file, content = test_cp_args)
 
     # Collect source directories from deps and transitive classpath for hot-reload.
     source_dirs = collect_source_dir_paths(ctx.attr.deps, runtime_classpath)
@@ -150,6 +156,7 @@ def _quarkus_dev_impl(ctx):
             "%{quarkus_version}": ctx.attr.quarkus_version,
             "%{resource_dirs_file}": resource_dirs_file.short_path,
             "%{source_dirs_file}": source_dirs_file.short_path,
+            "%{test_cp_file}": test_cp_file.short_path,
             "%{tool_jar}": tool_jar.short_path,
             "%{workspace}": ctx.workspace_name,
         },
@@ -162,12 +169,13 @@ def _quarkus_dev_impl(ctx):
             app_cp_file,
             deploy_cp_file,
             core_deploy_cp_file,
+            test_cp_file,
             source_dirs_file,
             resource_dirs_file,
             bazel_targets_file,
             classes_output_dirs_file,
         ],
-        transitive_files = depset(transitive = [runtime_classpath, deployment_classpath, core_deployment_classpath, java_runtime.files]),
+        transitive_files = depset(transitive = [runtime_classpath, deployment_classpath, core_deployment_classpath, test_classpath, java_runtime.files]),
     )
 
     return [
@@ -193,6 +201,10 @@ quarkus_dev_rule = rule(
             doc = "Quarkifier deploy jar.",
         ),
         "quarkus_version": attr.string(doc = "Quarkus version (set by macro)."),
+        "test_deps": attr.label_list(
+            providers = [JavaInfo],
+            doc = "Test dependencies for Continuous Testing support. Provides test classes to CT.",
+        ),
         "version": attr.string(
             doc = "Application version shown in Quarkus startup banner.",
         ),

@@ -41,6 +41,21 @@ while IFS=: read -ra ENTRIES; do
   done
 done < "$CORE_DEPLOY_CP_FILE"
 
+# Read test classpath for Continuous Testing support
+TEST_CP_FILE="${RUNFILES_DIR}/%{workspace}/%{test_cp_file}"
+TEST_CP=""
+if [ -f "$TEST_CP_FILE" ]; then
+  content=$(cat "$TEST_CP_FILE")
+  if [ -n "$content" ]; then
+    while IFS=: read -ra ENTRIES; do
+      for entry in "${ENTRIES[@]}"; do
+        if [ -n "$TEST_CP" ]; then TEST_CP="${TEST_CP}:"; fi
+        TEST_CP="${TEST_CP}${RUNFILES_DIR}/%{workspace}/${entry}"
+      done
+    done < "$TEST_CP_FILE"
+  fi
+fi
+
 # Read source directories for hot-reload
 SOURCE_DIRS_FILE="${RUNFILES_DIR}/%{workspace}/%{source_dirs_file}"
 SOURCE_DIRS=""
@@ -123,6 +138,12 @@ if [ -n "$SOURCE_DIRS" ] && [ -n "$BAZEL_TARGETS" ]; then
     )
 fi
 
+# Build test classpath argument (only if test deps are provided)
+TEST_CP_ARG=""
+if [ -n "$TEST_CP" ]; then
+    TEST_CP_ARG="--test-classpath ${TEST_CP}"
+fi
+
 java \
   -Djava.util.logging.manager=org.jboss.logmanager.LogManager \
   -jar "$TOOL_JAR" \
@@ -137,4 +158,5 @@ java \
   --workspace-dir "$WORKSPACE_ROOT" \
   ${RESOURCES_ARG} \
   ${HOT_RELOAD_ARGS[@]+"${HOT_RELOAD_ARGS[@]}"} \
+  ${TEST_CP_ARG} \
   "$@" || exit $?

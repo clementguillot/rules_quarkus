@@ -4,6 +4,7 @@ import com.clementguillot.quarkifier.AugmentationException;
 import com.clementguillot.quarkifier.BuildProperties;
 import com.clementguillot.quarkifier.QuarkifierConfig;
 import com.clementguillot.quarkifier.maven.MavenCoordinateParser;
+import com.clementguillot.quarkifier.model.QuarkusAppModelBuilder;
 import com.clementguillot.quarkifier.watcher.BazelFileWatcher;
 import io.quarkus.bootstrap.BootstrapConstants;
 import io.quarkus.bootstrap.app.QuarkusBootstrap;
@@ -55,35 +56,9 @@ public final class DevModeLauncher {
   public static void launch(QuarkifierConfig config, ApplicationModel appModel)
       throws AugmentationException {
     try {
-      DevModeContext context = buildDevModeContext(config);
+      List<String> cmd = buildChildCommand(config, appModel);
 
-      // 1. Serialize the ApplicationModel to a temp file.
-      // Uses AppModelSerializerImpl which is version-specific:
-      // - 3.27: Java Object Serialization (BootstrapUtils)
-      // - 3.33+: JSON format (ApplicationModelSerializer)
-      AppModelSerializerStrategy serializer = new AppModelSerializerImpl();
-      Path serializedModel = serializer.serialize(appModel);
-
-      // 2. Create the dev jar (like Maven's DevMojo / DevModeCommandLineBuilder)
-      Path devJar = createDevJar(context, config, appModel);
-
-      // 3. Build the java command
-      String javaBin = System.getProperty("java.home") + "/bin/java";
-      List<String> cmd = new ArrayList<>();
-      cmd.add(javaBin);
-      cmd.add("-Djava.util.logging.manager=org.jboss.logmanager.LogManager");
-      // Required for jboss-threads on Java 24+
-      cmd.add("--add-opens");
-      cmd.add("java.base/java.lang=ALL-UNNAMED");
-      // Required for Quarkus 3.33+
-      cmd.add("--add-opens");
-      cmd.add("java.base/java.lang.invoke=ALL-UNNAMED");
-      cmd.add(
-          "-D" + BootstrapConstants.SERIALIZED_APP_MODEL + "=" + serializedModel.toAbsolutePath());
-      cmd.add("-jar");
-      cmd.add(devJar.toAbsolutePath().toString());
-
-      // 4. Start the child process
+      // Start the child process
       ProcessBuilder pb = new ProcessBuilder(cmd);
       if (config.workspaceDir() != null) {
         pb.directory(config.workspaceDir().toFile());
@@ -91,7 +66,7 @@ public final class DevModeLauncher {
       pb.inheritIO();
       Process process = pb.start();
 
-      // 5. Start file watcher for hot-reload (if configured)
+      // Start file watcher for hot-reload (if configured)
       final BazelFileWatcher watcher;
       if (config.classesDir() != null
           && !config.bazelTargets().isEmpty()
@@ -102,7 +77,7 @@ public final class DevModeLauncher {
         watcher = null;
       }
 
-      // 6. Wait for the child process
+      // Wait for the child process
       Runtime.getRuntime()
           .addShutdownHook(
               new Thread(
@@ -128,6 +103,85 @@ public final class DevModeLauncher {
     } catch (Exception e) {
       throw new AugmentationException("Failed to launch dev mode: " + e.getMessage(), e);
     }
+  }
+
+  /**
+   * Builds the child JVM command list for launching dev mode without actually starting the process.
+   *
+   * <p>This method is package-private to allow unit testing of the command construction logic.
+   *
+   * @param config CLI configuration including source dirs, classpath, output dir
+   * @param appModel the ApplicationModel built from classpath jars
+   * @return the full command list (java binary, JVM flags, system properties, -jar, dev jar path)
+   * @throws Exception if serialization or dev jar creation fails
+   */
+  static List<String> buildChildCommand(QuarkifierConfig config, ApplicationModel appModel)
+      throws Exception {
+    DevModeContext context = buildDevModeContext(config);
+
+    // 1. Serialize the ApplicationModel to a temp file.
+    // Uses AppModelSerializerImpl which is version-specific:
+    // - 3.27: Java Object Serialization (BootstrapUtils)
+    // - 3.33+: JSON format (ApplicationModelSerializer)
+    AppModelSerializerStrategy serializer = new AppModelSerializerImpl();
+    Path serializedModel = serializer.serialize(appModel);
+
+    // 2. Build and serialize a test ApplicationModel for Continuous Testing support.
+    // This allows TestSupport.init() to find the test model via system property
+    // instead of falling through to Maven resolution (which fails under Bazel).
+    Path appJar = config.applicationClasspath().get(0);
+    List<Path> runtimeJars =
+        config.applicationClasspath().subList(1, config.applicationClasspath().size());
+
+    // For the test model, use the test jar as the app artifact so Quarkus scans it
+    // for @QuarkusTest annotated classes. The main app jar becomes a runtime dependency.
+    List<Path> testRuntimeJars;
+    Path testAppJar;
+    if (!config.testClasspath().isEmpty()) {
+      testAppJar = config.testClasspath().get(0);
+      testRuntimeJars = new ArrayList<>();
+      testRuntimeJars.add(appJar); // main app jar becomes a runtime dep
+      testRuntimeJars.addAll(runtimeJars);
+      testRuntimeJars.addAll(config.testClasspath().subList(1, config.testClasspath().size()));
+    } else {
+      testAppJar = appJar;
+      testRuntimeJars = runtimeJars;
+    }
+
+    ApplicationModel testAppModel =
+        QuarkusAppModelBuilder.buildForTest(
+            testAppJar,
+            testRuntimeJars,
+            config.deploymentClasspath(),
+            config.appName(),
+            config.appVersion());
+    Path serializedTestModel = serializer.serialize(testAppModel);
+
+    // 3. Create the dev jar (like Maven's DevMojo / DevModeCommandLineBuilder)
+    Path devJar = createDevJar(context, config, appModel);
+
+    // 4. Build the java command
+    String javaBin = System.getProperty("java.home") + "/bin/java";
+    List<String> cmd = new ArrayList<>();
+    cmd.add(javaBin);
+    cmd.add("-Djava.util.logging.manager=org.jboss.logmanager.LogManager");
+    // Required for jboss-threads on Java 24+
+    cmd.add("--add-opens");
+    cmd.add("java.base/java.lang=ALL-UNNAMED");
+    // Required for Quarkus 3.33+
+    cmd.add("--add-opens");
+    cmd.add("java.base/java.lang.invoke=ALL-UNNAMED");
+    cmd.add(
+        "-D" + BootstrapConstants.SERIALIZED_APP_MODEL + "=" + serializedModel.toAbsolutePath());
+    cmd.add(
+        "-D"
+            + BootstrapConstants.SERIALIZED_TEST_APP_MODEL
+            + "="
+            + serializedTestModel.toAbsolutePath());
+    cmd.add("-jar");
+    cmd.add(devJar.toAbsolutePath().toString());
+
+    return cmd;
   }
 
   /**
@@ -224,7 +278,7 @@ public final class DevModeLauncher {
   }
 
   /** Builds a {@link DevModeContext} configured for Bazel-managed dev mode. */
-  static DevModeContext buildDevModeContext(QuarkifierConfig config) {
+  static DevModeContext buildDevModeContext(QuarkifierConfig config) throws Exception {
     var context = new DevModeContext();
     context.setAbortOnFailedStart(true);
     context.setLocalProjectDiscovery(false);
@@ -265,10 +319,34 @@ public final class DevModeLauncher {
                 config.resources().isEmpty()
                     ? null
                     : config.resources().get(0).toAbsolutePath().toString())
-            .setTargetDir(projectRoot.resolve("target").toAbsolutePath().toString())
-            .build();
+            .setTargetDir(projectRoot.resolve("target").toAbsolutePath().toString());
 
-    context.setApplicationRoot(moduleInfo);
+    // Set test classes path for Continuous Testing support.
+    // TestSupport.init() uses module.getTest().classesPath to discover @QuarkusTest classes.
+    // JunitTestRunner.discoverTestClasses() uses Files.walk() on this path, so it MUST be
+    // a directory of .class files, not a JAR. In Bazel, test classes are in JARs, so we
+    // extract them to a temp directory.
+    if (!config.testClasspath().isEmpty()) {
+      Path testClassesJar = config.testClasspath().get(0);
+      Path testClassesDir = java.nio.file.Files.createTempDirectory("quarkus-test-classes");
+      try (var jarFile = new java.util.jar.JarFile(testClassesJar.toFile())) {
+        var entries = jarFile.entries();
+        while (entries.hasMoreElements()) {
+          var entry = entries.nextElement();
+          if (entry.getName().endsWith(".class")) {
+            Path target = testClassesDir.resolve(entry.getName());
+            java.nio.file.Files.createDirectories(target.getParent());
+            try (var is = jarFile.getInputStream(entry)) {
+              java.nio.file.Files.copy(is, target);
+            }
+          }
+        }
+      }
+      moduleInfo.setTestClassesPath(testClassesDir.toAbsolutePath().toString());
+      moduleInfo.setTestSourcePaths(PathList.from(config.sourceDirs()));
+    }
+
+    context.setApplicationRoot(moduleInfo.build());
 
     return context;
   }

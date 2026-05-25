@@ -35,7 +35,8 @@ final class TestDataGenerator {
         randomBazelTargetList(0, 3),
         randomPathList(0, 4),
         RNG.nextDouble() < 0.3 ? null : randomSafePath(),
-        randomTimeout());
+        randomTimeout(),
+        randomPathList(0, 3));
   }
 
   private static long randomTimeout() {
