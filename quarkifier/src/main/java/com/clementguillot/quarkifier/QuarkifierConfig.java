@@ -21,6 +21,8 @@ import java.util.regex.Pattern;
  *     null})
  * @param appName application name for Quarkus startup banner (may be {@code null})
  * @param appVersion application version for Quarkus startup banner (may be {@code null})
+ * @param mainClass fully-qualified custom main class name annotated with {@code @QuarkusMain} (may
+ *     be {@code null})
  * @param sourceDirs source directories for hot-reload in dev mode (comma-separated on CLI)
  * @param classesDir mutable directory for .class files in dev mode (may be {@code null})
  * @param bazelTargets Bazel targets to rebuild on source changes (comma-separated on CLI)
@@ -39,6 +41,7 @@ public record QuarkifierConfig(
     String expectedQuarkusVersion,
     String appName,
     String appVersion,
+    String mainClass,
     List<Path> sourceDirs,
     Path classesDir,
     List<String> bazelTargets,
@@ -60,6 +63,7 @@ public record QuarkifierConfig(
               [--expected-quarkus-version <version>] \\
               [--app-name <name>] \\
               [--app-version <version>] \\
+              [--main-class <class>] \\
               [--source-dirs <dir,dir,...>] \\
               [--classes-dir <path>] \\
               [--bazel-targets <label,label,...>] \\
@@ -86,6 +90,7 @@ public record QuarkifierConfig(
     String expectedVersion = null;
     String appName = null;
     String appVersion = null;
+    String mainClass = null;
     String sourceDirs = null;
     String classesDir = null;
     String bazelTargets = null;
@@ -108,6 +113,12 @@ public record QuarkifierConfig(
         case "--expected-quarkus-version" -> expectedVersion = requireValue(args, ++i, args[i - 1]);
         case "--app-name" -> appName = requireValue(args, ++i, args[i - 1]);
         case "--app-version" -> appVersion = requireValue(args, ++i, args[i - 1]);
+        case "--main-class" -> {
+          mainClass = requireValue(args, ++i, args[i - 1]).trim();
+          if (mainClass.isEmpty()) {
+            throw new InvalidArgumentsException("Value for --main-class must not be empty");
+          }
+        }
         case "--source-dirs" -> sourceDirs = requireValue(args, ++i, args[i - 1]);
         case "--classes-dir" -> classesDir = requireValue(args, ++i, args[i - 1]);
         case "--bazel-targets" -> bazelTargets = requireValue(args, ++i, args[i - 1]);
@@ -129,25 +140,8 @@ public record QuarkifierConfig(
       throw new InvalidArgumentsException("Missing required argument: --output-dir");
     }
 
-    AugmentationMode parsedMode;
-    try {
-      parsedMode = mode != null ? AugmentationMode.parse(mode) : AugmentationMode.NORMAL;
-    } catch (IllegalArgumentException e) {
-      throw new InvalidArgumentsException(e.getMessage(), e);
-    }
-
-    long parsedTimeout = 60;
-    if (bazelBuildTimeoutSeconds != null) {
-      try {
-        parsedTimeout = Long.parseLong(bazelBuildTimeoutSeconds);
-        if (parsedTimeout <= 0) {
-          throw new InvalidArgumentsException("--bazel-build-timeout-seconds must be positive");
-        }
-      } catch (NumberFormatException e) {
-        throw new InvalidArgumentsException(
-            "--bazel-build-timeout-seconds must be a valid integer", e);
-      }
-    }
+    AugmentationMode parsedMode = parseMode(mode);
+    long parsedTimeout = parseTimeout(bazelBuildTimeoutSeconds);
 
     return new QuarkifierConfig(
         splitPaths(appCp, ":"),
@@ -159,6 +153,7 @@ public record QuarkifierConfig(
         expectedVersion,
         appName,
         appVersion,
+        mainClass,
         sourceDirs != null ? splitPaths(sourceDirs, ",") : List.of(),
         classesDir != null ? Path.of(classesDir) : null,
         bazelTargets != null ? splitStrings(bazelTargets, ",") : List.of(),
@@ -208,6 +203,11 @@ public record QuarkifierConfig(
       list.add(appVersion);
     }
 
+    if (mainClass != null) {
+      list.add("--main-class");
+      list.add(mainClass);
+    }
+
     if (!sourceDirs.isEmpty()) {
       list.add("--source-dirs");
       list.add(joinPaths(sourceDirs, ","));
@@ -246,6 +246,31 @@ public record QuarkifierConfig(
   }
 
   // ---- internal helpers ----
+
+  private static AugmentationMode parseMode(String mode) throws InvalidArgumentsException {
+    try {
+      return mode != null ? AugmentationMode.parse(mode) : AugmentationMode.NORMAL;
+    } catch (IllegalArgumentException e) {
+      throw new InvalidArgumentsException(e.getMessage(), e);
+    }
+  }
+
+  private static long parseTimeout(String bazelBuildTimeoutSeconds)
+      throws InvalidArgumentsException {
+    if (bazelBuildTimeoutSeconds == null) {
+      return 60;
+    }
+    try {
+      long timeout = Long.parseLong(bazelBuildTimeoutSeconds);
+      if (timeout <= 0) {
+        throw new InvalidArgumentsException("--bazel-build-timeout-seconds must be positive");
+      }
+      return timeout;
+    } catch (NumberFormatException e) {
+      throw new InvalidArgumentsException(
+          "--bazel-build-timeout-seconds must be a valid integer", e);
+    }
+  }
 
   private static String requireValue(String[] args, int index, String flag)
       throws InvalidArgumentsException {

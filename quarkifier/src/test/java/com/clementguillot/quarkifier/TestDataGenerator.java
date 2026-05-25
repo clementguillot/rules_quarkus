@@ -29,6 +29,7 @@ final class TestDataGenerator {
         RNG.nextDouble() < 0.3 ? null : randomVersion(),
         RNG.nextDouble() < 0.3 ? null : randomAlpha(3, 10),
         RNG.nextDouble() < 0.3 ? null : randomVersion(),
+        RNG.nextDouble() < 0.3 ? null : randomFullyQualifiedClassName(),
         randomPathList(0, 3),
         RNG.nextDouble() < 0.3 ? null : randomSafePath(),
         randomBazelTargetList(0, 3),
@@ -62,6 +63,21 @@ final class TestDataGenerator {
     int len = minLen + RNG.nextInt(maxLen - minLen + 1);
     var sb = new StringBuilder(len);
     for (int i = 0; i < len; i++) sb.append((char) ('a' + RNG.nextInt(26)));
+    return sb.toString();
+  }
+
+  private static String randomFullyQualifiedClassName() {
+    // Generate something like "com.example.ClassName"
+    int packageSegments = 2 + RNG.nextInt(3); // 2-4 package segments
+    var sb = new StringBuilder();
+    for (int i = 0; i < packageSegments; i++) {
+      if (i > 0) sb.append('.');
+      sb.append(randomAlpha(3, 8));
+    }
+    sb.append('.');
+    // Class name starts with uppercase
+    sb.append((char) ('A' + RNG.nextInt(26)));
+    sb.append(randomAlpha(3, 12));
     return sb.toString();
   }
 

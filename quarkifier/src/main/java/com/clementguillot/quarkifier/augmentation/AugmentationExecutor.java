@@ -85,7 +85,8 @@ public final class AugmentationExecutor {
       runAugmentation(config, appJar, appModel, outputDir);
 
       // Post-process: assemble the complete Fast_Jar
-      FastJarAssembler.assemble(outputDir, runtimeJars, appModel, config.resources());
+      FastJarAssembler.assemble(
+          outputDir, runtimeJars, appModel, config.resources(), config.mainClass());
 
     } catch (AugmentationException e) {
       throw e;
@@ -99,7 +100,7 @@ public final class AugmentationExecutor {
       QuarkifierConfig config, Path appJar, ApplicationModel appModel, Path outputDir)
       throws Exception {
 
-    Properties buildProps = BuildProperties.defaults();
+    Properties buildProps = BuildProperties.defaults(config.mainClass());
 
     QuarkusBootstrap bootstrap =
         QuarkusBootstrap.builder()
