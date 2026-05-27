@@ -16,7 +16,6 @@ load("//quarkus:providers.bzl", "QuarkusNativeInfo")
 load("//quarkus/private:classpath_utils.bzl", "collect_runtime_classpath")
 
 _GVM_TOOLCHAIN_TYPE = "@rules_graalvm//graalvm/toolchain"
-_CC_TOOLCHAIN_TYPE = "@bazel_tools//tools/cpp:toolchain_type"
 
 def _quarkus_native_app_impl(ctx):
     if not ctx.attr.deps:
@@ -156,10 +155,7 @@ quarkus_native_app_rule = rule(
             default = Label("@bazel_tools//tools/cpp:current_cc_toolchain"),
         ),
     },
-    toolchains = [
-        _GVM_TOOLCHAIN_TYPE,
-        _CC_TOOLCHAIN_TYPE,
-    ] + use_cpp_toolchain(),
+    toolchains = [_GVM_TOOLCHAIN_TYPE] + use_cpp_toolchain(),
     fragments = ["cpp"],
     doc = """\
 Internal rule — use quarkus_app(native=True) macro from @rules_quarkus//quarkus:defs.bzl instead.

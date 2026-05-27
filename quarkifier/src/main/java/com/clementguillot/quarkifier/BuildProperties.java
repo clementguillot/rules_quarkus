@@ -41,16 +41,9 @@ public final class BuildProperties {
    * @param mainClass the fully-qualified main class name, or {@code null} to omit the property
    */
   public static Properties nativeSourcesOnly(String mainClass) {
-    var props = new Properties();
+    var props = defaults(mainClass);
     props.setProperty("quarkus.native.enabled", "true");
     props.setProperty("quarkus.native.sources-only", "true");
-    props.setProperty("quarkus.package.jar.type", "fast-jar");
-    props.setProperty(
-        "platform.quarkus.native.builder-image",
-        "quay.io/quarkus/ubi-quarkus-mandrel-builder-image:jdk-21");
-    if (mainClass != null) {
-      props.setProperty("quarkus.package.main-class", mainClass);
-    }
     return props;
   }
 }

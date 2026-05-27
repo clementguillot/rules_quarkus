@@ -61,6 +61,14 @@ public final class NativeSourcesAssembler {
     if (!Files.isDirectory(libDir)) {
       throw new IOException("lib/ directory not found in " + nativeSources);
     }
+    try (Stream<Path> files = Files.list(nativeSources)) {
+      boolean hasRunnerJar =
+          files.anyMatch(
+              p -> Files.isRegularFile(p) && p.getFileName().toString().endsWith("-runner.jar"));
+      if (!hasRunnerJar) {
+        throw new IOException("runner jar (*-runner.jar) not found in " + nativeSources);
+      }
+    }
 
     LOGGER.infof("Native sources validated at: %s", nativeSources);
     LOGGER.infof("GraalVM version: %s", Files.readString(versionFile).strip());
@@ -115,12 +123,12 @@ public final class NativeSourcesAssembler {
   static String rewriteClasspathEntries(String args, Path baseDir) {
     // native-image.args produced by Quarkus sources-only mode uses relative paths.
     // If absolute paths are present (shouldn't happen but defensive), convert them.
-    String baseDirStr = baseDir.toAbsolutePath().toString();
-    String result = args;
-    if (result.contains(baseDirStr)) {
-      result = result.replace(baseDirStr + "/", "");
-      result = result.replace(baseDirStr, "");
+    String unixBase = baseDir.toAbsolutePath().toString().replace('\\', '/');
+    String normalized = args.replace('\\', '/');
+    if (normalized.contains(unixBase)) {
+      normalized = normalized.replace(unixBase + "/", "");
+      normalized = normalized.replace(unixBase, "");
     }
-    return result;
+    return normalized;
   }
 }

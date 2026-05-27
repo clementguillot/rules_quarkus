@@ -18,6 +18,10 @@ public enum AugmentationMode {
    * @throws IllegalArgumentException if the string is not "normal", "test", "dev", or "native"
    */
   public static AugmentationMode parse(String value) {
+    if (value == null) {
+      throw new IllegalArgumentException(
+          "Invalid mode: null. Must be 'normal', 'test', 'dev', or 'native'.");
+    }
     return switch (value.toLowerCase(Locale.ROOT)) {
       case "normal" -> NORMAL;
       case "test" -> TEST;
