@@ -50,6 +50,7 @@ See the [Getting Started guide](docs/getting-started.md) for full setup instruct
 ## Documentation
 
 - [Getting Started](docs/getting-started.md)
+- [Native Image](docs/native-image.md)
 - [Architecture](docs/architecture.md)
 - [Developer Guide](docs/developer-guide.md)
 - [Dev Mode](docs/dev-mode.md)
