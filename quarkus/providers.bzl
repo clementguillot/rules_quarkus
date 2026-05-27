@@ -9,3 +9,13 @@ QuarkusAppInfo = provider(
         "source_jars": "Depset of transitive source jars (for dev mode)",
     },
 )
+
+QuarkusNativeInfo = provider(
+    doc = "Information about a Quarkus native image build",
+    fields = {
+        "application_classpath": "Depset of runtime classpath jars",
+        "binary": "File: the compiled native binary",
+        "native_sources_dir": "Directory containing native-sources output from quarkifier",
+        "quarkus_version": "String: Quarkus version used",
+    },
+)

@@ -9,20 +9,26 @@ import java.util.Locale;
 public enum AugmentationMode {
   NORMAL,
   TEST,
-  DEV;
+  DEV,
+  NATIVE;
 
   /**
    * Parses a mode string (case-insensitive).
    *
-   * @throws IllegalArgumentException if the string is not "normal", "test", or "dev"
+   * @throws IllegalArgumentException if the string is not "normal", "test", "dev", or "native"
    */
   public static AugmentationMode parse(String value) {
+    if (value == null) {
+      throw new IllegalArgumentException(
+          "Invalid mode: null. Must be 'normal', 'test', 'dev', or 'native'.");
+    }
     return switch (value.toLowerCase(Locale.ROOT)) {
       case "normal" -> NORMAL;
       case "test" -> TEST;
       case "dev" -> DEV;
+      case "native" -> NATIVE;
       default -> throw new IllegalArgumentException(
-          "Invalid mode: '%s'. Must be 'normal', 'test', or 'dev'.".formatted(value));
+          "Invalid mode: '%s'. Must be 'normal', 'test', 'dev', or 'native'.".formatted(value));
     };
   }
 }

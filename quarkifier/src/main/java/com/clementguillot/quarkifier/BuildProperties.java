@@ -34,4 +34,16 @@ public final class BuildProperties {
     }
     return props;
   }
+
+  /**
+   * Creates a new {@link Properties} instance configured for native-sources-only augmentation.
+   *
+   * @param mainClass the fully-qualified main class name, or {@code null} to omit the property
+   */
+  public static Properties nativeSourcesOnly(String mainClass) {
+    var props = defaults(mainClass);
+    props.setProperty("quarkus.native.enabled", "true");
+    props.setProperty("quarkus.native.sources-only", "true");
+    return props;
+  }
 }

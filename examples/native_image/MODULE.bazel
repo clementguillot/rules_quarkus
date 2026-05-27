@@ -1,0 +1,67 @@
+module(name = "native_compile")
+
+bazel_dep(name = "com_clementguillot_rules_quarkus", version = "0.0.0", dev_dependency = True)
+local_path_override(
+    module_name = "com_clementguillot_rules_quarkus",
+    path = "../..",
+)
+
+# Fix bazel 9.x issues
+bazel_dep(name = "rules_cc", version = "0.2.17")
+bazel_dep(name = "rules_android", version = "0.7.1", repo_name = "rules_android")
+bazel_dep(name = "rules_go", version = "0.60.0", repo_name = "rules_go")
+
+# JVM rules
+bazel_dep(name = "rules_java", version = "9.6.1")
+bazel_dep(name = "rules_jvm_external", version = "6.10")
+
+# GraalVM native-image toolchain (via rules_graalvm)
+bazel_dep(name = "rules_graalvm", version = "0.11.1")
+
+# we need to override `rules_graalvm` until this PR is getting merged
+# https://github.com/sgammon/rules_graalvm/pull/573
+# otherwise, we won't have Java 25 support
+git_override(
+    module_name = "rules_graalvm",
+    commit = "f3683e086fea4a8ca59ecdc6e0cff6f3d61b796e",
+    remote = "https://github.com/jesses-canva/rules_graalvm.git",
+)
+
+gvm = use_extension("@rules_graalvm//:extensions.bzl", "graalvm")
+gvm.graalvm(
+    name = "graalvm",
+    distribution = "ce",
+    java_version = "25",
+    version = "25.0.1",
+)
+use_repo(gvm, "graalvm")
+
+register_toolchains("@graalvm//:jvm", "@graalvm//:sdk")
+
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+maven.install(
+    artifacts = [
+        "io.quarkus:quarkus-rest:3.33.1",
+        "io.quarkus:quarkus-arc:3.33.1",
+        # Test dependencies
+        "io.quarkus:quarkus-junit:3.33.1",
+        "io.rest-assured:rest-assured:5.5.6",
+        "org.junit.jupiter:junit-jupiter:5.13.4",
+        "org.junit.platform:junit-platform-console-standalone:1.13.4",
+        "org.junit.platform:junit-platform-launcher:1.13.4",
+    ],
+    known_contributing_modules = [
+        "bazel_worker_java",
+        "protobuf",
+    ],
+    lock_file = "//:maven_install.json",
+)
+use_repo(maven, "maven")
+
+quarkus = use_extension("@com_clementguillot_rules_quarkus//quarkus:extensions.bzl", "quarkus")
+quarkus.toolchain(
+    lock_file = "//:maven_install.json",
+    quarkifier_source_dir = "@com_clementguillot_rules_quarkus//:MODULE.bazel",
+    quarkus_version = "3.33.1",
+)
+use_repo(quarkus, "rules_quarkus")
