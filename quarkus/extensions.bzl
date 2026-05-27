@@ -225,9 +225,11 @@ exports_files(["defs.bzl"])
 
 quarkus_app() automatically creates a <name>_dev target for Quarkus dev mode
 with hot-reload support. Use dev=False to opt out.
+Use native=True to create a <name>_native target for GraalVM native image compilation.
 \"\"\"
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_app_impl.bzl", "quarkus_app_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_dev_impl.bzl", "quarkus_dev_rule")
+load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_native_app_impl.bzl", "quarkus_native_app_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_test_impl.bzl", _quarkus_test = "quarkus_test")
 load("@rules_java//java:java_library.bzl", "java_library")
 
@@ -236,16 +238,18 @@ _QUARKIFIER_TOOL = "@rules_quarkus//quarkifier:tool.jar"
 _DEPLOYMENT_DEPS = "@rules_quarkus//deployment:all"
 _CORE_DEPLOYMENT_DEPS = "@rules_quarkus//deployment:core"
 
-def quarkus_app(name, dev = True, **kwargs):
-    \"\"\"Builds a Quarkus application and optionally creates a dev-mode target.
+def quarkus_app(name, dev = True, native = False, **kwargs):
+    \"\"\"Builds a Quarkus application with optional dev-mode and native targets.
 
     Creates:
       - <name>: production Fast_Jar target (bazel run //pkg:<name>)
       - <name>_dev: dev mode with hot-reload (bazel run //pkg:<name>_dev), unless dev=False
+      - <name>_native: native binary (bazel run //pkg:<name>_native), if native=True
 
     Args:
         name: Target name.
         dev: If True (default), also creates a <name>_dev target for dev mode.
+        native: If True, also creates a <name>_native target for native image compilation.
         **kwargs: Passed to the underlying quarkus_app_rule (deps, version, jvm_flags, etc.).
     \"\"\"
     quarkus_app_rule(
@@ -266,6 +270,19 @@ def quarkus_app(name, dev = True, **kwargs):
             core_deployment_deps = _CORE_DEPLOYMENT_DEPS,
             deps = deps,
             version = version,
+        )
+    if native:
+        deps = kwargs.get("deps", [])
+        version = kwargs.get("version", "")
+        main_class = kwargs.get("main_class", "")
+        quarkus_native_app_rule(
+            name = name + "_native",
+            quarkus_version = _QUARKUS_VERSION,
+            quarkifier_tool = _QUARKIFIER_TOOL,
+            deployment_deps = _DEPLOYMENT_DEPS,
+            deps = deps,
+            version = version,
+            main_class = main_class,
         )
 
 def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_classes = None, jvm_flags = None, **kwargs):

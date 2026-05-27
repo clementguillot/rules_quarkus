@@ -84,6 +84,13 @@ public final class AugmentationExecutor {
 
       runAugmentation(config, appJar, appModel, outputDir);
 
+      // NATIVE mode: run augmentation with native-sources-only properties,
+      // then validate output via NativeSourcesAssembler instead of FastJarAssembler.
+      if (config.mode() == AugmentationMode.NATIVE) {
+        NativeSourcesAssembler.assemble(outputDir, runtimeJars);
+        return;
+      }
+
       // Post-process: assemble the complete Fast_Jar
       FastJarAssembler.assemble(
           outputDir, runtimeJars, appModel, config.resources(), config.mainClass());
@@ -100,14 +107,20 @@ public final class AugmentationExecutor {
       QuarkifierConfig config, Path appJar, ApplicationModel appModel, Path outputDir)
       throws Exception {
 
-    Properties buildProps = BuildProperties.defaults(config.mainClass());
+    Properties buildProps =
+        config.mode() == AugmentationMode.NATIVE
+            ? BuildProperties.nativeSourcesOnly(config.mainClass())
+            : BuildProperties.defaults(config.mainClass());
 
     QuarkusBootstrap bootstrap =
         QuarkusBootstrap.builder()
             .setExistingModel(appModel)
             .setApplicationRoot(appJar)
             .setTargetDirectory(outputDir)
-            .setBaseName("quarkus-run")
+            .setBaseName(
+                config.mode() == AugmentationMode.NATIVE && config.appName() != null
+                    ? config.appName()
+                    : "quarkus-run")
             .setMode(mapMode(config.mode()))
             .setIsolateDeployment(false)
             .setFlatClassPath(true)
@@ -159,7 +172,7 @@ public final class AugmentationExecutor {
 
   private static QuarkusBootstrap.Mode mapMode(AugmentationMode mode) {
     return switch (mode) {
-      case NORMAL -> QuarkusBootstrap.Mode.PROD;
+      case NORMAL, NATIVE -> QuarkusBootstrap.Mode.PROD;
       case TEST -> QuarkusBootstrap.Mode.TEST;
       case DEV -> QuarkusBootstrap.Mode.DEV;
     };
