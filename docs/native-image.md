@@ -183,7 +183,7 @@ As an alternative to installing GraalVM locally, you can build native binaries i
 
 No `rules_graalvm` needed. Just Docker or Podman on the host.
 
-```python
+```starlark
 quarkus_app(
     name = "my_app",
     native_container_build = True,
@@ -225,7 +225,7 @@ You cannot set both `native=True` and `native_container_build=True` on the same 
 
 When building on macOS or Windows, the rule prints a warning:
 
-```
+```text
 WARNING: native_container_build produces a Linux binary. It will not run on this Darwin host.
 ```
 
@@ -235,7 +235,7 @@ The binary is always a Linux executable (matching the container's architecture).
 
 Override the default Mandrel image:
 
-```python
+```starlark
 quarkus_app(
     name = "my_app",
     native_container_build = True,

@@ -23,6 +23,10 @@ import java.util.regex.Pattern;
  * @param appVersion application version for Quarkus startup banner (may be {@code null})
  * @param mainClass fully-qualified custom main class name annotated with {@code @QuarkusMain} (may
  *     be {@code null})
+ * @param nativeBuilderImage the native builder image for {@code
+ *     platform.quarkus.native.builder-image} (e.g. {@code
+ *     quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25}). May be {@code null} to use the
+ *     default.
  * @param sourceDirs source directories for hot-reload in dev mode (comma-separated on CLI)
  * @param classesDir mutable directory for .class files in dev mode (may be {@code null})
  * @param bazelTargets Bazel targets to rebuild on source changes (comma-separated on CLI)
@@ -65,6 +69,7 @@ public record QuarkifierConfig(
               [--app-name <name>] \\
               [--app-version <version>] \\
               [--main-class <class>] \\
+              [--native-builder-image <image>] \\
               [--source-dirs <dir,dir,...>] \\
               [--classes-dir <path>] \\
               [--bazel-targets <label,label,...>] \\
@@ -121,7 +126,13 @@ public record QuarkifierConfig(
             throw new InvalidArgumentsException("Value for --main-class must not be empty");
           }
         }
-        case "--native-builder-image" -> nativeBuilderImage = requireValue(args, ++i, args[i - 1]);
+        case "--native-builder-image" -> {
+          nativeBuilderImage = requireValue(args, ++i, args[i - 1]).trim();
+          if (nativeBuilderImage.isEmpty()) {
+            throw new InvalidArgumentsException(
+                "Value for --native-builder-image must not be empty");
+          }
+        }
         case "--source-dirs" -> sourceDirs = requireValue(args, ++i, args[i - 1]);
         case "--classes-dir" -> classesDir = requireValue(args, ++i, args[i - 1]);
         case "--bazel-targets" -> bazelTargets = requireValue(args, ++i, args[i - 1]);
