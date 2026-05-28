@@ -31,6 +31,7 @@ class BazelFileWatcherTest {
         "test-app",
         "1.0.0",
         null,
+        null,
         sourceDirs,
         tempDir.resolve("classes"),
         List.of("//pkg:lib"),

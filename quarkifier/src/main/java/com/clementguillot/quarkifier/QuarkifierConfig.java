@@ -42,6 +42,7 @@ public record QuarkifierConfig(
     String appName,
     String appVersion,
     String mainClass,
+    String nativeBuilderImage,
     List<Path> sourceDirs,
     Path classesDir,
     List<String> bazelTargets,
@@ -91,6 +92,7 @@ public record QuarkifierConfig(
     String appName = null;
     String appVersion = null;
     String mainClass = null;
+    String nativeBuilderImage = null;
     String sourceDirs = null;
     String classesDir = null;
     String bazelTargets = null;
@@ -119,6 +121,7 @@ public record QuarkifierConfig(
             throw new InvalidArgumentsException("Value for --main-class must not be empty");
           }
         }
+        case "--native-builder-image" -> nativeBuilderImage = requireValue(args, ++i, args[i - 1]);
         case "--source-dirs" -> sourceDirs = requireValue(args, ++i, args[i - 1]);
         case "--classes-dir" -> classesDir = requireValue(args, ++i, args[i - 1]);
         case "--bazel-targets" -> bazelTargets = requireValue(args, ++i, args[i - 1]);
@@ -154,6 +157,7 @@ public record QuarkifierConfig(
         appName,
         appVersion,
         mainClass,
+        nativeBuilderImage,
         sourceDirs != null ? splitPaths(sourceDirs, ",") : List.of(),
         classesDir != null ? Path.of(classesDir) : null,
         bazelTargets != null ? splitStrings(bazelTargets, ",") : List.of(),
@@ -206,6 +210,11 @@ public record QuarkifierConfig(
     if (mainClass != null) {
       list.add("--main-class");
       list.add(mainClass);
+    }
+
+    if (nativeBuilderImage != null) {
+      list.add("--native-builder-image");
+      list.add(nativeBuilderImage);
     }
 
     if (!sourceDirs.isEmpty()) {
