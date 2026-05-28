@@ -12,6 +12,7 @@ load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusNativeInfo")
 load("//quarkus/private:classpath_utils.bzl", "collect_runtime_classpath")
+load("//quarkus/private:native_augmentation.bzl", "run_native_augmentation")
 
 def _quarkus_native_container_app_impl(ctx):
     if not ctx.attr.deps:
@@ -22,39 +23,8 @@ def _quarkus_native_container_app_impl(ctx):
 
     deployment_classpath = collect_runtime_classpath([ctx.attr.deployment_deps]) if ctx.attr.deployment_deps else depset()
 
-    tool_jar = ctx.file.quarkifier_tool
-    java_runtime = ctx.attr._java_runtime[java_common.JavaRuntimeInfo]
-
     # ---- Action 1: Quarkifier NATIVE augmentation ----
-    args = ctx.actions.args()
-    args.add_joined("--application-classpath", runtime_classpath, join_with = ":")
-    args.add_joined("--deployment-classpath", depset(transitive = [runtime_classpath, deployment_classpath]), join_with = ":")
-    args.add("--output-dir", output_dir.path)
-    args.add("--mode", "native")
-    args.add("--expected-quarkus-version", ctx.attr.quarkus_version)
-    args.add("--app-name", ctx.label.name)
-    args.add("--native-builder-image", ctx.attr.builder_image)
-    if ctx.attr.version:
-        args.add("--app-version", ctx.attr.version)
-    if ctx.attr.main_class:
-        args.add("--main-class", ctx.attr.main_class)
-
-    jar_args = ctx.actions.args()
-    jar_args.add("-Djava.util.logging.manager=org.jboss.logmanager.LogManager")
-    jar_args.add("-jar")
-    jar_args.add(tool_jar)
-
-    ctx.actions.run(
-        executable = java_runtime.java_executable_exec_path,
-        arguments = [jar_args, args],
-        inputs = depset(
-            direct = [tool_jar],
-            transitive = [runtime_classpath, deployment_classpath, java_runtime.files],
-        ),
-        outputs = [output_dir],
-        mnemonic = "QuarkusNativeAugmentation",
-        progress_message = "Running Quarkus native augmentation for %{label}",
-    )
+    run_native_augmentation(ctx, output_dir, runtime_classpath, deployment_classpath)
 
     # ---- Action 2: native-image inside container ----
     binary = ctx.actions.declare_file(ctx.label.name)
@@ -133,7 +103,7 @@ $RUNTIME run --rm --user root --entrypoint bash \
   -v "$NATIVE_SOURCES:/project-src:ro" \
   -v "$OUTPUT_DIR:/output" \
   -w /work \
-  {builder_image} \
+  '{builder_image}' \
   -c '
     cp -a /project-src/. /work/ &&
     ARGS=$(sed -e "s| {app_name}-runner -jar | -jar |" -e "s|--enable-monitoring=[^ ]*||g" native-image.args) &&
@@ -199,6 +169,7 @@ quarkus_native_container_app_rule = rule(
         ),
         "_java_runtime": attr.label(
             default = "@bazel_tools//tools/jdk:current_java_runtime",
+            providers = [java_common.JavaRuntimeInfo],
         ),
     },
     doc = """\
