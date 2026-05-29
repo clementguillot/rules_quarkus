@@ -1,0 +1,85 @@
+load("@rules_img//img:image.bzl", "image_manifest")
+load("@rules_img//img:layer.bzl", "image_layer", "layer_from_binary")
+load("@rules_img//img:load.bzl", "image_load")
+load("@rules_java//java:java_library.bzl", "java_library")
+load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_test")
+
+# buildifier: disable=out-of-order-load
+load("@rules_img_images.bzl", "image")
+
+java_library(
+    name = "lib",
+    srcs = glob(["src/main/java/**/*.java"]),
+    resources = glob(["src/main/resources/**/*"]),
+    deps = [
+        "@maven//:io_quarkus_quarkus_arc",
+        "@maven//:io_quarkus_quarkus_rest",
+        "@maven//:jakarta_ws_rs_jakarta_ws_rs_api",
+    ],
+)
+
+quarkus_app(
+    name = "helloworld",
+    native_container_build = True,
+    version = "1.0.0",
+    deps = [":lib"],
+)
+
+# --- Fast Jar OCI image (JVM mode) ---
+
+layer_from_binary(
+    name = "helloworld_jvm_layer",
+    binary = ":helloworld",
+)
+
+image_manifest(
+    name = "helloworld_jvm_image_manifest",
+    base = image("eclipse_temurin"),
+    layers = [":helloworld_jvm_layer"],
+    platform = "//platforms:linux_aarch64",
+)
+
+image_load(
+    name = "helloworld_jvm_image",
+    image = ":helloworld_jvm_image_manifest",
+    tag = "helloworld-jvm:latest",
+)
+
+# --- Native OCI image (distroless) ---
+
+image_layer(
+    name = "helloworld_native_layer",
+    srcs = {
+        "/app/helloworld": ":helloworld_native",
+    },
+    include_runfiles = False,
+)
+
+image_manifest(
+    name = "helloworld_native_image_manifest",
+    base = image("distroless_base"),
+    entrypoint = ["/app/helloworld"],
+    layers = [":helloworld_native_layer"],
+    platform = "//platforms:linux_aarch64",
+)
+
+image_load(
+    name = "helloworld_native_image",
+    image = ":helloworld_native_image_manifest",
+    tag = "helloworld-native:latest",
+)
+
+quarkus_test(
+    name = "test",
+    srcs = glob(["src/test/java/**/*.java"]),
+    deps = [
+        ":lib",
+        "@maven//:io_quarkus_quarkus_junit",
+        "@maven//:io_rest_assured_rest_assured",
+        "@maven//:org_hamcrest_hamcrest",
+        "@maven//:org_junit_jupiter_junit_jupiter",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+        "@maven//:org_junit_platform_junit_platform_console_standalone",
+        "@maven//:org_junit_platform_junit_platform_launcher",
+    ],
+)

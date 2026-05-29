@@ -1,0 +1,69 @@
+module(name = "oci_images")
+
+bazel_dep(name = "com_clementguillot_rules_quarkus", version = "0.0.0", dev_dependency = True)
+local_path_override(
+    module_name = "com_clementguillot_rules_quarkus",
+    path = "../..",
+)
+
+# Fix bazel 9.x issues
+bazel_dep(name = "rules_cc", version = "0.2.17")
+bazel_dep(name = "rules_android", version = "0.7.1", repo_name = "rules_android")
+bazel_dep(name = "rules_go", version = "0.60.0", repo_name = "rules_go")
+
+# JVM rules
+bazel_dep(name = "rules_java", version = "9.6.1")
+bazel_dep(name = "rules_jvm_external", version = "6.10")
+
+# OCI image rules
+bazel_dep(name = "rules_img", version = "0.3.11")
+
+# Pull base images
+images = use_extension("@rules_img//img:extensions.bzl", "images")
+
+# JRE for running Quarkus fast-jar (JVM mode) - linux/aarch64 manifest
+images.pull(
+    name = "eclipse_temurin",
+    digest = "sha256:e27e24f0bc3e6fef63ddd56dadb05903772276b27caebe498c69a81cba7d8cc4",
+    registry = "index.docker.io",
+    repository = "library/eclipse-temurin",
+    tag = "21-jre",
+)
+
+# Distroless base for native binary (minimal runtime) - linux/aarch64 manifest
+images.pull(
+    name = "distroless_base",
+    digest = "sha256:2b0a9644dc1cd2578b447c8e009dc387d8ad32a3cf20e01bc4a315c8062b9910",
+    registry = "gcr.io",
+    repository = "distroless/base-debian13",
+    tag = "nonroot",
+)
+use_repo(images, "rules_img_images.bzl")
+
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+maven.install(
+    artifacts = [
+        "io.quarkus:quarkus-rest:3.33.1",
+        "io.quarkus:quarkus-arc:3.33.1",
+        # Test dependencies
+        "io.quarkus:quarkus-junit:3.33.1",
+        "io.rest-assured:rest-assured:5.5.6",
+        "org.junit.jupiter:junit-jupiter:5.13.4",
+        "org.junit.platform:junit-platform-console-standalone:1.13.4",
+        "org.junit.platform:junit-platform-launcher:1.13.4",
+    ],
+    known_contributing_modules = [
+        "bazel_worker_java",
+        "protobuf",
+    ],
+    lock_file = "//:maven_install.json",
+)
+use_repo(maven, "maven")
+
+quarkus = use_extension("@com_clementguillot_rules_quarkus//quarkus:extensions.bzl", "quarkus")
+quarkus.toolchain(
+    lock_file = "//:maven_install.json",
+    quarkifier_source_dir = "@com_clementguillot_rules_quarkus//:MODULE.bazel",
+    quarkus_version = "3.33.1",
+)
+use_repo(quarkus, "rules_quarkus")
