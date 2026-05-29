@@ -10,11 +10,15 @@ import java.util.Properties;
  */
 public final class BuildProperties {
 
+  /** Default Mandrel builder image used when none is specified. */
+  public static final String DEFAULT_BUILDER_IMAGE =
+      "quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25";
+
   private BuildProperties() {}
 
   /** Creates a new {@link Properties} instance with the default Quarkus build properties. */
   public static Properties defaults() {
-    return defaults(null);
+    return defaults(null, null);
   }
 
   /**
@@ -24,10 +28,20 @@ public final class BuildProperties {
    * @param mainClass the fully-qualified main class name, or {@code null} to omit the property
    */
   public static Properties defaults(String mainClass) {
+    return defaults(mainClass, null);
+  }
+
+  /**
+   * Creates a new {@link Properties} instance with the default Quarkus build properties.
+   *
+   * @param mainClass the fully-qualified main class name, or {@code null} to omit the property
+   * @param builderImage the native builder image, or {@code null} to use the default
+   */
+  public static Properties defaults(String mainClass, String builderImage) {
     var props = new Properties();
     props.setProperty(
         "platform.quarkus.native.builder-image",
-        "quay.io/quarkus/ubi-quarkus-mandrel-builder-image:jdk-21");
+        builderImage != null ? builderImage : DEFAULT_BUILDER_IMAGE);
     props.setProperty("quarkus.package.jar.type", "fast-jar");
     if (mainClass != null) {
       props.setProperty("quarkus.package.main-class", mainClass);
@@ -41,7 +55,17 @@ public final class BuildProperties {
    * @param mainClass the fully-qualified main class name, or {@code null} to omit the property
    */
   public static Properties nativeSourcesOnly(String mainClass) {
-    var props = defaults(mainClass);
+    return nativeSourcesOnly(mainClass, null);
+  }
+
+  /**
+   * Creates a new {@link Properties} instance configured for native-sources-only augmentation.
+   *
+   * @param mainClass the fully-qualified main class name, or {@code null} to omit the property
+   * @param builderImage the native builder image, or {@code null} to use the default
+   */
+  public static Properties nativeSourcesOnly(String mainClass, String builderImage) {
+    var props = defaults(mainClass, builderImage);
     props.setProperty("quarkus.native.enabled", "true");
     props.setProperty("quarkus.native.sources-only", "true");
     return props;

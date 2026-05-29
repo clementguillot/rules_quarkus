@@ -19,6 +19,13 @@ quarkus_app(
     deps = [":lib"],
 )
 
+quarkus_app(
+    name = "native_image_docker",
+    native_container_build = True,
+    version = "1.0.0",
+    deps = [":lib"],
+)
+
 quarkus_test(
     name = "test",
     srcs = glob(["src/test/java/**/*.java"]),

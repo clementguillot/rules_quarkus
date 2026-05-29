@@ -230,6 +230,7 @@ Use native=True to create a <name>_native target for GraalVM native image compil
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_app_impl.bzl", "quarkus_app_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_dev_impl.bzl", "quarkus_dev_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_native_app_impl.bzl", "quarkus_native_app_rule")
+load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_native_container_app_impl.bzl", "quarkus_native_container_app_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_test_impl.bzl", _quarkus_test = "quarkus_test")
 load("@rules_java//java:java_library.bzl", "java_library")
 
@@ -237,21 +238,32 @@ _QUARKUS_VERSION = "{version}"
 _QUARKIFIER_TOOL = "@rules_quarkus//quarkifier:tool.jar"
 _DEPLOYMENT_DEPS = "@rules_quarkus//deployment:all"
 _CORE_DEPLOYMENT_DEPS = "@rules_quarkus//deployment:core"
+_DEFAULT_BUILDER_IMAGE = "quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25"
 
-def quarkus_app(name, dev = True, native = False, **kwargs):
+def quarkus_app(name, dev = True, native = False, native_container_build = False,
+                native_container_runtime = "auto", native_builder_image = _DEFAULT_BUILDER_IMAGE,
+                **kwargs):
     \"\"\"Builds a Quarkus application with optional dev-mode and native targets.
 
     Creates:
       - <name>: production Fast_Jar target (bazel run //pkg:<name>)
       - <name>_dev: dev mode with hot-reload (bazel run //pkg:<name>_dev), unless dev=False
-      - <name>_native: native binary (bazel run //pkg:<name>_native), if native=True
+      - <name>_native: native binary (bazel run //pkg:<name>_native), if native=True or native_container_build=True
 
     Args:
         name: Target name.
         dev: If True (default), also creates a <name>_dev target for dev mode.
-        native: If True, also creates a <name>_native target for native image compilation.
+        native: If True, creates a <name>_native target using rules_graalvm (host compilation).
+        native_container_build: If True, creates a <name>_native target using Docker/Podman (container compilation).
+        native_container_runtime: Container runtime: 'auto' (default), 'docker', or 'podman'.
+        native_builder_image: Builder image for container native compilation.
         **kwargs: Passed to the underlying quarkus_app_rule (deps, version, jvm_flags, etc.).
     \"\"\"
+    if native and native_container_build:
+        fail("Cannot set both 'native' and 'native_container_build'. " +
+             "Use 'native' for host-based compilation (rules_graalvm) or " +
+             "'native_container_build' for container-based compilation (Docker/Podman).")
+
     quarkus_app_rule(
         name = name,
         quarkus_version = _QUARKUS_VERSION,
@@ -283,6 +295,21 @@ def quarkus_app(name, dev = True, native = False, **kwargs):
             deps = deps,
             version = version,
             main_class = main_class,
+        )
+    if native_container_build:
+        deps = kwargs.get("deps", [])
+        version = kwargs.get("version", "")
+        main_class = kwargs.get("main_class", "")
+        quarkus_native_container_app_rule(
+            name = name + "_native",
+            quarkus_version = _QUARKUS_VERSION,
+            quarkifier_tool = _QUARKIFIER_TOOL,
+            deployment_deps = _DEPLOYMENT_DEPS,
+            deps = deps,
+            version = version,
+            main_class = main_class,
+            container_runtime = native_container_runtime,
+            builder_image = native_builder_image,
         )
 
 def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_classes = None, jvm_flags = None, **kwargs):

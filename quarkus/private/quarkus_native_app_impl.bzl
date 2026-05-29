@@ -10,10 +10,10 @@ quarkus_app macro when native=True, creating a <name>_native target.
 
 load("@bazel_tools//tools/cpp:toolchain_utils.bzl", "find_cpp_toolchain", "use_cpp_toolchain")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
-load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusNativeInfo")
 load("//quarkus/private:classpath_utils.bzl", "collect_runtime_classpath")
+load("//quarkus/private:native_augmentation.bzl", "run_native_augmentation")
 
 _GVM_TOOLCHAIN_TYPE = "@rules_graalvm//graalvm/toolchain"
 
@@ -26,38 +26,8 @@ def _quarkus_native_app_impl(ctx):
 
     deployment_classpath = collect_runtime_classpath([ctx.attr.deployment_deps]) if ctx.attr.deployment_deps else depset()
 
-    tool_jar = ctx.file.quarkifier_tool
-    java_runtime = ctx.attr._java_runtime[java_common.JavaRuntimeInfo]
-
     # ---- Action 1: Quarkifier NATIVE augmentation ----
-    args = ctx.actions.args()
-    args.add_joined("--application-classpath", runtime_classpath, join_with = ":")
-    args.add_joined("--deployment-classpath", depset(transitive = [runtime_classpath, deployment_classpath]), join_with = ":")
-    args.add("--output-dir", output_dir.path)
-    args.add("--mode", "native")
-    args.add("--expected-quarkus-version", ctx.attr.quarkus_version)
-    args.add("--app-name", ctx.label.name)
-    if ctx.attr.version:
-        args.add("--app-version", ctx.attr.version)
-    if ctx.attr.main_class:
-        args.add("--main-class", ctx.attr.main_class)
-
-    jar_args = ctx.actions.args()
-    jar_args.add("-Djava.util.logging.manager=org.jboss.logmanager.LogManager")
-    jar_args.add("-jar")
-    jar_args.add(tool_jar)
-
-    ctx.actions.run(
-        executable = java_runtime.java_executable_exec_path,
-        arguments = [jar_args, args],
-        inputs = depset(
-            direct = [tool_jar],
-            transitive = [runtime_classpath, deployment_classpath, java_runtime.files],
-        ),
-        outputs = [output_dir],
-        mnemonic = "QuarkusNativeAugmentation",
-        progress_message = "Running Quarkus native augmentation for %{label}",
-    )
+    run_native_augmentation(ctx, output_dir, runtime_classpath, deployment_classpath)
 
     # ---- Action 2: native-image invocation via rules_graalvm toolchain ----
     binary = ctx.actions.declare_file(ctx.label.name)

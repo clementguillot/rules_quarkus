@@ -169,3 +169,77 @@ The `<name>_native` target provides `QuarkusNativeInfo` with:
 | `binary` | File | The compiled native binary |
 | `application_classpath` | Depset | Runtime classpath jars |
 | `quarkus_version` | String | Quarkus version used |
+
+
+## Container-Based Native Compilation
+
+As an alternative to installing GraalVM locally, you can build native binaries inside a Docker/Podman container using the Mandrel builder image. This is especially useful for:
+
+- **Cross-compilation from macOS to Linux** — produce Linux binaries on a Mac
+- **CI environments** — no GraalVM installation needed, just Docker
+- **Reproducibility** — the builder image pins the exact GraalVM/Mandrel version
+
+### Setup
+
+No `rules_graalvm` needed. Just Docker or Podman on the host.
+
+```starlark
+quarkus_app(
+    name = "my_app",
+    native_container_build = True,
+    version = "1.0.0",
+    deps = [":lib"],
+)
+```
+
+```bash
+bazel build //:my_app_native
+# Produces: bazel-bin/my_app_native (Linux ELF binary)
+```
+
+### Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `native_container_build` | `False` | Enable container-based native compilation |
+| `native_container_runtime` | `"auto"` | Container runtime: `"auto"`, `"docker"`, or `"podman"` |
+| `native_builder_image` | `quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25` | Builder image containing `native-image` |
+
+### Container Runtime Auto-Detection
+
+When `native_container_runtime="auto"` (the default), the rule detects the available runtime:
+
+1. Tries `docker --version` — if output contains "Docker version", uses Docker
+2. If `docker` is actually Podman aliased (output contains "podman"), uses Podman
+3. Falls back to `podman --version`
+4. Fails with a clear error if neither is found
+
+### Mutual Exclusion
+
+You cannot set both `native=True` and `native_container_build=True` on the same target. Choose one:
+
+- `native=True` — host-based compilation via `rules_graalvm` (requires GraalVM + CC toolchain)
+- `native_container_build=True` — container-based compilation via Docker/Podman (requires container runtime)
+
+### Non-Linux Warning
+
+When building on macOS or Windows, the rule prints a warning:
+
+```text
+WARNING: native_container_build produces a Linux binary. It will not run on this Darwin host.
+```
+
+The binary is always a Linux executable (matching the container's architecture). Deploy it to a Linux environment or package it into a container image.
+
+### Custom Builder Image
+
+Override the default Mandrel image:
+
+```starlark
+quarkus_app(
+    name = "my_app",
+    native_container_build = True,
+    native_builder_image = "quay.io/quarkus/ubi9-quarkus-graalvmce-builder-image:jdk-25",
+    deps = [":lib"],
+)
+```

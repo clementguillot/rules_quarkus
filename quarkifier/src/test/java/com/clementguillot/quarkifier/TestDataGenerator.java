@@ -30,6 +30,7 @@ final class TestDataGenerator {
         RNG.nextDouble() < 0.3 ? null : randomAlpha(3, 10),
         RNG.nextDouble() < 0.3 ? null : randomVersion(),
         RNG.nextDouble() < 0.3 ? null : randomFullyQualifiedClassName(),
+        RNG.nextDouble() < 0.3 ? null : "quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25",
         randomPathList(0, 3),
         RNG.nextDouble() < 0.3 ? null : randomSafePath(),
         randomBazelTargetList(0, 3),

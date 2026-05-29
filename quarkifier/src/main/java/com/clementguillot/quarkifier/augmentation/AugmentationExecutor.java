@@ -109,8 +109,8 @@ public final class AugmentationExecutor {
 
     Properties buildProps =
         config.mode() == AugmentationMode.NATIVE
-            ? BuildProperties.nativeSourcesOnly(config.mainClass())
-            : BuildProperties.defaults(config.mainClass());
+            ? BuildProperties.nativeSourcesOnly(config.mainClass(), config.nativeBuilderImage())
+            : BuildProperties.defaults(config.mainClass(), config.nativeBuilderImage());
 
     QuarkusBootstrap bootstrap =
         QuarkusBootstrap.builder()
