@@ -57,6 +57,10 @@ public final class DevModeLauncher {
     try {
       DevModeContext context = buildDevModeContext(config);
 
+      // Ensure the target directory exists — Quarkus writes build-metrics.json there.
+      // In a Bazel workspace this directory doesn't exist by default (unlike Maven's target/).
+      Files.createDirectories(Path.of(context.getApplicationRoot().getTargetDir()));
+
       // 1. Serialize the ApplicationModel to a temp file.
       // Uses AppModelSerializerImpl which is version-specific:
       // - 3.27: Java Object Serialization (BootstrapUtils)
@@ -253,6 +257,11 @@ public final class DevModeLauncher {
     // Key: classesPath points to mutable directory when available, otherwise the jar
     Path classesPath = config.classesDir() != null ? config.classesDir() : appJar;
 
+    // targetDir must be a child of projectRoot so that WorkspaceProcessor (which does
+    // targetDir.getParent() to find the project root) shows the correct source tree.
+    // We create the directory in launch() since Bazel workspaces don't have a target/ dir.
+    Path targetDir = projectRoot.resolve("target");
+
     var moduleInfo =
         new DevModeContext.ModuleInfo.Builder()
             .setArtifactKey(ArtifactKey.ga(coords.groupId(), coords.artifactId()))
@@ -265,7 +274,7 @@ public final class DevModeLauncher {
                 config.resources().isEmpty()
                     ? null
                     : config.resources().get(0).toAbsolutePath().toString())
-            .setTargetDir(projectRoot.resolve("target").toAbsolutePath().toString())
+            .setTargetDir(targetDir.toAbsolutePath().toString())
             .build();
 
     context.setApplicationRoot(moduleInfo);
