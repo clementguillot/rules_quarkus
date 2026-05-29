@@ -4,7 +4,8 @@ bazel-*
 .ijwb/
 .bazelbsp/
 .DS_Store
-e2e/smoke/MODULE.bazel.lock
+e2e/*/MODULE.bazel.lock
+examples/*/MODULE.bazel.lock
 
 # Nested Bazel output base (used by quarkifier local build repo rule)
 .bazel-nested-build/

@@ -121,7 +121,13 @@ $RUNTIME run --rm --user root --entrypoint bash \
         mnemonic = "NativeImageContainer",
         progress_message = "Compiling native image in container for %{label}",
         use_default_shell_env = True,
-        execution_requirements = {"no-sandbox": "1"},
+        execution_requirements = {
+            "no-sandbox": "1",
+            # Tag with the target os/arch so remote cache distinguishes
+            # native binaries compiled for different platforms.
+            "native-arch": ctx.attr.native_arch,
+            "native-os": ctx.attr.native_os,
+        },
     )
 
     return [
@@ -159,6 +165,19 @@ quarkus_native_container_app_rule = rule(
         "main_class": attr.string(
             doc = "Override main class. Defaults to the Quarkus runner.",
         ),
+        "native_arch": attr.string(
+            mandatory = True,
+            doc = """\
+Target CPU architecture for the native binary. This value is embedded in the
+action's execution_requirements to ensure remote cache distinguishes binaries
+compiled for different architectures (e.g. amd64 vs aarch64).
+Set automatically by the quarkus_app macro via select() on the host CPU.
+""",
+        ),
+        "native_os": attr.string(
+            default = "linux",
+            doc = "Target OS for the native binary. Always 'linux' for container builds.",
+        ),
         "quarkifier_tool": attr.label(
             allow_single_file = [".jar"],
             doc = "Quarkifier deploy jar (fat jar with all tool deps bundled).",
@@ -169,6 +188,7 @@ quarkus_native_container_app_rule = rule(
         ),
         "_java_runtime": attr.label(
             default = "@bazel_tools//tools/jdk:current_java_runtime",
+            cfg = "exec",
             providers = [java_common.JavaRuntimeInfo],
         ),
     },
