@@ -119,6 +119,7 @@ quarkus_app_rule = rule(
         ),
         "_java_runtime": attr.label(
             default = "@bazel_tools//tools/jdk:current_java_runtime",
+            cfg = "exec",
         ),
         "_launcher_template": attr.label(
             default = Label("//quarkus/private:launcher.sh.tpl"),

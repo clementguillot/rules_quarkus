@@ -310,6 +310,11 @@ def quarkus_app(name, dev = True, native = False, native_container_build = False
             main_class = main_class,
             container_runtime = native_container_runtime,
             builder_image = native_builder_image,
+            native_arch = select({{
+                "@platforms//cpu:aarch64": "aarch64",
+                "@platforms//cpu:x86_64": "amd64",
+                "//conditions:default": "unsupported",
+            }}),
         )
 
 def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_classes = None, jvm_flags = None, **kwargs):

@@ -120,6 +120,7 @@ quarkus_native_app_rule = rule(
         ),
         "_java_runtime": attr.label(
             default = "@bazel_tools//tools/jdk:current_java_runtime",
+            cfg = "exec",
         ),
         "_cc_toolchain": attr.label(
             default = Label("@bazel_tools//tools/cpp:current_cc_toolchain"),
