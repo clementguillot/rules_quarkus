@@ -1,0 +1,40 @@
+load("@rules_java//java:java_library.bzl", "java_library")
+load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_test")
+
+java_library(
+    name = "lib",
+    srcs = glob(["src/main/java/**/*.java"]),
+    resources = glob(["src/main/resources/**/*"]),
+    deps = [
+        "//libs/todo-model",
+        "//libs/todo-service",
+        "@maven//:io_quarkus_quarkus_arc",
+        "@maven//:io_quarkus_quarkus_rest",
+        "@maven//:io_quarkus_quarkus_rest_jackson",
+        "@maven//:jakarta_enterprise_jakarta_enterprise_cdi_api",
+        "@maven//:jakarta_inject_jakarta_inject_api",
+        "@maven//:jakarta_ws_rs_jakarta_ws_rs_api",
+    ],
+)
+
+quarkus_app(
+    name = "demoapp",
+    version = "1.0.0",
+    deps = [":lib"],
+)
+
+quarkus_test(
+    name = "test",
+    srcs = glob(["src/test/java/**/*.java"]),
+    deps = [
+        ":lib",
+        "//libs/todo-model",
+        "@maven//:io_quarkus_quarkus_junit",
+        "@maven//:io_rest_assured_rest_assured",
+        "@maven//:org_hamcrest_hamcrest",
+        "@maven//:org_junit_jupiter_junit_jupiter",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+        "@maven//:org_junit_platform_junit_platform_console_standalone",
+        "@maven//:org_junit_platform_junit_platform_launcher",
+    ],
+)
