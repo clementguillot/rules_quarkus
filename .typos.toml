@@ -2,6 +2,7 @@
 
 [default.extend-words]
 vertx = "vertx"
+ser = "ser"
 
 [default]
 extend-ignore-re = [

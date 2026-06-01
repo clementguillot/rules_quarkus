@@ -3061,9 +3061,9 @@
       "com.fasterxml.jackson.databind.jsontype.impl",
       "com.fasterxml.jackson.databind.module",
       "com.fasterxml.jackson.databind.node",
-      "com.fasterxml.jackson.databind.set",
-      "com.fasterxml.jackson.databind.set.impl",
-      "com.fasterxml.jackson.databind.set.std",
+      "com.fasterxml.jackson.databind.ser",
+      "com.fasterxml.jackson.databind.ser.impl",
+      "com.fasterxml.jackson.databind.ser.std",
       "com.fasterxml.jackson.databind.type",
       "com.fasterxml.jackson.databind.util",
       "com.fasterxml.jackson.databind.util.internal"
@@ -3075,8 +3075,8 @@
       "com.fasterxml.jackson.datatype.jsr310",
       "com.fasterxml.jackson.datatype.jsr310.deser",
       "com.fasterxml.jackson.datatype.jsr310.deser.key",
-      "com.fasterxml.jackson.datatype.jsr310.set",
-      "com.fasterxml.jackson.datatype.jsr310.set.key",
+      "com.fasterxml.jackson.datatype.jsr310.ser",
+      "com.fasterxml.jackson.datatype.jsr310.ser.key",
       "com.fasterxml.jackson.datatype.jsr310.util"
     ],
     "com.fasterxml.jackson.module:jackson-module-parameter-names": [
