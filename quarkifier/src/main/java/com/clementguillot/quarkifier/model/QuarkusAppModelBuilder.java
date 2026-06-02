@@ -48,8 +48,10 @@ public final class QuarkusAppModelBuilder {
    * Builds an {@link ApplicationModel} from classpath jars, detecting Quarkus extensions and
    * setting the appropriate dependency flags.
    *
-   * @param appJar the application's own jar (first entry on the application classpath)
-   * @param runtimeJars remaining runtime dependency jars
+   * @param localAppJars local workspace jars — the first element becomes the app artifact, and
+   *     remaining jars are added as runtime dependencies (they are also indexed via the application
+   *     root {@code PathCollection} mechanism in the caller)
+   * @param runtimeJars remaining runtime dependency jars (external Maven jars)
    * @param deployClasspath deployment-only jars
    * @param appName optional application name override
    * @param appVersion optional application version override
@@ -57,7 +59,7 @@ public final class QuarkusAppModelBuilder {
    * @throws IOException if jar scanning fails
    */
   public static ApplicationModel build(
-      Path appJar,
+      List<Path> localAppJars,
       List<Path> runtimeJars,
       List<Path> deployClasspath,
       String appName,
@@ -86,7 +88,16 @@ public final class QuarkusAppModelBuilder {
                 .toList());
     extensionJars.addAll(deployExtensionJars);
 
+    Path appJar = localAppJars.get(0);
     setAppArtifact(modelBuilder, appJar, appName, appVersion);
+
+    // Add additional local app jars (index 1+) as runtime dependencies so they
+    // appear in the model. They are also indexed via the application root
+    // PathCollection mechanism in AugmentationExecutor.
+    if (localAppJars.size() > 1) {
+      addLocalAppJarDependencies(modelBuilder, localAppJars.subList(1, localAppJars.size()));
+    }
+
     Set<ArtifactKey> addedKeys = addRuntimeDependencies(modelBuilder, runtimeJars, extensionJars);
     addDeploymentDependencies(modelBuilder, deployClasspath, addedKeys, extensionJars);
     markParentFirstArtifacts(modelBuilder);
@@ -156,15 +167,17 @@ public final class QuarkusAppModelBuilder {
    * Builds an {@link ApplicationModel} for test mode, including a {@link WorkspaceModule} with test
    * sources so that {@code AppMakerHelper} can locate test classes.
    *
-   * @param appJar the application's own jar (first entry on the application classpath)
-   * @param runtimeJars remaining runtime dependency jars
+   * @param localAppJars local workspace jars — the first element becomes the app artifact, and
+   *     remaining jars are added as runtime dependencies (they are also indexed via the application
+   *     root {@code PathCollection} mechanism in the caller)
+   * @param runtimeJars remaining runtime dependency jars (external Maven jars)
    * @param deployClasspath deployment-only jars
    * @param appName optional application name override
    * @param appVersion optional application version override
    * @return a fully configured ApplicationModel with workspace module for test mode
    */
   public static ApplicationModel buildForTest(
-      Path appJar,
+      List<Path> localAppJars,
       List<Path> runtimeJars,
       List<Path> deployClasspath,
       String appName,
@@ -198,7 +211,16 @@ public final class QuarkusAppModelBuilder {
                 .toList());
     extensionJars.addAll(deployExtensionJars);
 
+    Path appJar = localAppJars.get(0);
     setAppArtifactForTest(modelBuilder, appJar, appName, appVersion);
+
+    // Add additional local app jars (index 1+) as runtime dependencies so they
+    // appear in the model. They are also indexed via the application root
+    // PathCollection mechanism in AugmentationExecutor.
+    if (localAppJars.size() > 1) {
+      addLocalAppJarDependencies(modelBuilder, localAppJars.subList(1, localAppJars.size()));
+    }
+
     Set<ArtifactKey> addedKeys = addRuntimeDependencies(modelBuilder, runtimeJars, extensionJars);
     addDeploymentDependencies(modelBuilder, deployClasspath, addedKeys, extensionJars);
     markParentFirstArtifacts(modelBuilder);
@@ -265,6 +287,29 @@ public final class QuarkusAppModelBuilder {
             .setWorkspaceModule(module)
             .setRuntimeCp()
             .setDeploymentCp());
+  }
+
+  /**
+   * Adds additional local app jars (beyond the first one which is the app artifact) as runtime
+   * dependencies in the model. These jars are local workspace modules that need to be on the
+   * runtime and deployment classpaths so the augmentation classloader can find them. They are also
+   * indexed via the application root {@code PathCollection} mechanism.
+   */
+  private static void addLocalAppJarDependencies(
+      ApplicationModelBuilder modelBuilder, List<Path> additionalLocalJars) {
+    for (Path jar : additionalLocalJars) {
+      var coords = MavenCoordinateParser.parse(jar);
+      modelBuilder.addDependency(
+          ResolvedDependencyBuilder.newInstance()
+              .setGroupId(coords.groupId())
+              .setArtifactId(coords.artifactId())
+              .setVersion(coords.version())
+              .setType(JAR_TYPE)
+              .setResolvedPath(jar)
+              .setRuntimeCp()
+              .setDeploymentCp()
+              .setDirect(true));
+    }
   }
 
   /** Adds runtime jars as dependencies, marking extension jars appropriately. */
