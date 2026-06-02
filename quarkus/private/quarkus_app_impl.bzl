@@ -8,13 +8,17 @@ output, and generating a launcher script for `bazel run`.
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusAppInfo")
-load("//quarkus/private:classpath_utils.bzl", "collect_runtime_classpath", "collect_source_jars")
+load("//quarkus/private:classpath_utils.bzl", "collect_runtime_classpath", "collect_source_jars", "is_local_artifact")
 
 def _quarkus_app_impl(ctx):
     if not ctx.attr.deps:
         fail("quarkus_app rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
 
     runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
+
+    # Partition into local workspace jars and external Maven jars
+    local_jars = [jar for jar in runtime_classpath.to_list() if is_local_artifact(jar)]
+
     source_jars = collect_source_jars(ctx.attr.deps)
     output_dir = ctx.actions.declare_directory(ctx.label.name + "-quarkus-app")
 
@@ -28,6 +32,8 @@ def _quarkus_app_impl(ctx):
     # Quarkifier CLI args
     args = ctx.actions.args()
     args.add_joined("--application-classpath", runtime_classpath, join_with = ":")
+    if local_jars:
+        args.add_joined("--local-app-jars", local_jars, join_with = ":")
     args.add_joined("--deployment-classpath", depset(transitive = [runtime_classpath, deployment_classpath]), join_with = ":")
     args.add("--output-dir", output_dir.path)
     args.add("--expected-quarkus-version", ctx.attr.quarkus_version)

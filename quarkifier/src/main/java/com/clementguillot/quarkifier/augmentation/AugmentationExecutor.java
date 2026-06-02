@@ -13,6 +13,7 @@ import io.quarkus.bootstrap.app.AugmentResult;
 import io.quarkus.bootstrap.app.CuratedApplication;
 import io.quarkus.bootstrap.app.QuarkusBootstrap;
 import io.quarkus.bootstrap.model.ApplicationModel;
+import io.quarkus.paths.PathList;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -48,18 +49,23 @@ public final class AugmentationExecutor {
             "Application classpath is empty; at least one jar is required.");
       }
 
-      Path appJar = appCp.get(0);
-      List<Path> runtimeJars = appCp.subList(1, appCp.size());
+      // Determine local app jars: use --local-app-jars when provided, otherwise
+      // fall back to the first element of the application classpath.
+      List<Path> localAppJars =
+          config.localAppJars().isEmpty() ? List.of(appCp.get(0)) : config.localAppJars();
+
+      // Runtime jars are everything in appCp that is NOT in localAppJars.
+      List<Path> runtimeJars = appCp.stream().filter(jar -> !localAppJars.contains(jar)).toList();
 
       ApplicationModel appModel;
       if (config.mode() == AugmentationMode.TEST) {
         appModel =
             QuarkusAppModelBuilder.buildForTest(
-                appJar, runtimeJars, deployCp, config.appName(), config.appVersion());
+                localAppJars, runtimeJars, deployCp, config.appName(), config.appVersion());
       } else {
         appModel =
             QuarkusAppModelBuilder.build(
-                appJar, runtimeJars, deployCp, config.appName(), config.appVersion());
+                localAppJars, runtimeJars, deployCp, config.appName(), config.appVersion());
       }
 
       // DEV mode: delegate to DevModeLauncher which starts IsolatedDevModeMain
@@ -82,7 +88,7 @@ public final class AugmentationExecutor {
         return;
       }
 
-      runAugmentation(config, appJar, appModel, outputDir);
+      runAugmentation(config, localAppJars, appModel, outputDir);
 
       // NATIVE mode: run augmentation with native-sources-only properties,
       // then validate output via NativeSourcesAssembler instead of FastJarAssembler.
@@ -104,7 +110,7 @@ public final class AugmentationExecutor {
 
   /** Runs the Quarkus bootstrap and augmentation for production/test modes. */
   private static void runAugmentation(
-      QuarkifierConfig config, Path appJar, ApplicationModel appModel, Path outputDir)
+      QuarkifierConfig config, List<Path> localAppJars, ApplicationModel appModel, Path outputDir)
       throws Exception {
 
     Properties buildProps =
@@ -115,7 +121,7 @@ public final class AugmentationExecutor {
     QuarkusBootstrap bootstrap =
         QuarkusBootstrap.builder()
             .setExistingModel(appModel)
-            .setApplicationRoot(appJar)
+            .setApplicationRoot(PathList.from(localAppJars))
             .setTargetDirectory(outputDir)
             .setBaseName(
                 config.mode() == AugmentationMode.NATIVE && config.appName() != null

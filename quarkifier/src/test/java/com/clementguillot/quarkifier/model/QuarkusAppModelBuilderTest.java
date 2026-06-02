@@ -30,7 +30,7 @@ class QuarkusAppModelBuilderTest {
     Path depJar = createJar("dep", "io.quarkus", "quarkus-core", "3.33.1");
 
     ApplicationModel model =
-        QuarkusAppModelBuilder.build(appJar, List.of(depJar), List.of(), "myapp", "1.0");
+        QuarkusAppModelBuilder.build(List.of(appJar), List.of(depJar), List.of(), "myapp", "1.0");
 
     assertEquals("jar", model.getAppArtifact().getType());
     for (ResolvedDependency dep : model.getDependencies()) {
@@ -53,7 +53,8 @@ class QuarkusAppModelBuilderTest {
                 + "<artifactId>quarkus-core</artifactId><version>3.33.1</version></dependency>");
 
     ApplicationModel model =
-        QuarkusAppModelBuilder.build(appJar, List.of(coreJar, restJar), List.of(), "myapp", "1.0");
+        QuarkusAppModelBuilder.build(
+            List.of(appJar), List.of(coreJar, restJar), List.of(), "myapp", "1.0");
 
     // Find quarkus-rest in the model and check its getDependencies()
     ResolvedDependency restDep =
@@ -85,7 +86,7 @@ class QuarkusAppModelBuilderTest {
 
     ApplicationModel model =
         QuarkusAppModelBuilder.build(
-            appJar, List.of(bufferJar, commonJar), List.of(), "myapp", "1.0");
+            List.of(appJar), List.of(bufferJar, commonJar), List.of(), "myapp", "1.0");
 
     ResolvedDependency bufferDep =
         model.getDependencies().stream()
@@ -119,7 +120,7 @@ class QuarkusAppModelBuilderTest {
 
     ApplicationModel model =
         QuarkusAppModelBuilder.build(
-            appJar, List.of(mainJar, configJar), List.of(), "myapp", "1.0");
+            List.of(appJar), List.of(mainJar, configJar), List.of(), "myapp", "1.0");
 
     ResolvedDependency mainDep =
         model.getDependencies().stream()
@@ -142,7 +143,7 @@ class QuarkusAppModelBuilderTest {
     Path arcJar = createExtensionJar("arc", "io.quarkus", "quarkus-arc", "3.33.1");
 
     ApplicationModel model =
-        QuarkusAppModelBuilder.build(appJar, List.of(arcJar), List.of(), "myapp", "1.0");
+        QuarkusAppModelBuilder.build(List.of(appJar), List.of(arcJar), List.of(), "myapp", "1.0");
 
     Collection<ArtifactCoords> appDeps = model.getAppArtifact().getDependencies();
     assertFalse(appDeps.isEmpty(), "root node should have direct dependencies");
@@ -157,7 +158,7 @@ class QuarkusAppModelBuilderTest {
     Path spiJar = createJar("spi", "io.quarkus", "quarkus-vertx-deployment-spi", "3.33.1");
 
     ApplicationModel model =
-        QuarkusAppModelBuilder.build(appJar, List.of(), List.of(spiJar), "myapp", "1.0");
+        QuarkusAppModelBuilder.build(List.of(appJar), List.of(), List.of(spiJar), "myapp", "1.0");
 
     ResolvedDependency spiDep =
         model.getDependencies().stream()

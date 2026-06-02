@@ -31,7 +31,8 @@ class DevModeLauncherTest {
         List.of(),
         List.of(),
         null,
-        60);
+        60,
+        List.of());
   }
 
   @Test
@@ -107,7 +108,8 @@ class DevModeLauncherTest {
             List.of(),
             List.of(),
             null,
-            60);
+            60,
+            List.of());
 
     var context = DevModeLauncher.buildDevModeContext(config);
 
@@ -143,7 +145,8 @@ class DevModeLauncherTest {
             List.of(),
             List.of(),
             workspaceDir,
-            60);
+            60,
+            List.of());
 
     var context = DevModeLauncher.buildDevModeContext(config);
 
@@ -174,7 +177,8 @@ class DevModeLauncherTest {
             List.of(),
             List.of(),
             workspaceDir,
-            60);
+            60,
+            List.of());
 
     var context = DevModeLauncher.buildDevModeContext(config);
 
@@ -204,7 +208,8 @@ class DevModeLauncherTest {
             List.of("//pkg:lib"),
             List.of(),
             null,
-            60);
+            60,
+            List.of());
 
     var context = DevModeLauncher.buildDevModeContext(config);
 
