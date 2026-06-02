@@ -49,13 +49,9 @@ public final class AugmentationExecutor {
             "Application classpath is empty; at least one jar is required.");
       }
 
-      // Determine local app jars: use --local-app-jars when provided, otherwise
-      // fall back to the first element of the application classpath.
-      List<Path> localAppJars =
-          config.localAppJars().isEmpty() ? List.of(appCp.get(0)) : config.localAppJars();
-
-      // Runtime jars are everything in appCp that is NOT in localAppJars.
-      List<Path> runtimeJars = appCp.stream().filter(jar -> !localAppJars.contains(jar)).toList();
+      ClasspathPartition partition = partitionClasspath(config);
+      List<Path> localAppJars = partition.localAppJars();
+      List<Path> runtimeJars = partition.runtimeJars();
 
       ApplicationModel appModel;
       if (config.mode() == AugmentationMode.TEST) {
@@ -183,4 +179,35 @@ public final class AugmentationExecutor {
       case DEV -> QuarkusBootstrap.Mode.DEV;
     };
   }
+
+  /**
+   * Partitions the application classpath into local app jars (used as application roots for Jandex
+   * indexing) and runtime jars (external Maven dependencies).
+   *
+   * <p>Package-private for testability.
+   */
+  static ClasspathPartition partitionClasspath(QuarkifierConfig config)
+      throws AugmentationException {
+    List<Path> appCp = config.applicationClasspath();
+
+    // Determine local app jars: use --local-app-jars when provided, otherwise
+    // fall back to the first element of the application classpath.
+    List<Path> localAppJars =
+        config.localAppJars().isEmpty() ? List.of(appCp.get(0)) : config.localAppJars();
+
+    List<Path> unknownLocalAppJars =
+        localAppJars.stream().filter(jar -> !appCp.contains(jar)).toList();
+    if (!unknownLocalAppJars.isEmpty()) {
+      throw new AugmentationException(
+          "--local-app-jars must be a subset of the application classpath: " + unknownLocalAppJars);
+    }
+
+    // Runtime jars are everything in appCp that is NOT in localAppJars.
+    List<Path> runtimeJars = appCp.stream().filter(jar -> !localAppJars.contains(jar)).toList();
+
+    return new ClasspathPartition(localAppJars, runtimeJars);
+  }
+
+  /** Result of partitioning the application classpath. Package-private for testability. */
+  record ClasspathPartition(List<Path> localAppJars, List<Path> runtimeJars) {}
 }
