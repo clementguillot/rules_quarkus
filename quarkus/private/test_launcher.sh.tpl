@@ -42,6 +42,9 @@ while IFS=, read -ra ENTRIES; do
   done
 done < "${WORKSPACE_DIR}/%{direct_jars_file}"
 
+# Colon-separated version for --local-app-jars (quarkifier expects ':' separator)
+LOCAL_APP_JARS="${DIRECT_JARS//,/:}"
+
 # Phase 1: Generate serialized ApplicationModel at test time.
 MODEL_DIR=$(mktemp -d)
 trap "rm -rf $MODEL_DIR" EXIT
@@ -61,6 +64,7 @@ echo -n "$CLASSPATH:$DEPLOY_CP" > "$COMBINED_DEPLOY_CP_FILE"
   --deployment-classpath-file "$COMBINED_DEPLOY_CP_FILE" \
   --output-dir "$MODEL_DIR" \
   --mode test \
+  --local-app-jars "$LOCAL_APP_JARS" \
   --expected-quarkus-version %{quarkus_version} \
   --app-name %{app_name}
 
