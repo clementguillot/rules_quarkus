@@ -27,7 +27,7 @@ class QuarkusAppModelBuilderTest {
   @Test
   void buildSetsTypeJarOnAllDependencies() throws IOException {
     Path appJar = createJar("app", "com.example", "myapp", "1.0");
-    Path depJar = createJar("dep", "io.quarkus", "quarkus-core", "3.33.1");
+    Path depJar = createJar("dep", "io.quarkus", "quarkus-core", "3.33.2");
 
     ApplicationModel model =
         QuarkusAppModelBuilder.build(List.of(appJar), List.of(depJar), List.of(), "myapp", "1.0");
@@ -42,15 +42,15 @@ class QuarkusAppModelBuilderTest {
   void buildPopulatesDependencyLinksFromEmbeddedPom() throws IOException {
     Path appJar = createJar("app", "com.example", "myapp", "1.0");
     // quarkus-rest depends on quarkus-core (declared in its embedded POM)
-    Path coreJar = createJar("core", "io.quarkus", "quarkus-core", "3.33.1");
+    Path coreJar = createJar("core", "io.quarkus", "quarkus-core", "3.33.2");
     Path restJar =
         createJarWithPom(
             "rest",
             "io.quarkus",
             "quarkus-rest",
-            "3.33.1",
+            "3.33.2",
             "<dependency><groupId>io.quarkus</groupId>"
-                + "<artifactId>quarkus-core</artifactId><version>3.33.1</version></dependency>");
+                + "<artifactId>quarkus-core</artifactId><version>3.33.2</version></dependency>");
 
     ApplicationModel model =
         QuarkusAppModelBuilder.build(
@@ -109,7 +109,7 @@ class QuarkusAppModelBuilderTest {
             "main",
             "io.quarkus",
             "quarkus-core",
-            "3.33.1",
+            "3.33.2",
             "<dependency><groupId>org.junit</groupId><artifactId>junit</artifactId>"
                 + "<version>5.0</version><scope>test</scope></dependency>"
                 + "<dependency><groupId>javax</groupId><artifactId>servlet-api</artifactId>"
@@ -140,7 +140,7 @@ class QuarkusAppModelBuilderTest {
   @Test
   void buildSetsAppArtifactDependenciesForRootNode() throws IOException {
     Path appJar = createJar("app", "com.example", "myapp", "1.0");
-    Path arcJar = createExtensionJar("arc", "io.quarkus", "quarkus-arc", "3.33.1");
+    Path arcJar = createExtensionJar("arc", "io.quarkus", "quarkus-arc", "3.33.2");
 
     ApplicationModel model =
         QuarkusAppModelBuilder.build(List.of(appJar), List.of(arcJar), List.of(), "myapp", "1.0");
@@ -156,7 +156,7 @@ class QuarkusAppModelBuilderTest {
   void buildRegistersAdditionalLocalAppJarsWithRuntimeAndDeploymentFlags() throws IOException {
     Path appJar = createJar("app", "com.example", "myapp", "1.0");
     Path secondLocalJar = createJar("domain", "com.example", "mydomain", "1.0");
-    Path depJar = createJar("dep", "io.quarkus", "quarkus-core", "3.33.1");
+    Path depJar = createJar("dep", "io.quarkus", "quarkus-core", "3.33.2");
 
     ApplicationModel model =
         QuarkusAppModelBuilder.build(
@@ -189,7 +189,7 @@ class QuarkusAppModelBuilderTest {
   @Test
   void deploymentSpiJarsAreNotMarkedRuntime() throws IOException {
     Path appJar = createJar("app", "com.example", "myapp", "1.0");
-    Path spiJar = createJar("spi", "io.quarkus", "quarkus-vertx-deployment-spi", "3.33.1");
+    Path spiJar = createJar("spi", "io.quarkus", "quarkus-vertx-deployment-spi", "3.33.2");
 
     ApplicationModel model =
         QuarkusAppModelBuilder.build(List.of(appJar), List.of(), List.of(spiJar), "myapp", "1.0");

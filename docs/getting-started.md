@@ -31,8 +31,8 @@ Use `rules_jvm_external` to declare your Quarkus runtime dependencies. Only decl
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.install(
     artifacts = [
-        "io.quarkus:quarkus-rest:3.33.1",
-        "io.quarkus:quarkus-arc:3.33.1",
+        "io.quarkus:quarkus-rest:3.33.2",
+        "io.quarkus:quarkus-arc:3.33.2",
     ],
     lock_file = "//:maven_install.json",
 )
@@ -53,7 +53,7 @@ quarkus = use_extension(
     "quarkus",
 )
 quarkus.toolchain(
-    quarkus_version = "3.33.1",
+    quarkus_version = "3.33.2",
     lock_file = "//:maven_install.json",
 )
 use_repo(quarkus, "rules_quarkus")
@@ -67,7 +67,7 @@ The configured `quarkus_version` applies to every `quarkus_app`, generated `<nam
 
 | Attribute | Default | Description |
 |---|---|---|
-| `quarkus_version` | (required) | Quarkus version, e.g. `"3.33.1"` or `"3.27.3"` |
+| `quarkus_version` | (required) | Quarkus version, e.g. `"3.33.2"` or `"3.27.4"` |
 | `lock_file` | `None` | Path to `maven_install.json` for extension auto-discovery |
 | `extension_group_prefixes` | `["io.quarkus", "io.quarkiverse."]` | Maven groupId prefixes identifying Quarkus extensions |
 | `quarkifier_source_dir` | `None` | Label in the rules_quarkus source dir for local dev builds |
@@ -227,10 +227,10 @@ bazel_dep(name = "rules_jvm_external", version = "6.10")
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.install(
     artifacts = [
-        "io.quarkus:quarkus-rest:3.33.1",
-        "io.quarkus:quarkus-arc:3.33.1",
+        "io.quarkus:quarkus-rest:3.33.2",
+        "io.quarkus:quarkus-arc:3.33.2",
         # Test dependencies
-        "io.quarkus:quarkus-junit:3.33.1",
+        "io.quarkus:quarkus-junit:3.33.2",
         "io.rest-assured:rest-assured:5.5.6",
         "org.junit.jupiter:junit-jupiter:5.13.4",
         "org.junit.platform:junit-platform-console-standalone:1.13.4",
@@ -243,7 +243,7 @@ use_repo(maven, "maven")
 quarkus = use_extension("@com_clementguillot_rules_quarkus//quarkus:extensions.bzl", "quarkus")
 quarkus.toolchain(
     lock_file = "//:maven_install.json",
-    quarkus_version = "3.33.1",
+    quarkus_version = "3.33.2",
 )
 use_repo(quarkus, "rules_quarkus")
 ```

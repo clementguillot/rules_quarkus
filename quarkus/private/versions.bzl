@@ -4,8 +4,8 @@
 # The quarkifier is compiled against each minor version's APIs independently.
 # Users can specify any patch version within a supported minor.
 SUPPORTED_VERSIONS = {
-    "3.27": "3.27.3",
-    "3.33": "3.33.1",
+    "3.27": "3.27.4",
+    "3.33": "3.33.2",
 }
 
 # Version of rules_quarkus itself — must match the version in MODULE.bazel.

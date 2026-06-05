@@ -65,9 +65,9 @@ maven.install(
     name = "maven_3_27",
     artifacts = [
         # Quarkifier deps (Quarkus 3.27)
-        "io.quarkus:quarkus-core:3.27.3",
-        "io.quarkus:quarkus-core-deployment:3.27.3",
-        "io.quarkus.arc:arc:3.27.3",
+        "io.quarkus:quarkus-core:3.27.4",
+        "io.quarkus:quarkus-core-deployment:3.27.4",
+        "io.quarkus.arc:arc:3.27.4",
         # Test framework
         "org.junit.platform:junit-platform-launcher:6.0.3",
         "org.junit.platform:junit-platform-console-standalone:6.0.3",
@@ -86,9 +86,9 @@ maven.install(
     name = "maven_3_33",
     artifacts = [
         # Quarkifier deps (Quarkus 3.33)
-        "io.quarkus:quarkus-core:3.33.1",
-        "io.quarkus:quarkus-core-deployment:3.33.1",
-        "io.quarkus.arc:arc:3.33.1",
+        "io.quarkus:quarkus-core:3.33.2",
+        "io.quarkus:quarkus-core-deployment:3.33.2",
+        "io.quarkus.arc:arc:3.33.2",
         # Test framework
         "org.junit.platform:junit-platform-launcher:6.0.3",
         "org.junit.platform:junit-platform-console-standalone:6.0.3",

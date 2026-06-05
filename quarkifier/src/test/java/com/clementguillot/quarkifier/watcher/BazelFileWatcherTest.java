@@ -27,7 +27,7 @@ class BazelFileWatcherTest {
         outputDir,
         List.of(),
         AugmentationMode.DEV,
-        "3.27.3",
+        "3.27.4",
         "test-app",
         "1.0.0",
         null,
