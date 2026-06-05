@@ -3,7 +3,7 @@
 The Quarkifier (`com.clementguillot.quarkifier`) is a standalone Java tool that invokes the Quarkus internal build API (`io.quarkus.deployment`) to perform build-time augmentation. It is the core engine behind `rules_quarkus`.
 
 - **Main class**: `com.clementguillot.quarkifier.QuarkifierLauncher`
-- **Built against**: Quarkus 3.27.3 LTS and 3.33.1
+- **Built against**: Quarkus 3.27.4 LTS and 3.33.2
 
 ## CLI Interface
 
@@ -167,8 +167,8 @@ graph LR
 |---|---|---|
 | `groupId` | `deployment-artifact` GAV property | `io.quarkus` |
 | `artifactId` | Derived by stripping `-deployment` suffix | `quarkus-resteasy-reactive` |
-| `version` | `deployment-artifact` GAV property | `3.27.3` |
-| `sourceJar` | The jar that contained the metadata | `/path/to/quarkus-rest-3.27.3.jar` |
+| `version` | `deployment-artifact` GAV property | `3.27.4` |
+| `sourceJar` | The jar that contained the metadata | `/path/to/quarkus-rest-3.27.4.jar` |
 
 ### Step 3: Deployment Artifact Resolution
 
@@ -227,9 +227,9 @@ Extracts `groupId`/`artifactId`/`version` from jar file paths. Handles multiple 
 
 | Format | Example |
 |---|---|
-| Standard Maven repo | `.../io/quarkus/quarkus-arc/3.27.3/quarkus-arc-3.27.3.jar` |
-| Bazel `processed_` prefix | `.../processed_quarkus-arc-3.27.3.jar` |
-| Coursier cache (short) | `jars/quarkus-arc-3.27.3.jar` |
+| Standard Maven repo | `.../io/quarkus/quarkus-arc/3.27.4/quarkus-arc-3.27.4.jar` |
+| Bazel `processed_` prefix | `.../processed_quarkus-arc-3.27.4.jar` |
+| Coursier cache (short) | `jars/quarkus-arc-3.27.4.jar` |
 
 Uses stop segments (`external`, `v1`, `https`, `maven`, etc.) to identify where groupId segments begin when walking backwards from the filename.
 

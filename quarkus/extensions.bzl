@@ -18,7 +18,7 @@ def _extract_minor_version(version):
     """Extracts the minor version (MAJOR.MINOR) from a full version string.
 
     Args:
-        version: Full version string (e.g. "3.21.1", "3.27.3").
+        version: Full version string (e.g. "3.21.1", "3.27.4").
 
     Returns:
         Minor version string (e.g. "3.21", "3.27").
@@ -479,7 +479,7 @@ Example: '@com_clementguillot_rules_quarkus//:MODULE.bazel'
         ),
         "quarkus_version": attr.string(
             mandatory = True,
-            doc = "The Quarkus version to use (e.g. '3.27.3').",
+            doc = "The Quarkus version to use (e.g. '3.27.4').",
         ),
     },
 )
