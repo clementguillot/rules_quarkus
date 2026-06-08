@@ -84,7 +84,7 @@ def _rules_quarkus_repo_impl(rctx):
 
         prod_exists = rctx.execute(["test", "-f", deploy_jar]).return_code == 0
         if not prod_exists:
-            rctx.report_progress("Building {} from source...".format(target))
+            rctx.report_progress("Building {} from source".format(target))
             build_result = rctx.execute(
                 ["bazel", "--output_base=" + nested_output_base, "build", target, "--lockfile_mode=off"],
                 working_directory = src_workspace,
@@ -118,6 +118,7 @@ def _rules_quarkus_repo_impl(rctx):
     core_jar_paths = []
     core_gav = artifacts[0] if artifacts else None
     if core_gav:
+        rctx.report_progress("Resolving core deployment dependencies")
         result = rctx.execute(
             ["./deployment/coursier", "fetch", "--repository", repository_url, core_gav],
             timeout = 300,
@@ -130,18 +131,67 @@ def _rules_quarkus_repo_impl(rctx):
 
     core_jar_set = {p: True for p in core_jar_paths}
 
-    # Phase 2b: Resolve all deployment artifacts (core + extensions).
+    # Phase 2b: Resolve all deployment artifacts in a single batched call.
+    # This avoids spawning a separate JVM per artifact (6-10x faster).
+    # If the batch fails because some artifacts don't exist, parse stderr
+    # to identify genuinely missing ones and retry without them.
+    rctx.report_progress("Resolving deployment artifacts")
     all_jars = list(core_jar_paths)
-    for gav in artifacts:
-        result = rctx.execute(
-            ["./deployment/coursier", "fetch", "--repository", repository_url, gav],
-            timeout = 300,
-        )
-        if result.return_code == 0:
-            for line in result.stdout.strip().split("\n"):
-                line = line.strip()
-                if line.endswith(".jar") and line not in all_jars:
-                    all_jars.append(line)
+    fetch_artifacts = list(artifacts)
+    result = rctx.execute(
+        ["./deployment/coursier", "fetch", "--repository", repository_url] + fetch_artifacts,
+        timeout = 300,
+    )
+    if result.return_code != 0:
+        # Identify genuinely missing artifacts (404 / not found) vs transient errors.
+        # Coursier stderr contains multi-line blocks per failed artifact:
+        #   "Error downloading group:artifact:version"
+        #   "  not found: <url>"
+        # Transient failures show "Caught <Exception>" or HTTP 5xx instead.
+        # We only strip artifacts confirmed as "not found".
+        missing = {}
+        stderr_lines = result.stderr.split("\n")
+        for i, raw_line in enumerate(stderr_lines):
+            line = raw_line.strip()
+            token = ""
+            if line.startswith("Resolution error: Error downloading "):
+                token = line[len("Resolution error: Error downloading "):]
+            elif line.startswith("Error downloading "):
+                token = line[len("Error downloading "):]
+            if not token:
+                continue
+            gav = token.split(" ")[0]
+            if gav.count(":") != 2:
+                continue
+
+            # Check subsequent lines for "not found:" to confirm it's a true 404
+            is_not_found = False
+            for j in range(i + 1, min(i + 5, len(stderr_lines))):
+                subsequent = stderr_lines[j].strip()
+                if subsequent.startswith("not found:"):
+                    is_not_found = True
+                    break
+
+                # Stop looking if we hit the next error block
+                if subsequent.startswith("Error downloading ") or subsequent.startswith("Resolution error:"):
+                    break
+            if is_not_found:
+                missing[gav] = True
+
+        # Only retry if we actually identified missing artifacts to remove
+        if missing and len(fetch_artifacts) > len(missing):
+            fetch_artifacts = [a for a in fetch_artifacts if a not in missing]
+            result = rctx.execute(
+                ["./deployment/coursier", "fetch", "--repository", repository_url] + fetch_artifacts,
+                timeout = 300,
+            )
+    if result.return_code == 0:
+        for line in result.stdout.strip().split("\n"):
+            line = line.strip()
+            if line.endswith(".jar") and line not in all_jars:
+                all_jars.append(line)
+    else:
+        fail("Failed to resolve deployment artifacts via Coursier:\n{}".format(result.stderr))
 
     # Phase 2c: Generate deployment BUILD targets.
     imports = []
@@ -425,7 +475,16 @@ def _quarkus_impl(mctx):
         lock_content = mctx.read(tc.lock_file)
         if lock_content:
             lock_data = json.decode(lock_content)
-            artifacts_map = lock_data.get("artifacts", lock_data.get("dependencies", {}))
+
+            # Use __INPUT_ARTIFACTS_HASH (direct dependencies only) rather than
+            # the full resolved artifacts map. This avoids generating -deployment
+            # GAVs for transitive internal modules that don't publish one.
+            input_artifacts = lock_data.get("__INPUT_ARTIFACTS_HASH", {})
+            if input_artifacts:
+                artifacts_map = input_artifacts
+            else:
+                # Fallback for lock files without __INPUT_ARTIFACTS_HASH
+                artifacts_map = lock_data.get("artifacts", lock_data.get("dependencies", {}))
 
             for coord_key in artifacts_map:
                 parts = coord_key.split(":")
