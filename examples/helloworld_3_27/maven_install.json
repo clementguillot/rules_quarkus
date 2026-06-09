@@ -6,9 +6,9 @@
     "com.google.errorprone:error_prone_annotations": -1035138750,
     "com.google.guava:guava": 1943808618,
     "com.google.j2objc:j2objc-annotations": 2003271689,
-    "io.quarkus:quarkus-arc": -941382592,
-    "io.quarkus:quarkus-junit5": -1874313091,
-    "io.quarkus:quarkus-rest": 1630589770,
+    "io.quarkus:quarkus-arc": 1546130241,
+    "io.quarkus:quarkus-junit5": 613199742,
+    "io.quarkus:quarkus-rest": -176864693,
     "io.rest-assured:rest-assured": -564555206,
     "org.junit.jupiter:junit-jupiter": -2009586108,
     "org.junit.platform:junit-platform-console-standalone": -1031571220,
@@ -17,10 +17,10 @@
   },
   "__RESOLVED_ARTIFACTS_HASH": {
     "aopalliance:aopalliance": 1403132272,
-    "com.aayushatharva.brotli4j:brotli4j": -1115945584,
-    "com.aayushatharva.brotli4j:native-osx-aarch64": -1499218582,
-    "com.aayushatharva.brotli4j:service": -902872944,
-    "com.fasterxml.jackson.core:jackson-core": -1263264115,
+    "com.aayushatharva.brotli4j:brotli4j": -1258514620,
+    "com.aayushatharva.brotli4j:native-osx-aarch64": 624856026,
+    "com.aayushatharva.brotli4j:service": -1143019217,
+    "com.fasterxml.jackson.core:jackson-core": -863050871,
     "com.google.code.findbugs:jsr305": 870839855,
     "com.google.code.gson:gson": -1575757252,
     "com.google.errorprone:error_prone_annotations": 1014409728,
@@ -34,70 +34,70 @@
     "commons-io:commons-io": -515402013,
     "commons-logging:commons-logging": 1248790901,
     "io.github.dmlloyd:jdk-classfile-backport": 1460246868,
-    "io.netty:netty-buffer": 1883825690,
-    "io.netty:netty-codec": 1759679007,
-    "io.netty:netty-codec-dns": 1274940079,
-    "io.netty:netty-codec-haproxy": 337757897,
-    "io.netty:netty-codec-http": -965628835,
-    "io.netty:netty-codec-http2": -631439859,
-    "io.netty:netty-codec-socks": 655215053,
-    "io.netty:netty-common": -1574327641,
-    "io.netty:netty-handler": 1812678974,
-    "io.netty:netty-handler-proxy": -528154632,
-    "io.netty:netty-resolver": -656912885,
-    "io.netty:netty-resolver-dns": -1913475987,
-    "io.netty:netty-transport": 764254626,
-    "io.netty:netty-transport-native-unix-common": -1442019057,
-    "io.quarkus.arc:arc": -946614674,
+    "io.netty:netty-buffer": 732776351,
+    "io.netty:netty-codec": 1756350512,
+    "io.netty:netty-codec-dns": -1060339948,
+    "io.netty:netty-codec-haproxy": 2100071077,
+    "io.netty:netty-codec-http": -1529038646,
+    "io.netty:netty-codec-http2": 1639222789,
+    "io.netty:netty-codec-socks": -337661134,
+    "io.netty:netty-common": -75149086,
+    "io.netty:netty-handler": 496795958,
+    "io.netty:netty-handler-proxy": -485486365,
+    "io.netty:netty-resolver": 1800559403,
+    "io.netty:netty-resolver-dns": -1315367001,
+    "io.netty:netty-transport": 155358324,
+    "io.netty:netty-transport-native-unix-common": 279328611,
+    "io.quarkus.arc:arc": -1089686434,
     "io.quarkus.gizmo:gizmo": 1956106425,
     "io.quarkus.gizmo:gizmo2": -1887871201,
-    "io.quarkus.resteasy.reactive:resteasy-reactive": -990883686,
-    "io.quarkus.resteasy.reactive:resteasy-reactive-common": 426536304,
-    "io.quarkus.resteasy.reactive:resteasy-reactive-common-types": 495778097,
-    "io.quarkus.resteasy.reactive:resteasy-reactive-vertx": 482402785,
+    "io.quarkus.resteasy.reactive:resteasy-reactive": 1126098405,
+    "io.quarkus.resteasy.reactive:resteasy-reactive-common": 1394758179,
+    "io.quarkus.resteasy.reactive:resteasy-reactive-common-types": 1002568325,
+    "io.quarkus.resteasy.reactive:resteasy-reactive-vertx": 505946755,
     "io.quarkus.security:quarkus-security": -2067497321,
-    "io.quarkus.vertx.utils:quarkus-vertx-utils": -522583110,
-    "io.quarkus:quarkus-arc": -8500249,
-    "io.quarkus:quarkus-bootstrap-app-model": -923513404,
-    "io.quarkus:quarkus-bootstrap-core": -343523199,
-    "io.quarkus:quarkus-bootstrap-gradle-resolver": 2015528676,
-    "io.quarkus:quarkus-bootstrap-maven-resolver": 1447305460,
-    "io.quarkus:quarkus-bootstrap-maven4-resolver": -1320010755,
-    "io.quarkus:quarkus-bootstrap-runner": -116121396,
-    "io.quarkus:quarkus-builder": -17971146,
-    "io.quarkus:quarkus-class-change-agent": -672019621,
-    "io.quarkus:quarkus-classloader-commons": 400218834,
-    "io.quarkus:quarkus-core": -369929068,
-    "io.quarkus:quarkus-core-deployment": -1250745118,
-    "io.quarkus:quarkus-credentials": -1773551951,
-    "io.quarkus:quarkus-development-mode-spi": 2069582730,
+    "io.quarkus.vertx.utils:quarkus-vertx-utils": 155876771,
+    "io.quarkus:quarkus-arc": -250025684,
+    "io.quarkus:quarkus-bootstrap-app-model": -1661859311,
+    "io.quarkus:quarkus-bootstrap-core": -1486572872,
+    "io.quarkus:quarkus-bootstrap-gradle-resolver": 247560144,
+    "io.quarkus:quarkus-bootstrap-maven-resolver": 675634175,
+    "io.quarkus:quarkus-bootstrap-maven4-resolver": -1429238254,
+    "io.quarkus:quarkus-bootstrap-runner": 2064513925,
+    "io.quarkus:quarkus-builder": 395575422,
+    "io.quarkus:quarkus-class-change-agent": 729917802,
+    "io.quarkus:quarkus-classloader-commons": 141358241,
+    "io.quarkus:quarkus-core": -2013289404,
+    "io.quarkus:quarkus-core-deployment": -968002508,
+    "io.quarkus:quarkus-credentials": 1198997135,
+    "io.quarkus:quarkus-development-mode-spi": -1417051456,
     "io.quarkus:quarkus-fs-util": 2100134833,
-    "io.quarkus:quarkus-hibernate-validator-spi": -974025439,
-    "io.quarkus:quarkus-ide-launcher": 1865115086,
-    "io.quarkus:quarkus-jsonp": 790616827,
-    "io.quarkus:quarkus-junit5": 38753746,
-    "io.quarkus:quarkus-junit5-config": -811446494,
-    "io.quarkus:quarkus-mutiny": -935450521,
-    "io.quarkus:quarkus-netty": -1536774206,
-    "io.quarkus:quarkus-rest": -1265130802,
-    "io.quarkus:quarkus-rest-common": 2376637,
-    "io.quarkus:quarkus-security-runtime-spi": 606704596,
-    "io.quarkus:quarkus-smallrye-context-propagation": 2080318319,
-    "io.quarkus:quarkus-test-common": -1495018997,
-    "io.quarkus:quarkus-tls-registry": -1075817764,
-    "io.quarkus:quarkus-tls-registry-spi": -357051101,
-    "io.quarkus:quarkus-vertx": -1774694625,
-    "io.quarkus:quarkus-vertx-http": 902010035,
-    "io.quarkus:quarkus-vertx-latebound-mdc-provider": 1610120483,
-    "io.quarkus:quarkus-virtual-threads": 1525298093,
+    "io.quarkus:quarkus-hibernate-validator-spi": 1887897777,
+    "io.quarkus:quarkus-ide-launcher": 1308576912,
+    "io.quarkus:quarkus-jsonp": -1937592388,
+    "io.quarkus:quarkus-junit5": -1238551943,
+    "io.quarkus:quarkus-junit5-config": 1598849835,
+    "io.quarkus:quarkus-mutiny": 195722130,
+    "io.quarkus:quarkus-netty": 1199748702,
+    "io.quarkus:quarkus-rest": 852567583,
+    "io.quarkus:quarkus-rest-common": 1430978691,
+    "io.quarkus:quarkus-security-runtime-spi": -1492851920,
+    "io.quarkus:quarkus-smallrye-context-propagation": -907994451,
+    "io.quarkus:quarkus-test-common": -963541157,
+    "io.quarkus:quarkus-tls-registry": -1486464468,
+    "io.quarkus:quarkus-tls-registry-spi": -846902387,
+    "io.quarkus:quarkus-vertx": 1164468430,
+    "io.quarkus:quarkus-vertx-http": -1028203049,
+    "io.quarkus:quarkus-vertx-latebound-mdc-provider": 1445926722,
+    "io.quarkus:quarkus-virtual-threads": 425697340,
     "io.rest-assured:json-path": -413446282,
     "io.rest-assured:rest-assured": -936816612,
     "io.rest-assured:rest-assured-common": -80772841,
     "io.rest-assured:xml-path": 852680267,
     "io.smallrye.beanbag:smallrye-beanbag": 268493159,
-    "io.smallrye.beanbag:smallrye-beanbag-maven": 442527383,
+    "io.smallrye.beanbag:smallrye-beanbag-maven": -1111030592,
     "io.smallrye.beanbag:smallrye-beanbag-sisu": -200206793,
-    "io.smallrye.certs:smallrye-private-key-pem-parser": 1432098819,
+    "io.smallrye.certs:smallrye-private-key-pem-parser": 1515048111,
     "io.smallrye.common:smallrye-common-annotation": -1541422257,
     "io.smallrye.common:smallrye-common-classloader": -805847306,
     "io.smallrye.common:smallrye-common-constraint": -1820281873,
@@ -110,34 +110,34 @@
     "io.smallrye.common:smallrye-common-process": -457724872,
     "io.smallrye.common:smallrye-common-ref": 1084579247,
     "io.smallrye.common:smallrye-common-resource": -975318444,
-    "io.smallrye.common:smallrye-common-vertx-context": -326346208,
+    "io.smallrye.common:smallrye-common-vertx-context": -243396916,
     "io.smallrye.config:smallrye-config": -914261764,
     "io.smallrye.config:smallrye-config-common": -1066906865,
     "io.smallrye.config:smallrye-config-core": -365457456,
     "io.smallrye.reactive:mutiny": -1617211608,
     "io.smallrye.reactive:mutiny-smallrye-context-propagation": 1496815104,
     "io.smallrye.reactive:mutiny-zero-flow-adapters": -1034804767,
-    "io.smallrye.reactive:smallrye-mutiny-vertx-auth-common": 591775363,
-    "io.smallrye.reactive:smallrye-mutiny-vertx-bridge-common": -778420765,
-    "io.smallrye.reactive:smallrye-mutiny-vertx-core": -736942781,
-    "io.smallrye.reactive:smallrye-mutiny-vertx-runtime": -212936701,
-    "io.smallrye.reactive:smallrye-mutiny-vertx-uri-template": -1879908608,
-    "io.smallrye.reactive:smallrye-mutiny-vertx-web": -1624165646,
-    "io.smallrye.reactive:smallrye-mutiny-vertx-web-common": -1581837938,
-    "io.smallrye.reactive:vertx-mutiny-generator": -902007735,
+    "io.smallrye.reactive:smallrye-mutiny-vertx-auth-common": -116431974,
+    "io.smallrye.reactive:smallrye-mutiny-vertx-bridge-common": -1890041023,
+    "io.smallrye.reactive:smallrye-mutiny-vertx-core": -1026785494,
+    "io.smallrye.reactive:smallrye-mutiny-vertx-runtime": -903606941,
+    "io.smallrye.reactive:smallrye-mutiny-vertx-uri-template": 831916335,
+    "io.smallrye.reactive:smallrye-mutiny-vertx-web": -1993773752,
+    "io.smallrye.reactive:smallrye-mutiny-vertx-web-common": -1145135104,
+    "io.smallrye.reactive:vertx-mutiny-generator": -671465595,
     "io.smallrye:jandex": -359615195,
     "io.smallrye:jandex-gizmo2": -1995464502,
     "io.smallrye:smallrye-context-propagation": -869810896,
     "io.smallrye:smallrye-context-propagation-api": 1222810252,
     "io.smallrye:smallrye-context-propagation-storage": 2063837407,
     "io.smallrye:smallrye-fault-tolerance-vertx": 283034706,
-    "io.vertx:vertx-auth-common": -1036343884,
-    "io.vertx:vertx-bridge-common": -1402335013,
-    "io.vertx:vertx-codegen": 1149209498,
-    "io.vertx:vertx-core": -548162802,
-    "io.vertx:vertx-uri-template": 1207980169,
-    "io.vertx:vertx-web": -796282797,
-    "io.vertx:vertx-web-common": -223944288,
+    "io.vertx:vertx-auth-common": 1390224344,
+    "io.vertx:vertx-bridge-common": -1225050642,
+    "io.vertx:vertx-codegen": -399346269,
+    "io.vertx:vertx-core": -994177087,
+    "io.vertx:vertx-uri-template": -1753912546,
+    "io.vertx:vertx-web": 625843592,
+    "io.vertx:vertx-web-common": -2085713373,
     "jakarta.activation:jakarta.activation-api": 1331945546,
     "jakarta.annotation:jakarta.annotation-api": 196616042,
     "jakarta.el:jakarta.el-api": -78449182,
@@ -169,23 +169,23 @@
     "org.apache.maven.resolver:maven-resolver-transport-wagon": -662638404,
     "org.apache.maven.resolver:maven-resolver-util": -1801460950,
     "org.apache.maven.shared:maven-shared-utils": -1039911638,
-    "org.apache.maven.wagon:wagon-file": -1636600175,
-    "org.apache.maven.wagon:wagon-http": -2142547008,
-    "org.apache.maven.wagon:wagon-http-shared": 1702910847,
-    "org.apache.maven.wagon:wagon-provider-api": 928709642,
+    "org.apache.maven.wagon:wagon-file": 1806215779,
+    "org.apache.maven.wagon:wagon-http": 1911184882,
+    "org.apache.maven.wagon:wagon-http-shared": -1559229487,
+    "org.apache.maven.wagon:wagon-provider-api": -2042920982,
     "org.apache.maven:maven-api-meta": 1272145502,
     "org.apache.maven:maven-api-xml": -202637389,
-    "org.apache.maven:maven-artifact": 1355286828,
+    "org.apache.maven:maven-artifact": -124138356,
     "org.apache.maven:maven-builder-support": -1710623758,
-    "org.apache.maven:maven-core": 242163210,
-    "org.apache.maven:maven-embedder": -1986219289,
-    "org.apache.maven:maven-model": -1937292581,
-    "org.apache.maven:maven-model-builder": 879655965,
-    "org.apache.maven:maven-plugin-api": -1550293866,
-    "org.apache.maven:maven-repository-metadata": 902525989,
-    "org.apache.maven:maven-resolver-provider": -1000478526,
-    "org.apache.maven:maven-settings": -871735431,
-    "org.apache.maven:maven-settings-builder": -967360817,
+    "org.apache.maven:maven-core": -1386582222,
+    "org.apache.maven:maven-embedder": 533338297,
+    "org.apache.maven:maven-model": 1097946747,
+    "org.apache.maven:maven-model-builder": 1625638101,
+    "org.apache.maven:maven-plugin-api": 712011512,
+    "org.apache.maven:maven-repository-metadata": -1435607739,
+    "org.apache.maven:maven-resolver-provider": 575939752,
+    "org.apache.maven:maven-settings": -1398815847,
+    "org.apache.maven:maven-settings-builder": 1986196308,
     "org.apache.maven:maven-xml-impl": -501809864,
     "org.apiguardian:apiguardian-api": 1279798469,
     "org.ccil.cowan.tagsoup:tagsoup": 1163351168,
@@ -194,7 +194,7 @@
     "org.codehaus.plexus:plexus-component-annotations": -599131582,
     "org.codehaus.plexus:plexus-interpolation": -455118382,
     "org.codehaus.plexus:plexus-sec-dispatcher": -786406031,
-    "org.codehaus.plexus:plexus-utils": 37123609,
+    "org.codehaus.plexus:plexus-utils": -519732315,
     "org.codehaus.plexus:plexus-xml": -985076333,
     "org.crac:crac": 853021667,
     "org.eclipse.microprofile.config:microprofile-config-api": 1033345756,
@@ -245,27 +245,27 @@
     },
     "com.aayushatharva.brotli4j:brotli4j": {
       "shasums": {
-        "jar": "285a0b96150649db6fd9d8a0a22ea98fc2b8a558fc924b21836a59550975485e"
+        "jar": "5fcf13ad78d07319cc507465dcf61cbc3efee9f45c9ae1c42a9902414696bc0b"
       },
-      "version": "1.16.0"
+      "version": "1.23.0"
     },
     "com.aayushatharva.brotli4j:native-osx-aarch64": {
       "shasums": {
-        "jar": "6704a81f02aca83bdff4de8824f369f64bd6312b3c79faf729d14df05e0b251e"
+        "jar": "be3bc53688dbaff26d9d554301837de2bfa9ec09090b64d1ebf1fb6b23c28e61"
       },
-      "version": "1.16.0"
+      "version": "1.23.0"
     },
     "com.aayushatharva.brotli4j:service": {
       "shasums": {
-        "jar": "8e233823936a60d00b9d4434e733bd60aeaaac1c149ae5d9c9e7a49caecafa2d"
+        "jar": "7f298d44dbb7688419f0179ee1dfa0e4436633272b05d38a5faf3a2b8d08697b"
       },
-      "version": "1.16.0"
+      "version": "1.23.0"
     },
     "com.fasterxml.jackson.core:jackson-core": {
       "shasums": {
-        "jar": "aa77eaf29293a868c47372194f7c5287d77d9370b04ea25d3fffc1e4904b5880"
+        "jar": "12e8655b100267b44d0f14d01b1f5082a5105e616174dc4307be1a761e92407b"
       },
-      "version": "2.19.2"
+      "version": "2.21.2"
     },
     "com.google.code.findbugs:jsr305": {
       "shasums": {
@@ -347,93 +347,93 @@
     },
     "io.netty:netty-buffer": {
       "shasums": {
-        "jar": "00a522b67ea35cb7b4dd9cf27f85c6c58f5e306785aa045302e5f6b2d4944a87"
+        "jar": "386d560b5eb8fa5317190c67be1b657e33163eeecd0b25ab36a15bdf235ff204"
       },
-      "version": "4.1.130.Final"
+      "version": "4.1.133.Final"
     },
     "io.netty:netty-codec": {
       "shasums": {
-        "jar": "52636bc29bd62120b97bbe5d1d21eab9b1cb2bef8efbb54d2221c5f3fa08d8cd"
+        "jar": "65d9fd0b5ae80ddda532b3a98bf5adbd4f34ec6ae19ba2439eab2ed3d6d79c5a"
       },
-      "version": "4.1.130.Final"
+      "version": "4.1.133.Final"
     },
     "io.netty:netty-codec-dns": {
       "shasums": {
-        "jar": "814bf9e764a2a9e4d7ace718f661e1f19d2a2cc35b2d3ac0065d4306cfec34ad"
+        "jar": "b0ad104c6281ed101ea5d9b511f9bd5ba7ff92e9b240ca799f4597f7b8ce4d92"
       },
-      "version": "4.1.130.Final"
+      "version": "4.1.133.Final"
     },
     "io.netty:netty-codec-haproxy": {
       "shasums": {
-        "jar": "7195ce9d4fb0c466173fe7fb9562c6c3e380e3511a22355d15c16da349c6aa33"
+        "jar": "44b0bbd1482e4982ea9a0c9e77e3febddeedaa3694b70bd84628d4fa87e9cbdb"
       },
-      "version": "4.1.130.Final"
+      "version": "4.1.133.Final"
     },
     "io.netty:netty-codec-http": {
       "shasums": {
-        "jar": "5b6addc1df7b3397a193bd6544a8bfdb18ecac99fd13bee4ec75b1781a664e5e"
+        "jar": "cb82f9fd12d9cd3c3bf2306080e2230a29fcddaab388fc8a36bd7b2c7e1e49ec"
       },
-      "version": "4.1.130.Final"
+      "version": "4.1.133.Final"
     },
     "io.netty:netty-codec-http2": {
       "shasums": {
-        "jar": "f8ffdb550368fd5dee7c7f1393fa49552522f280ed8de96aebf4269cab0dc8f3"
+        "jar": "0e07715264db137a41b75aa3733b7bb5ab597403abb9668385ea776692ee41d0"
       },
-      "version": "4.1.130.Final"
+      "version": "4.1.133.Final"
     },
     "io.netty:netty-codec-socks": {
       "shasums": {
-        "jar": "9b8f8b2fab256411936ddf5358c3eb6b184c49ea7b8b01f40d473fa94ed7b92c"
+        "jar": "83a031b42f7b577cd38726ebcc769a3dfc0a904a1b426041c34f2c9784a2a682"
       },
-      "version": "4.1.130.Final"
+      "version": "4.1.133.Final"
     },
     "io.netty:netty-common": {
       "shasums": {
-        "jar": "53921f28dd5a352b1bed0e1cbcc54d013dc60ffebeae9b2b1e53eabef317e581"
+        "jar": "799930f8e36ea3611f90372f1ed54c212aee8ae70bf38bdf082417d6db672b0a"
       },
-      "version": "4.1.130.Final"
+      "version": "4.1.133.Final"
     },
     "io.netty:netty-handler": {
       "shasums": {
-        "jar": "98c78ec187ca30a4b9775bf6f632f5c9929db6bf06a60e6971f945813880ca0f"
+        "jar": "b468863c1b0fd13ba20f8b1a2b04f8f23d3d6bb50ee3003d372fd8ec7eb87265"
       },
-      "version": "4.1.130.Final"
+      "version": "4.1.133.Final"
     },
     "io.netty:netty-handler-proxy": {
       "shasums": {
-        "jar": "33656875d0001587eea4a9778cf2242b418bc887ed03b2d37ef3969e0b7d3b5e"
+        "jar": "562c8c851983a0913bcfe2044da774c677dc98afb910891a66b01401eadf0c3c"
       },
-      "version": "4.1.130.Final"
+      "version": "4.1.133.Final"
     },
     "io.netty:netty-resolver": {
       "shasums": {
-        "jar": "48c5b218a89d184e1b601d46433957f515fcefdb4464182b1348bce4f5a18f35"
+        "jar": "8b9ee3129bd6f8d0b5b09007b4e41e78c6ea63f18a8d33cb171455ffabcda10e"
       },
-      "version": "4.1.130.Final"
+      "version": "4.1.133.Final"
     },
     "io.netty:netty-resolver-dns": {
       "shasums": {
-        "jar": "bbc4d5ce181a2322941b480b1bbf01faa75254eee4d3a8e146317315f61a8283"
+        "jar": "16ea68b2ae21e0181e9bb30e71424c189a28648ab880e86d0934b3da7481228f"
       },
-      "version": "4.1.130.Final"
+      "version": "4.1.133.Final"
     },
     "io.netty:netty-transport": {
       "shasums": {
-        "jar": "1bf573266d271f856705a9984d25449c56a1d73c02a16af12033ceccfe555dbb"
+        "jar": "9895abfebf5cb8c185e4534f3936759d7ecd133353cef18d2ae9ae3c58845142"
       },
-      "version": "4.1.130.Final"
+      "version": "4.1.133.Final"
     },
     "io.netty:netty-transport-native-unix-common": {
       "shasums": {
-        "jar": "cf5efc4168597d7cd14695b469418cac2a1134533f9a0c82ef0538d796fd39e1"
+        "jar": "75681c3be01ff3c5bb6a39a7583e70289f64fd926e4fc29859ce9cf223ad99fc"
       },
-      "version": "4.1.130.Final"
+      "version": "4.1.133.Final"
     },
     "io.quarkus.arc:arc": {
       "shasums": {
-        "jar": "367cb0071dd9d09c371f806f3d0530a12b5ffeb7f285cda0de8c399559ef1b34"
+        "jar": "885ca5cad21a7e3ba15204e188c8381b00b4cc1d030f45e56c25d09e15e19c2f"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus.gizmo:gizmo": {
       "shasums": {
@@ -449,27 +449,27 @@
     },
     "io.quarkus.resteasy.reactive:resteasy-reactive": {
       "shasums": {
-        "jar": "f699062675809e8c55899afdaf201fb6e0e4a4b20eaf3f51f119ef42f282540d"
+        "jar": "00b7824b499af32a905113957f0bc765c84a2ce75a14c519a9795d5bbbd5b776"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus.resteasy.reactive:resteasy-reactive-common": {
       "shasums": {
-        "jar": "64ec06eb6bdfe22a948fb8b0fd9b28fb42a698559d10cb7f3b26bdf94ccf4c92"
+        "jar": "9194fcfe79a38f6cf0970b5518e554655e2bf3af97f5c676a135fc2c794fa7b7"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus.resteasy.reactive:resteasy-reactive-common-types": {
       "shasums": {
-        "jar": "455c46c1972bfc045ea033f10c1035c11a1403d5d2f69ebd008b6ead22cf7d00"
+        "jar": "5dadfffd385f88efc9323f8306a8fbd892cf58688b097da9c994d23724de6e54"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus.resteasy.reactive:resteasy-reactive-vertx": {
       "shasums": {
-        "jar": "66847a86b291fdf5000e5e4180520652f33314d23b5e133b02ea12719154fe49"
+        "jar": "99cdba75aa67b6dd31f2723e9d377e82ef4d75b4608213a890360a2c93682511"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus.security:quarkus-security": {
       "shasums": {
@@ -479,93 +479,93 @@
     },
     "io.quarkus.vertx.utils:quarkus-vertx-utils": {
       "shasums": {
-        "jar": "d555e7445ec7ff93a32e25217ad96ed0f00ffbdd3c5dda94527c4e95fdc3956e"
+        "jar": "21a5a009b50d99469b704752b2115496402b18034dcb2ad629b425a151fd3ee1"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-arc": {
       "shasums": {
-        "jar": "2fe0561bfc132ca8fb5c6fcdffc2a8880413672e2502555367cae90bad4151b4"
+        "jar": "7b8b66ba6080a24a1e201130abab1b3a63f6a92a3c6452e21e4508e7efe966c9"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-bootstrap-app-model": {
       "shasums": {
-        "jar": "6b14b184ea655f193a88b5f4669c1258743b7cdf0591c640986e46d0828969b2"
+        "jar": "b88fdcb83e7d066142cdef05631141a49397de9141335049606c7b63df181f56"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-bootstrap-core": {
       "shasums": {
-        "jar": "9915dfac2f331b49140a60b74cd57d5a421d22951676a7a2c22a3dc37bc1032d"
+        "jar": "a9cfe59bf1f2d3dfefb230e63c458d7674cc11517d9965d2e422663b7da835ec"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-bootstrap-gradle-resolver": {
       "shasums": {
-        "jar": "0ef1076e36b163706061b6956a66b2eaa339e51ce1f61f07781c8285f9579756"
+        "jar": "32651ac28ceac2d956654675e8256ad6b957013b079ba6cd9f50c0eb5b171e57"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-bootstrap-maven-resolver": {
       "shasums": {
-        "jar": "45e174036d987a47fda104b6bf4799490bd1b574f486e9c8d9c333816f41c717"
+        "jar": "59704dfde79ee6535e928e4229f789a668cc2938b9ed0c40f0c1ade846cc7880"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-bootstrap-maven4-resolver": {
       "shasums": {
-        "jar": "ef966d241693ab829d3b7de30431b1a73e630b1fb6de7d9ed19cd9f9ab875c31"
+        "jar": "cae5b23dffc94a8075d37a8c54c94404d78fd544010e6a6d97f9e28c316850da"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-bootstrap-runner": {
       "shasums": {
-        "jar": "78c6624086038638192ae262bf1769bc58b32a6d90ded85b896536c07408ce5c"
+        "jar": "b58b3d216877c5e54c3ff8c79b8ba5ba48d7a1431738fa91f7a20005d64bcd9f"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-builder": {
       "shasums": {
-        "jar": "98faace102e51108a7e91a611ed48fdcb865c0191dcb5fdb92e17ed931131c35"
+        "jar": "4343f5820c34bf1d154fb73869c70ce04f69c5c392b5b833c2aaa35d9169f55a"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-class-change-agent": {
       "shasums": {
-        "jar": "8b58582d2898386f5bd4ea4fd3fdac787b54a3826df237f622fecce0fbdcbe7e"
+        "jar": "d2ce691e6775a8b10a91a5a09bb26b61bfa49a4aa15d163735079864a1cc51de"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-classloader-commons": {
       "shasums": {
-        "jar": "4c8e897cd3dff151b9ed4d196a0b7e6b79dd650249e34d06503f5c878fc59334"
+        "jar": "f465bd66ab01d836dce1805b7d76ca12163df1ddd03d81069133d0ede51aa686"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-core": {
       "shasums": {
-        "jar": "42ca682fd671eefcd700a5bec211d12b997d85ef19faac43d65cd822732b5888"
+        "jar": "c6cd5c6f29804560b2597448fa33d8c9688a82dc0308cd9ca03ac96c8a0a3b56"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-core-deployment": {
       "shasums": {
-        "jar": "a9401f2699f490256083a2ec1140dfc3f036ae9eac1477118d9a2da1ec079ca9"
+        "jar": "1a721473ee8a29cb149c8fa1d2ef420bdd04b1e92b35bafdc81cb9cb2bbdbe6b"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-credentials": {
       "shasums": {
-        "jar": "39e6d7fefe77aa709e6c377d72a47fdaea29d33dfe16c182739aa7aab7dcd72c"
+        "jar": "6acadd1906d0a364ac6aa861222ec4e6e6257139e9a95edbcc0e3e27f3313acd"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-development-mode-spi": {
       "shasums": {
-        "jar": "cd8b0c853d89a6bc287238696e22ab13a78533ecf75fc91a1630afe1486ebb10"
+        "jar": "8fbc3c1010c17280bcd3a02ff11c5f74b8818778ec77d3d610aa0d3309199bc1"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-fs-util": {
       "shasums": {
@@ -575,111 +575,111 @@
     },
     "io.quarkus:quarkus-hibernate-validator-spi": {
       "shasums": {
-        "jar": "5c492045efcc2a4c1d8de1662becab2822c7da3fbdedccdb77ca5fac302224bb"
+        "jar": "b559fd7f48866183d9c3484023b7ef6acb3b1593d2d070497d012d4fc38d54fb"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-ide-launcher": {
       "shasums": {
-        "jar": "afd67053b3505b6e12708ddabb9fa45680e052780cc91e611cc90e62bb65bec9"
+        "jar": "f0c5b644aa7eeb6116cb56011e7a1cca01438622974ea1e3b525a9bfe9d18be8"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-jsonp": {
       "shasums": {
-        "jar": "237ecc779dc913120ebb131469a2c6ea79676aa14c371cce7b9345162f6d7137"
+        "jar": "7233a0976ccb35aaf0ec7ca2c8d31aab58a9447f39ecfeb046ff592d20449b18"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-junit5": {
       "shasums": {
-        "jar": "ae8e6d9f9b51b67b25a274bef5548186e2eeb824a2e8405b5d9ef99cde504bba"
+        "jar": "89f5eab5e752be11ec4105581b7bb2fc165d6160cdff70241364d96013f44ad0"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-junit5-config": {
       "shasums": {
-        "jar": "3dd02712196e8933e2a66b82671c6387cd690fd5f29bef8e410f7fdf640949e3"
+        "jar": "7707ad28710d2fa3c177e7464dbfb15f9144b948f30a5459cf9904e5d6076894"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-mutiny": {
       "shasums": {
-        "jar": "10226dfb94d505fe474001cddee592fa6c74fbc60de52a3bf06bcf07d1d2d24d"
+        "jar": "38dbcd19ec799e5a46140db898bb1539d8d3cd00809d39ce099f6547cb630dd5"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-netty": {
       "shasums": {
-        "jar": "c9062b03255972fe12a693746b621d5d41c1325579b9a8e818df78c45eb5e05b"
+        "jar": "c1d167a8b07a5bad5b934130aadcf66d22f3b559cd54b625df0f11b65b213a0b"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-rest": {
       "shasums": {
-        "jar": "45a82c143d4af31eb565172de30aef5655d8ff7bba449705b78ce9f680304a4f"
+        "jar": "206eb339c752430ea5e5d92e08b79049a11bc515ae629fea805e362951f7cc2f"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-rest-common": {
       "shasums": {
-        "jar": "6c069fbe8008ddd4f4cfe11c5b231a88214b0154767e4408feff43c3661f348d"
+        "jar": "4d5754d6ed683165711748a5a4013f30542f2463aaaab5d8614a77c8492814d1"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-security-runtime-spi": {
       "shasums": {
-        "jar": "164cb6b7775077dbc6653329fbbda0415fe6d8299d484b7bcc9041645d013b41"
+        "jar": "1f09addb2d2d1306cf44398ef291d2d4bea1804927bbd28208e6f1ae94576069"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-smallrye-context-propagation": {
       "shasums": {
-        "jar": "b3b86d96e847134af817774ba56c4f8debbb43101fd94c200577172eeba74739"
+        "jar": "1ceda5faecf819460c9d6aecb221251b211a0ff45c0a89c2c7b7f6b2a321a8ef"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-test-common": {
       "shasums": {
-        "jar": "891e86568c546cfc72c21bf2d9fb939e533d70636e40d45cf36a2eb1e7c95e24"
+        "jar": "4e88dc7938ad53066813fe960b7e7d9fb22c1d04cad73764b2e11593e1fba255"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-tls-registry": {
       "shasums": {
-        "jar": "c155d6303863027e1775f40a8177bfb8b986bc9b3a458ac2f0119f4dada803c4"
+        "jar": "c221a7769d84238bc0ef76cfe8fa2dc21dc86a557364832b25016fc711cc7e38"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-tls-registry-spi": {
       "shasums": {
-        "jar": "d2542370ec3371b073c0b983a2bddd185a87f253a4827f994aa94997e277345c"
+        "jar": "801472ff2c6aa87b3e2d28b3a96bc226be2f8dbb50d0fa2acbcfd4a3d7b0869d"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-vertx": {
       "shasums": {
-        "jar": "0bca25ce94c844802cf0768eaa4bdc1e84533f6ce68120bef462a672e6fe1b9f"
+        "jar": "e3bec808cb16c5a28835f3349a84423944903d623f754e5800dcf8a6ac408912"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-vertx-http": {
       "shasums": {
-        "jar": "27001b3520c21aa1f6c68437ec3ecdddb98946b097817fb21cce68f897bfc5ab"
+        "jar": "2960ac344145234a40ce28e28c5844cfe5f9ff73a0cff837bcbfe096a3760890"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-vertx-latebound-mdc-provider": {
       "shasums": {
-        "jar": "3d8cec7389d210a373d29d1dee829c1ba5d42e144ffbe86429eea130a36422b2"
+        "jar": "793ea0f030d00b21f600acb650426ecdd490a5c8f8c4e227231a9db18b1498c1"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.quarkus:quarkus-virtual-threads": {
       "shasums": {
-        "jar": "a552f80dddf8d5966161123a60c61ce6781628f2f8a0436436993f879b412125"
+        "jar": "163443b0bc488666134d987de2d7db93b968eda8d54af78cca98bf98815ec86c"
       },
-      "version": "3.27.3"
+      "version": "3.27.4"
     },
     "io.rest-assured:json-path": {
       "shasums": {
@@ -845,51 +845,51 @@
     },
     "io.smallrye.reactive:smallrye-mutiny-vertx-auth-common": {
       "shasums": {
-        "jar": "6f965cceaaac785381e4eb563a88d5b04533b45f47cdb794ae88c29890eb5090"
+        "jar": "9c7a87f23536e6126bb11621f53f310cba35277e3ef11ce660efdeb5dd772d60"
       },
-      "version": "3.21.5"
+      "version": "3.21.6"
     },
     "io.smallrye.reactive:smallrye-mutiny-vertx-bridge-common": {
       "shasums": {
-        "jar": "9c8e2c62b5ba9a0b8f87950be64714a045409374814f4d359eb8d9daa4dd0a36"
+        "jar": "74be8e8871ab43aa3c00e5bb8586bad550741f72b555bb9cb46436c709b7b73b"
       },
-      "version": "3.21.5"
+      "version": "3.21.6"
     },
     "io.smallrye.reactive:smallrye-mutiny-vertx-core": {
       "shasums": {
-        "jar": "ec0ad058a75c08233da5084190debafe8cbf1b0bd2e6e57303e7c5b4bef998c0"
+        "jar": "08532f133b398e0fa83f09b02092ee065c8e615b1f1f571d9baaf3212f360a8d"
       },
-      "version": "3.21.5"
+      "version": "3.21.6"
     },
     "io.smallrye.reactive:smallrye-mutiny-vertx-runtime": {
       "shasums": {
-        "jar": "ecdb5a0a542c8270e1aea6e808e144e1c1dca463d67f8c3fc1452324c5f47b80"
+        "jar": "ec82f42bb78c1de9049e01826f2823771a34aab115b4d5abc429fccb8f85704e"
       },
-      "version": "3.21.5"
+      "version": "3.21.6"
     },
     "io.smallrye.reactive:smallrye-mutiny-vertx-uri-template": {
       "shasums": {
-        "jar": "7a9ba98564574fe011e83bf5835b305bf83bdd89ace7c88e822d99726d62353b"
+        "jar": "b7229ad2802b82a3778aa9370f7357eeb43308c2fc6ab4aca7c4eacb29990703"
       },
-      "version": "3.21.5"
+      "version": "3.21.6"
     },
     "io.smallrye.reactive:smallrye-mutiny-vertx-web": {
       "shasums": {
-        "jar": "656dabdb51d5284ac9cf67281453ff08624b13f6428d491cd33216ff0e364783"
+        "jar": "72571608458fdb8db83c038190a5cf475046e6e2f1617f9789a108279a9aa593"
       },
-      "version": "3.21.5"
+      "version": "3.21.6"
     },
     "io.smallrye.reactive:smallrye-mutiny-vertx-web-common": {
       "shasums": {
-        "jar": "2857fda783f4893848c8e1e59bad9a4440b383a1ff0910b757466222c0f0feeb"
+        "jar": "46ae80e531414734227487db2c85c33386d29e219f271ae0501ececc90f67fe4"
       },
-      "version": "3.21.5"
+      "version": "3.21.6"
     },
     "io.smallrye.reactive:vertx-mutiny-generator": {
       "shasums": {
-        "jar": "969ca5e6fe7536cd08c85c24e0aa98c54e899d317101dbb916c0c0204825dd64"
+        "jar": "84a5a28fada687cb9bd9ec3103be1fed0f447070b9f4577968089a11741a30f6"
       },
-      "version": "3.21.5"
+      "version": "3.21.6"
     },
     "io.smallrye:jandex": {
       "shasums": {
@@ -929,45 +929,45 @@
     },
     "io.vertx:vertx-auth-common": {
       "shasums": {
-        "jar": "d8e4b2ff58e03520aacd5df4dbe3048a4ae09fe2c2a101a88d652214a4d3f129"
+        "jar": "ea3074af4de22fb2e560d4fc0e048eb2d0189eb9a94312b90f39bee597d79d11"
       },
-      "version": "4.5.25"
+      "version": "4.5.27"
     },
     "io.vertx:vertx-bridge-common": {
       "shasums": {
-        "jar": "e7bcd94adb1793ac6184e6f753c1dc96ef70a678aac9285e2c0be02a3e84ead5"
+        "jar": "9153607bfe24888ba3aff7da56a5fce3e40e9471ba1f933005c1f8a14ff2389a"
       },
-      "version": "4.5.25"
+      "version": "4.5.27"
     },
     "io.vertx:vertx-codegen": {
       "shasums": {
-        "jar": "b76cf8217fedf92fceead7929a90eb5bb21c37d89c1622385ab4e2685b04544d"
+        "jar": "cbf903766ea5ecbdf37ea5c7e8c9d2d2f5470f016451781622de717e8ef95e1b"
       },
-      "version": "4.5.25"
+      "version": "4.5.27"
     },
     "io.vertx:vertx-core": {
       "shasums": {
-        "jar": "8afcad8152bdfbeb1b9e56a2dd7a793da1a54a1554ce2a05dba102c5c6e6cfdd"
+        "jar": "8f411bfed688e27a9fdd01a0d86f19e37b91845af76f1a4a6810cabc61f3cd46"
       },
-      "version": "4.5.25"
+      "version": "4.5.27"
     },
     "io.vertx:vertx-uri-template": {
       "shasums": {
-        "jar": "f7d0b7c23b46dff1499eae072b5e3720ff20074810b85393d7667cb835be911d"
+        "jar": "7af45563da6df8ef48ca0ca77cd8f75455858155f7c154b2f925c988752a2d35"
       },
-      "version": "4.5.25"
+      "version": "4.5.27"
     },
     "io.vertx:vertx-web": {
       "shasums": {
-        "jar": "85c13cd57d169c7537a77802da2845c28160fe38f3467907358644c31981360d"
+        "jar": "14102106068fdeb3869b951fba73ac18d2a604d0e7445f9702416a8af33fa2ee"
       },
-      "version": "4.5.25"
+      "version": "4.5.27"
     },
     "io.vertx:vertx-web-common": {
       "shasums": {
-        "jar": "d14d1d4aef6da0f67905e4cbdeef900686ab772d2c1429654fa2227dbbe20dd8"
+        "jar": "44e3ad1b98e39e8b2a16f79d9455f1e9fdb5af986339ddb8095ff5043de3c2f2"
       },
-      "version": "4.5.25"
+      "version": "4.5.27"
     },
     "jakarta.activation:jakarta.activation-api": {
       "shasums": {
@@ -1307,9 +1307,9 @@
     },
     "org.codehaus.plexus:plexus-utils": {
       "shasums": {
-        "jar": "86e0255d4c879c61b4833ed7f13124e8bb679df47debb127326e7db7dd49a07b"
+        "jar": "05a63effd67e2d6b9d610cc82e2bd7473289d34802e57a529b28110f28af5679"
       },
-      "version": "3.5.1"
+      "version": "3.6.1"
     },
     "org.codehaus.plexus:plexus-xml": {
       "shasums": {
@@ -2411,7 +2411,9 @@
       "com.fasterxml.jackson.core.exc",
       "com.fasterxml.jackson.core.filter",
       "com.fasterxml.jackson.core.format",
-      "com.fasterxml.jackson.core.internal.shaded.fdp.v2_19_2",
+      "com.fasterxml.jackson.core.internal.shaded.fdp.v2_21_2",
+      "com.fasterxml.jackson.core.internal.shaded.fdp.v2_21_2.bte",
+      "com.fasterxml.jackson.core.internal.shaded.fdp.v2_21_2.chr",
       "com.fasterxml.jackson.core.io",
       "com.fasterxml.jackson.core.io.schubfach",
       "com.fasterxml.jackson.core.json",
