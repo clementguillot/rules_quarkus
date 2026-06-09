@@ -50,6 +50,71 @@ def _matches_prefix(group_id, prefixes):
             return True
     return False
 
+def _coursier_error_gav(line):
+    """Returns the GAV from a Coursier error header, or empty string."""
+    token = ""
+    if line.startswith("Resolution error: Error downloading "):
+        token = line[len("Resolution error: Error downloading "):]
+    elif line.startswith("Error downloading "):
+        token = line[len("Error downloading "):]
+    if not token:
+        return ""
+
+    gav = token.split(" ")[0]
+    return gav if gav.count(":") == 2 else ""
+
+def _coursier_error_block_is_missing(lines):
+    """True only when the whole Coursier error block is made of not-found attempts."""
+    saw_not_found = False
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("not found:"):
+            saw_not_found = True
+            continue
+        return False
+    return saw_not_found
+
+def _missing_artifacts_from_coursier_stderr(stderr):
+    """Finds GAVs whose Coursier error blocks prove the artifact is missing."""
+    missing = {}
+    current_gav = ""
+    current_lines = []
+
+    for raw_line in stderr.split("\n"):
+        line = raw_line.strip()
+        gav = _coursier_error_gav(line)
+        if gav:
+            if current_gav and _coursier_error_block_is_missing(current_lines):
+                missing[current_gav] = True
+            current_gav = gav
+            current_lines = []
+        elif current_gav:
+            current_lines.append(line)
+
+    if current_gav and _coursier_error_block_is_missing(current_lines):
+        missing[current_gav] = True
+
+    return missing
+
+def _append_deployment_artifacts_from_lock_map(lock_artifacts, deployment_artifacts, prefixes, version):
+    seen = {gav: True for gav in deployment_artifacts}
+    for coord_key in lock_artifacts:
+        parts = coord_key.split(":")
+        if len(parts) < 2:
+            continue
+        group_id = parts[0]
+        artifact_id = parts[1]
+        if artifact_id.endswith("-deployment"):
+            continue
+        if not _matches_prefix(group_id, prefixes):
+            continue
+        deployment_gav = group_id + ":" + artifact_id + "-deployment:" + version
+        if deployment_gav not in seen:
+            seen[deployment_gav] = True
+            deployment_artifacts.append(deployment_gav)
+
 def _rules_quarkus_repo_impl(rctx):
     """Creates the unified @rules_quarkus repository.
 
@@ -135,61 +200,50 @@ def _rules_quarkus_repo_impl(rctx):
     # This avoids spawning a separate JVM per artifact (6-10x faster).
     # If the batch fails because some artifacts don't exist, parse stderr
     # to identify genuinely missing ones and retry without them.
+    # The loop retries up to 3 times so that incrementally-reported missing
+    # artifacts are progressively removed until resolution stabilises.
+    # Timeout scales with artifact count: cold-cache batch fetches for large
+    # projects can legitimately exceed a flat 300 s.
     rctx.report_progress("Resolving deployment artifacts")
     all_jars = list(core_jar_paths)
+    seen_jars = {p: True for p in core_jar_paths}
     fetch_artifacts = list(artifacts)
+    first_stderr = ""
     result = rctx.execute(
         ["./deployment/coursier", "fetch", "--repository", repository_url] + fetch_artifacts,
-        timeout = 300,
+        timeout = max(300, len(fetch_artifacts) * 60),
     )
-    if result.return_code != 0:
-        # Identify genuinely missing artifacts (404 / not found) vs transient errors.
+    for _ in range(3):
+        if result.return_code == 0:
+            break
+
+        # Identify genuinely missing artifacts (404 / not found) vs other errors.
         # Coursier stderr contains multi-line blocks per failed artifact:
         #   "Error downloading group:artifact:version"
         #   "  not found: <url>"
-        # Transient failures show "Caught <Exception>" or HTTP 5xx instead.
-        # We only strip artifacts confirmed as "not found".
-        missing = {}
-        stderr_lines = result.stderr.split("\n")
-        for i, raw_line in enumerate(stderr_lines):
-            line = raw_line.strip()
-            token = ""
-            if line.startswith("Resolution error: Error downloading "):
-                token = line[len("Resolution error: Error downloading "):]
-            elif line.startswith("Error downloading "):
-                token = line[len("Error downloading "):]
-            if not token:
-                continue
-            gav = token.split(" ")[0]
-            if gav.count(":") != 2:
-                continue
-
-            # Check subsequent lines for "not found:" to confirm it's a true 404
-            is_not_found = False
-            for j in range(i + 1, min(i + 5, len(stderr_lines))):
-                subsequent = stderr_lines[j].strip()
-                if subsequent.startswith("not found:"):
-                    is_not_found = True
-                    break
-
-                # Stop looking if we hit the next error block
-                if subsequent.startswith("Error downloading ") or subsequent.startswith("Resolution error:"):
-                    break
-            if is_not_found:
-                missing[gav] = True
-
-        # Only retry if we actually identified missing artifacts to remove
-        if missing and len(fetch_artifacts) > len(missing):
-            fetch_artifacts = [a for a in fetch_artifacts if a not in missing]
-            result = rctx.execute(
-                ["./deployment/coursier", "fetch", "--repository", repository_url] + fetch_artifacts,
-                timeout = 300,
-            )
+        #   "  download error: ..."
+        # We retry only when every non-empty line in a GAV's error block is
+        # "not found:". Mixed blocks fail closed so transient/private-repo
+        # failures cannot be mistaken for missing extension deployment jars.
+        missing = _missing_artifacts_from_coursier_stderr(result.stderr)
+        filtered = [a for a in fetch_artifacts if a not in missing]
+        if len(filtered) == len(fetch_artifacts) or not filtered:
+            break
+        if not first_stderr:
+            first_stderr = result.stderr
+        fetch_artifacts = filtered
+        result = rctx.execute(
+            ["./deployment/coursier", "fetch", "--repository", repository_url] + fetch_artifacts,
+            timeout = max(300, len(fetch_artifacts) * 60),
+        )
     if result.return_code == 0:
         for line in result.stdout.strip().split("\n"):
             line = line.strip()
-            if line.endswith(".jar") and line not in all_jars:
+            if line.endswith(".jar") and line not in seen_jars:
+                seen_jars[line] = True
                 all_jars.append(line)
+    elif first_stderr:
+        fail("Failed to resolve deployment artifacts via Coursier:\n{}\n\n(Initial error before retry:\n{})".format(result.stderr, first_stderr))
     else:
         fail("Failed to resolve deployment artifacts via Coursier:\n{}".format(result.stderr))
 
@@ -476,29 +530,17 @@ def _quarkus_impl(mctx):
         if lock_content:
             lock_data = json.decode(lock_content)
 
-            # Use __INPUT_ARTIFACTS_HASH (direct dependencies only) rather than
-            # the full resolved artifacts map. This avoids generating -deployment
-            # GAVs for transitive internal modules that don't publish one.
+            # Prefer direct dependencies first for deterministic ordering, then
+            # scan the resolved graph too so transitive Quarkus extensions are
+            # not missed. Non-extension internal modules that do not publish a
+            # -deployment artifact are filtered during the Coursier retry.
             input_artifacts = lock_data.get("__INPUT_ARTIFACTS_HASH", {})
             if input_artifacts:
-                artifacts_map = input_artifacts
-            else:
-                # Fallback for lock files without __INPUT_ARTIFACTS_HASH
-                artifacts_map = lock_data.get("artifacts", lock_data.get("dependencies", {}))
+                _append_deployment_artifacts_from_lock_map(input_artifacts, deployment_artifacts, prefixes, version)
 
-            for coord_key in artifacts_map:
-                parts = coord_key.split(":")
-                if len(parts) < 2:
-                    continue
-                group_id = parts[0]
-                artifact_id = parts[1]
-                if artifact_id.endswith("-deployment"):
-                    continue
-                if not _matches_prefix(group_id, prefixes):
-                    continue
-                deployment_gav = group_id + ":" + artifact_id + "-deployment:" + version
-                if deployment_gav not in deployment_artifacts:
-                    deployment_artifacts.append(deployment_gav)
+            resolved_artifacts = lock_data.get("artifacts", lock_data.get("dependencies", lock_data.get("__RESOLVED_ARTIFACTS_HASH", {})))
+            if resolved_artifacts:
+                _append_deployment_artifacts_from_lock_map(resolved_artifacts, deployment_artifacts, prefixes, version)
 
     # Add conditional dev deployment artifacts after extension discovery
     for gav in conditional_dev_deployment_artifacts:
