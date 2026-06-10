@@ -102,14 +102,14 @@ bazel run //:helloworld_dev   # Dev mode
 
 Each example's `MODULE.bazel` uses `local_path_override` to point at the root directory:
 
-```python
+```starlark
 bazel_dep(name = "com_clementguillot_rules_quarkus", version = "0.0.0")
 local_path_override(module_name = "com_clementguillot_rules_quarkus", path = "../..")
 ```
 
 And `quarkifier_source_dir` to resolve the local deploy jar:
 
-```python
+```starlark
 quarkus.toolchain(
     quarkus_version = "3.27.4",  # or "3.33.2"
     lock_file = "//:maven_install.json",
@@ -173,7 +173,7 @@ Each property test is tagged with a comment: `Feature: rules-quarkus, Property {
 
 Defined in `quarkus/private/versions.bzl`:
 
-```python
+```starlark
 # Dict mapping minor version → latest tested patch version
 SUPPORTED_VERSIONS = {
     "3.27": "3.27.4",

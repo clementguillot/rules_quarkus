@@ -12,7 +12,7 @@ This guide walks you through building and running a Quarkus application with Baz
 
 ## 1. Add rules_quarkus to MODULE.bazel
 
-```python
+```starlark
 module(name = "my_project")
 
 # Java rules
@@ -27,7 +27,7 @@ bazel_dep(name = "com_clementguillot_rules_quarkus", version = "0.1.0")
 
 Use `rules_jvm_external` to declare your Quarkus runtime dependencies. Only declare the **runtime** artifacts — deployment artifacts are resolved automatically.
 
-```python
+```starlark
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.install(
     artifacts = [
@@ -47,7 +47,7 @@ Run `bazel run @maven//:pin` to generate the `maven_install.json` lock file.
 
 ## 3. Configure the Quarkus Toolchain
 
-```python
+```starlark
 quarkus = use_extension(
     "@com_clementguillot_rules_quarkus//quarkus:extensions.bzl",
     "quarkus",
@@ -76,7 +76,7 @@ The configured `quarkus_version` applies to every `quarkus_app`, generated `<nam
 
 ### java_library for your source code
 
-```python
+```starlark
 # BUILD.bazel
 load("@rules_java//java:java_library.bzl", "java_library")
 
@@ -94,7 +94,7 @@ java_library(
 
 ### quarkus_app for the runnable application
 
-```python
+```starlark
 load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app")
 
 quarkus_app(
@@ -161,7 +161,7 @@ Dev mode runs in a separate JVM process. Press `Ctrl+C` to stop.
 
 To opt out of the dev target, pass `dev = False` to `quarkus_app`:
 
-```python
+```starlark
 quarkus_app(
     name = "helloworld",
     dev = False,
@@ -186,7 +186,7 @@ The `quarkus_version`, `quarkifier_tool`, and `deployment_deps` attributes are i
 
 `quarkus_app` accepts dependencies from `java_library` targets across multiple Bazel packages:
 
-```python
+```starlark
 # //shared/BUILD.bazel
 java_library(
     name = "shared",
@@ -211,7 +211,7 @@ All transitive dependencies are collected via `JavaInfo` providers and included 
 
 This is the full `MODULE.bazel` from the `examples/helloworld_3_33` workspace:
 
-```python
+```starlark
 module(name = "helloworld_3_33")
 
 bazel_dep(name = "com_clementguillot_rules_quarkus", version = "0.0.0", dev_dependency = True)

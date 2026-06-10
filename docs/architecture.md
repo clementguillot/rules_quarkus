@@ -152,7 +152,7 @@ Jars in `lib/boot/` are loaded by the parent classloader (before the main app cl
 
 Custom Starlark provider that carries augmentation metadata between rules:
 
-```python
+```starlark
 QuarkusAppInfo = provider(
     fields = {
         "fast_jar_dir":            "Directory containing the Fast_Jar output",
