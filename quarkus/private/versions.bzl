@@ -1,8 +1,8 @@
 "Supported Quarkus versions and quarkifier release coordinates."
 
-# Dict mapping minor version → latest tested patch version.
+# Dict mapping minor version → supported patch version.
 # The quarkifier is compiled against each minor version's APIs independently.
-# Users can specify any patch version within a supported minor.
+# Users MUST use one of these exact versions.
 SUPPORTED_VERSIONS = {
     "3.27": "3.27.4",
     "3.33": "3.33.2",

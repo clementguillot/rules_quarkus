@@ -174,7 +174,7 @@ Each property test is tagged with a comment: `Feature: rules-quarkus, Property {
 Defined in `quarkus/private/versions.bzl`:
 
 ```starlark
-# Dict mapping minor version → latest tested patch version
+# Dict mapping minor version → supported patch version
 SUPPORTED_VERSIONS = {
     "3.27": "3.27.4",
     "3.33": "3.33.2",
