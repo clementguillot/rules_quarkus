@@ -1,5 +1,5 @@
 load("@rules_img//img:image.bzl", "image_manifest")
-load("@rules_img//img:layer.bzl", "image_layer", "layer_from_binary")
+load("@rules_img//img:layer.bzl", "image_layer")
 load("@rules_img//img:load.bzl", "image_load")
 load("@rules_java//java:java_library.bzl", "java_library")
 load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_test")
@@ -27,16 +27,31 @@ quarkus_app(
 
 # --- Fast Jar OCI image (JVM mode) ---
 
-layer_from_binary(
+filegroup(
+    name = "helloworld_quarkus_app",
+    srcs = [":helloworld"],
+    output_group = "quarkus_app",
+)
+
+image_layer(
     name = "helloworld_jvm_layer",
-    binary = ":helloworld",
+    srcs = {
+        "/app": ":helloworld_quarkus_app",
+    },
+    include_runfiles = False,
 )
 
 image_manifest(
     name = "helloworld_jvm_image_manifest",
-    base = image("eclipse_temurin"),
+    base = image("distroless_java"),
+    entrypoint = [
+        "java",
+        "-jar",
+        "quarkus-run.jar",
+    ],
     layers = [":helloworld_jvm_layer"],
     platform = "//platforms:linux_aarch64",
+    working_dir = "/app/quarkus-app",
 )
 
 image_load(
