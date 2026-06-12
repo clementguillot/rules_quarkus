@@ -23,11 +23,11 @@ images = use_extension("@rules_img//img:extensions.bzl", "images")
 
 # JRE for running Quarkus fast-jar (JVM mode) - linux/aarch64 manifest
 images.pull(
-    name = "eclipse_temurin",
-    digest = "sha256:e27e24f0bc3e6fef63ddd56dadb05903772276b27caebe498c69a81cba7d8cc4",
-    registry = "index.docker.io",
-    repository = "library/eclipse-temurin",
-    tag = "21-jre",
+    name = "distroless_java",
+    digest = "sha256:e9a57bd6aed8e63e07f01349de5232a57f72d3f2f9409943a763ee50cbb119c1",
+    registry = "gcr.io",
+    repository = "distroless/java21-debian13",
+    tag = "nonroot",
 )
 
 # Distroless base for native binary (minimal runtime) - linux/aarch64 manifest

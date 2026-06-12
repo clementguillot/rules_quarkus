@@ -57,6 +57,9 @@ def _quarkus_app_impl(ctx):
                 transitive_files = target_java_runtime.files,
             ),
         ),
+        OutputGroupInfo(
+            quarkus_app = depset([output_dir]),
+        ),
         QuarkusAppInfo(
             fast_jar_dir = output_dir,
             application_classpath = runtime_classpath,
