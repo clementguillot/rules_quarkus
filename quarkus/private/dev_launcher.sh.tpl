@@ -11,6 +11,7 @@ trap cleanup EXIT ERR TERM INT QUIT ABRT
 RUNFILES_DIR="${BASH_SOURCE[0]}.runfiles"
 
 # Resolve paths relative to runfiles
+JAVA="${RUNFILES_DIR}/%{workspace}/%{java_home}/bin/java"
 TOOL_JAR="${RUNFILES_DIR}/%{workspace}/%{tool_jar}"
 APP_CP_FILE="${RUNFILES_DIR}/%{workspace}/%{app_cp_file}"
 DEPLOY_CP_FILE="${RUNFILES_DIR}/%{workspace}/%{deploy_cp_file}"
@@ -123,7 +124,7 @@ if [ -n "$SOURCE_DIRS" ] && [ -n "$BAZEL_TARGETS" ]; then
     )
 fi
 
-java \
+"$JAVA" \
   -Djava.util.logging.manager=org.jboss.logmanager.LogManager \
   -jar "$TOOL_JAR" \
   --application-classpath "$APP_CP" \

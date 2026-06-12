@@ -2,10 +2,8 @@
 
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 
-# Maven-layout source root markers used to derive source directories from package paths.
+# Maven-layout markers used to derive source/resource roots from package paths.
 _SOURCE_MARKERS = ["src/main/java", "src/test/java"]
-
-# Maven-layout resource root markers used to derive resource directories from package paths.
 _RESOURCE_MARKERS = ["src/main/resources"]
 
 def short_path(f):
@@ -44,12 +42,32 @@ def collect_source_jars(deps):
             transitive.append(dep[JavaInfo].transitive_source_jars)
     return depset(transitive = transitive)
 
-def collect_source_dir_paths(deps, runtime_classpath = None):
-    """Derives workspace-relative source directory paths from deps and classpath.
+def _collect_marker_dir_paths(deps, runtime_classpath, markers):
+    """Derives workspace-relative directory paths from deps and classpath.
 
-    Examines each dep's package path and each local jar's owner package to
-    derive candidate source roots using Maven-layout markers (src/main/java,
-    src/test/java).
+    Joins each direct dep's package path — and, when runtime_classpath is
+    given, each transitive local jar's owner package — with the Maven-layout
+    markers.
+
+    Returns:
+        A deduplicated list of workspace-relative directory path strings.
+    """
+    packages = [dep.label.package for dep in deps if JavaInfo in dep]
+    if runtime_classpath:
+        packages += [jar.owner.package for jar in runtime_classpath.to_list() if is_local_artifact(jar)]
+
+    dirs = []
+    seen = {}
+    for pkg_path in packages:
+        for marker in markers:
+            candidate = pkg_path + "/" + marker if pkg_path else marker
+            if candidate not in seen:
+                seen[candidate] = True
+                dirs.append(candidate)
+    return dirs
+
+def collect_source_dir_paths(deps, runtime_classpath = None):
+    """Derives candidate source roots (src/main/java, src/test/java) from deps.
 
     Args:
         deps: List of targets providing JavaInfo (direct deps).
@@ -58,35 +76,10 @@ def collect_source_dir_paths(deps, runtime_classpath = None):
     Returns:
         A deduplicated list of workspace-relative source directory path strings.
     """
-    source_dirs = []
-    seen = {}
-
-    # From direct deps
-    for dep in deps:
-        if JavaInfo in dep:
-            _add_source_dirs_for_package(dep.label.package, seen, source_dirs)
-
-    # From transitive runtime classpath (local artifacts only)
-    if runtime_classpath:
-        for jar in runtime_classpath.to_list():
-            if is_local_artifact(jar):
-                _add_source_dirs_for_package(jar.owner.package, seen, source_dirs)
-
-    return source_dirs
-
-def _add_source_dirs_for_package(pkg_path, seen, source_dirs):
-    """Adds source directory candidates for a given package path."""
-    for marker in _SOURCE_MARKERS:
-        candidate = pkg_path + "/" + marker if pkg_path else marker
-        if candidate not in seen:
-            seen[candidate] = True
-            source_dirs.append(candidate)
+    return _collect_marker_dir_paths(deps, runtime_classpath, _SOURCE_MARKERS)
 
 def collect_resource_dir_paths(deps, runtime_classpath = None):
-    """Derives workspace-relative resource directory paths from deps and classpath.
-
-    Examines each dep's package path to derive candidate resource roots using
-    Maven-layout markers (src/main/resources).
+    """Derives candidate resource roots (src/main/resources) from deps.
 
     Args:
         deps: List of targets providing JavaInfo (direct deps).
@@ -95,26 +88,24 @@ def collect_resource_dir_paths(deps, runtime_classpath = None):
     Returns:
         A deduplicated list of workspace-relative resource directory path strings.
     """
-    resource_dirs = []
-    seen = {}
+    return _collect_marker_dir_paths(deps, runtime_classpath, _RESOURCE_MARKERS)
 
-    # From direct deps
-    for dep in deps:
-        if JavaInfo in dep:
-            _add_resource_dirs_for_package(dep.label.package, seen, resource_dirs)
+def write_runfiles_paths_file(ctx, name_suffix, files, separator):
+    """Writes the runfiles short_paths of `files`, joined by `separator`, to a file.
 
-    # From transitive runtime classpath (local artifacts only)
-    if runtime_classpath:
-        for jar in runtime_classpath.to_list():
-            if is_local_artifact(jar):
-                _add_resource_dirs_for_package(jar.owner.package, seen, resource_dirs)
+    Launcher scripts read these files at runtime to rebuild classpaths
+    relative to the runfiles tree.
 
-    return resource_dirs
-
-def _add_resource_dirs_for_package(pkg_path, seen, resource_dirs):
-    """Adds resource directory candidates for a given package path."""
-    for marker in _RESOURCE_MARKERS:
-        candidate = pkg_path + "/" + marker if pkg_path else marker
-        if candidate not in seen:
-            seen[candidate] = True
-            resource_dirs.append(candidate)
+    Args:
+        ctx: Rule context.
+        name_suffix: Suffix appended to the target name for the output file name.
+        files: Depset or list of Files.
+        separator: Join character (e.g. ":" or ",").
+    Returns:
+        The declared output File.
+    """
+    out = ctx.actions.declare_file(ctx.label.name + name_suffix)
+    args = ctx.actions.args()
+    args.add_joined(files, join_with = separator, map_each = short_path)
+    ctx.actions.write(output = out, content = args)
+    return out

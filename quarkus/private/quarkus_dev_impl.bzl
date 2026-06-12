@@ -11,14 +11,10 @@ mutable directory for Quarkus hot-reload.
 
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
-load("//quarkus/private:classpath_utils.bzl", "collect_resource_dir_paths", "collect_runtime_classpath", "collect_source_dir_paths", "is_local_artifact", "short_path")
+load("//quarkus/private:classpath_utils.bzl", "collect_resource_dir_paths", "collect_runtime_classpath", "collect_source_dir_paths", "is_local_artifact", "write_runfiles_paths_file")
 
 def _collect_bazel_targets(deps):
-    """Collects Bazel target labels from deps that have JavaInfo.
-
-    Includes all deps that provide JavaInfo and are local workspace targets
-    (not external repositories). These labels are passed to the file watcher
-    for `bazel build` invocation.
+    """Collects local workspace target labels for the file watcher's `bazel build`.
 
     Args:
         deps: List of targets providing JavaInfo.
@@ -28,30 +24,22 @@ def _collect_bazel_targets(deps):
     targets = []
     seen = {}
     for dep in deps:
-        if JavaInfo in dep:
-            label_str = str(dep.label)
-            if label_str in seen:
-                continue
+        if JavaInfo not in dep or dep.label.workspace_name:
+            continue
 
-            # Only include local workspace targets (not external repos)
-            if not dep.label.workspace_name:
-                seen[label_str] = True
-
-                # Strip the canonical repo prefix for CLI invocation
-                clean_label = label_str
-                if clean_label.startswith("@" + "@//"):
-                    clean_label = clean_label[2:]  # strip leading @@
-                elif clean_label.startswith("@//"):
-                    clean_label = clean_label[1:]  # strip leading @
-                targets.append(clean_label)
+        # str(label) is "@@//pkg:name" (or "@//pkg:name" pre-Bazel 7); strip
+        # the canonical repo prefix for CLI invocation.
+        label_str = str(dep.label).lstrip("@")
+        if label_str not in seen:
+            seen[label_str] = True
+            targets.append(label_str)
     return targets
 
 def _collect_classes_output_dirs(deps, runtime_classpath):
-    """Derives bazel-bin output paths for .class files from deps.
+    """Derives bazel-bin class jar paths for syncing into the mutable classes dir.
 
-    For each direct dep with JavaInfo, inspects JavaInfo.outputs.jars to find
-    the class jar path. Also includes transitive local runtime jars so classes
-    from workspace dependencies are available in the mutable classes directory.
+    Direct deps contribute their compiled class jars; transitive local runtime
+    jars are added so classes from workspace dependencies are available too.
 
     Args:
         deps: List of targets providing JavaInfo.
@@ -62,28 +50,23 @@ def _collect_classes_output_dirs(deps, runtime_classpath):
     jars = []
     seen = {}
     for dep in deps:
-        if JavaInfo not in dep:
+        if JavaInfo not in dep or dep.label.workspace_name:
             continue
-
-        # Only include local workspace targets
-        if dep.label.workspace_name:
-            continue
-
         for jar_output in dep[JavaInfo].outputs.jars:
             jar_path = jar_output.class_jar.path
-            if jar_path in seen:
-                continue
-            seen[jar_path] = True
-            jars.append(jar_path)
+            if jar_path not in seen:
+                seen[jar_path] = True
+                jars.append(jar_path)
     for jar in runtime_classpath.to_list():
-        jar_path = jar.path
-        if not is_local_artifact(jar):
-            continue
-        if jar_path in seen:
-            continue
-        seen[jar_path] = True
-        jars.append(jar_path)
+        if is_local_artifact(jar) and jar.path not in seen:
+            seen[jar.path] = True
+            jars.append(jar.path)
     return jars
+
+def _write_csv_file(ctx, name_suffix, values):
+    out = ctx.actions.declare_file(ctx.label.name + name_suffix)
+    ctx.actions.write(output = out, content = ",".join(values))
+    return out
 
 def _quarkus_dev_impl(ctx):
     if not ctx.attr.deps:
@@ -93,89 +76,62 @@ def _quarkus_dev_impl(ctx):
     deployment_classpath = collect_runtime_classpath([ctx.attr.deployment_deps]) if ctx.attr.deployment_deps else depset()
     core_deployment_classpath = collect_runtime_classpath([ctx.attr.core_deployment_deps]) if ctx.attr.core_deployment_deps else depset()
 
+    # Classpath and hot-reload metadata files, read by the launcher at runtime
+    # and resolved against the runfiles tree.
+    files = struct(
+        app_cp = write_runfiles_paths_file(ctx, "_app_cp.txt", runtime_classpath, ":"),
+        deploy_cp = write_runfiles_paths_file(ctx, "_deploy_cp.txt", depset(transitive = [runtime_classpath, deployment_classpath]), ":"),
+        core_deploy_cp = write_runfiles_paths_file(ctx, "_core_deploy_cp.txt", core_deployment_classpath, ":"),
+        source_dirs = _write_csv_file(ctx, "_source_dirs.txt", collect_source_dir_paths(ctx.attr.deps, runtime_classpath)),
+        resource_dirs = _write_csv_file(ctx, "_resource_dirs.txt", collect_resource_dir_paths(ctx.attr.deps, runtime_classpath)),
+        bazel_targets = _write_csv_file(ctx, "_bazel_targets.txt", _collect_bazel_targets(ctx.attr.deps)),
+        classes_output_dirs = _write_csv_file(ctx, "_classes_output_dirs.txt", _collect_classes_output_dirs(ctx.attr.deps, runtime_classpath)),
+    )
+
     tool_jar = ctx.file.quarkifier_tool
     java_runtime = ctx.attr._java_runtime[java_common.JavaRuntimeInfo]
+    launcher = _write_dev_launcher(ctx, tool_jar, files, java_runtime)
 
-    # Write the classpath files so the launcher script can read them at runtime.
-    # We use short_path so paths resolve correctly in the runfiles tree.
-    app_cp_file = ctx.actions.declare_file(ctx.label.name + "_app_cp.txt")
-    deploy_cp_file = ctx.actions.declare_file(ctx.label.name + "_deploy_cp.txt")
-    core_deploy_cp_file = ctx.actions.declare_file(ctx.label.name + "_core_deploy_cp.txt")
+    runfiles = ctx.runfiles(
+        files = [
+            tool_jar,
+            files.app_cp,
+            files.deploy_cp,
+            files.core_deploy_cp,
+            files.source_dirs,
+            files.resource_dirs,
+            files.bazel_targets,
+            files.classes_output_dirs,
+        ],
+        transitive_files = depset(transitive = [runtime_classpath, deployment_classpath, core_deployment_classpath, java_runtime.files]),
+    )
 
-    app_cp_args = ctx.actions.args()
-    app_cp_args.add_joined(runtime_classpath, join_with = ":", map_each = short_path)
-    ctx.actions.write(output = app_cp_file, content = app_cp_args)
+    return [DefaultInfo(executable = launcher, runfiles = runfiles)]
 
-    deploy_cp_args = ctx.actions.args()
-    deploy_cp_args.add_joined(depset(transitive = [runtime_classpath, deployment_classpath]), join_with = ":", map_each = short_path)
-    ctx.actions.write(output = deploy_cp_file, content = deploy_cp_args)
-
-    core_deploy_cp_args = ctx.actions.args()
-    core_deploy_cp_args.add_joined(core_deployment_classpath, join_with = ":", map_each = short_path)
-    ctx.actions.write(output = core_deploy_cp_file, content = core_deploy_cp_args)
-
-    # Collect source directories from deps and transitive classpath for hot-reload.
-    source_dirs = collect_source_dir_paths(ctx.attr.deps, runtime_classpath)
-    source_dirs_file = ctx.actions.declare_file(ctx.label.name + "_source_dirs.txt")
-    ctx.actions.write(output = source_dirs_file, content = ",".join(source_dirs))
-
-    # Collect resource directories from deps for Quarkus to find them.
-    resource_dirs = collect_resource_dir_paths(ctx.attr.deps, runtime_classpath)
-    resource_dirs_file = ctx.actions.declare_file(ctx.label.name + "_resource_dirs.txt")
-    ctx.actions.write(output = resource_dirs_file, content = ",".join(resource_dirs))
-
-    # Collect Bazel target labels for the file watcher to rebuild on changes.
-    bazel_targets = _collect_bazel_targets(ctx.attr.deps)
-    bazel_targets_file = ctx.actions.declare_file(ctx.label.name + "_bazel_targets.txt")
-    ctx.actions.write(output = bazel_targets_file, content = ",".join(bazel_targets))
-
-    # Collect classes output directory paths for class syncing after builds.
-    classes_output_dirs = _collect_classes_output_dirs(ctx.attr.deps, runtime_classpath)
-    classes_output_dirs_file = ctx.actions.declare_file(ctx.label.name + "_classes_output_dirs.txt")
-    ctx.actions.write(output = classes_output_dirs_file, content = ",".join(classes_output_dirs))
-
-    # Generate the launcher script
+def _write_dev_launcher(ctx, tool_jar, files, java_runtime):
+    """Expands the dev launcher template with the metadata file locations."""
     launcher = ctx.actions.declare_file(ctx.label.name + "_dev.sh")
     ctx.actions.expand_template(
         template = ctx.file._dev_launcher_template,
         output = launcher,
         substitutions = {
-            "%{app_cp_file}": app_cp_file.short_path,
-            "%{app_name}": ctx.label.name[:-4] if ctx.label.name.endswith("_dev") else ctx.label.name,
+            "%{app_cp_file}": files.app_cp.short_path,
+            "%{app_name}": ctx.label.name.removesuffix("_dev"),
             "%{app_version_flag}": "--app-version " + ctx.attr.version if ctx.attr.version else "",
-            "%{bazel_targets_file}": bazel_targets_file.short_path,
-            "%{classes_output_dirs_file}": classes_output_dirs_file.short_path,
-            "%{core_deploy_cp_file}": core_deploy_cp_file.short_path,
-            "%{deploy_cp_file}": deploy_cp_file.short_path,
+            "%{bazel_targets_file}": files.bazel_targets.short_path,
+            "%{classes_output_dirs_file}": files.classes_output_dirs.short_path,
+            "%{core_deploy_cp_file}": files.core_deploy_cp.short_path,
+            "%{deploy_cp_file}": files.deploy_cp.short_path,
+            "%{java_home}": java_runtime.java_home_runfiles_path,
             "%{quarkus_version}": ctx.attr.quarkus_version,
-            "%{resource_dirs_file}": resource_dirs_file.short_path,
-            "%{source_dirs_file}": source_dirs_file.short_path,
+            "%{resource_dirs_file}": files.resource_dirs.short_path,
+            "%{source_dirs_file}": files.source_dirs.short_path,
             "%{tool_jar}": tool_jar.short_path,
             "%{workspace}": ctx.workspace_name,
         },
         is_executable = True,
     )
-
-    runfiles = ctx.runfiles(
-        files = [
-            tool_jar,
-            app_cp_file,
-            deploy_cp_file,
-            core_deploy_cp_file,
-            source_dirs_file,
-            resource_dirs_file,
-            bazel_targets_file,
-            classes_output_dirs_file,
-        ],
-        transitive_files = depset(transitive = [runtime_classpath, deployment_classpath, core_deployment_classpath, java_runtime.files]),
-    )
-
-    return [
-        DefaultInfo(
-            executable = launcher,
-            runfiles = runfiles,
-        ),
-    ]
+    return launcher
 
 quarkus_dev_rule = rule(
     implementation = _quarkus_dev_impl,

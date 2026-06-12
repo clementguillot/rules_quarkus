@@ -12,26 +12,29 @@ load("@bazel_tools//tools/cpp:toolchain_utils.bzl", "find_cpp_toolchain", "use_c
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusNativeInfo")
+load("//quarkus/private:augmentation.bzl", "run_augmentation")
 load("//quarkus/private:classpath_utils.bzl", "collect_runtime_classpath")
-load("//quarkus/private:native_augmentation.bzl", "run_native_augmentation")
 
 _GVM_TOOLCHAIN_TYPE = "@rules_graalvm//graalvm/toolchain"
 
-def _quarkus_native_app_impl(ctx):
-    if not ctx.attr.deps:
-        fail("quarkus_native_app_rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
+# We cd into native-sources/ so that relative paths in the args file resolve
+# correctly. The args file ends with "<output-name> -jar <runner>.jar": the
+# output-name token is removed and replaced by -o with the absolute output
+# path. Monitoring options that may be incompatible with the installed
+# GraalVM version are stripped.
+_NATIVE_IMAGE_SCRIPT = """
+set -euo pipefail
+EXECROOT="$(pwd)"
+NATIVE_IMAGE="$EXECROOT/{native_image}"
+OUTPUT="$EXECROOT/{output}"
+CC_PATH="$EXECROOT/{cc_path}"
+cd "{native_sources}"
+ARGS=$(sed -e 's| {runner_name} -jar | -jar |' -e 's|--enable-monitoring=[^ ]*||g' native-image.args)
+exec "$NATIVE_IMAGE" $ARGS -H:CCompilerPath="$CC_PATH" -o "$OUTPUT"
+"""
 
-    runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
-    output_dir = ctx.actions.declare_directory(ctx.label.name + "-native-sources")
-
-    deployment_classpath = collect_runtime_classpath([ctx.attr.deployment_deps]) if ctx.attr.deployment_deps else depset()
-
-    # ---- Action 1: Quarkifier NATIVE augmentation ----
-    run_native_augmentation(ctx, output_dir, runtime_classpath, deployment_classpath)
-
-    # ---- Action 2: native-image invocation via rules_graalvm toolchain ----
-    binary = ctx.actions.declare_file(ctx.label.name)
-
+def _run_native_image(ctx, output_dir, binary):
+    """Compiles native-sources/ into a binary via the rules_graalvm toolchain."""
     graalvm_toolchain = ctx.toolchains[_GVM_TOOLCHAIN_TYPE].graalvm
     native_image_bin = graalvm_toolchain.native_image_bin.files_to_run
 
@@ -48,26 +51,10 @@ def _quarkus_native_app_impl(ctx):
         action_name = "c-compile",
     )
 
-    # The native-sources directory contains native-image.args with relative paths.
-    # We cd into native-sources/ so that relative paths in the args file resolve correctly.
-    native_sources_path = output_dir.path + "/native-sources"
-
     ctx.actions.run_shell(
-        command = """
-set -euo pipefail
-EXECROOT="$(pwd)"
-NATIVE_IMAGE="$EXECROOT/{native_image}"
-OUTPUT="$EXECROOT/{output}"
-CC_PATH="$EXECROOT/{cc_path}"
-cd "{native_sources}"
-# The args file ends with: <output-name> -jar <runner>.jar
-# Remove the output-name token and append -o with our absolute output path.
-# Also remove monitoring options that may be incompatible with the installed GraalVM version.
-ARGS=$(sed -e 's| {runner_name} -jar | -jar |' -e 's|--enable-monitoring=[^ ]*||g' native-image.args)
-exec "$NATIVE_IMAGE" $ARGS -H:CCompilerPath="$CC_PATH" -o "$OUTPUT"
-""".format(
+        command = _NATIVE_IMAGE_SCRIPT.format(
             native_image = native_image_bin.executable.path,
-            native_sources = native_sources_path,
+            native_sources = output_dir.path + "/native-sources",
             output = binary.path,
             runner_name = ctx.label.name + "-runner",
             cc_path = c_compiler_path,
@@ -83,6 +70,19 @@ exec "$NATIVE_IMAGE" $ARGS -H:CCompilerPath="$CC_PATH" -o "$OUTPUT"
         mnemonic = "NativeImage",
         progress_message = "Compiling native image for %{label}",
     )
+
+def _quarkus_native_app_impl(ctx):
+    if not ctx.attr.deps:
+        fail("quarkus_native_app_rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
+
+    runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
+    deployment_classpath = collect_runtime_classpath([ctx.attr.deployment_deps]) if ctx.attr.deployment_deps else depset()
+
+    output_dir = ctx.actions.declare_directory(ctx.label.name + "-native-sources")
+    run_augmentation(ctx, output_dir, runtime_classpath, deployment_classpath, mode = "native")
+
+    binary = ctx.actions.declare_file(ctx.label.name)
+    _run_native_image(ctx, output_dir, binary)
 
     return [
         DefaultInfo(
