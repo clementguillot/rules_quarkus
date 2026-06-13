@@ -8,93 +8,62 @@ output, and generating a launcher script for `bazel run`.
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusAppInfo")
+load("//quarkus/private:augmentation.bzl", "run_augmentation")
 load("//quarkus/private:classpath_utils.bzl", "collect_runtime_classpath", "collect_source_jars", "is_local_artifact")
 
-def _quarkus_app_impl(ctx):
-    if not ctx.attr.deps:
-        fail("quarkus_app rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
+def _shell_quote(s):
+    """Shell-quotes a string so it survives word splitting."""
+    return "'" + s.replace("'", "'\\''") + "'"
 
-    runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
-
-    # Partition into local workspace jars and external Maven jars
-    local_jars = [jar for jar in runtime_classpath.to_list() if is_local_artifact(jar)]
-
-    source_jars = collect_source_jars(ctx.attr.deps)
-    output_dir = ctx.actions.declare_directory(ctx.label.name + "-quarkus-app")
-
-    deployment_classpath = collect_runtime_classpath([ctx.attr.deployment_deps]) if ctx.attr.deployment_deps else depset()
-
-    # Resolve the quarkifier deploy jar (fat/uber jar with all tool deps bundled).
-    tool_jar = ctx.file.quarkifier_tool
-
-    java_runtime = ctx.attr._java_runtime[java_common.JavaRuntimeInfo]
-
-    # Quarkifier CLI args
-    args = ctx.actions.args()
-    args.add_joined("--application-classpath", runtime_classpath, join_with = ":")
-    if local_jars:
-        args.add_joined("--local-app-jars", local_jars, join_with = ":")
-    args.add_joined("--deployment-classpath", depset(transitive = [runtime_classpath, deployment_classpath]), join_with = ":")
-    args.add("--output-dir", output_dir.path)
-    args.add("--expected-quarkus-version", ctx.attr.quarkus_version)
-    args.add("--app-name", ctx.label.name)
-    if ctx.attr.version:
-        args.add("--app-version", ctx.attr.version)
-    if ctx.attr.main_class:
-        args.add("--main-class", ctx.attr.main_class)
-
-    # Invoke the selected version-specific deploy jar. The deploy jar is a fat
-    # jar containing all tool classes + dependencies, so no -cp assembly is
-    # needed. The tool handles classloader isolation internally via the augment
-    # classloader + TCCL.
-    jar_args = ctx.actions.args()
-    jar_args.add("-Djava.util.logging.manager=org.jboss.logmanager.LogManager")
-    jar_args.add("-jar")
-    jar_args.add(tool_jar)
-
-    ctx.actions.run(
-        executable = java_runtime.java_executable_exec_path,
-        arguments = [jar_args, args],
-        inputs = depset(
-            direct = [tool_jar],
-            transitive = [runtime_classpath, deployment_classpath, java_runtime.files],
-        ),
-        outputs = [output_dir],
-        mnemonic = "QuarkusAugmentation",
-        progress_message = "Running Quarkus augmentation for %{label}",
-    )
-
-    # Launcher script
+def _write_launcher(ctx, output_dir, java_runtime):
     launcher = ctx.actions.declare_file(ctx.label.name + "_launcher.sh")
-    jvm_flags = " ".join(ctx.attr.jvm_flags)
-    main_class_flag = ""
-    if ctx.attr.main_class:
-        main_class_flag = "-Dquarkus.package.main-class=" + ctx.attr.main_class
-
+    main_class_flag = _shell_quote("-Dquarkus.package.main-class=" + ctx.attr.main_class) if ctx.attr.main_class else ""
     ctx.actions.expand_template(
         template = ctx.file._launcher_template,
         output = launcher,
         substitutions = {
-            "%{jvm_flags}": jvm_flags,
+            "%{java_home}": java_runtime.java_home_runfiles_path,
+            "%{jvm_flags}": " ".join([_shell_quote(f) for f in ctx.attr.jvm_flags]),
             "%{main_class_flag}": main_class_flag,
             "%{output_dir}": output_dir.short_path,
             "%{workspace}": ctx.workspace_name,
         },
         is_executable = True,
     )
+    return launcher
 
-    runfiles = ctx.runfiles(files = [output_dir])
+def _quarkus_app_impl(ctx):
+    if not ctx.attr.deps:
+        fail("quarkus_app rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
+
+    runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
+    deployment_classpath = collect_runtime_classpath([ctx.attr.deployment_deps]) if ctx.attr.deployment_deps else depset()
+    local_jars = [jar for jar in runtime_classpath.to_list() if is_local_artifact(jar)]
+
+    output_dir = ctx.actions.declare_directory(ctx.label.name + "-quarkus-app")
+    run_augmentation(ctx, output_dir, runtime_classpath, deployment_classpath, local_jars = local_jars)
+
+    # The launcher runs the app with the target-config Java runtime from
+    # runfiles instead of whatever `java` happens to be on PATH.
+    target_java_runtime = ctx.attr._target_java_runtime[java_common.JavaRuntimeInfo]
+    launcher = _write_launcher(ctx, output_dir, target_java_runtime)
 
     return [
         DefaultInfo(
             executable = launcher,
             files = depset([output_dir, launcher]),
-            runfiles = runfiles,
+            runfiles = ctx.runfiles(
+                files = [output_dir],
+                transitive_files = target_java_runtime.files,
+            ),
+        ),
+        OutputGroupInfo(
+            quarkus_app = depset([output_dir]),
         ),
         QuarkusAppInfo(
             fast_jar_dir = output_dir,
             application_classpath = runtime_classpath,
-            source_jars = source_jars,
+            source_jars = collect_source_jars(ctx.attr.deps),
             quarkus_version = ctx.attr.quarkus_version,
         ),
     ]
@@ -126,6 +95,10 @@ quarkus_app_rule = rule(
         "_java_runtime": attr.label(
             default = "@bazel_tools//tools/jdk:current_java_runtime",
             cfg = "exec",
+        ),
+        "_target_java_runtime": attr.label(
+            default = "@bazel_tools//tools/jdk:current_java_runtime",
+            doc = "Target-config Java runtime used by the launcher at run time.",
         ),
         "_launcher_template": attr.label(
             default = Label("//quarkus/private:launcher.sh.tpl"),

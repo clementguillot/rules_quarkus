@@ -10,45 +10,49 @@ Produces a single generated repository (@rules_quarkus) containing:
   - deployment/: deployment jars resolved via Coursier
 """
 
-load("//quarkus/private:versions.bzl", "GITHUB_OWNER", "GITHUB_REPO", "MAVEN_CENTRAL", "RULES_VERSION", "SUPPORTED_VERSIONS")
+load("//quarkus/private:versions.bzl", "COURSIER_SHA256", "COURSIER_URL", "GITHUB_OWNER", "GITHUB_REPO", "MAVEN_CENTRAL", "RULES_VERSION", "SUPPORTED_VERSIONS")
 
-# ---- Helpers ----
+_DEFAULT_EXTENSION_GROUP_PREFIXES = ["io.quarkus", "io.quarkiverse."]
+
+# ---- Version helpers ----
 
 def _extract_minor_version(version):
-    """Extracts the minor version (MAJOR.MINOR) from a full version string.
-
-    Args:
-        version: Full version string (e.g. "3.27.4", "3.33.2").
-
-    Returns:
-        Minor version string (e.g. "3.21", "3.27").
-    """
+    """Extracts the minor version (e.g. "3.27") from a full version string."""
     parts = version.split(".")
     if len(parts) < 2:
         fail("Invalid Quarkus version '{}': expected MAJOR.MINOR.PATCH format".format(version))
     return parts[0] + "." + parts[1]
 
-def _sanitize_version(minor_version):
-    """Replaces dots with underscores for use in Bazel target and repo names.
+def _validate_version(version):
+    """Validates a full Quarkus version against SUPPORTED_VERSIONS.
 
-    Args:
-        minor_version: Minor version string (e.g. "3.27").
+    The quarkifier is bytecode-coupled to exact patch versions, so the full
+    version must match the supported patch for its minor exactly.
 
     Returns:
-        Sanitized string (e.g. "3_27").
+        The minor version string (e.g. "3.27").
     """
+    minor = _extract_minor_version(version)
+    supported_list = ", ".join([SUPPORTED_VERSIONS[m] for m in sorted(SUPPORTED_VERSIONS)])
+    expected = SUPPORTED_VERSIONS.get(minor)
+    if not expected:
+        fail("Unsupported Quarkus minor version '{}' (from version '{}'). Supported versions: {}".format(
+            minor,
+            version,
+            supported_list,
+        ))
+    if version != expected:
+        fail("Unsupported Quarkus version '{}': the quarkifier is coupled to exact patch versions. Supported versions: {}".format(
+            version,
+            supported_list,
+        ))
+    return minor
+
+def _sanitize_version(minor_version):
+    """Replaces dots with underscores for use in Bazel target and repo names."""
     return minor_version.replace(".", "_")
 
-_DEFAULT_EXTENSION_GROUP_PREFIXES = ["io.quarkus", "io.quarkiverse."]
-
-def _matches_prefix(group_id, prefixes):
-    for prefix in prefixes:
-        if prefix.endswith("."):
-            if group_id.startswith(prefix) or group_id == prefix[:-1]:
-                return True
-        elif group_id == prefix:
-            return True
-    return False
+# ---- Coursier stderr parsing ----
 
 def _coursier_error_gav(line):
     """Returns the GAV from a Coursier error header, or empty string."""
@@ -98,6 +102,17 @@ def _missing_artifacts_from_coursier_stderr(stderr):
 
     return missing
 
+# ---- Deployment artifact discovery ----
+
+def _matches_prefix(group_id, prefixes):
+    for prefix in prefixes:
+        if prefix.endswith("."):
+            if group_id.startswith(prefix) or group_id == prefix[:-1]:
+                return True
+        elif group_id == prefix:
+            return True
+    return False
+
 def _append_deployment_artifacts_from_lock_map(lock_artifacts, deployment_artifacts, prefixes, version):
     seen = {gav: True for gav in deployment_artifacts}
     for coord_key in lock_artifacts:
@@ -115,114 +130,151 @@ def _append_deployment_artifacts_from_lock_map(lock_artifacts, deployment_artifa
             seen[deployment_gav] = True
             deployment_artifacts.append(deployment_gav)
 
-def _rules_quarkus_repo_impl(rctx):
-    """Creates the unified @rules_quarkus repository.
+def _discover_deployment_artifacts(mctx, tc, version):
+    """Builds the deployment GAV list: core + lock-file extensions + dev-only deps."""
+    deployment_artifacts = ["io.quarkus:quarkus-core-deployment:" + version]
+    prefixes = tc.extension_group_prefixes or _DEFAULT_EXTENSION_GROUP_PREFIXES
 
-    Contains:
-      - quarkus/defs.bzl: public macros
-      - quarkifier/tool.jar: the quarkifier deploy jar
-      - deployment/: java_library targets for deployment jars
+    if tc.lock_file:
+        lock_content = mctx.read(tc.lock_file)
+        if lock_content:
+            lock_data = json.decode(lock_content)
+
+            # Prefer direct dependencies first for deterministic ordering, then
+            # scan the resolved graph too so transitive Quarkus extensions are
+            # not missed. Non-extension internal modules that do not publish a
+            # -deployment artifact are filtered during the Coursier retry.
+            input_artifacts = lock_data.get("__INPUT_ARTIFACTS_HASH", {})
+            if input_artifacts:
+                _append_deployment_artifacts_from_lock_map(input_artifacts, deployment_artifacts, prefixes, version)
+
+            resolved_artifacts = lock_data.get("artifacts", lock_data.get("dependencies", lock_data.get("__RESOLVED_ARTIFACTS_HASH", {})))
+            if resolved_artifacts:
+                _append_deployment_artifacts_from_lock_map(resolved_artifacts, deployment_artifacts, prefixes, version)
+
+    # quarkus-devui-deployment is a conditional dev dependency of
+    # quarkus-vertx-http (Dev UI): Quarkus activates it only in dev mode via
+    # "conditional-dev-dependencies" in quarkus-extension.properties. Maven's
+    # resolver handles this automatically; we must add it explicitly.
+    devui_gav = "io.quarkus:quarkus-devui-deployment:" + version
+    if devui_gav not in deployment_artifacts:
+        deployment_artifacts.append(devui_gav)
+
+    return deployment_artifacts
+
+# ---- Quarkifier tool resolution ----
+
+def _build_quarkifier_from_source(rctx):
+    """Builds the quarkifier deploy jar from a local source checkout.
+
+    Runs a nested Bazel build with a dedicated output base so it does not
+    clash with the outer build holding the workspace lock.
     """
+    src_workspace_raw = str(rctx.path(rctx.attr.quarkifier_source_dir).dirname)
+    realpath_result = rctx.execute(["realpath", src_workspace_raw])
+    src_workspace = realpath_result.stdout.strip() if realpath_result.return_code == 0 else src_workspace_raw
 
-    # ---- Phase 1: Resolve quarkifier tool ----
-    if rctx.attr.quarkifier_source_dir:
-        # Local build mode
-        src_workspace_raw = str(rctx.path(rctx.attr.quarkifier_source_dir).dirname)
-        realpath_result = rctx.execute(["realpath", src_workspace_raw])
-        src_workspace = realpath_result.stdout.strip() if realpath_result.return_code == 0 else src_workspace_raw
+    nested_output_base = src_workspace + "/.bazel-nested-build"
 
-        nested_output_base = src_workspace + "/.bazel-nested-build"
+    bin_result = rctx.execute(
+        ["bazel", "--output_base=" + nested_output_base, "info", "bazel-bin", "--lockfile_mode=off"],
+        working_directory = src_workspace,
+        timeout = 60,
+    )
+    bazel_bin = bin_result.stdout.strip() if bin_result.return_code == 0 else src_workspace + "/bazel-bin"
 
-        bin_result = rctx.execute(
-            ["bazel", "--output_base=" + nested_output_base, "info", "bazel-bin", "--lockfile_mode=off"],
+    target = rctx.attr.quarkifier_build_target
+    deploy_jar = bazel_bin + "/" + target.lstrip("/").replace(":", "/")
+
+    if rctx.execute(["test", "-f", deploy_jar]).return_code != 0:
+        rctx.report_progress("Building {} from source".format(target))
+        build_result = rctx.execute(
+            ["bazel", "--output_base=" + nested_output_base, "build", target, "--lockfile_mode=off"],
             working_directory = src_workspace,
-            timeout = 60,
+            timeout = 300,
         )
-        if bin_result.return_code == 0:
-            bazel_bin = bin_result.stdout.strip()
-        else:
-            bazel_bin = src_workspace + "/bazel-bin"
-
-        target = rctx.attr.quarkifier_build_target
-        target_path = target.lstrip("/").replace(":", "/")
-        deploy_jar = bazel_bin + "/" + target_path
-
-        prod_exists = rctx.execute(["test", "-f", deploy_jar]).return_code == 0
-        if not prod_exists:
-            rctx.report_progress("Building {} from source".format(target))
-            build_result = rctx.execute(
-                ["bazel", "--output_base=" + nested_output_base, "build", target, "--lockfile_mode=off"],
-                working_directory = src_workspace,
-                timeout = 300,
-            )
-            if build_result.return_code != 0:
-                fail("Failed to build {} in {}:\n{}".format(target, src_workspace, build_result.stderr))
-
-        result = rctx.execute(["test", "-f", deploy_jar])
-        if result.return_code != 0:
+        if build_result.return_code != 0:
+            fail("Failed to build {} in {}:\n{}".format(target, src_workspace, build_result.stderr))
+        if rctx.execute(["test", "-f", deploy_jar]).return_code != 0:
             fail("Quarkifier deploy jar not found at: {}".format(deploy_jar))
 
-        rctx.symlink(deploy_jar, "quarkifier/tool.jar")
+    rctx.symlink(deploy_jar, "quarkifier/tool.jar")
+
+def _resolve_quarkifier_tool(rctx):
+    """Materializes quarkifier/tool.jar from a local build or a release download."""
+    if rctx.attr.quarkifier_source_dir:
+        _build_quarkifier_from_source(rctx)
     elif rctx.attr.quarkifier_url:
-        # Download mode
         rctx.download(url = rctx.attr.quarkifier_url, output = "quarkifier/tool.jar")
     else:
         fail("Either quarkifier_source_dir or quarkifier_url must be set")
 
-    # ---- Phase 2: Resolve deployment jars via Coursier ----
-    rctx.download(
-        url = "https://github.com/coursier/launchers/raw/master/coursier",
-        output = "deployment/coursier",
-        executable = True,
+# ---- Deployment jar resolution via Coursier ----
+
+def _coursier_fetch(rctx, artifacts):
+    """Runs a batched Coursier fetch.
+
+    Timeout scales with artifact count: cold-cache batch fetches for large
+    projects can legitimately exceed a flat 300 s.
+    """
+    return rctx.execute(
+        ["./deployment/coursier", "fetch", "--repository", rctx.attr.repository_url] + artifacts,
+        timeout = max(300, len(artifacts) * 60),
     )
 
+def _jar_paths_from_fetch_output(stdout, seen):
+    """Extracts unique jar paths from Coursier fetch stdout, updating `seen`."""
+    jars = []
+    for raw_line in stdout.strip().split("\n"):
+        line = raw_line.strip()
+        if line.endswith(".jar") and line not in seen:
+            seen[line] = True
+            jars.append(line)
+    return jars
+
+def _resolve_core_jars(rctx):
+    """Resolves the quarkus-core-deployment transitive closure (the "core" set).
+
+    Fails hard on error: continuing would materialize an empty deployment:core
+    target and silently break dev mode at runtime.
+    """
     artifacts = rctx.attr.deployment_artifacts
-    repository_url = rctx.attr.repository_url
+    if not artifacts:
+        return []
+    rctx.report_progress("Resolving core deployment dependencies")
+    result = _coursier_fetch(rctx, [artifacts[0]])
+    if result.return_code != 0:
+        fail("Failed to resolve core deployment dependencies ('{}') via Coursier:\n{}".format(
+            artifacts[0],
+            result.stderr,
+        ))
+    return _jar_paths_from_fetch_output(result.stdout, {})
 
-    # Phase 2a: Resolve quarkus-core-deployment transitive deps (the "core" set).
-    core_jar_paths = []
-    core_gav = artifacts[0] if artifacts else None
-    if core_gav:
-        rctx.report_progress("Resolving core deployment dependencies")
-        result = rctx.execute(
-            ["./deployment/coursier", "fetch", "--repository", repository_url, core_gav],
-            timeout = 300,
-        )
-        if result.return_code == 0:
-            for line in result.stdout.strip().split("\n"):
-                line = line.strip()
-                if line.endswith(".jar") and line not in core_jar_paths:
-                    core_jar_paths.append(line)
+def _resolve_deployment_jars(rctx, core_jar_paths):
+    """Resolves all deployment artifacts in a single batched Coursier call.
 
-    core_jar_set = {p: True for p in core_jar_paths}
+    Batching avoids spawning a separate JVM per artifact (6-10x faster). If
+    the batch fails because some artifacts don't exist, stderr is parsed to
+    identify genuinely missing ones and the fetch is retried without them.
+    Up to 3 retries, so incrementally-reported missing artifacts are
+    progressively removed until resolution stabilises.
 
-    # Phase 2b: Resolve all deployment artifacts in a single batched call.
-    # This avoids spawning a separate JVM per artifact (6-10x faster).
-    # If the batch fails because some artifacts don't exist, parse stderr
-    # to identify genuinely missing ones and retry without them.
-    # The loop retries up to 3 times so that incrementally-reported missing
-    # artifacts are progressively removed until resolution stabilises.
-    # Timeout scales with artifact count: cold-cache batch fetches for large
-    # projects can legitimately exceed a flat 300 s.
+    Returns:
+        The list of all resolved jar paths, starting with core_jar_paths.
+    """
     rctx.report_progress("Resolving deployment artifacts")
-    all_jars = list(core_jar_paths)
-    seen_jars = {p: True for p in core_jar_paths}
-    fetch_artifacts = list(artifacts)
+    fetch_artifacts = list(rctx.attr.deployment_artifacts)
     first_stderr = ""
-    result = rctx.execute(
-        ["./deployment/coursier", "fetch", "--repository", repository_url] + fetch_artifacts,
-        timeout = max(300, len(fetch_artifacts) * 60),
-    )
+    result = _coursier_fetch(rctx, fetch_artifacts)
     for _ in range(3):
         if result.return_code == 0:
             break
 
-        # Identify genuinely missing artifacts (404 / not found) vs other errors.
         # Coursier stderr contains multi-line blocks per failed artifact:
         #   "Error downloading group:artifact:version"
         #   "  not found: <url>"
         #   "  download error: ..."
-        # We retry only when every non-empty line in a GAV's error block is
+        # Retry only when every non-empty line in a GAV's error block is
         # "not found:". Mixed blocks fail closed so transient/private-repo
         # failures cannot be mistaken for missing extension deployment jars.
         missing = _missing_artifacts_from_coursier_stderr(result.stderr)
@@ -232,22 +284,38 @@ def _rules_quarkus_repo_impl(rctx):
         if not first_stderr:
             first_stderr = result.stderr
         fetch_artifacts = filtered
-        result = rctx.execute(
-            ["./deployment/coursier", "fetch", "--repository", repository_url] + fetch_artifacts,
-            timeout = max(300, len(fetch_artifacts) * 60),
-        )
-    if result.return_code == 0:
-        for line in result.stdout.strip().split("\n"):
-            line = line.strip()
-            if line.endswith(".jar") and line not in seen_jars:
-                seen_jars[line] = True
-                all_jars.append(line)
-    elif first_stderr:
-        fail("Failed to resolve deployment artifacts via Coursier:\n{}\n\n(Initial error before retry:\n{})".format(result.stderr, first_stderr))
-    else:
-        fail("Failed to resolve deployment artifacts via Coursier:\n{}".format(result.stderr))
+        result = _coursier_fetch(rctx, fetch_artifacts)
 
-    # Phase 2c: Generate deployment BUILD targets.
+    if result.return_code != 0:
+        message = "Failed to resolve deployment artifacts via Coursier:\n" + result.stderr
+        if first_stderr:
+            message += "\n\n(Initial error before retry:\n{})".format(first_stderr)
+        fail(message)
+
+    seen_jars = {p: True for p in core_jar_paths}
+    return list(core_jar_paths) + _jar_paths_from_fetch_output(result.stdout, seen_jars)
+
+def _maven_relative_path(jar_path):
+    """Returns the jar path relative to its Maven repository root.
+
+    Preserving the Maven directory structure (group/artifact/version/file) in
+    the deployment symlinks is required for Dev UI version extraction.
+    Coursier cache paths contain a "maven2" component; everything after it is
+    the Maven-layout path. Falls back to the bare file name.
+    """
+    parts = jar_path.replace("\\", "/").split("/")
+    if "maven2" in parts:
+        maven2_idx = parts.index("maven2")
+        if maven2_idx + 1 < len(parts):
+            return "/".join(parts[maven2_idx + 1:])
+    return parts[-1]
+
+def _write_deployment_build(rctx, all_jars, core_jar_set):
+    """Symlinks resolved jars and writes the deployment/ BUILD file.
+
+    Generates one java_import per jar plus two aggregate java_library targets:
+    "core" (quarkus-core-deployment closure) and "all" (every deployment jar).
+    """
     imports = []
     all_targets = []
     core_targets = []
@@ -259,26 +327,7 @@ def _rules_quarkus_repo_impl(rctx):
             continue
         seen[target_name] = True
 
-        # Preserve Maven directory structure in symlinks for Dev UI version extraction.
-        relative_jar_path = jar_file
-        path_parts = jar_path.replace("\\", "/").split("/")
-
-        for marker in ["maven2", "v1"]:
-            if marker in path_parts:
-                marker_idx = path_parts.index(marker)
-                if marker == "v1" and marker_idx + 3 < len(path_parts):
-                    maven2_idx = -1
-                    for k in range(marker_idx + 1, len(path_parts)):
-                        if path_parts[k] == "maven2":
-                            maven2_idx = k
-                            break
-                    if maven2_idx >= 0 and maven2_idx + 1 < len(path_parts):
-                        relative_jar_path = "/".join(path_parts[maven2_idx + 1:])
-                        break
-                elif marker == "maven2" and marker_idx + 1 < len(path_parts):
-                    relative_jar_path = "/".join(path_parts[marker_idx + 1:])
-                    break
-
+        relative_jar_path = _maven_relative_path(jar_path)
         rctx.symlink(jar_path, "deployment/jars/" + relative_jar_path)
 
         imports.append(
@@ -288,20 +337,6 @@ def _rules_quarkus_repo_impl(rctx):
         if jar_path in core_jar_set:
             core_targets.append('":{}"'.format(target_name))
 
-    # ---- Phase 3: Write BUILD files ----
-
-    # Root BUILD
-    rctx.file("BUILD.bazel", content = """\
-package(default_visibility = ["//visibility:public"])
-""")
-
-    # quarkifier/ BUILD
-    rctx.file("quarkifier/BUILD.bazel", content = """\
-package(default_visibility = ["//visibility:public"])
-exports_files(["tool.jar"])
-""")
-
-    # deployment/ BUILD
     rctx.file("deployment/BUILD.bazel", content = """\
 load("@rules_java//java:java_import.bzl", "java_import")
 load("@rules_java//java:java_library.bzl", "java_library")
@@ -315,14 +350,9 @@ java_library(name = "all", exports = [{all_exports}])
         all_exports = ", ".join(all_targets),
     ))
 
-    # ---- Phase 4: Write quarkus/defs.bzl ----
+# ---- Generated @rules_quarkus//quarkus:defs.bzl ----
 
-    rctx.file("quarkus/BUILD.bazel", content = """\
-package(default_visibility = ["//visibility:public"])
-exports_files(["defs.bzl"])
-""")
-
-    rctx.file("quarkus/defs.bzl", content = """\
+_DEFS_BZL_TEMPLATE = """\
 \"\"\"Public API — load quarkus_app and quarkus_test from here.
 
     load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_test")
@@ -375,9 +405,11 @@ def quarkus_app(name, dev = True, native = False, native_container_build = False
         deployment_deps = _DEPLOYMENT_DEPS,
         **kwargs
     )
+
+    deps = kwargs.get("deps", [])
+    version = kwargs.get("version", "")
+    main_class = kwargs.get("main_class", "")
     if dev:
-        deps = kwargs.get("deps", [])
-        version = kwargs.get("version", "")
         quarkus_dev_rule(
             name = name + "_dev",
             quarkus_version = _QUARKUS_VERSION,
@@ -388,9 +420,6 @@ def quarkus_app(name, dev = True, native = False, native_container_build = False
             version = version,
         )
     if native:
-        deps = kwargs.get("deps", [])
-        version = kwargs.get("version", "")
-        main_class = kwargs.get("main_class", "")
         quarkus_native_app_rule(
             name = name + "_native",
             quarkus_version = _QUARKUS_VERSION,
@@ -401,9 +430,6 @@ def quarkus_app(name, dev = True, native = False, native_container_build = False
             main_class = main_class,
         )
     if native_container_build:
-        deps = kwargs.get("deps", [])
-        version = kwargs.get("version", "")
-        main_class = kwargs.get("main_class", "")
         quarkus_native_container_app_rule(
             name = name + "_native",
             quarkus_version = _QUARKUS_VERSION,
@@ -455,7 +481,46 @@ def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_clas
         deps = test_deps,
         **test_kwargs
     )
-""".format(version = rctx.attr.quarkus_version))
+"""
+
+# ---- Repository rule ----
+
+def _rules_quarkus_repo_impl(rctx):
+    """Creates the unified @rules_quarkus repository.
+
+    Contains:
+      - quarkus/defs.bzl: public macros
+      - quarkifier/tool.jar: the quarkifier deploy jar
+      - deployment/: java_library targets for deployment jars
+    """
+    _resolve_quarkifier_tool(rctx)
+
+    rctx.download(
+        url = COURSIER_URL,
+        sha256 = COURSIER_SHA256,
+        output = "deployment/coursier",
+        executable = True,
+    )
+
+    core_jar_paths = _resolve_core_jars(rctx)
+    all_jars = _resolve_deployment_jars(rctx, core_jar_paths)
+    _write_deployment_build(rctx, all_jars, {p: True for p in core_jar_paths})
+
+    rctx.file("BUILD.bazel", content = """\
+package(default_visibility = ["//visibility:public"])
+""")
+
+    rctx.file("quarkifier/BUILD.bazel", content = """\
+package(default_visibility = ["//visibility:public"])
+exports_files(["tool.jar"])
+""")
+
+    rctx.file("quarkus/BUILD.bazel", content = """\
+package(default_visibility = ["//visibility:public"])
+exports_files(["defs.bzl"])
+""")
+
+    rctx.file("quarkus/defs.bzl", content = _DEFS_BZL_TEMPLATE.format(version = rctx.attr.quarkus_version))
 
 _rules_quarkus_repo = repository_rule(
     implementation = _rules_quarkus_repo_impl,
@@ -471,6 +536,25 @@ _rules_quarkus_repo = repository_rule(
 
 # ---- Module extension ----
 
+def _quarkifier_repo_attrs(tc, minor):
+    """Returns the repo attrs selecting local-build or release-download mode."""
+    if tc.quarkifier_source_dir:
+        return {
+            "quarkifier_source_dir": tc.quarkifier_source_dir,
+            "quarkifier_build_target": "//quarkifier:quarkifier_{}_deploy.jar".format(_sanitize_version(minor)),
+        }
+
+    release_tag = "v" + RULES_VERSION
+    return {
+        "quarkifier_url": "https://github.com/{}/{}/releases/download/{}/quarkifier-{}-{}.jar".format(
+            GITHUB_OWNER,
+            GITHUB_REPO,
+            release_tag,
+            minor,
+            release_tag,
+        ),
+    }
+
 def _quarkus_impl(mctx):
     toolchains = mctx.modules[0].tags.toolchain
     if not toolchains:
@@ -478,93 +562,21 @@ def _quarkus_impl(mctx):
 
     tc = toolchains[0]
     version = tc.quarkus_version
+    minor = _validate_version(version)
 
-    # Extract and validate the minor version against SUPPORTED_VERSIONS keys.
-    minor = _extract_minor_version(version)
-    if minor not in SUPPORTED_VERSIONS:
-        supported_list = ", ".join(sorted(SUPPORTED_VERSIONS.keys()))
-        fail("Unsupported Quarkus minor version '{}' (from version '{}'). Supported minor versions: {}".format(
-            minor,
-            version,
-            supported_list,
-        ))
-
-    sanitized = _sanitize_version(minor)
-
-    # Resolve quarkifier tool source
-    quarkifier_url = ""
-    quarkifier_source_dir = None
-    quarkifier_build_target = ""
-
-    if tc.quarkifier_source_dir:
-        quarkifier_source_dir = tc.quarkifier_source_dir
-        quarkifier_build_target = "//quarkifier:quarkifier_{}_deploy.jar".format(sanitized)
-    else:
-        # Download per-minor JAR from GitHub releases.
-        release_tag = "v" + RULES_VERSION
-        quarkifier_url = "https://github.com/{}/{}/releases/download/{}/quarkifier-{}-{}.jar".format(
-            GITHUB_OWNER,
-            GITHUB_REPO,
-            release_tag,
-            minor,
-            release_tag,
-        )
-
-    # Auto-discover deployment artifacts from lock file
-    deployment_artifacts = [
-        "io.quarkus:quarkus-core-deployment:" + version,
-    ]
-
-    # Conditional dev dependencies: these are extensions that Quarkus activates
-    # only in dev mode via "conditional-dev-dependencies" in quarkus-extension.properties.
-    # Maven's resolver handles this automatically; we must add them explicitly.
-    # quarkus-devui-deployment: conditional dev dep of quarkus-vertx-http (Dev UI)
-    conditional_dev_deployment_artifacts = [
-        "io.quarkus:quarkus-devui-deployment:" + version,
-    ]
-
-    prefixes = tc.extension_group_prefixes if tc.extension_group_prefixes else _DEFAULT_EXTENSION_GROUP_PREFIXES
-
-    if tc.lock_file:
-        lock_content = mctx.read(tc.lock_file)
-        if lock_content:
-            lock_data = json.decode(lock_content)
-
-            # Prefer direct dependencies first for deterministic ordering, then
-            # scan the resolved graph too so transitive Quarkus extensions are
-            # not missed. Non-extension internal modules that do not publish a
-            # -deployment artifact are filtered during the Coursier retry.
-            input_artifacts = lock_data.get("__INPUT_ARTIFACTS_HASH", {})
-            if input_artifacts:
-                _append_deployment_artifacts_from_lock_map(input_artifacts, deployment_artifacts, prefixes, version)
-
-            resolved_artifacts = lock_data.get("artifacts", lock_data.get("dependencies", lock_data.get("__RESOLVED_ARTIFACTS_HASH", {})))
-            if resolved_artifacts:
-                _append_deployment_artifacts_from_lock_map(resolved_artifacts, deployment_artifacts, prefixes, version)
-
-    # Add conditional dev deployment artifacts after extension discovery
-    for gav in conditional_dev_deployment_artifacts:
-        if gav not in deployment_artifacts:
-            deployment_artifacts.append(gav)
-
-    # Create the single unified repository
     repo_attrs = {
         "name": "rules_quarkus",
         "quarkus_version": version,
-        "deployment_artifacts": deployment_artifacts,
+        "deployment_artifacts": _discover_deployment_artifacts(mctx, tc, version),
     }
-    if quarkifier_source_dir:
-        repo_attrs["quarkifier_source_dir"] = quarkifier_source_dir
-        repo_attrs["quarkifier_build_target"] = quarkifier_build_target
-    else:
-        repo_attrs["quarkifier_url"] = quarkifier_url
+    repo_attrs.update(_quarkifier_repo_attrs(tc, minor))
 
     _rules_quarkus_repo(**repo_attrs)
 
 _toolchain_tag = tag_class(
     attrs = {
         "extension_group_prefixes": attr.string_list(
-            default = ["io.quarkus", "io.quarkiverse."],
+            default = _DEFAULT_EXTENSION_GROUP_PREFIXES,
             doc = "Maven groupId prefixes that identify Quarkus extensions.",
         ),
         "lock_file": attr.label(
@@ -580,7 +592,8 @@ Example: '@com_clementguillot_rules_quarkus//:MODULE.bazel'
         ),
         "quarkus_version": attr.string(
             mandatory = True,
-            doc = "The Quarkus version to use. Must be '3.27.4' or '3.33.2'.",
+            doc = "The Quarkus version to use. Must be one of: " +
+                  ", ".join([SUPPORTED_VERSIONS[m] for m in sorted(SUPPORTED_VERSIONS)]) + ".",
         ),
     },
 )

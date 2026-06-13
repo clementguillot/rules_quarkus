@@ -11,35 +11,17 @@ quarkus_app macro when native_container_build=True, creating a <name>_native tar
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusNativeInfo")
+load("//quarkus/private:augmentation.bzl", "run_augmentation")
 load("//quarkus/private:classpath_utils.bzl", "collect_runtime_classpath")
-load("//quarkus/private:native_augmentation.bzl", "run_native_augmentation")
 
-def _quarkus_native_container_app_impl(ctx):
-    if not ctx.attr.deps:
-        fail("quarkus_native_container_app_rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
-
-    runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
-    output_dir = ctx.actions.declare_directory(ctx.label.name + "-native-sources")
-
-    deployment_classpath = collect_runtime_classpath([ctx.attr.deployment_deps]) if ctx.attr.deployment_deps else depset()
-
-    # ---- Action 1: Quarkifier NATIVE augmentation ----
-    run_native_augmentation(ctx, output_dir, runtime_classpath, deployment_classpath)
-
-    # ---- Action 2: native-image inside container ----
-    binary = ctx.actions.declare_file(ctx.label.name)
-
-    native_sources_path = output_dir.path + "/native-sources"
-    requested_runtime = ctx.attr.container_runtime
-    builder_image = ctx.attr.builder_image
-    app_name = ctx.label.name
-
-    ctx.actions.run_shell(
-        command = """
+# Container runtime auto-detection is backported from Quarkus
+# ContainerRuntimeUtil.java. Inside the container, the args file ends with
+# "<app_name>-runner -jar <runner>.jar": the output-name token is removed and
+# replaced by -o with the mounted output path, and monitoring options that may
+# be incompatible with the builder image's GraalVM version are stripped.
+_CONTAINER_BUILD_SCRIPT = """
 set -euo pipefail
 
-# ---- Container runtime auto-detection ----
-# Backported from Quarkus ContainerRuntimeUtil.java
 detect_container_runtime() {{
   local REQUESTED="$1"
 
@@ -99,22 +81,52 @@ OUTPUT_DIR=$(dirname "$EXECROOT/{output}")
 
 mkdir -p "$OUTPUT_DIR"
 
-$RUNTIME run --rm --user root --entrypoint bash \
-  -v "$NATIVE_SOURCES:/project-src:ro" \
-  -v "$OUTPUT_DIR:/output" \
-  -w /work \
-  '{builder_image}' \
+# On Linux the bind mounts write straight to the host filesystem, so run the
+# build as the host user — otherwise the binary lands root-owned in bazel-out
+# (breaking e.g. `bazel clean`). Rootless Podman additionally needs keep-id so
+# the host uid maps to itself inside the container. On macOS/Windows the VM
+# file-sharing layer translates ownership, so the image default (root) is fine.
+USER_ARGS=(--user root)
+if [ "$(uname -s)" = "Linux" ]; then
+  USER_ARGS=(--user "$(id -u):$(id -g)")
+  if [ "$RUNTIME" = "podman" ] && [ "$(id -u)" != "0" ]; then
+    USER_ARGS+=(--userns=keep-id)
+  fi
+fi
+
+# Sources are copied to a container-local directory because native-image
+# resolves the relative paths in native-image.args against the working
+# directory and writes temp files next to them. /tmp is writable for any uid.
+$RUNTIME run --rm "${{USER_ARGS[@]}}" --entrypoint bash \\
+  -v "$NATIVE_SOURCES:/project-src:ro" \\
+  -v "$OUTPUT_DIR:/output" \\
+  '{builder_image}' \\
   -c '
-    cp -a /project-src/. /work/ &&
+    mkdir -p /tmp/work && cd /tmp/work &&
+    cp -a /project-src/. . &&
     ARGS=$(sed -e "s| {app_name}-runner -jar | -jar |" -e "s|--enable-monitoring=[^ ]*||g" native-image.args) &&
     native-image $ARGS -o /output/{app_name}
   '
-""".format(
-            requested_runtime = requested_runtime,
-            native_sources = native_sources_path,
+"""
+
+def _quarkus_native_container_app_impl(ctx):
+    if not ctx.attr.deps:
+        fail("quarkus_native_container_app_rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
+
+    runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
+    deployment_classpath = collect_runtime_classpath([ctx.attr.deployment_deps]) if ctx.attr.deployment_deps else depset()
+
+    output_dir = ctx.actions.declare_directory(ctx.label.name + "-native-sources")
+    run_augmentation(ctx, output_dir, runtime_classpath, deployment_classpath, mode = "native")
+
+    binary = ctx.actions.declare_file(ctx.label.name)
+    ctx.actions.run_shell(
+        command = _CONTAINER_BUILD_SCRIPT.format(
+            requested_runtime = ctx.attr.container_runtime,
+            native_sources = output_dir.path + "/native-sources",
             output = binary.path,
-            builder_image = builder_image,
-            app_name = app_name,
+            builder_image = ctx.attr.builder_image,
+            app_name = ctx.label.name,
         ),
         inputs = depset(direct = [output_dir]),
         outputs = [binary],
