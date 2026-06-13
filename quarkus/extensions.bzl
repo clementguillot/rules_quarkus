@@ -133,7 +133,7 @@ def _append_deployment_artifacts_from_lock_map(lock_artifacts, deployment_artifa
 def _discover_deployment_artifacts(mctx, tc, version):
     """Builds the deployment GAV list: core + lock-file extensions + dev-only deps."""
     deployment_artifacts = ["io.quarkus:quarkus-core-deployment:" + version]
-    prefixes = tc.extension_group_prefixes or _DEFAULT_EXTENSION_GROUP_PREFIXES
+    prefixes = tc.extension_group_prefixes
 
     if tc.lock_file:
         lock_content = mctx.read(tc.lock_file)

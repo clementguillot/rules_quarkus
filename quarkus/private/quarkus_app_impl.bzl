@@ -99,6 +99,7 @@ quarkus_app_rule = rule(
         "_target_java_runtime": attr.label(
             default = "@bazel_tools//tools/jdk:current_java_runtime",
             doc = "Target-config Java runtime used by the launcher at run time.",
+            cfg = "exec",
         ),
         "_launcher_template": attr.label(
             default = Label("//quarkus/private:launcher.sh.tpl"),

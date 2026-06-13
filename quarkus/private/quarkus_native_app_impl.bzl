@@ -27,7 +27,11 @@ set -euo pipefail
 EXECROOT="$(pwd)"
 NATIVE_IMAGE="$EXECROOT/{native_image}"
 OUTPUT="$EXECROOT/{output}"
-CC_PATH="$EXECROOT/{cc_path}"
+CC_PATH="{cc_path}"
+case "$CC_PATH" in
+  /*) ;;
+  *) CC_PATH="$EXECROOT/$CC_PATH" ;;
+esac
 cd "{native_sources}"
 ARGS=$(sed -e 's| {runner_name} -jar | -jar |' -e 's|--enable-monitoring=[^ ]*||g' native-image.args)
 exec "$NATIVE_IMAGE" $ARGS -H:CCompilerPath="$CC_PATH" -o "$OUTPUT"
