@@ -21,7 +21,7 @@ GITHUB_REPO = "rules_quarkus"
 # Maven Central URL for Coursier-based deployment artifact resolution.
 MAVEN_CENTRAL = "https://repo1.maven.org/maven2"
 
-# Coursier JVM launcher, pinned for reproducible deployment artifact resolution.
+# Coursier fat JAR, pinned for reproducible deployment artifact resolution.
 COURSIER_VERSION = "2.1.24"
-COURSIER_URL = "https://github.com/coursier/coursier/releases/download/v{v}/coursier".format(v = COURSIER_VERSION)
-COURSIER_SHA256 = "7aa975f12469726d6bb87852107afe0b8d6f3c82b12a49ef43cc6647c4e057ca"
+COURSIER_URL = "https://github.com/coursier/coursier/releases/download/v{v}/coursier.jar".format(v = COURSIER_VERSION)
+COURSIER_SHA256 = "8c724dc204534353ea8263ba0af624979658f7ab62395f35b04f03ce5714f330"

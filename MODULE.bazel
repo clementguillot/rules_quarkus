@@ -57,6 +57,20 @@ use_repo(
 # JVM dependencies
 bazel_dep(name = "rules_java", version = "9.6.1")
 
+# Hermetic JDK fallback for running Coursier in the quarkus module extension.
+# Repository rules execute in the fetch phase and cannot use the Java
+# toolchain selected by --java_runtime_version, so the extension references
+# these rules_java-managed repos directly (fetched lazily, and shared with
+# the build when it already uses a remote JDK).
+java_toolchains = use_extension("@rules_java//java:extensions.bzl", "toolchains")
+use_repo(
+    java_toolchains,
+    "remotejdk17_linux",
+    "remotejdk17_linux_aarch64",
+    "remotejdk17_macos",
+    "remotejdk17_macos_aarch64",
+)
+
 bazel_dep(name = "rules_jvm_external", version = "6.10", dev_dependency = True)
 
 # Quarkus 3.27 LTS dependencies
