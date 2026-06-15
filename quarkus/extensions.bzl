@@ -211,14 +211,69 @@ def _resolve_quarkifier_tool(rctx):
 
 # ---- Deployment jar resolution via Coursier ----
 
-def _coursier_fetch(rctx, artifacts):
+# bin/java of the rules_java-managed remote JDKs, keyed by host platform.
+# These are the same repos --java_runtime_version=remotejdk_17 resolves to,
+# so when the build already uses a remote JDK no extra download happens.
+_REMOTE_JDK_JAVA = {
+    "linux-aarch64": Label("@remotejdk17_linux_aarch64//:bin/java"),
+    "linux-x86_64": Label("@remotejdk17_linux//:bin/java"),
+    "macos-aarch64": Label("@remotejdk17_macos_aarch64//:bin/java"),
+    "macos-x86_64": Label("@remotejdk17_macos//:bin/java"),
+}
+
+def _host_platform_key(os):
+    """Maps an os struct to a _REMOTE_JDK_JAVA key, or None if unsupported."""
+    name = os.name.lower()
+    if "mac" in name:
+        platform = "macos"
+    elif "linux" in name:
+        platform = "linux"
+    else:
+        return None
+    arch = os.arch.lower()
+    if arch in ["aarch64", "arm64"]:
+        cpu = "aarch64"
+    elif arch in ["x86_64", "amd64"]:
+        cpu = "x86_64"
+    else:
+        return None
+    return platform + "-" + cpu
+
+def _is_usable_java(rctx, java):
+    return rctx.execute([java, "-version"], timeout = 30).return_code == 0
+
+def _find_java(rctx):
+    """Locates a JVM to run Coursier with.
+
+    Repository rules run in the fetch phase, before toolchain resolution, so
+    --java_runtime_version cannot be honored here. Order: JAVA_HOME, then a
+    validated `java` from PATH (the macOS /usr/bin/java stub fails without an
+    installed JDK), then the hermetic fallback JDK (fetched lazily).
+    """
+    java_home = rctx.getenv("JAVA_HOME")
+    if java_home:
+        java = java_home + "/bin/java"
+        if rctx.path(java).exists and _is_usable_java(rctx, java):
+            return java
+
+    java = rctx.which("java")
+    if java and _is_usable_java(rctx, str(java)):
+        return str(java)
+
+    if rctx.attr.fallback_java:
+        return str(rctx.path(rctx.attr.fallback_java))
+
+    fail("No Java runtime found to run Coursier: set JAVA_HOME or add java to PATH " +
+         "(no bundled JDK fallback is available for this host platform).")
+
+def _coursier_fetch(rctx, java, artifacts):
     """Runs a batched Coursier fetch.
 
     Timeout scales with artifact count: cold-cache batch fetches for large
     projects can legitimately exceed a flat 300 s.
     """
     return rctx.execute(
-        ["./deployment/coursier", "fetch", "--repository", rctx.attr.repository_url] + artifacts,
+        [java, "-jar", "deployment/coursier.jar", "fetch", "--repository", rctx.attr.repository_url] + artifacts,
         timeout = max(300, len(artifacts) * 60),
     )
 
@@ -232,7 +287,7 @@ def _jar_paths_from_fetch_output(stdout, seen):
             jars.append(line)
     return jars
 
-def _resolve_core_jars(rctx):
+def _resolve_core_jars(rctx, java):
     """Resolves the quarkus-core-deployment transitive closure (the "core" set).
 
     Fails hard on error: continuing would materialize an empty deployment:core
@@ -242,7 +297,7 @@ def _resolve_core_jars(rctx):
     if not artifacts:
         return []
     rctx.report_progress("Resolving core deployment dependencies")
-    result = _coursier_fetch(rctx, [artifacts[0]])
+    result = _coursier_fetch(rctx, java, [artifacts[0]])
     if result.return_code != 0:
         fail("Failed to resolve core deployment dependencies ('{}') via Coursier:\n{}".format(
             artifacts[0],
@@ -250,7 +305,7 @@ def _resolve_core_jars(rctx):
         ))
     return _jar_paths_from_fetch_output(result.stdout, {})
 
-def _resolve_deployment_jars(rctx, core_jar_paths):
+def _resolve_deployment_jars(rctx, java, core_jar_paths):
     """Resolves all deployment artifacts in a single batched Coursier call.
 
     Batching avoids spawning a separate JVM per artifact (6-10x faster). If
@@ -265,7 +320,7 @@ def _resolve_deployment_jars(rctx, core_jar_paths):
     rctx.report_progress("Resolving deployment artifacts")
     fetch_artifacts = list(rctx.attr.deployment_artifacts)
     first_stderr = ""
-    result = _coursier_fetch(rctx, fetch_artifacts)
+    result = _coursier_fetch(rctx, java, fetch_artifacts)
     for _ in range(3):
         if result.return_code == 0:
             break
@@ -284,7 +339,7 @@ def _resolve_deployment_jars(rctx, core_jar_paths):
         if not first_stderr:
             first_stderr = result.stderr
         fetch_artifacts = filtered
-        result = _coursier_fetch(rctx, fetch_artifacts)
+        result = _coursier_fetch(rctx, java, fetch_artifacts)
 
     if result.return_code != 0:
         message = "Failed to resolve deployment artifacts via Coursier:\n" + result.stderr
@@ -498,12 +553,12 @@ def _rules_quarkus_repo_impl(rctx):
     rctx.download(
         url = COURSIER_URL,
         sha256 = COURSIER_SHA256,
-        output = "deployment/coursier",
-        executable = True,
+        output = "deployment/coursier.jar",
     )
 
-    core_jar_paths = _resolve_core_jars(rctx)
-    all_jars = _resolve_deployment_jars(rctx, core_jar_paths)
+    java = _find_java(rctx)
+    core_jar_paths = _resolve_core_jars(rctx, java)
+    all_jars = _resolve_deployment_jars(rctx, java, core_jar_paths)
     _write_deployment_build(rctx, all_jars, {p: True for p in core_jar_paths})
 
     rctx.file("BUILD.bazel", content = """\
@@ -526,6 +581,10 @@ _rules_quarkus_repo = repository_rule(
     implementation = _rules_quarkus_repo_impl,
     attrs = {
         "deployment_artifacts": attr.string_list(mandatory = True, doc = "Deployment GAV coordinates to resolve."),
+        "fallback_java": attr.label(
+            allow_single_file = True,
+            doc = "bin/java of the hermetic JDK used to run Coursier when the host has no usable JVM.",
+        ),
         "quarkifier_build_target": attr.string(doc = "Bazel target for the per-minor deploy jar (local build mode)."),
         "quarkifier_source_dir": attr.label(doc = "Label in the rules_quarkus source dir (local build mode)."),
         "quarkifier_url": attr.string(doc = "URL to download the quarkifier jar from (release mode)."),
@@ -570,6 +629,10 @@ def _quarkus_impl(mctx):
         "deployment_artifacts": _discover_deployment_artifacts(mctx, tc, version),
     }
     repo_attrs.update(_quarkifier_repo_attrs(tc, minor))
+
+    fallback_java = _REMOTE_JDK_JAVA.get(_host_platform_key(mctx.os))
+    if fallback_java:
+        repo_attrs["fallback_java"] = fallback_java
 
     _rules_quarkus_repo(**repo_attrs)
 
