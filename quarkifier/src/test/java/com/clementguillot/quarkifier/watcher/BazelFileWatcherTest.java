@@ -2,7 +2,6 @@ package com.clementguillot.quarkifier.watcher;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.clementguillot.quarkifier.AugmentationMode;
 import com.clementguillot.quarkifier.QuarkifierConfig;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -20,25 +19,32 @@ class BazelFileWatcherTest {
   @TempDir Path tempDir;
 
   private QuarkifierConfig testConfig(Path outputDir, List<Path> sourceDirs) {
-    return new QuarkifierConfig(
-        List.of(Path.of("app.jar")),
-        List.of(),
-        List.of(),
-        outputDir,
-        List.of(),
-        AugmentationMode.DEV,
-        "3.27.4",
-        "test-app",
-        "1.0.0",
-        null,
-        null,
-        sourceDirs,
-        tempDir.resolve("classes"),
-        List.of("//pkg:lib"),
-        List.of(),
-        tempDir,
-        5,
-        List.of());
+    var args =
+        new java.util.ArrayList<>(
+            List.of(
+                "--application-classpath", "app.jar",
+                "--deployment-classpath", "",
+                "--output-dir", outputDir.toString(),
+                "--mode", "dev",
+                "--expected-quarkus-version", "3.27.4",
+                "--app-name", "test-app",
+                "--app-version", "1.0.0",
+                "--classes-dir", tempDir.resolve("classes").toString(),
+                "--bazel-targets", "//pkg:lib",
+                "--workspace-dir", tempDir.toString(),
+                "--bazel-build-timeout-seconds", "5"));
+    if (!sourceDirs.isEmpty()) {
+      args.add("--source-dirs");
+      args.add(
+          sourceDirs.stream()
+              .map(Path::toString)
+              .collect(java.util.stream.Collectors.joining(",")));
+    }
+    try {
+      return QuarkifierConfig.parse(args.toArray(String[]::new));
+    } catch (QuarkifierConfig.InvalidArgumentsException e) {
+      throw new IllegalStateException("Invalid test config", e);
+    }
   }
 
   @Test

@@ -2,10 +2,10 @@ package com.clementguillot.quarkifier.dev;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.clementguillot.quarkifier.AugmentationMode;
 import com.clementguillot.quarkifier.QuarkifierConfig;
 import io.quarkus.bootstrap.app.QuarkusBootstrap;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
@@ -13,32 +13,30 @@ import org.junit.jupiter.api.Test;
 /** Unit tests for {@link DevModeLauncher#buildDevModeContext}. */
 class DevModeLauncherTest {
 
-  private static QuarkifierConfig configWithSourceDirs(List<Path> sourceDirs) {
-    return new QuarkifierConfig(
-        List.of(Path.of("app.jar")),
-        List.of(Path.of("deploy.jar")),
-        List.of(),
-        Path.of("/tmp/output"),
-        List.of(),
-        AugmentationMode.DEV,
-        "3.27.4",
-        "my-app",
-        "1.0.0",
-        null,
-        null,
-        sourceDirs,
-        null,
-        List.of(),
-        List.of(),
-        null,
-        60,
-        List.of());
+  /** Builds a dev-mode config from the baseline flags plus {@code extraArgs}. */
+  private static QuarkifierConfig devConfig(String... extraArgs) {
+    var args =
+        new ArrayList<>(
+            List.of(
+                "--application-classpath", "app.jar",
+                "--deployment-classpath", "deploy.jar",
+                "--output-dir", "/tmp/output",
+                "--mode", "dev",
+                "--expected-quarkus-version", "3.27.4",
+                "--app-name", "my-app",
+                "--app-version", "1.0.0"));
+    args.addAll(List.of(extraArgs));
+    try {
+      return QuarkifierConfig.parse(args.toArray(String[]::new));
+    } catch (QuarkifierConfig.InvalidArgumentsException e) {
+      throw new IllegalStateException("Invalid test config", e);
+    }
   }
 
   @Test
   void buildDevModeContext_withSourceDirs_setsSourcePaths() {
     var sourceDirs = List.of(Path.of("src/main/java"), Path.of("lib/src/main/java"));
-    var config = configWithSourceDirs(sourceDirs);
+    var config = devConfig("--source-dirs", "src/main/java,lib/src/main/java");
 
     var context = DevModeLauncher.buildDevModeContext(config);
 
@@ -57,9 +55,7 @@ class DevModeLauncherTest {
 
   @Test
   void buildDevModeContext_withoutSourceDirs_emptySourcePaths() {
-    var config = configWithSourceDirs(List.of());
-
-    var context = DevModeLauncher.buildDevModeContext(config);
+    var context = DevModeLauncher.buildDevModeContext(devConfig());
 
     assertNotNull(context.getApplicationRoot());
     var sourcePaths = context.getApplicationRoot().getMain().getSourcePaths();
@@ -72,44 +68,19 @@ class DevModeLauncherTest {
 
   @Test
   void buildDevModeContext_abortOnFailedStart_alwaysTrue() {
-    var config = configWithSourceDirs(List.of());
-
-    var context = DevModeLauncher.buildDevModeContext(config);
-
-    assertTrue(context.isAbortOnFailedStart());
+    assertTrue(DevModeLauncher.buildDevModeContext(devConfig()).isAbortOnFailedStart());
   }
 
   @Test
   void buildDevModeContext_localProjectDiscovery_alwaysFalse() {
-    var config = configWithSourceDirs(List.of(Path.of("src/main/java")));
-
-    var context = DevModeLauncher.buildDevModeContext(config);
+    var context = DevModeLauncher.buildDevModeContext(devConfig("--source-dirs", "src/main/java"));
 
     assertFalse(context.isLocalProjectDiscovery());
   }
 
   @Test
   void buildDevModeContext_fallsBackToOutputDir_whenWorkspaceDirNull() {
-    var config =
-        new QuarkifierConfig(
-            List.of(Path.of("app.jar")),
-            List.of(Path.of("deploy.jar")),
-            List.of(),
-            Path.of("/tmp/output"),
-            List.of(),
-            AugmentationMode.DEV,
-            "3.27.4",
-            "my-app",
-            "1.0.0",
-            null,
-            null,
-            List.of(Path.of("src/main/java")),
-            null,
-            List.of(),
-            List.of(),
-            null,
-            60,
-            List.of());
+    var config = devConfig("--source-dirs", "src/main/java");
 
     var context = DevModeLauncher.buildDevModeContext(config);
 
@@ -128,25 +99,7 @@ class DevModeLauncherTest {
   void buildDevModeContext_setsProjectDir_fromWorkspaceDir() {
     var workspaceDir = Path.of("/home/user/project");
     var config =
-        new QuarkifierConfig(
-            List.of(Path.of("app.jar")),
-            List.of(Path.of("deploy.jar")),
-            List.of(),
-            Path.of("/tmp/output"),
-            List.of(),
-            AugmentationMode.DEV,
-            "3.27.4",
-            "my-app",
-            "1.0.0",
-            null,
-            null,
-            List.of(Path.of("src/main/java")),
-            null,
-            List.of(),
-            List.of(),
-            workspaceDir,
-            60,
-            List.of());
+        devConfig("--source-dirs", "src/main/java", "--workspace-dir", "/home/user/project");
 
     var context = DevModeLauncher.buildDevModeContext(config);
 
@@ -160,25 +113,7 @@ class DevModeLauncherTest {
   void buildDevModeContext_setsTargetDir_asSubdirOfWorkspaceDir() {
     var workspaceDir = Path.of("/home/user/project");
     var config =
-        new QuarkifierConfig(
-            List.of(Path.of("app.jar")),
-            List.of(Path.of("deploy.jar")),
-            List.of(),
-            Path.of("/tmp/output"),
-            List.of(),
-            AugmentationMode.DEV,
-            "3.27.4",
-            "my-app",
-            "1.0.0",
-            null,
-            null,
-            List.of(Path.of("src/main/java")),
-            null,
-            List.of(),
-            List.of(),
-            workspaceDir,
-            60,
-            List.of());
+        devConfig("--source-dirs", "src/main/java", "--workspace-dir", "/home/user/project");
 
     var context = DevModeLauncher.buildDevModeContext(config);
 
@@ -191,25 +126,10 @@ class DevModeLauncherTest {
   void buildDevModeContext_withClassesDir_usesClassesDirForClassesPath() {
     var classesDir = Path.of("/tmp/mutable-classes");
     var config =
-        new QuarkifierConfig(
-            List.of(Path.of("app.jar")),
-            List.of(Path.of("deploy.jar")),
-            List.of(),
-            Path.of("/tmp/output"),
-            List.of(),
-            AugmentationMode.DEV,
-            "3.27.4",
-            "my-app",
-            "1.0.0",
-            null,
-            null,
-            List.of(Path.of("src/main/java")),
-            classesDir,
-            List.of("//pkg:lib"),
-            List.of(),
-            null,
-            60,
-            List.of());
+        devConfig(
+            "--source-dirs", "src/main/java",
+            "--classes-dir", "/tmp/mutable-classes",
+            "--bazel-targets", "//pkg:lib");
 
     var context = DevModeLauncher.buildDevModeContext(config);
 
@@ -220,9 +140,7 @@ class DevModeLauncherTest {
 
   @Test
   void buildDevModeContext_withoutClassesDir_usesAppJarForClassesPath() {
-    var config = configWithSourceDirs(List.of(Path.of("src/main/java")));
-
-    var context = DevModeLauncher.buildDevModeContext(config);
+    var context = DevModeLauncher.buildDevModeContext(devConfig("--source-dirs", "src/main/java"));
 
     assertEquals(
         Path.of("app.jar").toAbsolutePath().toString(),

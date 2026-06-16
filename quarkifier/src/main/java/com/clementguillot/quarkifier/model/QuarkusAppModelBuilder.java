@@ -42,6 +42,114 @@ public final class QuarkusAppModelBuilder {
 
   private static final String JAR_TYPE = "jar";
 
+  /**
+   * Bootstrap and infrastructure jars loaded parent-first by the augment classloader. Without this
+   * delegation, the same class loaded by two classloaders causes LinkageError and
+   * ClassCastException.
+   *
+   * <p>Jars containing CDI beans (e.g. {@code smallrye-config} which has {@code ConfigProducer})
+   * must NOT be parent-first — ArC-generated proxies cause VerifyError across classloader
+   * boundaries.
+   */
+  private static final Set<String> PARENT_FIRST_ARTIFACT_IDS =
+      Set.of(
+          // Bootstrap infrastructure
+          "quarkus-bootstrap-core",
+          "quarkus-bootstrap-app-model",
+          "quarkus-bootstrap-runner",
+          "quarkus-classloader-commons",
+          "quarkus-development-mode-spi",
+          "quarkus-fs-util",
+          "quarkus-bootstrap-maven-resolver",
+          // Core (needed by IsolatedDevModeMain and test mode classloader delegation)
+          "quarkus-core",
+          // Value registry — must be parent-first to avoid LinkageError in dev mode.
+          // ExtensionLoader (in augment classloader) calls ValueRegistryImpl$Builder.build()
+          // which returns ValueRegistry; if ValueRegistry is loaded by two different
+          // classloaders the JVM throws a loader constraint violation.
+          "quarkus-value-registry",
+          // Config infrastructure. Note: smallrye-config itself is NOT parent-first
+          // because it contains CDI beans (ConfigProducer) whose ArC proxies cause
+          // VerifyError across classloader boundaries. Only the core/common/api jars
+          // (which don't contain CDI beans) are parent-first.
+          "smallrye-config-core",
+          "smallrye-config-common",
+          "microprofile-config-api",
+          // Logging
+          "jboss-logmanager",
+          "jboss-logging",
+          "slf4j-api",
+          "slf4j-jboss-logmanager",
+          "jboss-logging-annotations",
+          // Threading
+          "jboss-threads",
+          "wildfly-common",
+          // SmallRye common (used by config)
+          "smallrye-common-constraint",
+          "smallrye-common-expression",
+          "smallrye-common-function",
+          "smallrye-common-classloader",
+          "smallrye-common-io",
+          "smallrye-common-annotation",
+          "smallrye-common-cpu",
+          "smallrye-common-net",
+          "smallrye-common-os",
+          "smallrye-common-ref",
+          // JSON (used by config)
+          "jakarta.json-api",
+          "parsson",
+          // Jakarta APIs (needed parent-first so that classes like
+          // smallrye-common-annotation's Identifier$Literal, which extends
+          // jakarta.enterprise.util.AnnotationLiteral, are loaded by the same
+          // classloader — prevents VerifyError in dev mode)
+          "jakarta.enterprise.cdi-api",
+          "jakarta.enterprise.lang-model",
+          "jakarta.inject-api",
+          "jakarta.interceptor-api",
+          "jakarta.annotation-api",
+          "jakarta.el-api",
+          "jakarta.transaction-api",
+          // JUnit Platform + Jupiter API — must be parent-first so that
+          // @Test and other JUnit annotations loaded by the QuarkusClassLoader
+          // are the same class instances as those used by JUnit's engine
+          // (which is loaded by the app classloader in ConsoleLauncher mode).
+          "junit-jupiter-api",
+          "junit-jupiter-engine",
+          "junit-jupiter-params",
+          "junit-platform-commons",
+          "junit-platform-engine",
+          "junit-platform-launcher",
+          "opentest4j",
+          // Other infrastructure
+          "quarkus-ide-launcher",
+          "crac",
+          "commons-logging-jboss-logging");
+
+  /**
+   * Artifacts that must carry {@code CLASSLOADER_RUNNER_PARENT_FIRST}. Normally {@code
+   * handleExtensionProperties} sets this from quarkus-extension.properties, but the GACT keys it
+   * creates have empty type while our dependencies have type "jar" — the keys never match, so the
+   * flag is set manually by artifactId instead.
+   */
+  private static final Set<String> RUNNER_PARENT_FIRST_ARTIFACT_IDS =
+      Set.of(
+          "quarkus-bootstrap-runner",
+          "quarkus-classloader-commons",
+          "quarkus-development-mode-spi",
+          "jboss-logmanager",
+          "jboss-logging",
+          "slf4j-jboss-logmanager",
+          "slf4j-api",
+          "smallrye-common-constraint",
+          "smallrye-common-cpu",
+          "smallrye-common-expression",
+          "smallrye-common-function",
+          "smallrye-common-io",
+          "smallrye-common-net",
+          "smallrye-common-os",
+          "smallrye-common-ref",
+          "crac");
+
   private QuarkusAppModelBuilder() {}
 
   /**
@@ -65,53 +173,87 @@ public final class QuarkusAppModelBuilder {
       String appName,
       String appVersion)
       throws IOException {
-
     var modelBuilder = new ApplicationModelBuilder();
-    Set<Path> extensionJars = registerExtensions(modelBuilder, runtimeJars);
+    Set<Path> extensionJars = registerAllExtensions(modelBuilder, runtimeJars, deployClasspath);
 
-    // Also scan deployment jars for runtime extensions that were pulled in as
-    // transitive deps of deployment artifacts (e.g., quarkus-devui is a transitive
-    // dep of quarkus-devui-deployment). These are "conditional dev dependencies"
-    // that Maven's resolver adds automatically in dev mode.
-    Set<String> knownExtensionArtifactIds = new HashSet<>();
-    for (Path jar : extensionJars) {
-      knownExtensionArtifactIds.add(MavenCoordinateParser.parse(jar).artifactId());
-    }
-    Set<Path> deployExtensionJars =
-        registerExtensions(
-            modelBuilder,
-            deployClasspath.stream()
-                .filter(
-                    jar ->
-                        !knownExtensionArtifactIds.contains(
-                            MavenCoordinateParser.parse(jar).artifactId()))
-                .toList());
-    extensionJars.addAll(deployExtensionJars);
-
-    Path appJar = localAppJars.get(0);
-    setAppArtifact(modelBuilder, appJar, appName, appVersion);
-
-    // Add additional local app jars (index 1+) as runtime dependencies so they
-    // appear in the model. They are also indexed via the application root
-    // PathCollection mechanism in AugmentationExecutor.
-    if (localAppJars.size() > 1) {
-      addLocalAppJarDependencies(modelBuilder, localAppJars.subList(1, localAppJars.size()));
-    }
-
-    Set<ArtifactKey> addedKeys = addRuntimeDependencies(modelBuilder, runtimeJars, extensionJars);
-    addDeploymentDependencies(modelBuilder, deployClasspath, addedKeys, extensionJars);
-    markParentFirstArtifacts(modelBuilder);
-    fixRunnerParentFirstFlags(modelBuilder);
+    setAppArtifact(modelBuilder, localAppJars.get(0), appName, appVersion);
+    registerDependencies(modelBuilder, localAppJars, runtimeJars, deployClasspath, extensionJars);
     populateDependencyLinks(modelBuilder, runtimeJars);
+    return finishModel(modelBuilder);
+  }
+
+  /**
+   * Builds an {@link ApplicationModel} for test mode, including a {@link WorkspaceModule} with test
+   * sources so that {@code AppMakerHelper} can locate test classes.
+   *
+   * <p>Same pipeline as {@link #build} except for the app artifact (which carries a workspace
+   * module) and the Dev UI dependency graph (not needed in tests).
+   *
+   * @param localAppJars local workspace jars — the first element becomes the app artifact, and
+   *     remaining jars are added as runtime dependencies (they are also indexed via the application
+   *     root {@code PathCollection} mechanism in the caller)
+   * @param runtimeJars remaining runtime dependency jars (external Maven jars)
+   * @param deployClasspath deployment-only jars
+   * @param appName optional application name override
+   * @param appVersion optional application version override
+   * @return a fully configured ApplicationModel with workspace module for test mode
+   * @throws IOException if jar scanning fails
+   */
+  public static ApplicationModel buildForTest(
+      List<Path> localAppJars,
+      List<Path> runtimeJars,
+      List<Path> deployClasspath,
+      String appName,
+      String appVersion)
+      throws IOException {
+    var modelBuilder = new ApplicationModelBuilder();
+    Set<Path> extensionJars = registerAllExtensions(modelBuilder, runtimeJars, deployClasspath);
+
+    setAppArtifactForTest(modelBuilder, localAppJars.get(0), appName, appVersion);
+    registerDependencies(modelBuilder, localAppJars, runtimeJars, deployClasspath, extensionJars);
+    return finishModel(modelBuilder);
+  }
+
+  /** Shared tail of both build pipelines. */
+  private static ApplicationModel finishModel(ApplicationModelBuilder modelBuilder) {
     // ApplicationModel.asMap() (used by ApplicationModelSerializer for JSON serialization)
     // calls getPlatforms().asMap() without a null check. Set an empty PlatformImports so
     // serialization works when no Quarkus platform BOMs are imported (Bazel-managed deps).
     modelBuilder.setPlatformImports(new PlatformImportsImpl());
-
     return modelBuilder.build();
   }
 
   // ---- Extension registration ----
+
+  /**
+   * Registers extensions found on the runtime classpath, then scans deployment jars for runtime
+   * extensions that were pulled in as transitive deps of deployment artifacts (e.g. quarkus-devui
+   * is a transitive dep of quarkus-devui-deployment). These are "conditional dev dependencies" that
+   * Maven's resolver adds automatically in dev mode.
+   *
+   * @return the set of jar paths that are Quarkus extensions (used to flag them later)
+   */
+  private static Set<Path> registerAllExtensions(
+      ApplicationModelBuilder modelBuilder, List<Path> runtimeJars, List<Path> deployClasspath)
+      throws IOException {
+    Set<Path> extensionJars = registerExtensions(modelBuilder, runtimeJars);
+
+    Set<String> knownExtensionGas = new HashSet<>();
+    for (Path jar : extensionJars) {
+      knownExtensionGas.add(groupArtifact(jar));
+    }
+    List<Path> unknownDeployJars =
+        deployClasspath.stream()
+            .filter(jar -> !knownExtensionGas.contains(groupArtifact(jar)))
+            .toList();
+    extensionJars.addAll(registerExtensions(modelBuilder, unknownDeployJars));
+    return extensionJars;
+  }
+
+  private static String groupArtifact(Path jar) {
+    var coords = MavenCoordinateParser.parse(jar);
+    return coords.groupId() + ":" + coords.artifactId();
+  }
 
   /**
    * Scans runtime jars for Quarkus extensions and registers their properties on the model.
@@ -163,76 +305,23 @@ public final class QuarkusAppModelBuilder {
     }
   }
 
-  /**
-   * Builds an {@link ApplicationModel} for test mode, including a {@link WorkspaceModule} with test
-   * sources so that {@code AppMakerHelper} can locate test classes.
-   *
-   * @param localAppJars local workspace jars — the first element becomes the app artifact, and
-   *     remaining jars are added as runtime dependencies (they are also indexed via the application
-   *     root {@code PathCollection} mechanism in the caller)
-   * @param runtimeJars remaining runtime dependency jars (external Maven jars)
-   * @param deployClasspath deployment-only jars
-   * @param appName optional application name override
-   * @param appVersion optional application version override
-   * @return a fully configured ApplicationModel with workspace module for test mode
-   */
-  public static ApplicationModel buildForTest(
+  // ---- Artifact registration ----
+
+  /** Registers all non-app-artifact dependencies and configures classloading flags. */
+  private static void registerDependencies(
+      ApplicationModelBuilder modelBuilder,
       List<Path> localAppJars,
       List<Path> runtimeJars,
       List<Path> deployClasspath,
-      String appName,
-      String appVersion)
-      throws IOException {
-    var modelBuilder = new ApplicationModelBuilder();
-
-    // Scan extensions and register their metadata so the augmentation classloader
-    // can correctly map runtime extensions to their deployment counterparts.
-    // Without this, deployment processors (e.g., NarayanaJtaProcessor) won't be
-    // discovered and critical beans (e.g., TransactionSessions) won't be registered.
-    Set<Path> extensionJars = registerExtensions(modelBuilder, runtimeJars);
-
-    // Also scan deployment jars for runtime extensions pulled in as transitive
-    // deps of deployment artifacts (conditional dev dependencies).
-    Set<String> knownExtensionGas = new HashSet<>();
-    for (Path jar : extensionJars) {
-      var coords = MavenCoordinateParser.parse(jar);
-      knownExtensionGas.add(coords.groupId() + ":" + coords.artifactId());
-    }
-    Set<Path> deployExtensionJars =
-        registerExtensions(
-            modelBuilder,
-            deployClasspath.stream()
-                .filter(
-                    jar -> {
-                      var coords = MavenCoordinateParser.parse(jar);
-                      return !knownExtensionGas.contains(
-                          coords.groupId() + ":" + coords.artifactId());
-                    })
-                .toList());
-    extensionJars.addAll(deployExtensionJars);
-
-    Path appJar = localAppJars.get(0);
-    setAppArtifactForTest(modelBuilder, appJar, appName, appVersion);
-
-    // Add additional local app jars (index 1+) as runtime dependencies so they
-    // appear in the model. They are also indexed via the application root
-    // PathCollection mechanism in AugmentationExecutor.
+      Set<Path> extensionJars) {
     if (localAppJars.size() > 1) {
       addLocalAppJarDependencies(modelBuilder, localAppJars.subList(1, localAppJars.size()));
     }
-
     Set<ArtifactKey> addedKeys = addRuntimeDependencies(modelBuilder, runtimeJars, extensionJars);
     addDeploymentDependencies(modelBuilder, deployClasspath, addedKeys, extensionJars);
     markParentFirstArtifacts(modelBuilder);
     fixRunnerParentFirstFlags(modelBuilder);
-    // ApplicationModel.asMap() (used by ApplicationModelSerializer for JSON serialization)
-    // calls getPlatforms().asMap() without a null check. Test-mode models are serialized too.
-    modelBuilder.setPlatformImports(new PlatformImportsImpl());
-
-    return modelBuilder.build();
   }
-
-  // ---- Artifact registration ----
 
   private static void setAppArtifact(
       ApplicationModelBuilder modelBuilder, Path appJar, String appName, String appVersion) {
@@ -355,8 +444,8 @@ public final class QuarkusAppModelBuilder {
       addedArtifactIds.add(key.getArtifactId());
     }
 
-    // Build a set of extension artifact IDs for path-independent matching
-    // (deployment jars may come from Coursier cache, not the same path as scanned)
+    // Extension artifact IDs for path-independent matching (deployment jars may
+    // come from the Coursier cache, not the same path as the scanned jar).
     Set<String> extensionArtifactIds = new HashSet<>();
     for (Path jar : extensionJars) {
       extensionArtifactIds.add(MavenCoordinateParser.parse(jar).artifactId());
@@ -377,27 +466,7 @@ public final class QuarkusAppModelBuilder {
               .setResolvedPath(jar)
               .setDeploymentCp()
               .setDirect(true);
-
-      // Runtime extensions found in the deployment classpath (conditional dev deps)
-      // need to be on both the runtime and deployment classpaths.
-      if (extensionArtifactIds.contains(coords.artifactId())) {
-        dep.setRuntimeCp().setRuntimeExtensionArtifact();
-      }
-
-      // Conditional dev runtime jars (e.g., quarkus-arc-dev, quarkus-rest-dev)
-      // contain runtime classes referenced by generated code. They need to be
-      // on the runtime classpath. We identify them by the "-dev" suffix pattern.
-      if (coords.artifactId().endsWith("-dev")) {
-        dep.setRuntimeCp();
-      }
-
-      // quarkus-devui-spi contains SPI classes (e.g., McpServerConfiguration) referenced
-      // by generated ArC beans. It has no extension metadata so it won't be
-      // auto-detected as a runtime extension, but it must be on the runtime
-      // classpath so the generated code can load them.
-      if ("quarkus-devui-spi".equals(coords.artifactId())) {
-        dep.setRuntimeCp();
-      }
+      applyDeploymentRuntimeFlags(dep, coords.artifactId(), extensionArtifactIds);
 
       if (!addedKeys.contains(dep.getKey())) {
         modelBuilder.addDependency(dep);
@@ -407,128 +476,43 @@ public final class QuarkusAppModelBuilder {
     }
   }
 
+  /** Puts deployment-classpath jars that contain runtime classes onto the runtime classpath too. */
+  private static void applyDeploymentRuntimeFlags(
+      ResolvedDependencyBuilder dep, String artifactId, Set<String> extensionArtifactIds) {
+    // Runtime extensions found in the deployment classpath (conditional dev deps)
+    // need to be on both the runtime and deployment classpaths.
+    if (extensionArtifactIds.contains(artifactId)) {
+      dep.setRuntimeCp().setRuntimeExtensionArtifact();
+    }
+
+    // Conditional dev runtime jars (e.g., quarkus-arc-dev, quarkus-rest-dev)
+    // contain runtime classes referenced by generated code.
+    if (artifactId.endsWith("-dev")) {
+      dep.setRuntimeCp();
+    }
+
+    // quarkus-devui-spi contains SPI classes (e.g., McpServerConfiguration) referenced
+    // by generated ArC beans. It has no extension metadata so it won't be
+    // auto-detected as a runtime extension, but it must be on the runtime
+    // classpath so the generated code can load them.
+    if ("quarkus-devui-spi".equals(artifactId)) {
+      dep.setRuntimeCp();
+    }
+  }
+
   // ---- Classloader configuration ----
 
-  /**
-   * Marks bootstrap and infrastructure jars as parent-first so the augment classloader delegates to
-   * the parent for them. This prevents LinkageError and ClassCastException.
-   *
-   * <p>Jars containing CDI beans (e.g., {@code smallrye-config} which has {@code ConfigProducer})
-   * must NOT be parent-first — ArC-generated proxies cause VerifyError across classloader
-   * boundaries.
-   */
   private static void markParentFirstArtifacts(ApplicationModelBuilder modelBuilder) {
-    Set<String> parentFirstArtifactIds =
-        Set.of(
-            // Bootstrap infrastructure
-            "quarkus-bootstrap-core",
-            "quarkus-bootstrap-app-model",
-            "quarkus-bootstrap-runner",
-            "quarkus-classloader-commons",
-            "quarkus-development-mode-spi",
-            "quarkus-fs-util",
-            "quarkus-bootstrap-maven-resolver",
-            // Core (needed by IsolatedDevModeMain and test mode classloader delegation)
-            "quarkus-core",
-            // Value registry — must be parent-first to avoid LinkageError in dev mode.
-            // ExtensionLoader (in augment classloader) calls ValueRegistryImpl$Builder.build()
-            // which returns ValueRegistry; if ValueRegistry is loaded by two different
-            // classloaders the JVM throws a loader constraint violation.
-            "quarkus-value-registry",
-            // Config infrastructure. Note: smallrye-config itself is NOT parent-first
-            // because it contains CDI beans (ConfigProducer) whose ArC proxies cause
-            // VerifyError across classloader boundaries. Only the core/common/api jars
-            // (which don't contain CDI beans) are parent-first.
-            "smallrye-config-core",
-            "smallrye-config-common",
-            "microprofile-config-api",
-            // Logging
-            "jboss-logmanager",
-            "jboss-logging",
-            "slf4j-api",
-            "slf4j-jboss-logmanager",
-            "jboss-logging-annotations",
-            // Threading
-            "jboss-threads",
-            "wildfly-common",
-            // SmallRye common (used by config)
-            "smallrye-common-constraint",
-            "smallrye-common-expression",
-            "smallrye-common-function",
-            "smallrye-common-classloader",
-            "smallrye-common-io",
-            "smallrye-common-annotation",
-            "smallrye-common-cpu",
-            "smallrye-common-net",
-            "smallrye-common-os",
-            "smallrye-common-ref",
-            // JSON (used by config)
-            "jakarta.json-api",
-            "parsson",
-            // Jakarta APIs (needed parent-first so that classes like
-            // smallrye-common-annotation's Identifier$Literal, which extends
-            // jakarta.enterprise.util.AnnotationLiteral, are loaded by the same
-            // classloader — prevents VerifyError in dev mode)
-            "jakarta.enterprise.cdi-api",
-            "jakarta.enterprise.lang-model",
-            "jakarta.inject-api",
-            "jakarta.interceptor-api",
-            "jakarta.annotation-api",
-            "jakarta.el-api",
-            "jakarta.transaction-api",
-            // JUnit Platform + Jupiter API — must be parent-first so that
-            // @Test and other JUnit annotations loaded by the QuarkusClassLoader
-            // are the same class instances as those used by JUnit's engine
-            // (which is loaded by the app classloader in ConsoleLauncher mode).
-            "junit-jupiter-api",
-            "junit-jupiter-engine",
-            "junit-jupiter-params",
-            "junit-platform-commons",
-            "junit-platform-engine",
-            "junit-platform-launcher",
-            "opentest4j",
-            // Other infrastructure
-            "quarkus-ide-launcher",
-            "crac",
-            "commons-logging-jboss-logging");
     for (var dep : modelBuilder.getDependencies()) {
-      if (parentFirstArtifactIds.contains(dep.getArtifactId())) {
+      if (PARENT_FIRST_ARTIFACT_IDS.contains(dep.getArtifactId())) {
         modelBuilder.addParentFirstArtifact(dep.getKey());
       }
     }
   }
 
-  /**
-   * Workaround for the GACT key mismatch bug.
-   *
-   * <p>{@code handleExtensionProperties} processes runner-parent-first-artifacts from
-   * quarkus-extension.properties, but the GACT keys it creates have empty type while our
-   * dependencies have type "jar". The keys don't match, so the {@code
-   * CLASSLOADER_RUNNER_PARENT_FIRST} flag is never set by {@code buildDependencies()}. We fix this
-   * by manually setting the flag based on artifactId matching.
-   */
   private static void fixRunnerParentFirstFlags(ApplicationModelBuilder modelBuilder) {
-    Set<String> runnerParentFirstArtifactIds =
-        Set.of(
-            "quarkus-bootstrap-runner",
-            "quarkus-classloader-commons",
-            "quarkus-development-mode-spi",
-            "jboss-logmanager",
-            "jboss-logging",
-            "slf4j-jboss-logmanager",
-            "slf4j-api",
-            "smallrye-common-constraint",
-            "smallrye-common-cpu",
-            "smallrye-common-expression",
-            "smallrye-common-function",
-            "smallrye-common-io",
-            "smallrye-common-net",
-            "smallrye-common-os",
-            "smallrye-common-ref",
-            "crac");
-
     for (var dep : modelBuilder.getDependencies()) {
-      if (runnerParentFirstArtifactIds.contains(dep.getArtifactId())) {
+      if (RUNNER_PARENT_FIRST_ARTIFACT_IDS.contains(dep.getArtifactId())) {
         dep.setFlags(DependencyFlags.CLASSLOADER_RUNNER_PARENT_FIRST);
       }
     }
@@ -560,6 +544,15 @@ public final class QuarkusAppModelBuilder {
     return depsByGa;
   }
 
+  private static ArtifactCoords toCoords(ResolvedDependencyBuilder dep) {
+    return ArtifactCoords.of(
+        dep.getGroupId(),
+        dep.getArtifactId(),
+        dep.getClassifier(),
+        dep.getType(),
+        dep.getVersion());
+  }
+
   /**
    * Computes root-node edges: runtime extensions and their deployment counterparts become direct
    * dependencies of the application artifact.
@@ -570,10 +563,10 @@ public final class QuarkusAppModelBuilder {
       Map<String, ResolvedDependencyBuilder> depsByGa) {
     Set<String> runtimeExtensionGas = new HashSet<>();
     for (Path jar : runtimeJars) {
-      var coords = MavenCoordinateParser.parse(jar);
-      var dep = depsByGa.get(coords.groupId() + ":" + coords.artifactId());
+      String ga = groupArtifact(jar);
+      var dep = depsByGa.get(ga);
       if (dep != null && dep.isFlagSet(DependencyFlags.RUNTIME_EXTENSION_ARTIFACT)) {
-        runtimeExtensionGas.add(coords.groupId() + ":" + coords.artifactId());
+        runtimeExtensionGas.add(ga);
       }
     }
     List<ArtifactCoords> appDeps = new ArrayList<>();
@@ -586,13 +579,7 @@ public final class QuarkusAppModelBuilder {
                   dep.getGroupId()
                       + ":"
                       + aid.substring(0, aid.length() - "-deployment".length())))) {
-        appDeps.add(
-            ArtifactCoords.of(
-                dep.getGroupId(),
-                dep.getArtifactId(),
-                dep.getClassifier(),
-                dep.getType(),
-                dep.getVersion()));
+        appDeps.add(toCoords(dep));
       }
     }
     return appDeps;
@@ -616,13 +603,7 @@ public final class QuarkusAppModelBuilder {
       for (ArtifactCoords subDep : subDeps) {
         var modelDep = depsByGa.get(subDep.getGroupId() + ":" + subDep.getArtifactId());
         if (modelDep != null && modelDep != dep) {
-          filtered.add(
-              ArtifactCoords.of(
-                  modelDep.getGroupId(),
-                  modelDep.getArtifactId(),
-                  modelDep.getClassifier(),
-                  modelDep.getType(),
-                  modelDep.getVersion()));
+          filtered.add(toCoords(modelDep));
         }
       }
       if (!filtered.isEmpty()) {
@@ -648,50 +629,48 @@ public final class QuarkusAppModelBuilder {
     for (ArtifactCoords c : appDeps) {
       allTargets.add(c.getGroupId() + ":" + c.getArtifactId());
     }
+
     List<String> deploymentOrphans = new ArrayList<>();
     for (var dep : modelBuilder.getDependencies()) {
       String ga = dep.getGroupId() + ":" + dep.getArtifactId();
       if (!allTargets.contains(ga)) {
         if (dep.isFlagSet(DependencyFlags.RUNTIME_CP)) {
-          appDeps.add(
-              ArtifactCoords.of(
-                  dep.getGroupId(),
-                  dep.getArtifactId(),
-                  dep.getClassifier(),
-                  dep.getType(),
-                  dep.getVersion()));
+          appDeps.add(toCoords(dep));
         } else {
           deploymentOrphans.add(ga);
         }
       }
     }
-    if (!deploymentOrphans.isEmpty()) {
-      var coreDeployment = depsByGa.get("io.quarkus:quarkus-core-deployment");
-      if (coreDeployment != null) {
-        List<ArtifactCoords> coreDeps = new ArrayList<>(coreDeployment.getDependencies());
-        for (String orphanGa : deploymentOrphans) {
-          if ("io.quarkus:quarkus-core-deployment".equals(orphanGa)) {
-            continue;
-          }
-          var orphan = depsByGa.get(orphanGa);
-          if (orphan != null) {
-            coreDeps.add(
-                ArtifactCoords.of(
-                    orphan.getGroupId(),
-                    orphan.getArtifactId(),
-                    orphan.getClassifier(),
-                    orphan.getType(),
-                    orphan.getVersion()));
-          }
-        }
-        coreDeployment.setDependencies(coreDeps);
+    adoptDeploymentOrphans(depsByGa, deploymentOrphans);
+  }
+
+  /** Attaches deployment-only orphan nodes under quarkus-core-deployment. */
+  private static void adoptDeploymentOrphans(
+      Map<String, ResolvedDependencyBuilder> depsByGa, List<String> deploymentOrphans) {
+    if (deploymentOrphans.isEmpty()) {
+      return;
+    }
+    var coreDeployment = depsByGa.get("io.quarkus:quarkus-core-deployment");
+    if (coreDeployment == null) {
+      return;
+    }
+    List<ArtifactCoords> coreDeps = new ArrayList<>(coreDeployment.getDependencies());
+    for (String orphanGa : deploymentOrphans) {
+      if ("io.quarkus:quarkus-core-deployment".equals(orphanGa)) {
+        continue;
+      }
+      var orphan = depsByGa.get(orphanGa);
+      if (orphan != null) {
+        coreDeps.add(toCoords(orphan));
       }
     }
+    coreDeployment.setDependencies(coreDeps);
   }
 
   /**
    * Reads the {@code <dependencies>} section from a jar's embedded POM using StAX streaming.
-   * Returns an empty list if the POM is missing or cannot be parsed.
+   * Returns an empty list if the POM is missing or cannot be parsed — the dependency graph is
+   * best-effort Dev UI metadata.
    */
   private static List<ArtifactCoords> readDependenciesFromJar(
       Path jarPath, String groupId, String artifactId) {
@@ -723,82 +702,22 @@ public final class QuarkusAppModelBuilder {
   /** Parses compile/runtime dependencies from a POM input stream using StAX. */
   private static List<ArtifactCoords> parsePomDependencies(
       InputStream is, String parentGroupId, String parentVersion) throws Exception {
-    List<ArtifactCoords> result = new ArrayList<>();
     XMLInputFactory factory = XMLInputFactory.newInstance();
     factory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
     XMLStreamReader reader = factory.createXMLStreamReader(is);
-
-    // Track nesting: only parse <dependency> elements directly under <dependencies>
-    // that are NOT inside <dependencyManagement>
-    boolean inDependencyManagement = false;
-    boolean inDependencies = false;
-    boolean inDependency = false;
-    String depGroupId = "";
-    String depArtifactId = "";
-    String depVersion = "";
-    String depScope = "";
-    String currentElement = "";
-    StringBuilder textBuffer = new StringBuilder();
-
+    var parser = new PomDependenciesParser(parentGroupId, parentVersion);
     while (reader.hasNext()) {
       int event = reader.next();
       if (event == XMLStreamReader.START_ELEMENT) {
-        String name = reader.getLocalName();
-        if ("dependencyManagement".equals(name)) {
-          inDependencyManagement = true;
-        } else if ("dependencies".equals(name) && !inDependencyManagement) {
-          inDependencies = true;
-        } else if ("dependency".equals(name) && inDependencies && !inDependencyManagement) {
-          inDependency = true;
-          depGroupId = "";
-          depArtifactId = "";
-          depVersion = "";
-          depScope = "";
-        }
-        currentElement = name;
-        textBuffer.setLength(0);
+        parser.onStartElement(reader.getLocalName());
       } else if (event == XMLStreamReader.END_ELEMENT) {
-        String name = reader.getLocalName();
-        if (inDependency && !currentElement.isEmpty()) {
-          String text = textBuffer.toString().trim();
-          if (!text.isEmpty()) {
-            switch (currentElement) {
-              case "groupId" -> depGroupId = text;
-              case "artifactId" -> depArtifactId = text;
-              case "version" -> depVersion = text;
-              case "scope" -> depScope = text;
-              default -> {
-                /* ignore */
-              }
-            }
-          }
-        }
-        if ("dependencyManagement".equals(name)) {
-          inDependencyManagement = false;
-        } else if ("dependencies".equals(name) && !inDependencyManagement) {
-          inDependencies = false;
-        } else if ("dependency".equals(name) && inDependency) {
-          inDependency = false;
-          // Only include compile and runtime scope (exclude test, provided, system)
-          if (!depGroupId.isEmpty()
-              && !depArtifactId.isEmpty()
-              && (depScope.isEmpty() || "compile".equals(depScope) || "runtime".equals(depScope))) {
-            String gid = resolveProperty(depGroupId, parentGroupId, parentVersion);
-            String version = depVersion.isEmpty() ? "0" : depVersion;
-            version = resolveProperty(version, parentGroupId, parentVersion);
-            if (!gid.contains("$")) {
-              result.add(ArtifactCoords.jar(gid, depArtifactId, version));
-            }
-          }
-        }
-        currentElement = "";
-        textBuffer.setLength(0);
-      } else if (event == XMLStreamReader.CHARACTERS && inDependency) {
-        textBuffer.append(reader.getText());
+        parser.onEndElement(reader.getLocalName());
+      } else if (event == XMLStreamReader.CHARACTERS) {
+        parser.onText(reader.getText());
       }
     }
     reader.close();
-    return result;
+    return parser.dependencies();
   }
 
   private static String resolveProperty(String value, String groupId, String version) {
@@ -806,5 +725,111 @@ public final class QuarkusAppModelBuilder {
       return value;
     }
     return value.replace("${project.groupId}", groupId).replace("${project.version}", version);
+  }
+
+  /**
+   * StAX state machine collecting {@code <dependency>} elements directly under {@code
+   * <dependencies>}. Skips {@code <dependencyManagement>}, {@code <exclusions>} (whose
+   * groupId/artifactId children must not overwrite the dependency's own coordinates), and
+   * test/provided/system scopes.
+   */
+  private static final class PomDependenciesParser {
+    private final String parentGroupId;
+    private final String parentVersion;
+    private final List<ArtifactCoords> collected = new ArrayList<>();
+
+    // Short-lived per-POM accumulator; the parser never outlives a single parse call.
+    @SuppressWarnings("PMD.AvoidStringBufferField")
+    private final StringBuilder text = new StringBuilder();
+
+    private boolean inDependencyManagement;
+    private boolean inDependencies;
+    private boolean inDependency;
+    private boolean inExclusions;
+    private String currentElement = "";
+    private String groupId = "";
+    private String artifactId = "";
+    private String version = "";
+    private String scope = "";
+
+    PomDependenciesParser(String parentGroupId, String parentVersion) {
+      this.parentGroupId = parentGroupId;
+      this.parentVersion = parentVersion;
+    }
+
+    List<ArtifactCoords> dependencies() {
+      return collected;
+    }
+
+    void onStartElement(String name) {
+      if ("dependencyManagement".equals(name)) {
+        inDependencyManagement = true;
+      } else if ("dependencies".equals(name) && !inDependencyManagement) {
+        inDependencies = true;
+      } else if ("dependency".equals(name) && inDependencies && !inDependencyManagement) {
+        inDependency = true;
+        groupId = "";
+        artifactId = "";
+        version = "";
+        scope = "";
+      } else if ("exclusions".equals(name)) {
+        inExclusions = true;
+      }
+      currentElement = name;
+      text.setLength(0);
+    }
+
+    void onText(String chars) {
+      if (inDependency) {
+        text.append(chars);
+      }
+    }
+
+    void onEndElement(String name) {
+      if (inDependency && !inExclusions && !currentElement.isEmpty()) {
+        recordField(text.toString().trim());
+      }
+      if ("dependencyManagement".equals(name)) {
+        inDependencyManagement = false;
+      } else if ("exclusions".equals(name)) {
+        inExclusions = false;
+      } else if ("dependencies".equals(name) && !inDependencyManagement) {
+        inDependencies = false;
+      } else if ("dependency".equals(name) && inDependency && !inExclusions) {
+        inDependency = false;
+        addDependencyIfRelevant();
+      }
+      currentElement = "";
+      text.setLength(0);
+    }
+
+    private void recordField(String value) {
+      if (value.isEmpty()) {
+        return;
+      }
+      switch (currentElement) {
+        case "groupId" -> groupId = value;
+        case "artifactId" -> artifactId = value;
+        case "version" -> version = value;
+        case "scope" -> scope = value;
+        default -> {
+          /* ignore */
+        }
+      }
+    }
+
+    private void addDependencyIfRelevant() {
+      // Only compile and runtime scopes (exclude test, provided, system).
+      boolean relevantScope = scope.isEmpty() || "compile".equals(scope) || "runtime".equals(scope);
+      if (groupId.isEmpty() || artifactId.isEmpty() || !relevantScope) {
+        return;
+      }
+      String gid = resolveProperty(groupId, parentGroupId, parentVersion);
+      String resolvedVersion =
+          resolveProperty(version.isEmpty() ? "0" : version, parentGroupId, parentVersion);
+      if (!gid.contains("$")) {
+        collected.add(ArtifactCoords.jar(gid, artifactId, resolvedVersion));
+      }
+    }
   }
 }

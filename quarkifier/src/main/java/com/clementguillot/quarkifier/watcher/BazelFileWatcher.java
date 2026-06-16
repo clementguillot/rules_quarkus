@@ -158,52 +158,11 @@ public final class BazelFileWatcher implements Closeable {
     try {
       while (!Thread.currentThread().isInterrupted()) {
         WatchKey key = watchService.take(); // blocks until event
-        List<WatchEvent<?>> events = key.pollEvents();
-
-        boolean javaFileChanged = false;
-        boolean overflow = false;
-
-        for (WatchEvent<?> event : events) {
-          WatchEvent.Kind<?> kind = event.kind();
-
-          // Handle OVERFLOW: trigger a full rebuild
-          if (kind == StandardWatchEventKinds.OVERFLOW) {
-            LOGGER.warn("WatchService overflow detected, triggering full rebuild");
-            overflow = true;
-            continue;
-          }
-
-          @SuppressWarnings("unchecked")
-          WatchEvent<Path> pathEvent = (WatchEvent<Path>) event;
-          Path changed = ((Path) key.watchable()).resolve(pathEvent.context());
-
-          // Register new subdirectories for recursive watching
-          if (kind == StandardWatchEventKinds.ENTRY_CREATE && Files.isDirectory(changed)) {
-            try {
-              registerRecursive(changed);
-              LOGGER.debugf("[hot-reload] Registered new directory: %s", changed);
-            } catch (IOException e) {
-              LOGGER.errorv(e, "[hot-reload] Failed to register new directory %s", changed);
-            }
-          }
-
-          if (changed.toString().endsWith(".java")) {
-            javaFileChanged = true;
-            LOGGER.debugf("Change detected: %s (%s)", changed, kind.name());
-          }
-        }
-
+        boolean rebuildNeeded = processEvents(key);
         key.reset();
 
-        if (javaFileChanged || overflow) {
-          // Debounce: cancel previous scheduled build, schedule new one
-          ScheduledFuture<?> currentTask = debounceTask;
-          if (currentTask != null && !currentTask.isDone()) {
-            currentTask.cancel(false);
-          }
-          debounceTask =
-              debounceExecutor.schedule(
-                  this::triggerBuildAndSync, DEFAULT_DEBOUNCE_MS, TimeUnit.MILLISECONDS);
+        if (rebuildNeeded) {
+          scheduleDebouncedBuild();
         }
       }
     } catch (ClosedWatchServiceException e) {
@@ -212,6 +171,55 @@ public final class BazelFileWatcher implements Closeable {
       Thread.currentThread().interrupt();
       LOGGER.debugv(e, "Watch loop interrupted, exiting");
     }
+  }
+
+  /**
+   * Drains the key's events, registering newly created directories for recursive watching.
+   *
+   * @return true if a {@code .java} file changed or the OS event queue overflowed (in which case a
+   *     full rebuild is the only safe response)
+   */
+  private boolean processEvents(WatchKey key) {
+    boolean rebuildNeeded = false;
+    for (WatchEvent<?> event : key.pollEvents()) {
+      WatchEvent.Kind<?> kind = event.kind();
+
+      if (kind == StandardWatchEventKinds.OVERFLOW) {
+        LOGGER.warn("WatchService overflow detected, triggering full rebuild");
+        rebuildNeeded = true;
+        continue;
+      }
+
+      @SuppressWarnings("unchecked")
+      WatchEvent<Path> pathEvent = (WatchEvent<Path>) event;
+      Path changed = ((Path) key.watchable()).resolve(pathEvent.context());
+
+      if (kind == StandardWatchEventKinds.ENTRY_CREATE && Files.isDirectory(changed)) {
+        try {
+          registerRecursive(changed);
+          LOGGER.debugf("[hot-reload] Registered new directory: %s", changed);
+        } catch (IOException e) {
+          LOGGER.errorv(e, "[hot-reload] Failed to register new directory %s", changed);
+        }
+      }
+
+      if (changed.toString().endsWith(".java")) {
+        rebuildNeeded = true;
+        LOGGER.debugf("Change detected: %s (%s)", changed, kind.name());
+      }
+    }
+    return rebuildNeeded;
+  }
+
+  /** Cancels any pending scheduled build and schedules a new one after the debounce delay. */
+  private void scheduleDebouncedBuild() {
+    ScheduledFuture<?> currentTask = debounceTask;
+    if (currentTask != null && !currentTask.isDone()) {
+      currentTask.cancel(false);
+    }
+    debounceTask =
+        debounceExecutor.schedule(
+            this::triggerBuildAndSync, DEFAULT_DEBOUNCE_MS, TimeUnit.MILLISECONDS);
   }
 
   /**
