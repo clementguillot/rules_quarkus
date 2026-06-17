@@ -35,30 +35,16 @@ import javax.xml.stream.XMLStreamReader;
 /**
  * Builds a Quarkus {@link ApplicationModel} from classpath jars, bypassing Maven/Gradle resolution.
  *
- * <p>This is the bridge between Bazel-managed jar classpaths and the Quarkus bootstrap API. It
- * scans jars for extension metadata, registers dependencies with the correct flags, and configures
- * parent-first classloading from extension jar metadata.
- *
- * <h3>Parent-first classloading</h3>
- *
- * <p>Parent-first flags are determined from two sources:
+ * <p>Scans jars for extension metadata, registers dependencies with the correct flags, and
+ * configures parent-first classloading. Parent-first flags come from:
  *
  * <ol>
- *   <li><b>Extension metadata</b>: Each Quarkus extension jar declares its parent-first needs in
- *       {@code META-INF/quarkus-extension.properties} via the {@code parent-first-artifacts} and
- *       {@code runner-parent-first-artifacts} properties. These are read during extension scanning
- *       and applied via groupId:artifactId matching.
- *   <li><b>Bootstrap inference</b>: The transitive dependency tree of {@code
- *       io.quarkus:quarkus-core} is walked via embedded POMs, and all reachable artifacts are
- *       marked parent-first. This mirrors how Maven/Gradle dev mode works — quarkus-core's
- *       transitive deps are on the dev mode launcher classpath and are thus implicitly
- *       parent-first. In Bazel, we must flag them explicitly (see {@link
- *       #computeBootstrapParentFirstGAs}).
+ *   <li><b>Extension metadata</b>: {@code parent-first-artifacts} and {@code
+ *       runner-parent-first-artifacts} from each extension's {@code quarkus-extension.properties}.
+ *   <li><b>Bootstrap inference</b>: BFS walk of quarkus-core's transitive dep tree via embedded
+ *       POMs — mirrors how Maven/Gradle implicitly parent-first these via the dev mode launcher
+ *       classpath (see {@link #computeBootstrapParentFirstGAs}).
  * </ol>
- *
- * <p>This approach mirrors how the official Quarkus Gradle/Maven plugins handle parent-first
- * configuration — metadata-driven, not hardcoded. When a new Quarkus version is added, the correct
- * parent-first flags come automatically from the extension jars without code changes.
  */
 @SuppressWarnings({"PMD.GodClass", "PMD.TooManyMethods", "PMD.NcssCount", "PMD.ExcessiveImports"})
 public final class QuarkusAppModelBuilder {
@@ -67,14 +53,9 @@ public final class QuarkusAppModelBuilder {
   private static final String QUARKUS_CORE_GA = "io.quarkus:quarkus-core";
 
   /**
-   * Artifacts that must NOT be marked parent-first even when reachable from quarkus-core's
-   * dependency tree. These contain CDI beans whose ArC-generated proxy classes (loaded by the
-   * augment/child classloader) would fail with {@code VerifyError} if the bean class they extend is
-   * loaded by the parent classloader.
-   *
-   * <p>Note: the transitive dependencies OF excluded jars are still walked and may themselves be
-   * marked parent-first (e.g., {@code smallrye-config-core} and {@code smallrye-config-common} are
-   * parent-first even though {@code smallrye-config} itself is not).
+   * Artifacts excluded from bootstrap parent-first inference. These contain CDI beans whose
+   * ArC-generated proxies cause {@code VerifyError} if the bean class is on the parent classloader.
+   * Their transitive deps are still walked and may be marked parent-first.
    */
   private static final Set<String> BOOTSTRAP_PARENT_FIRST_EXCLUSIONS =
       Set.of(
@@ -89,18 +70,13 @@ public final class QuarkusAppModelBuilder {
   private QuarkusAppModelBuilder() {}
 
   /**
-   * Builds an {@link ApplicationModel} from classpath jars, detecting Quarkus extensions and
-   * setting the appropriate dependency flags.
+   * Builds an {@link ApplicationModel} from classpath jars.
    *
-   * @param localAppJars local workspace jars — the first element becomes the app artifact, and
-   *     remaining jars are added as runtime dependencies (they are also indexed via the application
-   *     root {@code PathCollection} mechanism in the caller)
-   * @param runtimeJars remaining runtime dependency jars (external Maven jars)
+   * @param localAppJars local workspace jars — first element is the app artifact
+   * @param runtimeJars external Maven dependency jars
    * @param deployClasspath deployment-only jars
    * @param appName optional application name override
    * @param appVersion optional application version override
-   * @return a fully configured ApplicationModel
-   * @throws IOException if jar scanning fails
    */
   public static ApplicationModel build(
       List<Path> localAppJars,
@@ -124,21 +100,8 @@ public final class QuarkusAppModelBuilder {
   }
 
   /**
-   * Builds an {@link ApplicationModel} for test mode, including a {@link WorkspaceModule} with test
-   * sources so that {@code AppMakerHelper} can locate test classes.
-   *
-   * <p>Same pipeline as {@link #build} except for the app artifact (which carries a workspace
-   * module) and the Dev UI dependency graph (not needed in tests).
-   *
-   * @param localAppJars local workspace jars — the first element becomes the app artifact, and
-   *     remaining jars are added as runtime dependencies (they are also indexed via the application
-   *     root {@code PathCollection} mechanism in the caller)
-   * @param runtimeJars remaining runtime dependency jars (external Maven jars)
-   * @param deployClasspath deployment-only jars
-   * @param appName optional application name override
-   * @param appVersion optional application version override
-   * @return a fully configured ApplicationModel with workspace module for test mode
-   * @throws IOException if jar scanning fails
+   * Builds an {@link ApplicationModel} for test mode, with a {@link WorkspaceModule} so that {@code
+   * AppMakerHelper} can locate test classes.
    */
   public static ApplicationModel buildForTest(
       List<Path> localAppJars,
@@ -171,14 +134,8 @@ public final class QuarkusAppModelBuilder {
   // ---- Extension registration ----
 
   /**
-   * Registers extensions found on the runtime classpath, then scans deployment jars for runtime
-   * extensions that were pulled in as transitive deps of deployment artifacts (e.g. quarkus-devui
-   * is a transitive dep of quarkus-devui-deployment). These are "conditional dev dependencies" that
-   * Maven's resolver adds automatically in dev mode.
-   *
-   * <p>Also collects parent-first artifact declarations from each extension's metadata.
-   *
-   * @return scan result containing extension jar paths and parent-first metadata
+   * Registers extensions and collects parent-first metadata. Also scans deployment jars for runtime
+   * extensions pulled in as transitive deps (conditional dev dependencies).
    */
   private static ExtensionScanResult registerAllExtensions(
       ApplicationModelBuilder modelBuilder,
@@ -213,22 +170,9 @@ public final class QuarkusAppModelBuilder {
   }
 
   /**
-   * Scans runtime jars for Quarkus extensions and registers their properties on the model.
-   *
-   * <p>This re-opens each extension jar after {@link ExtensionScanner} has identified it, because
-   * the full {@code quarkus-extension.properties} content is needed by {@link
-   * ApplicationModelBuilder#handleExtensionProperties} and for capability registration — the
-   * scanner only extracts the {@code deployment-artifact} GAV.
-   *
-   * <p>Also collects {@code parent-first-artifacts} and {@code runner-parent-first-artifacts}
-   * values from each extension's properties into the provided sets. These are collected here
-   * (rather than relying on {@code handleExtensionProperties} + {@code buildDependencies()})
-   * because the GACT keys produced by {@code handleExtensionProperties} have empty type while our
-   * dependencies have type "jar" — the keys never match in {@code buildDependencies()}'s lookup.
-   *
-   * @param parentFirstGAs accumulator for parent-first groupId:artifactId pairs
-   * @param runnerParentFirstGAs accumulator for runner-parent-first groupId:artifactId pairs
-   * @return the set of jar paths that are Quarkus extensions (used to flag them later)
+   * Scans jars for Quarkus extensions, registers their properties, and collects parent-first
+   * metadata. We collect parent-first GAs ourselves (rather than relying on {@code
+   * buildDependencies()}) because the GACT key type mismatch prevents the standard lookup.
    */
   private static Set<Path> registerExtensions(
       ApplicationModelBuilder modelBuilder,
@@ -283,13 +227,7 @@ public final class QuarkusAppModelBuilder {
     }
   }
 
-  /**
-   * Registers extension capabilities (provides-capabilities / requires-capabilities).
-   *
-   * <p>The Maven/Gradle resolvers do this automatically, but since we bypass them and build the
-   * ApplicationModel manually, we must do it ourselves. Without this, capabilities like VERTX_HTTP
-   * won't be available to build steps.
-   */
+  /** Registers extension capabilities so build steps can query them. */
   private static void registerCapabilities(
       ApplicationModelBuilder modelBuilder, Properties props, ExtensionInfo ext) {
     String providesCapabilities = props.getProperty("provides-capabilities");
@@ -336,13 +274,8 @@ public final class QuarkusAppModelBuilder {
   }
 
   /**
-   * Sets the app artifact with a minimal WorkspaceModule for test mode.
-   *
-   * <p>The module is required (non-null) because {@code AppMakerHelper} calls {@code
-   * getWorkspaceModule().getTestSources()}. Source dirs point to the jar's parent directory (a real
-   * directory) rather than the jar itself, avoiding {@code NotDirectoryException}. Test sources are
-   * left empty so the fallback path in {@code PathTestHelper} is used, which locates test classes
-   * via the classloader (works with Bazel's jar-based classpath).
+   * Sets the app artifact with a WorkspaceModule for test mode. Required because {@code
+   * AppMakerHelper} calls {@code getWorkspaceModule().getTestSources()}.
    */
   private static void setAppArtifactForTest(
       ApplicationModelBuilder modelBuilder, Path appJar, String appName, String appVersion) {
@@ -376,12 +309,7 @@ public final class QuarkusAppModelBuilder {
             .setDeploymentCp());
   }
 
-  /**
-   * Adds additional local app jars (beyond the first one which is the app artifact) as runtime
-   * dependencies in the model. These jars are local workspace modules that need to be on the
-   * runtime and deployment classpaths so the augmentation classloader can find them. They are also
-   * indexed via the application root {@code PathCollection} mechanism.
-   */
+  /** Adds additional local app jars (beyond the app artifact) as runtime dependencies. */
   private static void addLocalAppJarDependencies(
       ApplicationModelBuilder modelBuilder,
       List<Path> additionalLocalJars,
@@ -423,12 +351,8 @@ public final class QuarkusAppModelBuilder {
   }
 
   /**
-   * Adds deployment-only jars, deduplicating by both ArtifactKey and artifactId to handle the same
-   * jar resolved from different sources (e.g., @maven vs Coursier cache).
-   *
-   * <p>Jars that are Quarkus runtime extensions (identified by {@code extensionJars}) are marked
-   * with both runtime and deployment classpath flags, since they are conditional dev dependencies
-   * that need to be on the runtime classpath for the augment classloader.
+   * Adds deployment-only jars, deduplicating by GA. Extension jars found here are marked as runtime
+   * too (conditional dev dependencies).
    */
   private static void addDeploymentDependencies(
       ApplicationModelBuilder modelBuilder,
@@ -500,22 +424,8 @@ public final class QuarkusAppModelBuilder {
   // ---- Classloader configuration ----
 
   /**
-   * Applies parent-first and runner-parent-first classloading flags to dependencies using
-   * groupId:artifactId matching.
-   *
-   * <p>Flags come from two sources:
-   *
-   * <ol>
-   *   <li>Extension metadata: GA pairs collected from {@code parent-first-artifacts} and {@code
-   *       runner-parent-first-artifacts} in each extension's quarkus-extension.properties.
-   *   <li>Bootstrap inference: transitive dependencies of {@code io.quarkus:quarkus-core} computed
-   *       by walking embedded POMs (see {@link #computeBootstrapParentFirstGAs}).
-   * </ol>
-   *
-   * <p>This replaces the old approach of hardcoded artifactId sets. The GA-based matching avoids
-   * the GACT key type mismatch (empty type vs "jar") that prevents {@code
-   * ApplicationModelBuilder.buildDependencies()} from applying these flags via its internal
-   * collections.
+   * Applies parent-first and runner-parent-first flags using GA-based matching (avoids the GACT key
+   * type mismatch in {@code buildDependencies()}).
    */
   private static void applyParentFirstFromMetadata(
       ApplicationModelBuilder modelBuilder,
@@ -553,27 +463,13 @@ public final class QuarkusAppModelBuilder {
   }
 
   /**
-   * Computes the set of bootstrap parent-first artifacts by walking {@code
-   * io.quarkus:quarkus-core}'s transitive dependency tree using embedded POMs.
+   * BFS walk of quarkus-core's transitive dep tree to find bootstrap parent-first artifacts.
    *
-   * <p>In Maven/Gradle dev mode, quarkus-core and its transitive dependencies are on the dev mode
-   * launcher classpath — loaded by the system classloader before the Quarkus classloader split
-   * happens. They are thus implicitly parent-first without needing any flag. In Bazel, all jars
-   * start on a flat classpath and {@code CuratedApplication} splits them using the ApplicationModel
-   * flags, so we must explicitly flag these jars.
+   * <p>In Maven/Gradle, these are implicitly parent-first (on the launcher classpath before the
+   * classloader split). In Bazel we must flag them explicitly.
    *
-   * <p>The walk excludes:
-   *
-   * <ul>
-   *   <li>Runtime extension artifacts — they have their own classloading metadata in their {@code
-   *       quarkus-extension.properties}.
-   *   <li>Artifacts in {@link #BOOTSTRAP_PARENT_FIRST_EXCLUSIONS} — CDI bean jars whose ArC proxies
-   *       cause {@code VerifyError} when the bean class is parent-first. Their transitive
-   *       dependencies are still walked and may be marked parent-first.
-   * </ul>
-   *
-   * @param depsByGa index of all registered dependencies keyed by groupId:artifactId
-   * @return the set of GA strings that should be marked parent-first
+   * <p>Excludes runtime extensions (own metadata) and {@link #BOOTSTRAP_PARENT_FIRST_EXCLUSIONS}
+   * (CDI bean jars). Excluded jars' sub-deps are still walked.
    */
   private static Set<String> computeBootstrapParentFirstGAs(
       Map<String, ResolvedDependencyBuilder> depsByGa) {
@@ -643,9 +539,7 @@ public final class QuarkusAppModelBuilder {
   // ---- Dependency graph links ----
 
   /**
-   * Populates sub-dependency links on each {@link ResolvedDependencyBuilder} by reading the
-   * embedded POM from each jar. This enables the Dev UI "Application Dependencies" graph to show
-   * edges between nodes.
+   * Populates sub-dependency links by reading embedded POMs. Enables the Dev UI dependency graph.
    */
   private static void populateDependencyLinks(
       ApplicationModelBuilder modelBuilder, List<Path> runtimeJars) {
