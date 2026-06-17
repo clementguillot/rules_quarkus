@@ -36,29 +36,4 @@ cat << EOF
 bazel_dep(name = "com_clementguillot_rules_quarkus", version = "${TAG:1}")
 \`\`\`
 
-### Git override
-
-\`\`\`starlark
-bazel_dep(name = "com_clementguillot_rules_quarkus")
-
-git_override(
-    module_name = "com_clementguillot_rules_quarkus",
-    remote = "https://github.com/clementguillot/rules_quarkus.git",
-    commit = "${COMMIT}",
-)
-\`\`\`
-
-### Archive override
-
-\`\`\`starlark
-bazel_dep(name = "com_clementguillot_rules_quarkus")
-
-archive_override(
-    module_name = "com_clementguillot_rules_quarkus",
-    urls = ["https://github.com/clementguillot/rules_quarkus/releases/download/${TAG}/rules_quarkus-${TAG}.tar.gz"],
-    strip_prefix = "${PREFIX}",
-    integrity = "sha256-${INTEGRITY}",
-)
-\`\`\`
-
 EOF
