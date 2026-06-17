@@ -146,4 +146,33 @@ class ClassSyncerTest {
     assertEquals("bytecode-a", Files.readString(classesDir.resolve("com/example/A.class")));
     assertEquals("bytecode-b", Files.readString(classesDir.resolve("com/other/B.class")));
   }
+
+  @Test
+  void syncClasses_isIdempotent() throws IOException {
+    Path outputDir = tempDir.resolve("bazel-bin/pkg/lib");
+    for (String classFile :
+        List.of("com/example/Foo.class", "com/example/deep/nested/Bar.class", "Root.class")) {
+      Path file = outputDir.resolve(classFile);
+      Files.createDirectories(file.getParent());
+      Files.writeString(file, "bytecode-" + classFile);
+    }
+    Path classesDir = Files.createDirectories(tempDir.resolve("classes"));
+
+    ClassSyncer.syncClasses(List.of(outputDir), classesDir);
+    java.util.Map<String, String> first = snapshot(classesDir);
+    ClassSyncer.syncClasses(List.of(outputDir), classesDir);
+
+    assertEquals(3, first.size());
+    assertEquals(first, snapshot(classesDir), "second sync must not change the directory");
+  }
+
+  private static java.util.Map<String, String> snapshot(Path dir) throws IOException {
+    var state = new java.util.TreeMap<String, String>();
+    try (var stream = Files.walk(dir)) {
+      for (Path p : stream.filter(Files::isRegularFile).toList()) {
+        state.put(dir.relativize(p).toString(), Files.readString(p));
+      }
+    }
+    return state;
+  }
 }

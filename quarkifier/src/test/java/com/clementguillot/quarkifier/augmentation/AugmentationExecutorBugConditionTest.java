@@ -3,7 +3,6 @@ package com.clementguillot.quarkifier.augmentation;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.clementguillot.quarkifier.AugmentationException;
-import com.clementguillot.quarkifier.AugmentationMode;
 import com.clementguillot.quarkifier.QuarkifierConfig;
 import java.nio.file.Path;
 import java.util.List;
@@ -115,24 +114,26 @@ class AugmentationExecutorBugConditionTest {
 
   private static QuarkifierConfig configWith(
       List<Path> applicationClasspath, List<Path> localAppJars) {
-    return new QuarkifierConfig(
-        applicationClasspath,
-        List.of(Path.of("deploy.jar")),
-        List.of(),
-        Path.of("/tmp/output"),
-        List.of(),
-        AugmentationMode.NORMAL,
-        null,
-        "test-app",
-        "1.0",
-        null,
-        null,
-        List.of(),
-        null,
-        List.of(),
-        List.of(),
-        null,
-        60,
-        localAppJars);
+    var args =
+        new java.util.ArrayList<>(
+            List.of(
+                "--application-classpath", joinPaths(applicationClasspath),
+                "--deployment-classpath", "deploy.jar",
+                "--output-dir", "/tmp/output",
+                "--app-name", "test-app",
+                "--app-version", "1.0"));
+    if (!localAppJars.isEmpty()) {
+      args.add("--local-app-jars");
+      args.add(joinPaths(localAppJars));
+    }
+    try {
+      return QuarkifierConfig.parse(args.toArray(String[]::new));
+    } catch (QuarkifierConfig.InvalidArgumentsException e) {
+      throw new IllegalStateException("Invalid test config", e);
+    }
+  }
+
+  private static String joinPaths(List<Path> paths) {
+    return paths.stream().map(Path::toString).collect(java.util.stream.Collectors.joining(":"));
   }
 }

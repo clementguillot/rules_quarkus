@@ -14,12 +14,12 @@ import io.quarkus.maven.dependency.ArtifactKey;
 import io.quarkus.maven.dependency.ResolvedDependency;
 import io.quarkus.paths.PathList;
 import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.io.ObjectOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -61,52 +61,17 @@ public final class DevModeLauncher {
       // In a Bazel workspace this directory doesn't exist by default (unlike Maven's target/).
       Files.createDirectories(Path.of(context.getApplicationRoot().getTargetDir()));
 
-      // 1. Serialize the ApplicationModel to a temp file.
-      // Uses AppModelSerializerImpl which is version-specific:
+      // AppModelSerializerImpl is version-specific:
       // - 3.27: Java Object Serialization (BootstrapUtils)
       // - 3.33+: JSON format (ApplicationModelSerializer)
       AppModelSerializerStrategy serializer = new AppModelSerializerImpl();
       Path serializedModel = serializer.serialize(appModel);
 
-      // 2. Create the dev jar (like Maven's DevMojo / DevModeCommandLineBuilder)
+      // Dev jar mirrors Maven's DevMojo / DevModeCommandLineBuilder.
       Path devJar = createDevJar(context, config, appModel);
+      Process process = startDevProcess(config, serializedModel, devJar);
+      BazelFileWatcher watcher = startWatcherIfConfigured(config);
 
-      // 3. Build the java command
-      String javaBin = System.getProperty("java.home") + "/bin/java";
-      List<String> cmd = new ArrayList<>();
-      cmd.add(javaBin);
-      cmd.add("-Djava.util.logging.manager=org.jboss.logmanager.LogManager");
-      // Required for jboss-threads on Java 24+
-      cmd.add("--add-opens");
-      cmd.add("java.base/java.lang=ALL-UNNAMED");
-      // Required for Quarkus 3.33+
-      cmd.add("--add-opens");
-      cmd.add("java.base/java.lang.invoke=ALL-UNNAMED");
-      cmd.add(
-          "-D" + BootstrapConstants.SERIALIZED_APP_MODEL + "=" + serializedModel.toAbsolutePath());
-      cmd.add("-jar");
-      cmd.add(devJar.toAbsolutePath().toString());
-
-      // 4. Start the child process
-      ProcessBuilder pb = new ProcessBuilder(cmd);
-      if (config.workspaceDir() != null) {
-        pb.directory(config.workspaceDir().toFile());
-      }
-      pb.inheritIO();
-      Process process = pb.start();
-
-      // 5. Start file watcher for hot-reload (if configured)
-      final BazelFileWatcher watcher;
-      if (config.classesDir() != null
-          && !config.bazelTargets().isEmpty()
-          && !config.sourceDirs().isEmpty()) {
-        LOGGER.debug("[hot-reload] Starting file watcher...");
-        watcher = BazelFileWatcher.startInBackground(config);
-      } else {
-        watcher = null;
-      }
-
-      // 6. Wait for the child process
       Runtime.getRuntime()
           .addShutdownHook(
               new Thread(
@@ -118,11 +83,9 @@ public final class DevModeLauncher {
                   }));
       int exitCode = process.waitFor();
 
-      // Close watcher after child exits
       if (watcher != null) {
         watcher.close();
       }
-
       if (exitCode != 0) {
         throw new AugmentationException("Dev mode process exited with code " + exitCode);
       }
@@ -134,6 +97,43 @@ public final class DevModeLauncher {
     }
   }
 
+  /** Starts the child JVM running {@link DevModeMain} from the dev jar. */
+  private static Process startDevProcess(QuarkifierConfig config, Path serializedModel, Path devJar)
+      throws Exception {
+    List<String> cmd = new ArrayList<>();
+    cmd.add(System.getProperty("java.home") + "/bin/java");
+    cmd.add("-Djava.util.logging.manager=org.jboss.logmanager.LogManager");
+    // Required for jboss-threads on Java 24+
+    cmd.add("--add-opens");
+    cmd.add("java.base/java.lang=ALL-UNNAMED");
+    // Required for Quarkus 3.33+
+    cmd.add("--add-opens");
+    cmd.add("java.base/java.lang.invoke=ALL-UNNAMED");
+    cmd.add(
+        "-D" + BootstrapConstants.SERIALIZED_APP_MODEL + "=" + serializedModel.toAbsolutePath());
+    cmd.add("-jar");
+    cmd.add(devJar.toAbsolutePath().toString());
+
+    ProcessBuilder pb = new ProcessBuilder(cmd);
+    if (config.workspaceDir() != null) {
+      pb.directory(config.workspaceDir().toFile());
+    }
+    pb.inheritIO();
+    return pb.start();
+  }
+
+  /** Starts the hot-reload file watcher when classes dir, targets, and source dirs are set. */
+  private static BazelFileWatcher startWatcherIfConfigured(QuarkifierConfig config)
+      throws Exception {
+    if (config.classesDir() == null
+        || config.bazelTargets().isEmpty()
+        || config.sourceDirs().isEmpty()) {
+      return null;
+    }
+    LOGGER.debug("[hot-reload] Starting file watcher...");
+    return BazelFileWatcher.startInBackground(config);
+  }
+
   /**
    * Creates a minimal JAR with a serialized {@link DevModeContext} and a manifest {@code
    * Class-Path} containing core deployment infrastructure jars and parent-first runtime artifacts.
@@ -143,8 +143,73 @@ public final class DevModeLauncher {
     Path tempFile = Files.createTempFile("quarkus-dev", ".jar");
     tempFile.toFile().deleteOnExit();
 
-    // Collect parent-first artifact keys from the ApplicationModel.
-    // This matches Maven's ConfiguredClassLoading.getParentFirstArtifacts().
+    Manifest manifest = new Manifest();
+    manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
+    manifest.getMainAttributes().put(Attributes.Name.MAIN_CLASS, DevModeMain.class.getName());
+    manifest
+        .getMainAttributes()
+        .put(Attributes.Name.CLASS_PATH, buildManifestClassPath(config, appModel));
+
+    try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(tempFile))) {
+      out.putNextEntry(new ZipEntry("META-INF/"));
+      out.putNextEntry(new ZipEntry("META-INF/MANIFEST.MF"));
+      manifest.write(out);
+
+      out.putNextEntry(new ZipEntry(DevModeMain.DEV_MODE_CONTEXT));
+      ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+      try (ObjectOutputStream obj = new ObjectOutputStream(bytes)) {
+        obj.writeObject(context);
+      }
+      out.write(bytes.toByteArray());
+    }
+
+    return tempFile;
+  }
+
+  /**
+   * Builds the dev jar's {@code Class-Path}: core deployment infrastructure jars (deduplicated by
+   * artifactId) followed by parent-first runtime artifacts not already covered by the core set.
+   *
+   * <p>For jars that also exist on the application classpath, the application classpath version is
+   * preferred — the ApplicationModel references that jar file, and the system classloader must use
+   * the same file to avoid dual-classloader class identity conflicts.
+   */
+  private static String buildManifestClassPath(QuarkifierConfig config, ApplicationModel appModel) {
+    Map<String, Path> appCpByArtifactId = new LinkedHashMap<>();
+    for (Path jar : config.applicationClasspath()) {
+      appCpByArtifactId.put(MavenCoordinateParser.parse(jar).artifactId(), jar);
+    }
+
+    StringBuilder classPath = new StringBuilder();
+    Set<String> addedToManifest = new HashSet<>();
+    for (Path jar : config.coreDeploymentClasspath()) {
+      var coords = MavenCoordinateParser.parse(jar);
+      if (addedToManifest.contains(coords.artifactId())) {
+        continue;
+      }
+      Path effectiveJar = appCpByArtifactId.getOrDefault(coords.artifactId(), jar);
+      classPath.append(effectiveJar.toAbsolutePath().toUri()).append(' ');
+      addedToManifest.add(coords.artifactId());
+    }
+
+    for (Path jar : collectParentFirstRuntimeJars(config, appModel)) {
+      var coords = MavenCoordinateParser.parse(jar);
+      if (!addedToManifest.contains(coords.artifactId())) {
+        classPath.append(jar.toAbsolutePath().toUri()).append(' ');
+        addedToManifest.add(coords.artifactId());
+      }
+    }
+
+    return classPath.toString().trim();
+  }
+
+  /**
+   * Finds runtime jars that extensions declare must be on the parent classloader, excluding those
+   * already covered by the core deployment classpath. Matches Maven's {@code
+   * ConfiguredClassLoading.getParentFirstArtifacts()}.
+   */
+  private static List<Path> collectParentFirstRuntimeJars(
+      QuarkifierConfig config, ApplicationModel appModel) {
     Set<ArtifactKey> parentFirstKeys = new HashSet<>();
     for (ResolvedDependency dep : appModel.getDependencies()) {
       if (dep.isClassLoaderParentFirst()) {
@@ -152,15 +217,11 @@ public final class DevModeLauncher {
       }
     }
 
-    // Build a set of jar filenames already covered by core deployment classpath,
-    // so we don't duplicate them when adding parent-first runtime jars.
     Set<String> coreArtifactIds = new HashSet<>();
     for (Path jar : config.coreDeploymentClasspath()) {
       coreArtifactIds.add(MavenCoordinateParser.parse(jar).artifactId());
     }
 
-    // Find parent-first runtime jars that aren't already in the core deployment set.
-    // These are runtime jars that extensions declare must be on the parent classloader.
     List<Path> parentFirstJars = new ArrayList<>();
     for (Path jar : config.applicationClasspath()) {
       var coords = MavenCoordinateParser.parse(jar);
@@ -169,62 +230,7 @@ public final class DevModeLauncher {
         parentFirstJars.add(jar);
       }
     }
-
-    try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(tempFile))) {
-      out.putNextEntry(new ZipEntry("META-INF/"));
-
-      Manifest manifest = new Manifest();
-      manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
-      manifest.getMainAttributes().put(Attributes.Name.MAIN_CLASS, DevModeMain.class.getName());
-
-      // Build the Class-Path: core deployment jars (deduped) + parent-first runtime jars
-      StringBuilder classPath = new StringBuilder();
-
-      // 1. Core deployment infrastructure (quarkus-core-deployment transitive closure).
-      //    For jars that also exist on the application classpath, use the application
-      //    classpath version to avoid dual-classloader conflicts. The ApplicationModel
-      //    references the @maven version, so the system CL must use the same jar file.
-      Map<String, Path> appCpByArtifactId = new java.util.LinkedHashMap<>();
-      for (Path jar : config.applicationClasspath()) {
-        appCpByArtifactId.put(MavenCoordinateParser.parse(jar).artifactId(), jar);
-      }
-
-      Set<String> addedToManifest = new HashSet<>();
-      for (Path jar : config.coreDeploymentClasspath()) {
-        var coords = MavenCoordinateParser.parse(jar);
-        if (addedToManifest.contains(coords.artifactId())) {
-          continue;
-        }
-        // Prefer the application classpath version if available (same jar file
-        // that the ApplicationModel references, avoiding class identity conflicts)
-        Path effectiveJar = appCpByArtifactId.getOrDefault(coords.artifactId(), jar);
-        classPath.append(effectiveJar.toAbsolutePath().toUri()).append(' ');
-        addedToManifest.add(coords.artifactId());
-      }
-
-      // 2. Parent-first runtime artifacts not already in core
-      for (Path jar : parentFirstJars) {
-        var coords = MavenCoordinateParser.parse(jar);
-        if (!addedToManifest.contains(coords.artifactId())) {
-          classPath.append(jar.toAbsolutePath().toUri()).append(' ');
-          addedToManifest.add(coords.artifactId());
-        }
-      }
-
-      manifest.getMainAttributes().put(Attributes.Name.CLASS_PATH, classPath.toString().trim());
-
-      out.putNextEntry(new ZipEntry("META-INF/MANIFEST.MF"));
-      manifest.write(out);
-
-      out.putNextEntry(new ZipEntry(DevModeMain.DEV_MODE_CONTEXT));
-      ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-      ObjectOutputStream obj = new ObjectOutputStream(new DataOutputStream(bytes));
-      obj.writeObject(context);
-      obj.close();
-      out.write(bytes.toByteArray());
-    }
-
-    return tempFile;
+    return parentFirstJars;
   }
 
   /** Builds a {@link DevModeContext} configured for Bazel-managed dev mode. */
@@ -247,10 +253,16 @@ public final class DevModeLauncher {
     context.setProjectDir(projectRoot.toAbsolutePath().toFile());
 
     // Platform properties for SmallRye Config expression resolution
-    BuildProperties.defaults(config.mainClass())
+    BuildProperties.defaults(config.mainClass(), null)
         .forEach((k, v) -> context.getBuildSystemProperties().put((String) k, (String) v));
 
-    // Build ModuleInfo for the application root
+    context.setApplicationRoot(buildAppModuleInfo(config, projectRoot));
+    return context;
+  }
+
+  /** Builds the {@link DevModeContext.ModuleInfo} for the application root. */
+  private static DevModeContext.ModuleInfo buildAppModuleInfo(
+      QuarkifierConfig config, Path projectRoot) {
     Path appJar = config.applicationClasspath().get(0);
     var coords = MavenCoordinateParser.parse(appJar);
 
@@ -262,23 +274,18 @@ public final class DevModeLauncher {
     // We create the directory in launch() since Bazel workspaces don't have a target/ dir.
     Path targetDir = projectRoot.resolve("target");
 
-    var moduleInfo =
-        new DevModeContext.ModuleInfo.Builder()
-            .setArtifactKey(ArtifactKey.ga(coords.groupId(), coords.artifactId()))
-            .setName(config.appName() != null ? config.appName() : coords.artifactId())
-            .setProjectDirectory(projectRoot.toAbsolutePath().toString())
-            .setSourcePaths(PathList.from(config.sourceDirs()))
-            .setClassesPath(classesPath.toAbsolutePath().toString())
-            .setResourcePaths(PathList.from(config.resources()))
-            .setResourcesOutputPath(
-                config.resources().isEmpty()
-                    ? null
-                    : config.resources().get(0).toAbsolutePath().toString())
-            .setTargetDir(targetDir.toAbsolutePath().toString())
-            .build();
-
-    context.setApplicationRoot(moduleInfo);
-
-    return context;
+    return new DevModeContext.ModuleInfo.Builder()
+        .setArtifactKey(ArtifactKey.ga(coords.groupId(), coords.artifactId()))
+        .setName(config.appName() != null ? config.appName() : coords.artifactId())
+        .setProjectDirectory(projectRoot.toAbsolutePath().toString())
+        .setSourcePaths(PathList.from(config.sourceDirs()))
+        .setClassesPath(classesPath.toAbsolutePath().toString())
+        .setResourcePaths(PathList.from(config.resources()))
+        .setResourcesOutputPath(
+            config.resources().isEmpty()
+                ? null
+                : config.resources().get(0).toAbsolutePath().toString())
+        .setTargetDir(targetDir.toAbsolutePath().toString())
+        .build();
   }
 }

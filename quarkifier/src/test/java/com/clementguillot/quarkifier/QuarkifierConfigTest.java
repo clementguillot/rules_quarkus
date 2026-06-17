@@ -2,9 +2,11 @@ package com.clementguillot.quarkifier;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /** Unit tests for {@link QuarkifierConfig} error paths and edge cases. */
 class QuarkifierConfigTest {
@@ -311,5 +313,188 @@ class QuarkifierConfigTest {
                       "--workspace-dir"
                     }));
     assertTrue(ex.getMessage().contains("--workspace-dir"));
+  }
+
+  // ---- toArgs() round-trip ----
+  //
+  // Two deliberate cases instead of randomized configs: a minimal config
+  // (defaults and empty collections) and a maximal one (every field set).
+  // Together they cover every branch in toArgs()/parse() symmetry.
+
+  @Test
+  void roundTrip_minimalConfig() throws QuarkifierConfig.InvalidArgumentsException {
+    var original =
+        QuarkifierConfig.parse(
+            "--application-classpath", "a.jar",
+            "--deployment-classpath", "d.jar",
+            "--output-dir", "/out");
+
+    assertEquals(original, QuarkifierConfig.parse(original.toArgs()));
+  }
+
+  @Test
+  void roundTrip_fullConfig() throws QuarkifierConfig.InvalidArgumentsException {
+    var original =
+        QuarkifierConfig.parse(
+            "--application-classpath",
+            "a.jar:b.jar",
+            "--deployment-classpath",
+            "d.jar:e.jar",
+            "--core-deployment-classpath",
+            "core.jar",
+            "--output-dir",
+            "/out",
+            "--resources",
+            "src/main/resources,extra/resources",
+            "--mode",
+            "dev",
+            "--expected-quarkus-version",
+            "3.33.2",
+            "--app-name",
+            "my-app",
+            "--app-version",
+            "1.2.3",
+            "--main-class",
+            "com.example.Main",
+            "--native-builder-image",
+            "quay.io/quarkus/builder:jdk-25",
+            "--source-dirs",
+            "src/main/java,lib/src/main/java",
+            "--classes-dir",
+            "/tmp/classes",
+            "--bazel-targets",
+            "//pkg:lib,//pkg:other",
+            "--classes-output-dirs",
+            "bazel-bin/pkg/lib",
+            "--workspace-dir",
+            "/home/user/project",
+            "--bazel-build-timeout-seconds",
+            "120",
+            "--local-app-jars",
+            "a.jar");
+
+    assertEquals(original, QuarkifierConfig.parse(original.toArgs()));
+  }
+
+  // ---- classpath file flags ----
+
+  @Test
+  void parse_applicationClasspathFromFile(@TempDir Path tempDir) throws Exception {
+    Path cpFile = tempDir.resolve("app_cp.txt");
+    Files.writeString(cpFile, "a.jar:b.jar\n");
+
+    var config =
+        QuarkifierConfig.parse(
+            "--application-classpath-file", cpFile.toString(),
+            "--deployment-classpath", "d.jar",
+            "--output-dir", "/out");
+
+    assertEquals(List.of(Path.of("a.jar"), Path.of("b.jar")), config.applicationClasspath());
+  }
+
+  @Test
+  void parse_deploymentClasspathFromFile(@TempDir Path tempDir) throws Exception {
+    Path cpFile = tempDir.resolve("deploy_cp.txt");
+    Files.writeString(cpFile, "d.jar:e.jar");
+
+    var config =
+        QuarkifierConfig.parse(
+            "--application-classpath", "a.jar",
+            "--deployment-classpath-file", cpFile.toString(),
+            "--output-dir", "/out");
+
+    assertEquals(List.of(Path.of("d.jar"), Path.of("e.jar")), config.deploymentClasspath());
+  }
+
+  @Test
+  void parse_classpathFileMissing_throws() {
+    var ex =
+        assertThrows(
+            QuarkifierConfig.InvalidArgumentsException.class,
+            () ->
+                QuarkifierConfig.parse(
+                    "--application-classpath-file", "/nonexistent/cp.txt",
+                    "--deployment-classpath", "d.jar",
+                    "--output-dir", "/out"));
+    assertTrue(ex.getMessage().contains("/nonexistent/cp.txt"));
+  }
+
+  // ---- value validation ----
+
+  @Test
+  void parse_emptyMainClass_throws() {
+    var ex =
+        assertThrows(
+            QuarkifierConfig.InvalidArgumentsException.class,
+            () ->
+                QuarkifierConfig.parse(
+                    "--application-classpath", "a.jar",
+                    "--deployment-classpath", "d.jar",
+                    "--output-dir", "/out",
+                    "--main-class", "  "));
+    assertTrue(ex.getMessage().contains("--main-class"));
+  }
+
+  @Test
+  void parse_emptyNativeBuilderImage_throws() {
+    var ex =
+        assertThrows(
+            QuarkifierConfig.InvalidArgumentsException.class,
+            () ->
+                QuarkifierConfig.parse(
+                    "--application-classpath", "a.jar",
+                    "--deployment-classpath", "d.jar",
+                    "--output-dir", "/out",
+                    "--native-builder-image", ""));
+    assertTrue(ex.getMessage().contains("--native-builder-image"));
+  }
+
+  @Test
+  void parse_nonNumericTimeout_throws() {
+    var ex =
+        assertThrows(
+            QuarkifierConfig.InvalidArgumentsException.class,
+            () ->
+                QuarkifierConfig.parse(
+                    "--application-classpath", "a.jar",
+                    "--deployment-classpath", "d.jar",
+                    "--output-dir", "/out",
+                    "--bazel-build-timeout-seconds", "soon"));
+    assertTrue(ex.getMessage().contains("--bazel-build-timeout-seconds"));
+  }
+
+  @Test
+  void parse_negativeTimeout_throws() {
+    assertThrows(
+        QuarkifierConfig.InvalidArgumentsException.class,
+        () ->
+            QuarkifierConfig.parse(
+                "--application-classpath", "a.jar",
+                "--deployment-classpath", "d.jar",
+                "--output-dir", "/out",
+                "--bazel-build-timeout-seconds", "-5"));
+  }
+
+  @Test
+  void parse_defaultTimeoutIs60() throws QuarkifierConfig.InvalidArgumentsException {
+    var config =
+        QuarkifierConfig.parse(
+            "--application-classpath", "a.jar",
+            "--deployment-classpath", "d.jar",
+            "--output-dir", "/out");
+    assertEquals(60, config.bazelBuildTimeoutSeconds());
+  }
+
+  @Test
+  void parse_emptyOutputDir_throws() {
+    var ex =
+        assertThrows(
+            QuarkifierConfig.InvalidArgumentsException.class,
+            () ->
+                QuarkifierConfig.parse(
+                    "--application-classpath", "a.jar",
+                    "--deployment-classpath", "d.jar",
+                    "--output-dir", ""));
+    assertTrue(ex.getMessage().contains("--output-dir"));
   }
 }

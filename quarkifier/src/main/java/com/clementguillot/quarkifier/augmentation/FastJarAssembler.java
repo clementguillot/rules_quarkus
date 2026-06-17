@@ -48,21 +48,6 @@ public final class FastJarAssembler {
    * @param runtimeJars runtime dependency jars (excluding the app jar itself)
    * @param appModel the ApplicationModel used during augmentation
    * @param resources user resource files (e.g., application.properties)
-   * @throws IOException if any I/O operation fails
-   */
-  public static void assemble(
-      Path outputDir, List<Path> runtimeJars, ApplicationModel appModel, List<Path> resources)
-      throws IOException {
-    assemble(outputDir, runtimeJars, appModel, resources, null);
-  }
-
-  /**
-   * Runs all four post-processing steps to produce a complete Fast_Jar.
-   *
-   * @param outputDir the augmentation output directory
-   * @param runtimeJars runtime dependency jars (excluding the app jar itself)
-   * @param appModel the ApplicationModel used during augmentation
-   * @param resources user resource files (e.g., application.properties)
    * @param mainClass the fully-qualified main class name, or {@code null} to use the default {@code
    *     io.quarkus.runner.GeneratedMain}
    * @throws IOException if any I/O operation fails
@@ -150,7 +135,7 @@ public final class FastJarAssembler {
     try (var jos = new JarOutputStream(Files.newOutputStream(resourcesJar))) {
       Set<String> addedEntries = new HashSet<>();
       for (Path resource : resources) {
-        if (!Files.exists(resource)) {
+        if (!Files.isRegularFile(resource)) {
           continue;
         }
         String entryName = resource.getFileName().toString();
@@ -167,19 +152,12 @@ public final class FastJarAssembler {
   }
 
   /**
-   * Regenerates {@code quarkus-application.dat} with correct relative paths.
+   * Regenerates {@code quarkus-application.dat} with correct relative paths and the specified main
+   * class.
    *
    * <p>Jars in {@code lib/boot/} are registered as parent-first (loaded by the boot classloader),
    * which is critical for the JBoss LogManager to intercept JUL before any other logging framework
    * initializes. All other jars are indexed normally for the RunnerClassLoader.
-   */
-  static void regenerateApplicationDat(Path outputDir) throws IOException {
-    regenerateApplicationDat(outputDir, null);
-  }
-
-  /**
-   * Regenerates {@code quarkus-application.dat} with correct relative paths and the specified main
-   * class.
    *
    * @param outputDir the augmentation output directory
    * @param mainClass the fully-qualified main class name, or {@code null} to use the default {@code
@@ -249,13 +227,21 @@ public final class FastJarAssembler {
       return;
     }
 
-    makeWritable(runnerJar);
+    rewriteJarManifest(runnerJar, classPath);
+  }
+
+  /** Rewrites a jar in place, replacing its manifest's {@code Class-Path} attribute. */
+  private static void rewriteJarManifest(Path jarPath, String classPath) throws IOException {
+    makeWritable(jarPath);
 
     Manifest manifest;
     byte[][] entries;
     String[] entryNames;
-    try (JarFile jar = new JarFile(runnerJar.toFile())) {
+    try (JarFile jar = new JarFile(jarPath.toFile())) {
       manifest = jar.getManifest();
+      if (manifest == null) {
+        throw new IOException("Missing manifest in jar: " + jarPath);
+      }
       var entryList =
           jar.stream().filter(e -> !"META-INF/MANIFEST.MF".equals(e.getName())).toList();
       entryNames = new String[entryList.size()];
@@ -268,7 +254,8 @@ public final class FastJarAssembler {
 
     manifest.getMainAttributes().putValue("Class-Path", classPath);
 
-    Path tempJar = runnerJar.getParent().resolve("quarkus-run.jar.tmp");
+    Path tempJar = jarPath.getParent().resolve(jarPath.getFileName() + ".tmp");
+    tempJar.toFile().deleteOnExit();
     try (var jos = new JarOutputStream(Files.newOutputStream(tempJar), manifest)) {
       for (int i = 0; i < entryNames.length; i++) {
         jos.putNextEntry(new ZipEntry(entryNames[i]));
@@ -276,7 +263,7 @@ public final class FastJarAssembler {
         jos.closeEntry();
       }
     }
-    Files.move(tempJar, runnerJar, StandardCopyOption.REPLACE_EXISTING);
+    Files.move(tempJar, jarPath, StandardCopyOption.REPLACE_EXISTING);
   }
 
   // ---- Internal helpers ----

@@ -3,8 +3,10 @@ package com.clementguillot.quarkifier;
 import java.io.Serial;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
@@ -91,184 +93,123 @@ public record QuarkifierConfig(
    * @throws InvalidArgumentsException on missing/invalid arguments (caller should exit 2)
    */
   public static QuarkifierConfig parse(String... args) throws InvalidArgumentsException {
-    String appCp = null;
-    String deployCp = null;
-    String coreDeployCp = null;
-    String outputDir = null;
-    String resources = null;
-    String mode = null;
-    String expectedVersion = null;
-    String appName = null;
-    String appVersion = null;
-    String mainClass = null;
-    String nativeBuilderImage = null;
-    String sourceDirs = null;
-    String classesDir = null;
-    String bazelTargets = null;
-    String classesOutputDirs = null;
-    String workspaceDir = null;
-    String bazelBuildTimeoutSeconds = null;
-    String localAppJars = null;
+    RawArgs raw = parseFlags(args);
 
-    for (int i = 0; i < args.length; i++) {
-      switch (args[i]) {
-        case "--application-classpath" -> appCp = requireValue(args, ++i, args[i - 1]);
-        case "--application-classpath-file" -> appCp =
-            readFileContent(requireValue(args, ++i, args[i - 1]));
-        case "--deployment-classpath" -> deployCp = requireValue(args, ++i, args[i - 1]);
-        case "--deployment-classpath-file" -> deployCp =
-            readFileContent(requireValue(args, ++i, args[i - 1]));
-        case "--core-deployment-classpath" -> coreDeployCp = requireValue(args, ++i, args[i - 1]);
-        case "--output-dir" -> outputDir = requireValue(args, ++i, args[i - 1]);
-        case "--resources" -> resources = requireValue(args, ++i, args[i - 1]);
-        case "--mode" -> mode = requireValue(args, ++i, args[i - 1]);
-        case "--expected-quarkus-version" -> expectedVersion = requireValue(args, ++i, args[i - 1]);
-        case "--app-name" -> appName = requireValue(args, ++i, args[i - 1]);
-        case "--app-version" -> appVersion = requireValue(args, ++i, args[i - 1]);
-        case "--main-class" -> {
-          mainClass = requireValue(args, ++i, args[i - 1]).trim();
-          if (mainClass.isEmpty()) {
-            throw new InvalidArgumentsException("Value for --main-class must not be empty");
-          }
-        }
-        case "--native-builder-image" -> {
-          nativeBuilderImage = requireValue(args, ++i, args[i - 1]).trim();
-          if (nativeBuilderImage.isEmpty()) {
-            throw new InvalidArgumentsException(
-                "Value for --native-builder-image must not be empty");
-          }
-        }
-        case "--source-dirs" -> sourceDirs = requireValue(args, ++i, args[i - 1]);
-        case "--classes-dir" -> classesDir = requireValue(args, ++i, args[i - 1]);
-        case "--bazel-targets" -> bazelTargets = requireValue(args, ++i, args[i - 1]);
-        case "--classes-output-dirs" -> classesOutputDirs = requireValue(args, ++i, args[i - 1]);
-        case "--workspace-dir" -> workspaceDir = requireValue(args, ++i, args[i - 1]);
-        case "--bazel-build-timeout-seconds" -> bazelBuildTimeoutSeconds =
-            requireValue(args, ++i, args[i - 1]);
-        case "--local-app-jars" -> localAppJars = requireValue(args, ++i, args[i - 1]);
-        default -> throw new InvalidArgumentsException("Unknown argument: " + args[i]);
-      }
-    }
-
-    if (appCp == null) {
+    if (raw.appCp == null) {
       throw new InvalidArgumentsException("Missing required argument: --application-classpath");
     }
-    if (deployCp == null) {
+    if (raw.deployCp == null) {
       throw new InvalidArgumentsException("Missing required argument: --deployment-classpath");
     }
-    if (outputDir == null) {
+    if (raw.outputDir == null) {
       throw new InvalidArgumentsException("Missing required argument: --output-dir");
     }
 
-    AugmentationMode parsedMode = parseMode(mode);
-    long parsedTimeout = parseTimeout(bazelBuildTimeoutSeconds);
-
     return new QuarkifierConfig(
-        splitPaths(appCp, ":"),
-        splitPaths(deployCp, ":"),
-        coreDeployCp != null ? splitPaths(coreDeployCp, ":") : List.of(),
-        Path.of(outputDir),
-        resources != null ? splitPaths(resources, ",") : List.of(),
-        parsedMode,
-        expectedVersion,
-        appName,
-        appVersion,
-        mainClass,
-        nativeBuilderImage,
-        sourceDirs != null ? splitPaths(sourceDirs, ",") : List.of(),
-        classesDir != null ? Path.of(classesDir) : null,
-        bazelTargets != null ? splitStrings(bazelTargets, ",") : List.of(),
-        classesOutputDirs != null ? splitPaths(classesOutputDirs, ",") : List.of(),
-        workspaceDir != null ? Path.of(workspaceDir) : null,
-        parsedTimeout,
-        localAppJars != null ? splitPaths(localAppJars, ":") : List.of());
+        splitPaths(raw.appCp, ":"),
+        splitPaths(raw.deployCp, ":"),
+        raw.coreDeployCp != null ? splitPaths(raw.coreDeployCp, ":") : List.of(),
+        Path.of(raw.outputDir),
+        raw.resources != null ? splitPaths(raw.resources, ",") : List.of(),
+        parseMode(raw.mode),
+        raw.expectedVersion,
+        raw.appName,
+        raw.appVersion,
+        raw.mainClass,
+        raw.nativeBuilderImage,
+        raw.sourceDirs != null ? splitPaths(raw.sourceDirs, ",") : List.of(),
+        raw.classesDir != null ? Path.of(raw.classesDir) : null,
+        raw.bazelTargets != null ? splitStrings(raw.bazelTargets, ",") : List.of(),
+        raw.classesOutputDirs != null ? splitPaths(raw.classesOutputDirs, ",") : List.of(),
+        raw.workspaceDir != null ? Path.of(raw.workspaceDir) : null,
+        parseTimeout(raw.bazelBuildTimeoutSeconds),
+        raw.localAppJars != null ? splitPaths(raw.localAppJars, ":") : List.of());
+  }
+
+  /** Raw flag values as given on the CLI, before validation and conversion. One field per flag. */
+  @SuppressWarnings("PMD.TooManyFields")
+  private static final class RawArgs {
+    String appCp;
+    String deployCp;
+    String coreDeployCp;
+    String outputDir;
+    String resources;
+    String mode;
+    String expectedVersion;
+    String appName;
+    String appVersion;
+    String mainClass;
+    String nativeBuilderImage;
+    String sourceDirs;
+    String classesDir;
+    String bazelTargets;
+    String classesOutputDirs;
+    String workspaceDir;
+    String bazelBuildTimeoutSeconds;
+    String localAppJars;
+  }
+
+  private static RawArgs parseFlags(String... args) throws InvalidArgumentsException {
+    RawArgs raw = new RawArgs();
+    for (int i = 0; i < args.length; i++) {
+      switch (args[i]) {
+        case "--application-classpath" -> raw.appCp = requireValue(args, ++i, args[i - 1]);
+        case "--application-classpath-file" -> raw.appCp =
+            readFileContent(requireValue(args, ++i, args[i - 1]));
+        case "--deployment-classpath" -> raw.deployCp = requireValue(args, ++i, args[i - 1]);
+        case "--deployment-classpath-file" -> raw.deployCp =
+            readFileContent(requireValue(args, ++i, args[i - 1]));
+        case "--core-deployment-classpath" -> raw.coreDeployCp =
+            requireValue(args, ++i, args[i - 1]);
+        case "--output-dir" -> raw.outputDir =
+            requireNonEmptyValue(args, ++i, args[i - 1], "--output-dir");
+        case "--resources" -> raw.resources = requireValue(args, ++i, args[i - 1]);
+        case "--mode" -> raw.mode = requireValue(args, ++i, args[i - 1]);
+        case "--expected-quarkus-version" -> raw.expectedVersion =
+            requireValue(args, ++i, args[i - 1]);
+        case "--app-name" -> raw.appName = requireValue(args, ++i, args[i - 1]);
+        case "--app-version" -> raw.appVersion = requireValue(args, ++i, args[i - 1]);
+        case "--main-class" -> raw.mainClass =
+            requireNonEmptyValue(args, ++i, args[i - 1], "--main-class");
+        case "--native-builder-image" -> raw.nativeBuilderImage =
+            requireNonEmptyValue(args, ++i, args[i - 1], "--native-builder-image");
+        case "--source-dirs" -> raw.sourceDirs = requireValue(args, ++i, args[i - 1]);
+        case "--classes-dir" -> raw.classesDir = requireValue(args, ++i, args[i - 1]);
+        case "--bazel-targets" -> raw.bazelTargets = requireValue(args, ++i, args[i - 1]);
+        case "--classes-output-dirs" -> raw.classesOutputDirs =
+            requireValue(args, ++i, args[i - 1]);
+        case "--workspace-dir" -> raw.workspaceDir = requireValue(args, ++i, args[i - 1]);
+        case "--bazel-build-timeout-seconds" -> raw.bazelBuildTimeoutSeconds =
+            requireValue(args, ++i, args[i - 1]);
+        case "--local-app-jars" -> raw.localAppJars = requireValue(args, ++i, args[i - 1]);
+        default -> throw new InvalidArgumentsException("Unknown argument: " + args[i]);
+      }
+    }
+    return raw;
   }
 
   /** Serializes this config back to a CLI argument array, suitable for round-trip testing. */
   public String[] toArgs() {
-    var list = new java.util.ArrayList<String>();
-
-    list.add("--application-classpath");
-    list.add(joinPaths(applicationClasspath, ":"));
-
-    list.add("--deployment-classpath");
-    list.add(joinPaths(deploymentClasspath, ":"));
-
-    if (!coreDeploymentClasspath.isEmpty()) {
-      list.add("--core-deployment-classpath");
-      list.add(joinPaths(coreDeploymentClasspath, ":"));
-    }
-
-    list.add("--output-dir");
-    list.add(outputDir.toString());
-
-    if (!resources.isEmpty()) {
-      list.add("--resources");
-      list.add(joinPaths(resources, ","));
-    }
-
-    list.add("--mode");
-    list.add(mode.name().toLowerCase(java.util.Locale.ROOT));
-
-    if (expectedQuarkusVersion != null) {
-      list.add("--expected-quarkus-version");
-      list.add(expectedQuarkusVersion);
-    }
-
-    if (appName != null) {
-      list.add("--app-name");
-      list.add(appName);
-    }
-
-    if (appVersion != null) {
-      list.add("--app-version");
-      list.add(appVersion);
-    }
-
-    if (mainClass != null) {
-      list.add("--main-class");
-      list.add(mainClass);
-    }
-
-    if (nativeBuilderImage != null) {
-      list.add("--native-builder-image");
-      list.add(nativeBuilderImage);
-    }
-
-    if (!sourceDirs.isEmpty()) {
-      list.add("--source-dirs");
-      list.add(joinPaths(sourceDirs, ","));
-    }
-
-    if (classesDir != null) {
-      list.add("--classes-dir");
-      list.add(classesDir.toString());
-    }
-
-    if (!bazelTargets.isEmpty()) {
-      list.add("--bazel-targets");
-      list.add(String.join(",", bazelTargets));
-    }
-
-    if (!classesOutputDirs.isEmpty()) {
-      list.add("--classes-output-dirs");
-      list.add(joinPaths(classesOutputDirs, ","));
-    }
-
-    if (workspaceDir != null) {
-      list.add("--workspace-dir");
-      list.add(workspaceDir.toString());
-    }
-
+    var list = new ArrayList<String>();
+    addArg(list, "--application-classpath", joinPaths(applicationClasspath, ":"));
+    addArg(list, "--deployment-classpath", joinPaths(deploymentClasspath, ":"));
+    addArgUnlessEmpty(list, "--core-deployment-classpath", joinPaths(coreDeploymentClasspath, ":"));
+    addArg(list, "--output-dir", outputDir.toString());
+    addArgUnlessEmpty(list, "--resources", joinPaths(resources, ","));
+    addArg(list, "--mode", mode.name().toLowerCase(Locale.ROOT));
+    addArgIfPresent(list, "--expected-quarkus-version", expectedQuarkusVersion);
+    addArgIfPresent(list, "--app-name", appName);
+    addArgIfPresent(list, "--app-version", appVersion);
+    addArgIfPresent(list, "--main-class", mainClass);
+    addArgIfPresent(list, "--native-builder-image", nativeBuilderImage);
+    addArgUnlessEmpty(list, "--source-dirs", joinPaths(sourceDirs, ","));
+    addArgIfPresent(list, "--classes-dir", classesDir != null ? classesDir.toString() : null);
+    addArgUnlessEmpty(list, "--bazel-targets", String.join(",", bazelTargets));
+    addArgUnlessEmpty(list, "--classes-output-dirs", joinPaths(classesOutputDirs, ","));
+    addArgIfPresent(list, "--workspace-dir", workspaceDir != null ? workspaceDir.toString() : null);
     // Always include timeout for round-trip consistency
-    list.add("--bazel-build-timeout-seconds");
-    list.add(String.valueOf(bazelBuildTimeoutSeconds));
-
-    if (!localAppJars.isEmpty()) {
-      list.add("--local-app-jars");
-      list.add(joinPaths(localAppJars, ":"));
-    }
-
+    addArg(list, "--bazel-build-timeout-seconds", String.valueOf(bazelBuildTimeoutSeconds));
+    addArgUnlessEmpty(list, "--local-app-jars", joinPaths(localAppJars, ":"));
     return list.toArray(String[]::new);
   }
 
@@ -278,6 +219,23 @@ public record QuarkifierConfig(
   }
 
   // ---- internal helpers ----
+
+  private static void addArg(List<String> list, String flag, String value) {
+    list.add(flag);
+    list.add(value);
+  }
+
+  private static void addArgIfPresent(List<String> list, String flag, String value) {
+    if (value != null) {
+      addArg(list, flag, value);
+    }
+  }
+
+  private static void addArgUnlessEmpty(List<String> list, String flag, String value) {
+    if (!value.isEmpty()) {
+      addArg(list, flag, value);
+    }
+  }
 
   private static AugmentationMode parseMode(String mode) throws InvalidArgumentsException {
     try {
@@ -310,6 +268,15 @@ public record QuarkifierConfig(
       throw new InvalidArgumentsException("Missing value for " + flag);
     }
     return args[index];
+  }
+
+  private static String requireNonEmptyValue(String[] args, int index, String flag, String name)
+      throws InvalidArgumentsException {
+    String value = requireValue(args, index, flag).trim();
+    if (value.isEmpty()) {
+      throw new InvalidArgumentsException("Value for " + name + " must not be empty");
+    }
+    return value;
   }
 
   private static String readFileContent(String filePath) throws InvalidArgumentsException {

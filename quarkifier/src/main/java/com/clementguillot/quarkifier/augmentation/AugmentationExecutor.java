@@ -14,6 +14,7 @@ import io.quarkus.bootstrap.app.CuratedApplication;
 import io.quarkus.bootstrap.app.QuarkusBootstrap;
 import io.quarkus.bootstrap.model.ApplicationModel;
 import io.quarkus.paths.PathList;
+import java.lang.reflect.Constructor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -41,62 +42,32 @@ public final class AugmentationExecutor {
       Path outputDir = config.outputDir();
       Files.createDirectories(outputDir);
 
-      List<Path> appCp = config.applicationClasspath();
-      List<Path> deployCp = config.deploymentClasspath();
-
-      if (appCp.isEmpty()) {
+      if (config.applicationClasspath().isEmpty()) {
         throw new AugmentationException(
             "Application classpath is empty; at least one jar is required.");
       }
 
       ClasspathPartition partition = partitionClasspath(config);
-      List<Path> localAppJars = partition.localAppJars();
-      List<Path> runtimeJars = partition.runtimeJars();
+      ApplicationModel appModel = buildModel(config, partition);
 
-      ApplicationModel appModel;
-      if (config.mode() == AugmentationMode.TEST) {
-        appModel =
-            QuarkusAppModelBuilder.buildForTest(
-                localAppJars, runtimeJars, deployCp, config.appName(), config.appVersion());
-      } else {
-        appModel =
-            QuarkusAppModelBuilder.build(
-                localAppJars, runtimeJars, deployCp, config.appName(), config.appVersion());
-      }
-
-      // DEV mode: delegate to DevModeLauncher which starts IsolatedDevModeMain
-      // with full Dev UI and hot-reload support.
-      if (config.mode() == AugmentationMode.DEV) {
-        DevModeLauncher.launch(config, appModel);
-        return;
-      }
-
-      // TEST mode: serialize the ApplicationModel for use by QuarkusTestExtension.
-      // No augmentation is run — the test JVM handles that via QuarkusBootstrap.Mode.TEST.
-      if (config.mode() == AugmentationMode.TEST) {
-        Path modelFile = outputDir.resolve("test-app-model.dat");
-        AppModelSerializerStrategy serializer = new AppModelSerializerImpl();
-        Path serializedModel = serializer.serialize(appModel);
-        if (!serializedModel.equals(modelFile)) {
-          Files.copy(serializedModel, modelFile, StandardCopyOption.REPLACE_EXISTING);
-          Files.deleteIfExists(serializedModel);
+      switch (config.mode()) {
+          // DEV: delegate to DevModeLauncher which starts IsolatedDevModeMain
+          // with full Dev UI and hot-reload support.
+        case DEV -> DevModeLauncher.launch(config, appModel);
+          // TEST: serialize the ApplicationModel for use by QuarkusTestExtension.
+          // No augmentation is run — the test JVM handles that via QuarkusBootstrap.Mode.TEST.
+        case TEST -> serializeTestModel(outputDir, appModel);
+        case NATIVE -> {
+          runAugmentation(config, partition.localAppJars(), appModel, outputDir);
+          NativeSourcesAssembler.assemble(outputDir, partition.runtimeJars());
         }
-        return;
+        case NORMAL -> {
+          runAugmentation(config, partition.localAppJars(), appModel, outputDir);
+          FastJarAssembler.assemble(
+              outputDir, partition.runtimeJars(), appModel, config.resources(), config.mainClass());
+        }
+        default -> throw new AugmentationException("Unhandled mode: " + config.mode());
       }
-
-      runAugmentation(config, localAppJars, appModel, outputDir);
-
-      // NATIVE mode: run augmentation with native-sources-only properties,
-      // then validate output via NativeSourcesAssembler instead of FastJarAssembler.
-      if (config.mode() == AugmentationMode.NATIVE) {
-        NativeSourcesAssembler.assemble(outputDir, runtimeJars);
-        return;
-      }
-
-      // Post-process: assemble the complete Fast_Jar
-      FastJarAssembler.assemble(
-          outputDir, runtimeJars, appModel, config.resources(), config.mainClass());
-
     } catch (AugmentationException e) {
       throw e;
     } catch (Exception e) {
@@ -104,7 +75,37 @@ public final class AugmentationExecutor {
     }
   }
 
-  /** Runs the Quarkus bootstrap and augmentation for production/test modes. */
+  private static ApplicationModel buildModel(QuarkifierConfig config, ClasspathPartition partition)
+      throws Exception {
+    if (config.mode() == AugmentationMode.TEST) {
+      return QuarkusAppModelBuilder.buildForTest(
+          partition.localAppJars(),
+          partition.runtimeJars(),
+          config.deploymentClasspath(),
+          config.appName(),
+          config.appVersion());
+    }
+    return QuarkusAppModelBuilder.build(
+        partition.localAppJars(),
+        partition.runtimeJars(),
+        config.deploymentClasspath(),
+        config.appName(),
+        config.appVersion());
+  }
+
+  /** Writes the serialized test ApplicationModel to {@code <output-dir>/test-app-model.dat}. */
+  private static void serializeTestModel(Path outputDir, ApplicationModel appModel)
+      throws Exception {
+    Path modelFile = outputDir.resolve("test-app-model.dat");
+    AppModelSerializerStrategy serializer = new AppModelSerializerImpl();
+    Path serializedModel = serializer.serialize(appModel);
+    if (!serializedModel.equals(modelFile)) {
+      Files.copy(serializedModel, modelFile, StandardCopyOption.REPLACE_EXISTING);
+      Files.deleteIfExists(serializedModel);
+    }
+  }
+
+  /** Runs the Quarkus bootstrap and augmentation for production/native modes. */
   private static void runAugmentation(
       QuarkifierConfig config, List<Path> localAppJars, ApplicationModel appModel, Path outputDir)
       throws Exception {
@@ -137,7 +138,7 @@ public final class AugmentationExecutor {
       ClassLoader augmentCl = curatedApp.getOrCreateAugmentClassLoader();
       Class<?> augmentClass = augmentCl.loadClass("io.quarkus.runner.bootstrap.AugmentActionImpl");
 
-      java.lang.reflect.Constructor<?> ctor = findAugmentConstructor(augmentClass);
+      Constructor<?> ctor = findAugmentConstructor(augmentClass);
 
       ClassLoader originalTccl = Thread.currentThread().getContextClassLoader();
       try {
@@ -159,9 +160,9 @@ public final class AugmentationExecutor {
    * Finds the single-arg AugmentActionImpl constructor. We match by class name string because the
    * constructor's parameter type is loaded by the augment classloader, not our system classloader.
    */
-  private static java.lang.reflect.Constructor<?> findAugmentConstructor(Class<?> augmentClass)
+  private static Constructor<?> findAugmentConstructor(Class<?> augmentClass)
       throws AugmentationException {
-    for (java.lang.reflect.Constructor<?> c : augmentClass.getConstructors()) {
+    for (Constructor<?> c : augmentClass.getConstructors()) {
       Class<?>[] paramTypes = c.getParameterTypes();
       if (paramTypes.length == 1
           && "io.quarkus.bootstrap.app.CuratedApplication".equals(paramTypes[0].getName())) {

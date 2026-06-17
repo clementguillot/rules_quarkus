@@ -206,6 +206,45 @@ class QuarkusAppModelBuilderTest {
     assertTrue(spiDep.isFlagSet(DependencyFlags.DEPLOYMENT_CP));
   }
 
+  @Test
+  void buildIgnoresExclusionsWhenParsingPomDependencies() throws IOException {
+    Path appJar = createJar("app", "com.example", "myapp", "1.0");
+    Path coreJar = createJar("core", "io.quarkus", "quarkus-core", "3.33.2");
+    Path excludedJar = createJar("excluded", "org.excluded", "excluded-lib", "1.0");
+
+    // The <exclusions> block's groupId/artifactId must not overwrite the
+    // dependency's own coordinates (regression test).
+    Path restJar =
+        createJarWithPom(
+            "rest",
+            "io.quarkus",
+            "quarkus-rest",
+            "3.33.2",
+            "<dependency><groupId>io.quarkus</groupId>"
+                + "<artifactId>quarkus-core</artifactId><version>3.33.2</version>"
+                + "<exclusions><exclusion><groupId>org.excluded</groupId>"
+                + "<artifactId>excluded-lib</artifactId></exclusion></exclusions>"
+                + "</dependency>");
+
+    ApplicationModel model =
+        QuarkusAppModelBuilder.build(
+            List.of(appJar), List.of(coreJar, restJar, excludedJar), List.of(), "myapp", "1.0");
+
+    ResolvedDependency restDep =
+        model.getDependencies().stream()
+            .filter(d -> "quarkus-rest".equals(d.getArtifactId()))
+            .findFirst()
+            .orElseThrow();
+    Set<String> subDepArtifacts =
+        restDep.getDependencies().stream()
+            .map(ArtifactCoords::getArtifactId)
+            .collect(Collectors.toSet());
+    assertTrue(
+        subDepArtifacts.contains("quarkus-core"),
+        "edge must use the dependency's own coords, not the exclusion's");
+    assertFalse(subDepArtifacts.contains("excluded-lib"));
+  }
+
   // ---- Helpers ----
 
   private Path createJar(String prefix, String groupId, String artifactId, String version)
