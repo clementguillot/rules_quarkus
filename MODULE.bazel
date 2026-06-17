@@ -87,6 +87,7 @@ maven.install(
         "org.junit.platform:junit-platform-console-standalone:6.0.3",
         "org.junit.jupiter:junit-jupiter:6.0.3",
     ],
+    fetch_sources = True,
     known_contributing_modules = [
         "bazel_worker_java",
         "protobuf",
@@ -108,6 +109,7 @@ maven.install(
         "org.junit.platform:junit-platform-console-standalone:6.0.3",
         "org.junit.jupiter:junit-jupiter:6.0.3",
     ],
+    fetch_sources = True,
     known_contributing_modules = [
         "bazel_worker_java",
         "protobuf",

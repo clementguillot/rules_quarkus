@@ -174,7 +174,12 @@ public final class QuarkusAppModelBuilder {
       String appVersion)
       throws IOException {
     var modelBuilder = new ApplicationModelBuilder();
-    Set<Path> extensionJars = registerAllExtensions(modelBuilder, runtimeJars, deployClasspath);
+    Set<Path> extensionJars =
+        registerAllExtensions(
+            modelBuilder,
+            localAppJars.subList(1, localAppJars.size()),
+            runtimeJars,
+            deployClasspath);
 
     setAppArtifact(modelBuilder, localAppJars.get(0), appName, appVersion);
     registerDependencies(modelBuilder, localAppJars, runtimeJars, deployClasspath, extensionJars);
@@ -207,8 +212,12 @@ public final class QuarkusAppModelBuilder {
       String appVersion)
       throws IOException {
     var modelBuilder = new ApplicationModelBuilder();
-    Set<Path> extensionJars = registerAllExtensions(modelBuilder, runtimeJars, deployClasspath);
-
+    Set<Path> extensionJars =
+        registerAllExtensions(
+            modelBuilder,
+            localAppJars.subList(1, localAppJars.size()),
+            runtimeJars,
+            deployClasspath);
     setAppArtifactForTest(modelBuilder, localAppJars.get(0), appName, appVersion);
     registerDependencies(modelBuilder, localAppJars, runtimeJars, deployClasspath, extensionJars);
     return finishModel(modelBuilder);
@@ -234,9 +243,14 @@ public final class QuarkusAppModelBuilder {
    * @return the set of jar paths that are Quarkus extensions (used to flag them later)
    */
   private static Set<Path> registerAllExtensions(
-      ApplicationModelBuilder modelBuilder, List<Path> runtimeJars, List<Path> deployClasspath)
+      ApplicationModelBuilder modelBuilder,
+      List<Path> localDependencyJars,
+      List<Path> runtimeJars,
+      List<Path> deployClasspath)
       throws IOException {
-    Set<Path> extensionJars = registerExtensions(modelBuilder, runtimeJars);
+    List<Path> scanJars = new ArrayList<>(localDependencyJars);
+    scanJars.addAll(runtimeJars);
+    Set<Path> extensionJars = registerExtensions(modelBuilder, scanJars);
 
     Set<String> knownExtensionGas = new HashSet<>();
     for (Path jar : extensionJars) {
@@ -315,7 +329,8 @@ public final class QuarkusAppModelBuilder {
       List<Path> deployClasspath,
       Set<Path> extensionJars) {
     if (localAppJars.size() > 1) {
-      addLocalAppJarDependencies(modelBuilder, localAppJars.subList(1, localAppJars.size()));
+      addLocalAppJarDependencies(
+          modelBuilder, localAppJars.subList(1, localAppJars.size()), extensionJars);
     }
     Set<ArtifactKey> addedKeys = addRuntimeDependencies(modelBuilder, runtimeJars, extensionJars);
     addDeploymentDependencies(modelBuilder, deployClasspath, addedKeys, extensionJars);
@@ -385,19 +400,11 @@ public final class QuarkusAppModelBuilder {
    * indexed via the application root {@code PathCollection} mechanism.
    */
   private static void addLocalAppJarDependencies(
-      ApplicationModelBuilder modelBuilder, List<Path> additionalLocalJars) {
+      ApplicationModelBuilder modelBuilder,
+      List<Path> additionalLocalJars,
+      Set<Path> extensionJars) {
     for (Path jar : additionalLocalJars) {
-      var coords = MavenCoordinateParser.parse(jar);
-      modelBuilder.addDependency(
-          ResolvedDependencyBuilder.newInstance()
-              .setGroupId(coords.groupId())
-              .setArtifactId(coords.artifactId())
-              .setVersion(coords.version())
-              .setType(JAR_TYPE)
-              .setResolvedPath(jar)
-              .setRuntimeCp()
-              .setDeploymentCp()
-              .setDirect(true));
+      addDependencyToModelBuilder(modelBuilder, extensionJars, jar);
     }
   }
 
@@ -406,24 +413,30 @@ public final class QuarkusAppModelBuilder {
       ApplicationModelBuilder modelBuilder, List<Path> runtimeJars, Set<Path> extensionJars) {
     Set<ArtifactKey> addedKeys = new HashSet<>();
     for (Path jar : runtimeJars) {
-      var coords = MavenCoordinateParser.parse(jar);
-      var dep =
-          ResolvedDependencyBuilder.newInstance()
-              .setGroupId(coords.groupId())
-              .setArtifactId(coords.artifactId())
-              .setVersion(coords.version())
-              .setType(JAR_TYPE)
-              .setResolvedPath(jar)
-              .setRuntimeCp()
-              .setDeploymentCp()
-              .setDirect(true);
-      if (extensionJars.contains(jar)) {
-        dep.setRuntimeExtensionArtifact();
-      }
-      modelBuilder.addDependency(dep);
+      var dep = addDependencyToModelBuilder(modelBuilder, extensionJars, jar);
       addedKeys.add(dep.getKey());
     }
     return addedKeys;
+  }
+
+  private static ResolvedDependencyBuilder addDependencyToModelBuilder(
+      ApplicationModelBuilder modelBuilder, Set<Path> extensionJars, Path jar) {
+    var coords = MavenCoordinateParser.parse(jar);
+    var dep =
+        ResolvedDependencyBuilder.newInstance()
+            .setGroupId(coords.groupId())
+            .setArtifactId(coords.artifactId())
+            .setVersion(coords.version())
+            .setType(JAR_TYPE)
+            .setResolvedPath(jar)
+            .setRuntimeCp()
+            .setDeploymentCp()
+            .setDirect(true);
+    if (extensionJars.contains(jar)) {
+      dep.setRuntimeExtensionArtifact();
+    }
+    modelBuilder.addDependency(dep);
+    return dep;
   }
 
   /**
@@ -439,21 +452,22 @@ public final class QuarkusAppModelBuilder {
       List<Path> deployClasspath,
       Set<ArtifactKey> addedKeys,
       Set<Path> extensionJars) {
-    Set<String> addedArtifactIds = new HashSet<>();
+    Set<String> addedGas = new HashSet<>();
     for (var key : addedKeys) {
-      addedArtifactIds.add(key.getArtifactId());
+      addedGas.add(key.getGroupId() + ":" + key.getArtifactId());
     }
 
     // Extension artifact IDs for path-independent matching (deployment jars may
     // come from the Coursier cache, not the same path as the scanned jar).
-    Set<String> extensionArtifactIds = new HashSet<>();
+    Set<String> extensionGas = new HashSet<>();
     for (Path jar : extensionJars) {
-      extensionArtifactIds.add(MavenCoordinateParser.parse(jar).artifactId());
+      extensionGas.add(groupArtifact(jar));
     }
 
     for (Path jar : deployClasspath) {
       var coords = MavenCoordinateParser.parse(jar);
-      if (addedArtifactIds.contains(coords.artifactId())) {
+      String ga = coords.groupId() + ":" + coords.artifactId();
+      if (addedGas.contains(ga)) {
         continue;
       }
 
@@ -466,22 +480,22 @@ public final class QuarkusAppModelBuilder {
               .setResolvedPath(jar)
               .setDeploymentCp()
               .setDirect(true);
-      applyDeploymentRuntimeFlags(dep, coords.artifactId(), extensionArtifactIds);
+      applyDeploymentRuntimeFlags(dep, ga, coords.artifactId(), extensionGas);
 
       if (!addedKeys.contains(dep.getKey())) {
         modelBuilder.addDependency(dep);
         addedKeys.add(dep.getKey());
-        addedArtifactIds.add(coords.artifactId());
+        addedGas.add(ga);
       }
     }
   }
 
   /** Puts deployment-classpath jars that contain runtime classes onto the runtime classpath too. */
   private static void applyDeploymentRuntimeFlags(
-      ResolvedDependencyBuilder dep, String artifactId, Set<String> extensionArtifactIds) {
+      ResolvedDependencyBuilder dep, String ga, String artifactId, Set<String> extensionGas) {
     // Runtime extensions found in the deployment classpath (conditional dev deps)
     // need to be on both the runtime and deployment classpaths.
-    if (extensionArtifactIds.contains(artifactId)) {
+    if (extensionGas.contains(ga)) {
       dep.setRuntimeCp().setRuntimeExtensionArtifact();
     }
 
@@ -780,7 +794,7 @@ public final class QuarkusAppModelBuilder {
     }
 
     void onText(String chars) {
-      if (inDependency) {
+      if (inDependency && !inExclusions) {
         text.append(chars);
       }
     }

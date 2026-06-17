@@ -484,4 +484,17 @@ class QuarkifierConfigTest {
             "--output-dir", "/out");
     assertEquals(60, config.bazelBuildTimeoutSeconds());
   }
+
+  @Test
+  void parse_emptyOutputDir_throws() {
+    var ex =
+        assertThrows(
+            QuarkifierConfig.InvalidArgumentsException.class,
+            () ->
+                QuarkifierConfig.parse(
+                    "--application-classpath", "a.jar",
+                    "--deployment-classpath", "d.jar",
+                    "--output-dir", ""));
+    assertTrue(ex.getMessage().contains("--output-dir"));
+  }
 }

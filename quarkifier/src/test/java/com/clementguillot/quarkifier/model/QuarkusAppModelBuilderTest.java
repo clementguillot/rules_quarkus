@@ -210,6 +210,8 @@ class QuarkusAppModelBuilderTest {
   void buildIgnoresExclusionsWhenParsingPomDependencies() throws IOException {
     Path appJar = createJar("app", "com.example", "myapp", "1.0");
     Path coreJar = createJar("core", "io.quarkus", "quarkus-core", "3.33.2");
+    Path excludedJar = createJar("excluded", "org.excluded", "excluded-lib", "1.0");
+
     // The <exclusions> block's groupId/artifactId must not overwrite the
     // dependency's own coordinates (regression test).
     Path restJar =
@@ -226,7 +228,7 @@ class QuarkusAppModelBuilderTest {
 
     ApplicationModel model =
         QuarkusAppModelBuilder.build(
-            List.of(appJar), List.of(coreJar, restJar), List.of(), "myapp", "1.0");
+            List.of(appJar), List.of(coreJar, restJar, excludedJar), List.of(), "myapp", "1.0");
 
     ResolvedDependency restDep =
         model.getDependencies().stream()

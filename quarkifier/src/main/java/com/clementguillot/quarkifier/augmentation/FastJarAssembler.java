@@ -239,6 +239,9 @@ public final class FastJarAssembler {
     String[] entryNames;
     try (JarFile jar = new JarFile(jarPath.toFile())) {
       manifest = jar.getManifest();
+      if (manifest == null) {
+        throw new IOException("Missing manifest in jar: " + jarPath);
+      }
       var entryList =
           jar.stream().filter(e -> !"META-INF/MANIFEST.MF".equals(e.getName())).toList();
       entryNames = new String[entryList.size()];
@@ -252,6 +255,7 @@ public final class FastJarAssembler {
     manifest.getMainAttributes().putValue("Class-Path", classPath);
 
     Path tempJar = jarPath.getParent().resolve(jarPath.getFileName() + ".tmp");
+    tempJar.toFile().deleteOnExit();
     try (var jos = new JarOutputStream(Files.newOutputStream(tempJar), manifest)) {
       for (int i = 0; i < entryNames.length; i++) {
         jos.putNextEntry(new ZipEntry(entryNames[i]));

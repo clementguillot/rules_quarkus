@@ -161,7 +161,8 @@ public record QuarkifierConfig(
             readFileContent(requireValue(args, ++i, args[i - 1]));
         case "--core-deployment-classpath" -> raw.coreDeployCp =
             requireValue(args, ++i, args[i - 1]);
-        case "--output-dir" -> raw.outputDir = requireValue(args, ++i, args[i - 1]);
+        case "--output-dir" -> raw.outputDir =
+            requireNonEmptyValue(args, ++i, args[i - 1], "--output-dir");
         case "--resources" -> raw.resources = requireValue(args, ++i, args[i - 1]);
         case "--mode" -> raw.mode = requireValue(args, ++i, args[i - 1]);
         case "--expected-quarkus-version" -> raw.expectedVersion =
