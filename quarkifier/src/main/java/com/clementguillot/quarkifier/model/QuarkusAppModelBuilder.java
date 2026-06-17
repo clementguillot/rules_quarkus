@@ -19,7 +19,9 @@ import io.quarkus.maven.dependency.ResolvedDependencyBuilder;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -35,120 +37,54 @@ import javax.xml.stream.XMLStreamReader;
  *
  * <p>This is the bridge between Bazel-managed jar classpaths and the Quarkus bootstrap API. It
  * scans jars for extension metadata, registers dependencies with the correct flags, and configures
- * parent-first classloading for infrastructure jars.
+ * parent-first classloading from extension jar metadata.
+ *
+ * <h3>Parent-first classloading</h3>
+ *
+ * <p>Parent-first flags are determined from two sources:
+ *
+ * <ol>
+ *   <li><b>Extension metadata</b>: Each Quarkus extension jar declares its parent-first needs in
+ *       {@code META-INF/quarkus-extension.properties} via the {@code parent-first-artifacts} and
+ *       {@code runner-parent-first-artifacts} properties. These are read during extension scanning
+ *       and applied via groupId:artifactId matching.
+ *   <li><b>Bootstrap inference</b>: The transitive dependency tree of {@code
+ *       io.quarkus:quarkus-core} is walked via embedded POMs, and all reachable artifacts are
+ *       marked parent-first. This mirrors how Maven/Gradle dev mode works — quarkus-core's
+ *       transitive deps are on the dev mode launcher classpath and are thus implicitly
+ *       parent-first. In Bazel, we must flag them explicitly (see {@link
+ *       #computeBootstrapParentFirstGAs}).
+ * </ol>
+ *
+ * <p>This approach mirrors how the official Quarkus Gradle/Maven plugins handle parent-first
+ * configuration — metadata-driven, not hardcoded. When a new Quarkus version is added, the correct
+ * parent-first flags come automatically from the extension jars without code changes.
  */
-@SuppressWarnings({"PMD.GodClass", "PMD.TooManyMethods", "PMD.NcssCount"})
+@SuppressWarnings({"PMD.GodClass", "PMD.TooManyMethods", "PMD.NcssCount", "PMD.ExcessiveImports"})
 public final class QuarkusAppModelBuilder {
 
   private static final String JAR_TYPE = "jar";
+  private static final String QUARKUS_CORE_GA = "io.quarkus:quarkus-core";
 
   /**
-   * Bootstrap and infrastructure jars loaded parent-first by the augment classloader. Without this
-   * delegation, the same class loaded by two classloaders causes LinkageError and
-   * ClassCastException.
+   * Artifacts that must NOT be marked parent-first even when reachable from quarkus-core's
+   * dependency tree. These contain CDI beans whose ArC-generated proxy classes (loaded by the
+   * augment/child classloader) would fail with {@code VerifyError} if the bean class they extend is
+   * loaded by the parent classloader.
    *
-   * <p>Jars containing CDI beans (e.g. {@code smallrye-config} which has {@code ConfigProducer})
-   * must NOT be parent-first — ArC-generated proxies cause VerifyError across classloader
-   * boundaries.
+   * <p>Note: the transitive dependencies OF excluded jars are still walked and may themselves be
+   * marked parent-first (e.g., {@code smallrye-config-core} and {@code smallrye-config-common} are
+   * parent-first even though {@code smallrye-config} itself is not).
    */
-  private static final Set<String> PARENT_FIRST_ARTIFACT_IDS =
+  private static final Set<String> BOOTSTRAP_PARENT_FIRST_EXCLUSIONS =
       Set.of(
-          // Bootstrap infrastructure
-          "quarkus-bootstrap-core",
-          "quarkus-bootstrap-app-model",
-          "quarkus-bootstrap-runner",
-          "quarkus-classloader-commons",
-          "quarkus-development-mode-spi",
-          "quarkus-fs-util",
-          "quarkus-bootstrap-maven-resolver",
-          // Core (needed by IsolatedDevModeMain and test mode classloader delegation)
-          "quarkus-core",
-          // Value registry — must be parent-first to avoid LinkageError in dev mode.
-          // ExtensionLoader (in augment classloader) calls ValueRegistryImpl$Builder.build()
-          // which returns ValueRegistry; if ValueRegistry is loaded by two different
-          // classloaders the JVM throws a loader constraint violation.
-          "quarkus-value-registry",
-          // Config infrastructure. Note: smallrye-config itself is NOT parent-first
-          // because it contains CDI beans (ConfigProducer) whose ArC proxies cause
-          // VerifyError across classloader boundaries. Only the core/common/api jars
-          // (which don't contain CDI beans) are parent-first.
-          "smallrye-config-core",
-          "smallrye-config-common",
-          "microprofile-config-api",
-          // Logging
-          "jboss-logmanager",
-          "jboss-logging",
-          "slf4j-api",
-          "slf4j-jboss-logmanager",
-          "jboss-logging-annotations",
-          // Threading
-          "jboss-threads",
-          "wildfly-common",
-          // SmallRye common (used by config)
-          "smallrye-common-constraint",
-          "smallrye-common-expression",
-          "smallrye-common-function",
-          "smallrye-common-classloader",
-          "smallrye-common-io",
-          "smallrye-common-annotation",
-          "smallrye-common-cpu",
-          "smallrye-common-net",
-          "smallrye-common-os",
-          "smallrye-common-ref",
-          // JSON (used by config)
-          "jakarta.json-api",
-          "parsson",
-          // Jakarta APIs (needed parent-first so that classes like
-          // smallrye-common-annotation's Identifier$Literal, which extends
-          // jakarta.enterprise.util.AnnotationLiteral, are loaded by the same
-          // classloader — prevents VerifyError in dev mode)
-          "jakarta.enterprise.cdi-api",
-          "jakarta.enterprise.lang-model",
-          "jakarta.inject-api",
-          "jakarta.interceptor-api",
-          "jakarta.annotation-api",
-          "jakarta.el-api",
-          "jakarta.transaction-api",
-          // JUnit Platform + Jupiter API — must be parent-first so that
-          // @Test and other JUnit annotations loaded by the QuarkusClassLoader
-          // are the same class instances as those used by JUnit's engine
-          // (which is loaded by the app classloader in ConsoleLauncher mode).
-          "junit-jupiter-api",
-          "junit-jupiter-engine",
-          "junit-jupiter-params",
-          "junit-platform-commons",
-          "junit-platform-engine",
-          "junit-platform-launcher",
-          "opentest4j",
-          // Other infrastructure
-          "quarkus-ide-launcher",
-          "crac",
-          "commons-logging-jboss-logging");
+          // smallrye-config contains CDI beans (ConfigProducer, ConfigExtension) whose ArC
+          // proxies cause VerifyError when the bean class is on the parent classloader.
+          "io.smallrye.config:smallrye-config");
 
-  /**
-   * Artifacts that must carry {@code CLASSLOADER_RUNNER_PARENT_FIRST}. Normally {@code
-   * handleExtensionProperties} sets this from quarkus-extension.properties, but the GACT keys it
-   * creates have empty type while our dependencies have type "jar" — the keys never match, so the
-   * flag is set manually by artifactId instead.
-   */
-  private static final Set<String> RUNNER_PARENT_FIRST_ARTIFACT_IDS =
-      Set.of(
-          "quarkus-bootstrap-runner",
-          "quarkus-classloader-commons",
-          "quarkus-development-mode-spi",
-          "jboss-logmanager",
-          "jboss-logging",
-          "slf4j-jboss-logmanager",
-          "slf4j-api",
-          "smallrye-common-constraint",
-          "smallrye-common-cpu",
-          "smallrye-common-expression",
-          "smallrye-common-function",
-          "smallrye-common-io",
-          "smallrye-common-net",
-          "smallrye-common-os",
-          "smallrye-common-ref",
-          "crac");
+  /** Result of extension scanning: extension jar paths plus parent-first metadata. */
+  private record ExtensionScanResult(
+      Set<Path> extensionJars, Set<String> parentFirstGAs, Set<String> runnerParentFirstGAs) {}
 
   private QuarkusAppModelBuilder() {}
 
@@ -174,7 +110,7 @@ public final class QuarkusAppModelBuilder {
       String appVersion)
       throws IOException {
     var modelBuilder = new ApplicationModelBuilder();
-    Set<Path> extensionJars =
+    var scanResult =
         registerAllExtensions(
             modelBuilder,
             localAppJars.subList(1, localAppJars.size()),
@@ -182,7 +118,7 @@ public final class QuarkusAppModelBuilder {
             deployClasspath);
 
     setAppArtifact(modelBuilder, localAppJars.get(0), appName, appVersion);
-    registerDependencies(modelBuilder, localAppJars, runtimeJars, deployClasspath, extensionJars);
+    registerDependencies(modelBuilder, localAppJars, runtimeJars, deployClasspath, scanResult);
     populateDependencyLinks(modelBuilder, runtimeJars);
     return finishModel(modelBuilder);
   }
@@ -212,14 +148,14 @@ public final class QuarkusAppModelBuilder {
       String appVersion)
       throws IOException {
     var modelBuilder = new ApplicationModelBuilder();
-    Set<Path> extensionJars =
+    var scanResult =
         registerAllExtensions(
             modelBuilder,
             localAppJars.subList(1, localAppJars.size()),
             runtimeJars,
             deployClasspath);
     setAppArtifactForTest(modelBuilder, localAppJars.get(0), appName, appVersion);
-    registerDependencies(modelBuilder, localAppJars, runtimeJars, deployClasspath, extensionJars);
+    registerDependencies(modelBuilder, localAppJars, runtimeJars, deployClasspath, scanResult);
     return finishModel(modelBuilder);
   }
 
@@ -240,17 +176,23 @@ public final class QuarkusAppModelBuilder {
    * is a transitive dep of quarkus-devui-deployment). These are "conditional dev dependencies" that
    * Maven's resolver adds automatically in dev mode.
    *
-   * @return the set of jar paths that are Quarkus extensions (used to flag them later)
+   * <p>Also collects parent-first artifact declarations from each extension's metadata.
+   *
+   * @return scan result containing extension jar paths and parent-first metadata
    */
-  private static Set<Path> registerAllExtensions(
+  private static ExtensionScanResult registerAllExtensions(
       ApplicationModelBuilder modelBuilder,
       List<Path> localDependencyJars,
       List<Path> runtimeJars,
       List<Path> deployClasspath)
       throws IOException {
+    Set<String> parentFirstGAs = new HashSet<>();
+    Set<String> runnerParentFirstGAs = new HashSet<>();
+
     List<Path> scanJars = new ArrayList<>(localDependencyJars);
     scanJars.addAll(runtimeJars);
-    Set<Path> extensionJars = registerExtensions(modelBuilder, scanJars);
+    Set<Path> extensionJars =
+        registerExtensions(modelBuilder, scanJars, parentFirstGAs, runnerParentFirstGAs);
 
     Set<String> knownExtensionGas = new HashSet<>();
     for (Path jar : extensionJars) {
@@ -260,8 +202,9 @@ public final class QuarkusAppModelBuilder {
         deployClasspath.stream()
             .filter(jar -> !knownExtensionGas.contains(groupArtifact(jar)))
             .toList();
-    extensionJars.addAll(registerExtensions(modelBuilder, unknownDeployJars));
-    return extensionJars;
+    extensionJars.addAll(
+        registerExtensions(modelBuilder, unknownDeployJars, parentFirstGAs, runnerParentFirstGAs));
+    return new ExtensionScanResult(extensionJars, parentFirstGAs, runnerParentFirstGAs);
   }
 
   private static String groupArtifact(Path jar) {
@@ -277,10 +220,22 @@ public final class QuarkusAppModelBuilder {
    * ApplicationModelBuilder#handleExtensionProperties} and for capability registration — the
    * scanner only extracts the {@code deployment-artifact} GAV.
    *
+   * <p>Also collects {@code parent-first-artifacts} and {@code runner-parent-first-artifacts}
+   * values from each extension's properties into the provided sets. These are collected here
+   * (rather than relying on {@code handleExtensionProperties} + {@code buildDependencies()})
+   * because the GACT keys produced by {@code handleExtensionProperties} have empty type while our
+   * dependencies have type "jar" — the keys never match in {@code buildDependencies()}'s lookup.
+   *
+   * @param parentFirstGAs accumulator for parent-first groupId:artifactId pairs
+   * @param runnerParentFirstGAs accumulator for runner-parent-first groupId:artifactId pairs
    * @return the set of jar paths that are Quarkus extensions (used to flag them later)
    */
   private static Set<Path> registerExtensions(
-      ApplicationModelBuilder modelBuilder, List<Path> runtimeJars) throws IOException {
+      ApplicationModelBuilder modelBuilder,
+      List<Path> runtimeJars,
+      Set<String> parentFirstGAs,
+      Set<String> runnerParentFirstGAs)
+      throws IOException {
     Set<Path> extensionJars = new HashSet<>();
     for (ExtensionInfo ext : ExtensionScanner.scan(runtimeJars)) {
       extensionJars.add(ext.sourceJar());
@@ -295,10 +250,37 @@ public final class QuarkusAppModelBuilder {
               props, ArtifactKey.ga(ext.groupId(), ext.artifactId()));
 
           registerCapabilities(modelBuilder, props, ext);
+          collectParentFirstMetadata(props, parentFirstGAs, runnerParentFirstGAs);
         }
       }
     }
     return extensionJars;
+  }
+
+  /**
+   * Parses {@code parent-first-artifacts} and {@code runner-parent-first-artifacts} from extension
+   * properties and adds them to the provided accumulator sets.
+   */
+  private static void collectParentFirstMetadata(
+      Properties props, Set<String> parentFirstGAs, Set<String> runnerParentFirstGAs) {
+    String parentFirst = props.getProperty("parent-first-artifacts");
+    if (parentFirst != null && !parentFirst.isBlank()) {
+      for (String ga : parentFirst.split(",")) {
+        String trimmed = ga.trim();
+        if (!trimmed.isEmpty()) {
+          parentFirstGAs.add(trimmed);
+        }
+      }
+    }
+    String runnerParentFirst = props.getProperty("runner-parent-first-artifacts");
+    if (runnerParentFirst != null && !runnerParentFirst.isBlank()) {
+      for (String ga : runnerParentFirst.split(",")) {
+        String trimmed = ga.trim();
+        if (!trimmed.isEmpty()) {
+          runnerParentFirstGAs.add(trimmed);
+        }
+      }
+    }
   }
 
   /**
@@ -327,15 +309,16 @@ public final class QuarkusAppModelBuilder {
       List<Path> localAppJars,
       List<Path> runtimeJars,
       List<Path> deployClasspath,
-      Set<Path> extensionJars) {
+      ExtensionScanResult scanResult) {
     if (localAppJars.size() > 1) {
       addLocalAppJarDependencies(
-          modelBuilder, localAppJars.subList(1, localAppJars.size()), extensionJars);
+          modelBuilder, localAppJars.subList(1, localAppJars.size()), scanResult.extensionJars());
     }
-    Set<ArtifactKey> addedKeys = addRuntimeDependencies(modelBuilder, runtimeJars, extensionJars);
-    addDeploymentDependencies(modelBuilder, deployClasspath, addedKeys, extensionJars);
-    markParentFirstArtifacts(modelBuilder);
-    fixRunnerParentFirstFlags(modelBuilder);
+    Set<ArtifactKey> addedKeys =
+        addRuntimeDependencies(modelBuilder, runtimeJars, scanResult.extensionJars());
+    addDeploymentDependencies(modelBuilder, deployClasspath, addedKeys, scanResult.extensionJars());
+    applyParentFirstFromMetadata(
+        modelBuilder, scanResult.parentFirstGAs(), scanResult.runnerParentFirstGAs());
   }
 
   private static void setAppArtifact(
@@ -516,20 +499,145 @@ public final class QuarkusAppModelBuilder {
 
   // ---- Classloader configuration ----
 
-  private static void markParentFirstArtifacts(ApplicationModelBuilder modelBuilder) {
+  /**
+   * Applies parent-first and runner-parent-first classloading flags to dependencies using
+   * groupId:artifactId matching.
+   *
+   * <p>Flags come from two sources:
+   *
+   * <ol>
+   *   <li>Extension metadata: GA pairs collected from {@code parent-first-artifacts} and {@code
+   *       runner-parent-first-artifacts} in each extension's quarkus-extension.properties.
+   *   <li>Bootstrap inference: transitive dependencies of {@code io.quarkus:quarkus-core} computed
+   *       by walking embedded POMs (see {@link #computeBootstrapParentFirstGAs}).
+   * </ol>
+   *
+   * <p>This replaces the old approach of hardcoded artifactId sets. The GA-based matching avoids
+   * the GACT key type mismatch (empty type vs "jar") that prevents {@code
+   * ApplicationModelBuilder.buildDependencies()} from applying these flags via its internal
+   * collections.
+   */
+  private static void applyParentFirstFromMetadata(
+      ApplicationModelBuilder modelBuilder,
+      Set<String> metadataParentFirstGAs,
+      Set<String> metadataRunnerParentFirstGAs) {
+    // Build a GA → dependency index for type-agnostic lookup
+    Map<String, ResolvedDependencyBuilder> depsByGa = new HashMap<>();
     for (var dep : modelBuilder.getDependencies()) {
-      if (PARENT_FIRST_ARTIFACT_IDS.contains(dep.getArtifactId())) {
+      depsByGa.put(dep.getGroupId() + ":" + dep.getArtifactId(), dep);
+    }
+
+    // Compute bootstrap parent-first GAs by walking quarkus-core's transitive dep tree
+    Set<String> bootstrapParentFirstGAs = computeBootstrapParentFirstGAs(depsByGa);
+
+    // Merge metadata-declared parent-first with bootstrap-inferred set
+    Set<String> allParentFirstGAs = new HashSet<>(metadataParentFirstGAs);
+    allParentFirstGAs.addAll(bootstrapParentFirstGAs);
+
+    // Apply CLASSLOADER_PARENT_FIRST
+    for (String ga : allParentFirstGAs) {
+      var dep = depsByGa.get(ga);
+      if (dep != null) {
+        dep.setFlags(DependencyFlags.CLASSLOADER_PARENT_FIRST);
         modelBuilder.addParentFirstArtifact(dep.getKey());
+      }
+    }
+
+    // Apply CLASSLOADER_RUNNER_PARENT_FIRST from metadata only (no supplementary needed)
+    for (String ga : metadataRunnerParentFirstGAs) {
+      var dep = depsByGa.get(ga);
+      if (dep != null) {
+        dep.setFlags(DependencyFlags.CLASSLOADER_RUNNER_PARENT_FIRST);
       }
     }
   }
 
-  private static void fixRunnerParentFirstFlags(ApplicationModelBuilder modelBuilder) {
-    for (var dep : modelBuilder.getDependencies()) {
-      if (RUNNER_PARENT_FIRST_ARTIFACT_IDS.contains(dep.getArtifactId())) {
-        dep.setFlags(DependencyFlags.CLASSLOADER_RUNNER_PARENT_FIRST);
+  /**
+   * Computes the set of bootstrap parent-first artifacts by walking {@code
+   * io.quarkus:quarkus-core}'s transitive dependency tree using embedded POMs.
+   *
+   * <p>In Maven/Gradle dev mode, quarkus-core and its transitive dependencies are on the dev mode
+   * launcher classpath — loaded by the system classloader before the Quarkus classloader split
+   * happens. They are thus implicitly parent-first without needing any flag. In Bazel, all jars
+   * start on a flat classpath and {@code CuratedApplication} splits them using the ApplicationModel
+   * flags, so we must explicitly flag these jars.
+   *
+   * <p>The walk excludes:
+   *
+   * <ul>
+   *   <li>Runtime extension artifacts — they have their own classloading metadata in their {@code
+   *       quarkus-extension.properties}.
+   *   <li>Artifacts in {@link #BOOTSTRAP_PARENT_FIRST_EXCLUSIONS} — CDI bean jars whose ArC proxies
+   *       cause {@code VerifyError} when the bean class is parent-first. Their transitive
+   *       dependencies are still walked and may be marked parent-first.
+   * </ul>
+   *
+   * @param depsByGa index of all registered dependencies keyed by groupId:artifactId
+   * @return the set of GA strings that should be marked parent-first
+   */
+  private static Set<String> computeBootstrapParentFirstGAs(
+      Map<String, ResolvedDependencyBuilder> depsByGa) {
+    var quarkusCore = depsByGa.get(QUARKUS_CORE_GA);
+    if (quarkusCore == null) {
+      return Set.of();
+    }
+
+    Set<String> bootstrapGAs = new HashSet<>();
+    bootstrapGAs.add(QUARKUS_CORE_GA);
+
+    Set<String> visited = new HashSet<>();
+    visited.add(QUARKUS_CORE_GA);
+    Deque<String> queue = new ArrayDeque<>();
+    queue.add(QUARKUS_CORE_GA);
+
+    while (!queue.isEmpty()) {
+      String ga = queue.poll();
+      var dep = depsByGa.get(ga);
+      if (dep == null) {
+        continue;
+      }
+
+      // Read this jar's embedded POM to discover its compile/runtime deps
+      var resolvedPaths = dep.getResolvedPaths();
+      if (resolvedPaths == null || resolvedPaths.isEmpty()) {
+        continue;
+      }
+      Path jarPath = resolvedPaths.iterator().next();
+      if (!jarPath.toString().endsWith(".jar")) {
+        continue;
+      }
+
+      List<ArtifactCoords> subDeps =
+          readDependenciesFromJar(jarPath, dep.getGroupId(), dep.getArtifactId());
+      for (ArtifactCoords subDep : subDeps) {
+        String subGa = subDep.getGroupId() + ":" + subDep.getArtifactId();
+        if (visited.contains(subGa)) {
+          continue;
+        }
+        visited.add(subGa);
+
+        // Always enqueue for further walking (even excluded jars' sub-deps may be needed)
+        queue.add(subGa);
+
+        // Skip runtime extensions — their own metadata handles classloading
+        var modelDep = depsByGa.get(subGa);
+        if (modelDep != null && modelDep.isFlagSet(DependencyFlags.RUNTIME_EXTENSION_ARTIFACT)) {
+          continue;
+        }
+
+        // Skip exclusions (CDI bean jars that cause VerifyError when parent-first)
+        if (BOOTSTRAP_PARENT_FIRST_EXCLUSIONS.contains(subGa)) {
+          continue;
+        }
+
+        // Mark as bootstrap parent-first if it's in our model
+        if (modelDep != null) {
+          bootstrapGAs.add(subGa);
+        }
       }
     }
+
+    return bootstrapGAs;
   }
 
   // ---- Dependency graph links ----
