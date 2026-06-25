@@ -1,0 +1,10 @@
+name: "Greeting Extension"
+description: "A simple greeting extension for demo purposes"
+artifact: "com.example:greeting-extension:1.0.0-SNAPSHOT"
+metadata:
+  keywords:
+    - "greeting"
+    - "demo"
+  categories:
+    - "misc"
+  status: "experimental"
