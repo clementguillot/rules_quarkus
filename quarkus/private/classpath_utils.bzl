@@ -1,6 +1,49 @@
 "Classpath and source directory collection utilities for rules_quarkus."
 
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
+load("//quarkus:providers.bzl", "QuarkusExtensionInfo")
+
+QuarkusExtensionDeploymentClasspathInfo = provider(
+    doc = "Transitive deployment classpath contributed by local Quarkus extensions.",
+    fields = {
+        "deployment_classpath": "Depset of deployment classpath jars.",
+    },
+)
+
+def _as_list(value):
+    if value == None:
+        return []
+    return value if type(value) == "list" else [value]
+
+def _collect_aspect_attr_classpaths(ctx, attr_name):
+    if not hasattr(ctx.rule.attr, attr_name):
+        return []
+
+    classpaths = []
+    for dep in _as_list(getattr(ctx.rule.attr, attr_name)):
+        if QuarkusExtensionDeploymentClasspathInfo in dep:
+            classpaths.append(dep[QuarkusExtensionDeploymentClasspathInfo].deployment_classpath)
+    return classpaths
+
+def _quarkus_extension_deployment_classpath_aspect_impl(target, ctx):
+    classpaths = []
+    if QuarkusExtensionInfo in target:
+        classpaths.append(target[QuarkusExtensionInfo].deployment_classpath)
+
+    classpaths.extend(_collect_aspect_attr_classpaths(ctx, "deps"))
+    classpaths.extend(_collect_aspect_attr_classpaths(ctx, "runtime_deps"))
+    classpaths.extend(_collect_aspect_attr_classpaths(ctx, "exports"))
+
+    return [
+        QuarkusExtensionDeploymentClasspathInfo(
+            deployment_classpath = depset(transitive = classpaths),
+        ),
+    ]
+
+quarkus_extension_deployment_classpath_aspect = aspect(
+    implementation = _quarkus_extension_deployment_classpath_aspect_impl,
+    attr_aspects = ["deps", "runtime_deps", "exports"],
+)
 
 # Maven-layout markers used to derive source/resource roots from package paths.
 _SOURCE_MARKERS = ["src/main/java", "src/test/java"]
@@ -27,6 +70,67 @@ def collect_runtime_classpath(deps):
         if JavaInfo in dep:
             transitive.append(dep[JavaInfo].transitive_runtime_jars)
     return depset(transitive = transitive)
+
+def collect_extension_deployment_classpath(deps):
+    """Collects deployment classpath jars advertised by local extension runtime deps.
+
+    Args:
+        deps: List of targets that may provide QuarkusExtensionDeploymentClasspathInfo
+    Returns:
+        A depset of deployment classpath jar Files.
+        """
+    transitive = []
+    for dep in deps:
+        if QuarkusExtensionDeploymentClasspathInfo in dep:
+            transitive.append(dep[QuarkusExtensionDeploymentClasspathInfo].deployment_classpath)
+    return depset(transitive = transitive)
+
+def collect_deployment_classpath(deployment_deps, deps):
+    """Builds the full Quarkus deployment classpath.
+
+    Combines the resolved Quarkus deployment closure (set by the macro) with the
+    deployment classpath advertised by any local quarkus_extension found in deps.
+
+    Args:
+        deployment_deps: The deployment-closure target (set by the macro), or None.
+        deps: List of dep targets, scanned for QuarkusExtensionDeploymentClasspathInfo.
+    Returns:
+        A depset of deployment classpath jar Files.
+    """
+    return depset(transitive = [
+        collect_runtime_classpath([deployment_deps]) if deployment_deps else depset(),
+        collect_extension_deployment_classpath(deps),
+    ])
+
+def collect_local_app_jars(deps, runtime_classpath):
+    """Returns local workspace jars with direct-dep output jars ordered first.
+
+    The quarkifier treats the first `--local-app-jars` entry as the application
+    artifact. Direct deps (the app's own java_library) must therefore come
+    before transitive local jars such as a locally-built Quarkus extension
+    runtime jar — otherwise the extension jar would be mistaken for the app and
+    skipped during extension scanning.
+
+    Args:
+        deps: List of direct dep targets that may provide JavaInfo.
+        runtime_classpath: Depset of transitive runtime jars.
+    Returns:
+        A deduplicated, direct-first ordered list of local jar Files.
+    """
+    seen = {}
+    ordered = []
+    for dep in deps:
+        if JavaInfo not in dep or dep.label.workspace_name:
+            continue
+        for jar in dep[JavaInfo].runtime_output_jars:
+            if jar.path not in seen:
+                seen[jar.path] = True
+                ordered.append(jar)
+    for jar in runtime_classpath.to_list():
+        if is_local_artifact(jar) and jar.path not in seen:
+            seen[jar.path] = True
+            ordered.append(jar)
+    return ordered
 
 def collect_source_jars(deps):
     """Collects transitive source jars from JavaInfo providers.

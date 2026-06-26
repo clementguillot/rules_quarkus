@@ -55,6 +55,21 @@ class MavenCoordinateParserTest {
     assertEquals("3.1.1", coords.version());
   }
 
+  @Test
+  void parseBazelGeneratedExtensionRuntimePath() {
+    var path =
+        Path.of(
+            "/private/var/tmp/_bazel/user/execroot/_main/bazel-out/darwin-fastbuild/bin/"
+                + "greeting-extension/runtime/maven2/com/example/greeting-extension/"
+                + "1.0.0-SNAPSHOT/greeting-extension-1.0.0-SNAPSHOT.jar");
+
+    var coords = MavenCoordinateParser.parse(path);
+
+    assertEquals("com.example", coords.groupId());
+    assertEquals("greeting-extension", coords.artifactId());
+    assertEquals("1.0.0-SNAPSHOT", coords.version());
+  }
+
   @ParameterizedTest
   @CsvSource({
     "quarkus-arc-3.27.4.jar, quarkus-arc, 3.27.4",

@@ -1,0 +1,62 @@
+load("@rules_java//java:java_import.bzl", "java_import")
+load("@rules_java//java:java_library.bzl", "java_library")
+load("@rules_java//java:java_plugin.bzl", "java_plugin")
+load("@rules_jvm_external//:defs.bzl", "java_export")
+
+package(default_visibility = ["//visibility:public"])
+
+# Quarkus deployment-module deps, shared between the compiled library and the
+# published POM. Specific -deployment artifacts (not the whole resolved closure)
+# so they carry Maven coordinates and can be declared as POM <dependencies>.
+DEPLOYMENT_DEPS = [
+    "@maven//:io_quarkus_quarkus_arc_deployment",
+    "@maven//:io_quarkus_quarkus_core_deployment",
+]
+
+java_plugin(
+    name = "quarkus_processor",
+    generates_api = False,
+    processor_class = "io.quarkus.annotation.processor.ExtensionAnnotationProcessor",
+    deps = ["@maven//:io_quarkus_quarkus_extension_processor"],
+)
+
+java_library(
+    name = "deployment",
+    srcs = glob(["src/main/java/**/*.java"]),
+    plugins = [":quarkus_processor"],
+    resources = glob(["src/main/resources/**/*"]),
+    # quarkus-core is a compile-only dep here (the generated $$accessor references
+    # @io.quarkus.Generated); at consume time it comes transitively via the runtime
+    # artifact, so it is intentionally not a published POM dependency.
+    deps = DEPLOYMENT_DEPS + [
+        "//greeting-extension/runtime:runtime_lib",
+        "@maven//:io_quarkus_quarkus_core",
+        "@maven//:io_quarkus_quarkus_devui_deployment_spi",
+    ],
+)
+
+# Publish the -deployment artifact: `bazel run //greeting-extension/deployment:deployment_publish.publish`.
+# Only the deployment jar is bundled (filegroup+java_import keeps its workspace
+# runtime dep from being inlined); the POM declares the runtime extension artifact
+# and the Quarkus deployment deps.
+filegroup(
+    name = "deployment_jar",
+    srcs = [":deployment"],
+    tags = ["manual"],
+)
+
+java_import(
+    name = "deployment_publish_lib",
+    jars = [":deployment_jar"],
+    tags = ["manual"],
+)
+
+java_export(
+    name = "deployment_publish",
+    maven_coordinates = "com.example:greeting-extension-deployment:1.0.0-SNAPSHOT",
+    tags = ["manual"],
+    exports = [
+        ":deployment_publish_lib",
+        "//greeting-extension/runtime:runtime_publish",
+    ] + DEPLOYMENT_DEPS,
+)

@@ -48,18 +48,35 @@ class FastJarAssemblerTest {
   }
 
   @Test
-  void assembleLibDirectories_deduplicatesByArtifactIdAndVersion() throws IOException {
+  void assembleLibDirectories_deduplicatesByGav() throws IOException {
     Path outputDir = quarkusAppDir();
-    // Same artifactId:version resolved from two different locations.
-    Path first = createJarAt("first", "io.quarkus", "quarkus-arc", "3.33.2");
-    Path second = createJarAt("second", "io.quarkus", "quarkus-arc", "3.33.2");
+    // Same GAV resolved from two different locations.
+    Path first = createJarAt("first/jars", "io.quarkus", "quarkus-arc", "3.33.2");
+    Path second = createJarAt("second/jars", "io.quarkus", "quarkus-arc", "3.33.2");
     ApplicationModel model = modelWith(dep("io.quarkus", "quarkus-arc", "3.33.2", false));
 
     FastJarAssembler.assembleLibDirectories(outputDir, List.of(first, second), model);
 
     try (var files = Files.list(outputDir.resolve("quarkus-app/lib/main"))) {
-      assertEquals(1, files.count(), "duplicate artifactId:version copied only once");
+      assertEquals(1, files.count(), "duplicate GAV copied only once");
     }
+  }
+
+  @Test
+  void assembleLibDirectories_keepsSameArtifactAndVersionFromDifferentGroups() throws IOException {
+    Path outputDir = quarkusAppDir();
+    Path first = createJarAt("first/jars", "com.example.one", "runtime", "1.0.0");
+    Path second = createJarAt("second/jars", "com.example.two", "runtime", "1.0.0");
+    ApplicationModel model =
+        modelWith(
+            dep("com.example.one", "runtime", "1.0.0", false),
+            dep("com.example.two", "runtime", "1.0.0", false));
+
+    FastJarAssembler.assembleLibDirectories(outputDir, List.of(first, second), model);
+
+    Path libMain = outputDir.resolve("quarkus-app/lib/main");
+    assertTrue(Files.exists(libMain.resolve("com.example.one.runtime-1.0.0.jar")));
+    assertTrue(Files.exists(libMain.resolve("com.example.two.runtime-1.0.0.jar")));
   }
 
   @Test

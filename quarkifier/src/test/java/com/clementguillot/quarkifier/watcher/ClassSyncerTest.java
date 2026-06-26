@@ -166,6 +166,52 @@ class ClassSyncerTest {
     assertEquals(first, snapshot(classesDir), "second sync must not change the directory");
   }
 
+  @Test
+  void excludeExtensionJars_dropsExtensionJarsKeepsApplicationOutputs() throws IOException {
+    Path extensionJar = tempDir.resolve("libgreeting-extension.jar");
+    writeJar(
+        extensionJar,
+        java.util.Map.of(
+            "META-INF/quarkus-extension.properties",
+            "deployment-artifact=com.example:greeting-extension-deployment:1.0.0",
+            "com/example/greeting/runtime/GreetingService.class",
+            "bytecode"));
+
+    Path appJar = tempDir.resolve("liblib-class.jar");
+    writeJar(appJar, java.util.Map.of("com/example/app/GreetingResource.class", "bytecode"));
+
+    Path classesDir = Files.createDirectories(tempDir.resolve("bazel-bin/pkg/lib"));
+
+    List<Path> reloadable =
+        ClassSyncer.excludeExtensionJars(List.of(appJar, extensionJar, classesDir));
+
+    assertEquals(
+        List.of(appJar, classesDir),
+        reloadable,
+        "Extension jars must be excluded; application class jars and directories kept");
+  }
+
+  @Test
+  void excludeExtensionJars_keepsUnreadableOrMissingPaths() throws IOException {
+    Path missingJar = tempDir.resolve("missing.jar");
+    Path notAJar = tempDir.resolve("notes.txt");
+    Files.writeString(notAJar, "not a jar");
+
+    List<Path> reloadable = ClassSyncer.excludeExtensionJars(List.of(missingJar, notAJar));
+
+    assertEquals(List.of(missingJar, notAJar), reloadable);
+  }
+
+  private static void writeJar(Path jar, java.util.Map<String, String> entries) throws IOException {
+    try (var out = new java.util.jar.JarOutputStream(Files.newOutputStream(jar))) {
+      for (var entry : entries.entrySet()) {
+        out.putNextEntry(new java.util.zip.ZipEntry(entry.getKey()));
+        out.write(entry.getValue().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        out.closeEntry();
+      }
+    }
+  }
+
   private static java.util.Map<String, String> snapshot(Path dir) throws IOException {
     var state = new java.util.TreeMap<String, String>();
     try (var stream = Files.walk(dir)) {

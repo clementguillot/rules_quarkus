@@ -1,0 +1,52 @@
+load("@rules_java//java:java_library.bzl", "java_library")
+load("@rules_java//java:java_plugin.bzl", "java_plugin")
+load("@rules_jvm_external//:defs.bzl", "java_export")
+load("@rules_quarkus//quarkus:defs.bzl", "quarkus_extension_runtime")
+
+package(default_visibility = ["//visibility:public"])
+
+# Runtime dependencies of the extension, shared between the compiled library and
+# the published POM so they stay in sync.
+RUNTIME_DEPS = [
+    "@maven//:io_quarkus_quarkus_arc",
+    "@maven//:io_quarkus_quarkus_core",
+    "@maven//:io_smallrye_config_smallrye_config_core",
+    "@maven//:jakarta_enterprise_jakarta_enterprise_cdi_api",
+]
+
+java_plugin(
+    name = "quarkus_processor",
+    generates_api = False,
+    processor_class = "io.quarkus.annotation.processor.ExtensionAnnotationProcessor",
+    visibility = ["//visibility:public"],
+    deps = ["@maven//:io_quarkus_quarkus_extension_processor"],
+)
+
+java_library(
+    name = "runtime_lib",
+    srcs = glob(["src/main/java/**/*.java"]),
+    plugins = [":quarkus_processor"],
+    resources = glob(["src/main/resources/**/*"]),
+    visibility = ["//visibility:public"],
+    deps = RUNTIME_DEPS,
+)
+
+quarkus_extension_runtime(
+    name = "runtime",
+    artifact_id = "greeting-extension",
+    deployment_target = "//greeting-extension/deployment:deployment",
+    group_id = "com.example",
+    runtime_target = ":runtime_lib",
+    version = "1.0.0-SNAPSHOT",
+)
+
+# Publish the runtime artifact: `bazel run //greeting-extension/runtime:runtime_publish.publish`.
+# `:runtime` (the merged jar carrying the extension descriptor) has no Maven
+# coordinates, so java_export bundles it as the artifact; RUNTIME_DEPS do have
+# coordinates, so they are declared as POM <dependencies>.
+java_export(
+    name = "runtime_publish",
+    maven_coordinates = "com.example:greeting-extension:1.0.0-SNAPSHOT",
+    tags = ["manual"],
+    exports = [":runtime"] + RUNTIME_DEPS,
+)

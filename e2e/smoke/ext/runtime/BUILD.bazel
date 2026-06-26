@@ -1,0 +1,44 @@
+load("@rules_java//java:java_library.bzl", "java_library")
+load("@rules_java//java:java_plugin.bzl", "java_plugin")
+load("@rules_jvm_external//:defs.bzl", "java_export")
+load("@rules_quarkus//quarkus:defs.bzl", "quarkus_extension_runtime")
+
+package(default_visibility = ["//visibility:public"])
+
+RUNTIME_DEPS = [
+    "@maven//:io_quarkus_quarkus_arc",
+    "@maven//:io_quarkus_quarkus_core",
+    "@maven//:io_smallrye_config_smallrye_config_core",
+    "@maven//:jakarta_enterprise_jakarta_enterprise_cdi_api",
+]
+
+java_plugin(
+    name = "quarkus_processor",
+    generates_api = False,
+    processor_class = "io.quarkus.annotation.processor.ExtensionAnnotationProcessor",
+    deps = ["@maven//:io_quarkus_quarkus_extension_processor"],
+)
+
+java_library(
+    name = "runtime_lib",
+    srcs = glob(["src/main/java/**/*.java"]),
+    plugins = [":quarkus_processor"],
+    resources = glob(["src/main/resources/**/*"]),
+    deps = RUNTIME_DEPS,
+)
+
+quarkus_extension_runtime(
+    name = "runtime",
+    artifact_id = "smoke-extension",
+    deployment_target = "//ext/deployment:deployment",
+    group_id = "com.example.smoke",
+    runtime_target = ":runtime_lib",
+    version = "1.0.0",
+)
+
+java_export(
+    name = "runtime_publish",
+    maven_coordinates = "com.example.smoke:smoke-extension:1.0.0",
+    tags = ["manual"],
+    exports = [":runtime"] + RUNTIME_DEPS,
+)

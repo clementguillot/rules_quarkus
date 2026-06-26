@@ -12,6 +12,7 @@
     "io.quarkus:quarkus-extension-processor": 1093258188,
     "io.quarkus:quarkus-junit": -607105226,
     "io.quarkus:quarkus-rest": -2129969500,
+    "io.quarkus:quarkus-rest-jackson": 1862394154,
     "io.rest-assured:rest-assured": -564555206,
     "org.junit.jupiter:junit-jupiter": -2009586108,
     "org.junit.platform:junit-platform-console-standalone": -1031571220,
@@ -27,6 +28,8 @@
     "com.fasterxml.jackson.core:jackson-core": -863050871,
     "com.fasterxml.jackson.core:jackson-databind": 939448353,
     "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml": -1376269882,
+    "com.fasterxml.jackson.datatype:jackson-datatype-jdk8": 1414302893,
+    "com.fasterxml.jackson.datatype:jackson-datatype-jsr310": 1771227479,
     "com.fasterxml.jackson.module:jackson-module-parameter-names": 1226744229,
     "com.github.javaparser:javaparser-core": -1165910921,
     "com.google.code.findbugs:jsr305": 870839855,
@@ -62,6 +65,7 @@
     "io.quarkus.resteasy.reactive:resteasy-reactive": -1494053184,
     "io.quarkus.resteasy.reactive:resteasy-reactive-common": -655729390,
     "io.quarkus.resteasy.reactive:resteasy-reactive-common-types": 180654348,
+    "io.quarkus.resteasy.reactive:resteasy-reactive-jackson": -2068870801,
     "io.quarkus.resteasy.reactive:resteasy-reactive-vertx": 1557568767,
     "io.quarkus.security:quarkus-security": -1805700597,
     "io.quarkus.vertx.utils:quarkus-vertx-utils": 1956536373,
@@ -89,6 +93,7 @@
     "io.quarkus:quarkus-fs-util": -1554263633,
     "io.quarkus:quarkus-hibernate-validator-spi": 877894256,
     "io.quarkus:quarkus-ide-launcher": -1795725963,
+    "io.quarkus:quarkus-jackson": 1956785089,
     "io.quarkus:quarkus-jsonp": 415257726,
     "io.quarkus:quarkus-junit": -2083339591,
     "io.quarkus:quarkus-junit-common": 1334894697,
@@ -97,6 +102,8 @@
     "io.quarkus:quarkus-netty": 1089003681,
     "io.quarkus:quarkus-rest": -244959429,
     "io.quarkus:quarkus-rest-common": -165554905,
+    "io.quarkus:quarkus-rest-jackson": -1499246592,
+    "io.quarkus:quarkus-rest-jackson-common": 839379508,
     "io.quarkus:quarkus-security-runtime-spi": -764481795,
     "io.quarkus:quarkus-smallrye-context-propagation": -527803629,
     "io.quarkus:quarkus-smallrye-context-propagation-spi": -692531602,
@@ -312,6 +319,18 @@
       },
       "version": "2.21.2"
     },
+    "com.fasterxml.jackson.datatype:jackson-datatype-jdk8": {
+      "shasums": {
+        "jar": "e581bbf3fc5622d16b57366dd41e10fc56921fb202879de2ef487f87dd9b30e7"
+      },
+      "version": "2.21.2"
+    },
+    "com.fasterxml.jackson.datatype:jackson-datatype-jsr310": {
+      "shasums": {
+        "jar": "a083d57cd1c4a28fefcc6bd071740779eb7fc1c22a3c1b40451b5477c443f02f"
+      },
+      "version": "2.21.2"
+    },
     "com.fasterxml.jackson.module:jackson-module-parameter-names": {
       "shasums": {
         "jar": "1f1c4449bde17778e9e8571667363923427b108622622a7d23206a465586864e"
@@ -522,6 +541,12 @@
       },
       "version": "3.33.2"
     },
+    "io.quarkus.resteasy.reactive:resteasy-reactive-jackson": {
+      "shasums": {
+        "jar": "475f2ff9a5d20ce923c4e24892a22e68e3ba2e6e73c2d5f7edb1a084852a39ee"
+      },
+      "version": "3.33.2"
+    },
     "io.quarkus.resteasy.reactive:resteasy-reactive-vertx": {
       "shasums": {
         "jar": "9b85d171f1c172c7a164e2d820ca391d0bc900c6d2814f3054ef321cf21e3b85"
@@ -684,6 +709,12 @@
       },
       "version": "3.33.2"
     },
+    "io.quarkus:quarkus-jackson": {
+      "shasums": {
+        "jar": "19ebc1d08d5e440bb72d5f34fdebc5f8da66bd47d69e7bc5fcab6630a9e9a9e0"
+      },
+      "version": "3.33.2"
+    },
     "io.quarkus:quarkus-jsonp": {
       "shasums": {
         "jar": "30c50cb5419edbeff0608cea90f428b8ecdc2d9a08958080bc4a0896a870c4cd"
@@ -729,6 +760,18 @@
     "io.quarkus:quarkus-rest-common": {
       "shasums": {
         "jar": "7082dce4eaaca26fbb35ae79c9d9069b375a56b9040280cdeeb977b20434a3b5"
+      },
+      "version": "3.33.2"
+    },
+    "io.quarkus:quarkus-rest-jackson": {
+      "shasums": {
+        "jar": "8e6a4ad5444d63a396f5547a87fd7939a775acf6ece067e94335958454c84381"
+      },
+      "version": "3.33.2"
+    },
+    "io.quarkus:quarkus-rest-jackson-common": {
+      "shasums": {
+        "jar": "b43794b73d04ad4d0d14a537298f26d5ef23d7f55ccba8a66a012aeb0de367be"
       },
       "version": "3.33.2"
     },
@@ -1689,6 +1732,15 @@
       "com.fasterxml.jackson.core:jackson-databind",
       "org.yaml:snakeyaml"
     ],
+    "com.fasterxml.jackson.datatype:jackson-datatype-jdk8": [
+      "com.fasterxml.jackson.core:jackson-core",
+      "com.fasterxml.jackson.core:jackson-databind"
+    ],
+    "com.fasterxml.jackson.datatype:jackson-datatype-jsr310": [
+      "com.fasterxml.jackson.core:jackson-annotations",
+      "com.fasterxml.jackson.core:jackson-core",
+      "com.fasterxml.jackson.core:jackson-databind"
+    ],
     "com.fasterxml.jackson.module:jackson-module-parameter-names": [
       "com.fasterxml.jackson.core:jackson-core",
       "com.fasterxml.jackson.core:jackson-databind"
@@ -1834,6 +1886,14 @@
     ],
     "io.quarkus.resteasy.reactive:resteasy-reactive-common-types": [
       "jakarta.ws.rs:jakarta.ws.rs-api"
+    ],
+    "io.quarkus.resteasy.reactive:resteasy-reactive-jackson": [
+      "com.fasterxml.jackson.core:jackson-databind",
+      "io.quarkus.resteasy.reactive:resteasy-reactive",
+      "jakarta.annotation:jakarta.annotation-api",
+      "jakarta.xml.bind:jakarta.xml.bind-api",
+      "org.jboss.logging:commons-logging-jboss-logging",
+      "org.jboss.logging:jboss-logging"
     ],
     "io.quarkus.resteasy.reactive:resteasy-reactive-vertx": [
       "io.quarkus.resteasy.reactive:resteasy-reactive",
@@ -1998,6 +2058,13 @@
       "io.quarkus:quarkus-builder",
       "io.smallrye:jandex"
     ],
+    "io.quarkus:quarkus-jackson": [
+      "com.fasterxml.jackson.core:jackson-databind",
+      "com.fasterxml.jackson.datatype:jackson-datatype-jdk8",
+      "com.fasterxml.jackson.datatype:jackson-datatype-jsr310",
+      "com.fasterxml.jackson.module:jackson-module-parameter-names",
+      "io.quarkus:quarkus-arc"
+    ],
     "io.quarkus:quarkus-jsonp": [
       "io.quarkus:quarkus-core",
       "org.eclipse.parsson:parsson"
@@ -2049,6 +2116,16 @@
       "io.quarkus:quarkus-jsonp",
       "io.quarkus:quarkus-mutiny",
       "io.quarkus:quarkus-vertx"
+    ],
+    "io.quarkus:quarkus-rest-jackson": [
+      "io.quarkus:quarkus-rest",
+      "io.quarkus:quarkus-rest-jackson-common"
+    ],
+    "io.quarkus:quarkus-rest-jackson-common": [
+      "io.quarkus.resteasy.reactive:resteasy-reactive-jackson",
+      "io.quarkus:quarkus-jackson",
+      "io.quarkus:quarkus-jsonp",
+      "io.quarkus:quarkus-rest-common"
     ],
     "io.quarkus:quarkus-security-runtime-spi": [
       "io.quarkus.security:quarkus-security",
@@ -2700,6 +2777,17 @@
       "com.fasterxml.jackson.dataformat.yaml.snakeyaml.error",
       "com.fasterxml.jackson.dataformat.yaml.util"
     ],
+    "com.fasterxml.jackson.datatype:jackson-datatype-jdk8": [
+      "com.fasterxml.jackson.datatype.jdk8"
+    ],
+    "com.fasterxml.jackson.datatype:jackson-datatype-jsr310": [
+      "com.fasterxml.jackson.datatype.jsr310",
+      "com.fasterxml.jackson.datatype.jsr310.deser",
+      "com.fasterxml.jackson.datatype.jsr310.deser.key",
+      "com.fasterxml.jackson.datatype.jsr310.ser",
+      "com.fasterxml.jackson.datatype.jsr310.ser.key",
+      "com.fasterxml.jackson.datatype.jsr310.util"
+    ],
     "com.fasterxml.jackson.module:jackson-module-parameter-names": [
       "com.fasterxml.jackson.module.paramnames"
     ],
@@ -2992,6 +3080,9 @@
     ],
     "io.quarkus.resteasy.reactive:resteasy-reactive-common-types": [
       "org.jboss.resteasy.reactive.common.types"
+    ],
+    "io.quarkus.resteasy.reactive:resteasy-reactive-jackson": [
+      "org.jboss.resteasy.reactive.server.jackson"
     ],
     "io.quarkus.resteasy.reactive:resteasy-reactive-vertx": [
       "org.jboss.resteasy.reactive.server.vertx",
@@ -3317,6 +3408,10 @@
     "io.quarkus:quarkus-ide-launcher": [
       "io.quarkus.launcher"
     ],
+    "io.quarkus:quarkus-jackson": [
+      "io.quarkus.jackson",
+      "io.quarkus.jackson.runtime"
+    ],
     "io.quarkus:quarkus-jsonp": [
       "io.quarkus.jsonp"
     ],
@@ -3356,6 +3451,17 @@
     ],
     "io.quarkus:quarkus-rest-common": [
       "io.quarkus.resteasy.reactive.common.runtime"
+    ],
+    "io.quarkus:quarkus-rest-jackson": [
+      "io.quarkus.resteasy.reactive.jackson",
+      "io.quarkus.resteasy.reactive.jackson.runtime",
+      "io.quarkus.resteasy.reactive.jackson.runtime.mappers",
+      "io.quarkus.resteasy.reactive.jackson.runtime.security",
+      "io.quarkus.resteasy.reactive.jackson.runtime.serialisers",
+      "io.quarkus.resteasy.reactive.jackson.runtime.serialisers.vertx"
+    ],
+    "io.quarkus:quarkus-rest-jackson-common": [
+      "io.quarkus.resteasy.reactive.jackson.common.runtime.serialisers.vertx"
     ],
     "io.quarkus:quarkus-security-runtime-spi": [
       "io.quarkus.security.spi.runtime"
@@ -4874,6 +4980,8 @@
       "com.fasterxml.jackson.core:jackson-core",
       "com.fasterxml.jackson.core:jackson-databind",
       "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml",
+      "com.fasterxml.jackson.datatype:jackson-datatype-jdk8",
+      "com.fasterxml.jackson.datatype:jackson-datatype-jsr310",
       "com.fasterxml.jackson.module:jackson-module-parameter-names",
       "com.github.javaparser:javaparser-core",
       "com.google.code.findbugs:jsr305",
@@ -4909,6 +5017,7 @@
       "io.quarkus.resteasy.reactive:resteasy-reactive",
       "io.quarkus.resteasy.reactive:resteasy-reactive-common",
       "io.quarkus.resteasy.reactive:resteasy-reactive-common-types",
+      "io.quarkus.resteasy.reactive:resteasy-reactive-jackson",
       "io.quarkus.resteasy.reactive:resteasy-reactive-vertx",
       "io.quarkus.security:quarkus-security",
       "io.quarkus.vertx.utils:quarkus-vertx-utils",
@@ -4936,6 +5045,7 @@
       "io.quarkus:quarkus-fs-util",
       "io.quarkus:quarkus-hibernate-validator-spi",
       "io.quarkus:quarkus-ide-launcher",
+      "io.quarkus:quarkus-jackson",
       "io.quarkus:quarkus-jsonp",
       "io.quarkus:quarkus-junit",
       "io.quarkus:quarkus-junit-common",
@@ -4944,6 +5054,8 @@
       "io.quarkus:quarkus-netty",
       "io.quarkus:quarkus-rest",
       "io.quarkus:quarkus-rest-common",
+      "io.quarkus:quarkus-rest-jackson",
+      "io.quarkus:quarkus-rest-jackson-common",
       "io.quarkus:quarkus-security-runtime-spi",
       "io.quarkus:quarkus-smallrye-context-propagation",
       "io.quarkus:quarkus-smallrye-context-propagation-spi",
@@ -5120,6 +5232,16 @@
       ],
       "com.fasterxml.jackson.core.ObjectCodec": [
         "com.fasterxml.jackson.dataformat.yaml.YAMLMapper"
+      ]
+    },
+    "com.fasterxml.jackson.datatype:jackson-datatype-jdk8": {
+      "com.fasterxml.jackson.databind.Module": [
+        "com.fasterxml.jackson.datatype.jdk8.Jdk8Module"
+      ]
+    },
+    "com.fasterxml.jackson.datatype:jackson-datatype-jsr310": {
+      "com.fasterxml.jackson.databind.Module": [
+        "com.fasterxml.jackson.datatype.jsr310.JavaTimeModule"
       ]
     },
     "com.fasterxml.jackson.module:jackson-module-parameter-names": {

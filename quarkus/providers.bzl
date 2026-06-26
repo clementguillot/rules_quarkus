@@ -19,3 +19,10 @@ QuarkusNativeInfo = provider(
         "quarkus_version": "String: Quarkus version used",
     },
 )
+
+QuarkusExtensionInfo = provider(
+    doc = "Information about a locally-built Quarkus extension",
+    fields = {
+        "deployment_classpath": "Depset of jars required on the Quarkus deployment classpath",
+    },
+)

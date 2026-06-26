@@ -1,9 +1,12 @@
 package com.clementguillot.quarkifier.maven;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Properties;
 import java.util.Set;
+import java.util.jar.JarFile;
 
 /**
  * Extracts Maven coordinates (groupId, artifactId, version) from jar file paths.
@@ -45,7 +48,7 @@ public final class MavenCoordinateParser {
     String[] parts = resolvedPath.toString().replace('\\', '/').split("/");
 
     if (parts.length < 4) {
-      return fallback(jarPath);
+      return fallbackWithJarIntrospection(jarPath);
     }
 
     String filename = parts[parts.length - 1];
@@ -54,7 +57,7 @@ public final class MavenCoordinateParser {
 
     String expectedSuffix = artifactId + "-" + version + ".jar";
     if (!filename.equals(expectedSuffix) && !filename.equals("processed_" + expectedSuffix)) {
-      return fallback(jarPath);
+      return fallbackWithJarIntrospection(jarPath);
     }
 
     int groupIdEnd = parts.length - 4;
@@ -98,6 +101,39 @@ public final class MavenCoordinateParser {
       }
     }
     return false;
+  }
+
+  /**
+   * Attempts to read Maven coordinates from pom.properties inside the jar before falling back to
+   * filename-only parsing. This handles Bazel-built jars (e.g. libdeployment.jar) that carry
+   * embedded pom.properties but have non-Maven-layout paths.
+   */
+  private static Coordinates fallbackWithJarIntrospection(Path jarPath) {
+    if (jarPath.toString().endsWith(".jar")) {
+      try (JarFile jf = new JarFile(jarPath.toFile())) {
+        var entries = jf.entries();
+        while (entries.hasMoreElements()) {
+          var entry = entries.nextElement();
+          if (!entry.getName().startsWith("META-INF/maven/")
+              || !entry.getName().endsWith("/pom.properties")) {
+            continue;
+          }
+          Properties props = new Properties();
+          try (InputStream is = jf.getInputStream(entry)) {
+            props.load(is);
+          }
+          String groupId = props.getProperty("groupId");
+          String artifactId = props.getProperty("artifactId");
+          String version = props.getProperty("version", "0.0.0");
+          if (groupId != null && artifactId != null) {
+            return new Coordinates(groupId, artifactId, version);
+          }
+        }
+      } catch (IOException ignored) {
+        // Fall through to filename-based fallback
+      }
+    }
+    return fallback(jarPath);
   }
 
   /**

@@ -1,0 +1,3 @@
+# Root package. Application targets live in //app, the custom extension in
+# //greeting-extension. This file exists so //:maven_install.json is a valid
+# label for the maven and quarkus module extensions.
