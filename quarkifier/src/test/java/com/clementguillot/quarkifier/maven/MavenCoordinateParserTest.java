@@ -2,8 +2,13 @@ package com.clementguillot.quarkifier.maven;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
@@ -68,6 +73,23 @@ class MavenCoordinateParserTest {
     assertEquals("com.example", coords.groupId());
     assertEquals("greeting-extension", coords.artifactId());
     assertEquals("1.0.0-SNAPSHOT", coords.version());
+  }
+
+  @Test
+  void parseJarIntrospectionFallback(@TempDir Path tmp) throws IOException {
+    // Build a jar with embedded pom.properties but a non-Maven-layout path
+    Path jar = tmp.resolve("libdeployment.jar");
+    try (var jos = new JarOutputStream(Files.newOutputStream(jar))) {
+      jos.putNextEntry(new JarEntry("META-INF/maven/io.quarkus/quarkus-core/pom.properties"));
+      jos.write("groupId=io.quarkus\nartifactId=quarkus-core\nversion=3.33.2\n".getBytes());
+      jos.closeEntry();
+    }
+
+    var coords = MavenCoordinateParser.parse(jar);
+
+    assertEquals("io.quarkus", coords.groupId());
+    assertEquals("quarkus-core", coords.artifactId());
+    assertEquals("3.33.2", coords.version());
   }
 
   @ParameterizedTest

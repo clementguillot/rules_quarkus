@@ -148,9 +148,9 @@ class AugmentationExecutorBugConditionTest {
     assertEquals(
         List.of(appJar), reclassified.localAppJars(), "Extension jar must not stay an app root");
     assertEquals(
-        List.of(extensionJar, mavenJar),
+        List.of(mavenJar, extensionJar),
         reclassified.runtimeJars(),
-        "Extension jar must become a runtime dependency, ahead of the existing runtime jars");
+        "Extension jar must become a runtime dependency, after the existing runtime jars");
   }
 
   /** When no local app jar is an extension, the partition is returned unchanged. */

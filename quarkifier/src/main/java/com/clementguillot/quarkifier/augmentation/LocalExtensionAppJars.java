@@ -39,9 +39,9 @@ final class LocalExtensionAppJars {
     }
 
     List<Path> appJars = localAppJars.stream().filter(jar -> !extensionJars.contains(jar)).toList();
-    List<Path> runtimeJars =
-        new ArrayList<>(localAppJars.stream().filter(extensionJars::contains).toList());
-    runtimeJars.addAll(partition.runtimeJars());
+    List<Path> runtimeJars = new ArrayList<>(partition.runtimeJars());
+    // Append after original runtime jars to preserve their classpath order.
+    runtimeJars.addAll(localAppJars.stream().filter(extensionJars::contains).toList());
     return new AugmentationExecutor.ClasspathPartition(appJars, runtimeJars);
   }
 }

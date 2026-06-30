@@ -59,24 +59,6 @@ def _runtime_jar_path(group_id, artifact_id, version):
 # extension's extension dependencies (the other Quarkus extensions on its compile
 # classpath, discovered via their embedded pom.properties). Both are consumed by
 # Quarkus tooling (extension dependency graph, Dev UI, platform descriptors).
-_ENRICH_YAML_CMD = """\
-RUNTIME_JAR="$1"; OUTPUT="$2"; QUARKUS_VERSION="$3"; CLASSPATH_FILE="$4"; NAME="$5"
-
-# Start from the extension's own quarkus-extension.yaml (carried in the runtime jar).
-if ! unzip -q -p "$RUNTIME_JAR" META-INF/quarkus-extension.yaml > "$OUTPUT" 2>/dev/null || [ ! -s "$OUTPUT" ]; then
-    printf 'name: "%s"\\nmetadata:\\n' "$NAME" > "$OUTPUT"
-fi
-
-# Append build metadata under the (last) metadata: key.
-printf '  built-with-quarkus-core: "%s"\\n  extension-dependencies:\\n' "$QUARKUS_VERSION" >> "$OUTPUT"
-while IFS= read -r jar; do
-    [ -f "$jar" ] || continue
-    unzip -l "$jar" META-INF/quarkus-extension.properties 2>/dev/null | grep -q quarkus-extension.properties || continue
-    coords=$(unzip -p "$jar" 'META-INF/maven/*/*/pom.properties' 2>/dev/null \\
-        | awk -F= '/^groupId/{g=$2} /^artifactId/{a=$2} END{if (g && a) print g":"a}')
-    [ -n "$coords" ] && printf '  - "%s"\\n' "$coords"
-done < "$CLASSPATH_FILE" | sort -u >> "$OUTPUT"
-"""
 
 def _enrich_extension_yaml(ctx, runtime_jar):
     """Builds the enriched quarkus-extension.yaml from the runtime jar's source yaml."""
@@ -89,10 +71,10 @@ def _enrich_extension_yaml(ctx, runtime_jar):
     classpath_args.add_all(compile_classpath)
     ctx.actions.write(output = classpath_file, content = classpath_args)
 
-    ctx.actions.run_shell(
+    ctx.actions.run(
+        executable = ctx.executable._enrich_yaml,
         inputs = depset([runtime_jar, classpath_file], transitive = [compile_classpath]),
         outputs = [enriched_yaml],
-        command = _ENRICH_YAML_CMD,
         arguments = [
             runtime_jar.path,
             enriched_yaml.path,
@@ -121,6 +103,22 @@ def _quarkus_extension_runtime_impl(ctx):
         content = "deployment-artifact=" + deployment_gav + "\n",
     )
 
+    # pom.properties is needed so other local extensions (via the enrichment tool)
+    # can discover this extension's coordinates on the compile classpath.
+    pom_props_file = ctx.actions.declare_file(ctx.label.name + "_runtime_pom.properties")
+    ctx.actions.write(
+        output = pom_props_file,
+        content = "groupId={g}\nartifactId={a}\nversion={v}\n".format(
+            g = ctx.attr.group_id,
+            a = ctx.attr.artifact_id,
+            v = ctx.attr.version,
+        ),
+    )
+    pom_props_path = "META-INF/maven/{g}/{a}/pom.properties".format(
+        g = ctx.attr.group_id,
+        a = ctx.attr.artifact_id,
+    )
+
     enriched_yaml = _enrich_extension_yaml(ctx, runtime_jar)
 
     # Merge the runtime jar (classes, config-roots.list) with the generated descriptor
@@ -137,12 +135,13 @@ def _quarkus_extension_runtime_impl(ctx):
     args.add("--sources", runtime_jar)
     args.add("--resources", "%s:%s" % (properties_file.path, "META-INF/quarkus-extension.properties"))
     args.add("--resources", "%s:%s" % (enriched_yaml.path, "META-INF/quarkus-extension.yaml"))
+    args.add("--resources", "%s:%s" % (pom_props_file.path, pom_props_path))
     args.add("--dont_change_compression")
     args.add("--exclude_build_data")
     ctx.actions.run(
         executable = ctx.executable._singlejar,
         arguments = [args],
-        inputs = [runtime_jar, properties_file, enriched_yaml],
+        inputs = [runtime_jar, properties_file, enriched_yaml, pom_props_file],
         outputs = [merged_jar],
         mnemonic = "QuarkusExtJar",
         progress_message = "Building Quarkus extension runtime jar for %s" % ctx.label.name,
@@ -233,6 +232,11 @@ quarkus_extension_runtime_rule = rule(
         "quarkus_version": attr.string(mandatory = True, doc = "Quarkus core version (set by macro)."),
         "_singlejar": attr.label(
             default = Label("@bazel_tools//tools/jdk:singlejar"),
+            executable = True,
+            cfg = "exec",
+        ),
+        "_enrich_yaml": attr.label(
+            default = Label("//quarkus/private:enrich_extension_yaml"),
             executable = True,
             cfg = "exec",
         ),

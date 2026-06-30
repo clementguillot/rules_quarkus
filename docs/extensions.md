@@ -11,7 +11,7 @@ The runnable example lives in [`examples/demo_extension`](../examples/demo_exten
 
 ## Directory layout
 
-```
+```text
 greeting-extension/
 ├── runtime/
 │   ├── BUILD.bazel
@@ -112,7 +112,6 @@ java_library(
     deps = [
         "@maven//:io_quarkus_quarkus_arc_deployment",
         "@maven//:io_quarkus_quarkus_core_deployment",
-        # The generated $$accessor references @io.quarkus.Generated.
         "@maven//:io_quarkus_quarkus_core",
         "//greeting-extension/runtime:runtime_lib",
     ],
@@ -135,7 +134,7 @@ quarkus_app(name = "app", deps = [":lib"])
 
 On startup the extension's feature appears in the banner:
 
-```
+```text
 INFO [io.quarkus] (...) Installed features: [cdi, greeting, rest, ...]
 ```
 
@@ -188,5 +187,3 @@ Publish both:
 bazel run //greeting-extension/runtime:runtime_publish.publish
 bazel run //greeting-extension/deployment:deployment_publish.publish
 ```
-
-> **Note on `quarkus-extension.yaml`** — the runtime module's `quarkus-extension.yaml` (what the Dev UI reads to list the extension) is enriched, like the Maven/Gradle plugin does, with `built-with-quarkus-core` (the toolchain's Quarkus version) and `extension-dependencies` (the other Quarkus extensions on the runtime compile classpath, discovered from their embedded `pom.properties`). The enrichment runs a small shell action that requires `unzip`, `awk`, `grep` and `sort` on the build host.
