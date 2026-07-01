@@ -159,10 +159,15 @@ java_export(
 )
 ```
 
-**deployment/BUILD.bazel** — only the deployment jar is bundled (a `filegroup` + `java_import` keeps its workspace runtime dep from being inlined); the POM declares the runtime extension artifact plus the `-deployment` deps:
+**deployment/BUILD.bazel** — the bundled jar comes from `:runtime`'s `deployment_jar` output group, which is the deployment jar enriched with Maven metadata; the POM declares the runtime extension artifact plus the `-deployment` deps:
 
 ```starlark
-filegroup(name = "deployment_jar", srcs = [":deployment"], tags = ["manual"])
+filegroup(
+    name = "deployment_jar",
+    srcs = ["//greeting-extension/runtime:runtime"],
+    output_group = "deployment_jar",
+    tags = ["manual"],
+)
 
 java_import(
     name = "deployment_publish_lib",

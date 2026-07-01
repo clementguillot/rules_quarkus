@@ -3,9 +3,12 @@ package com.clementguillot.rules_quarkus;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.Properties;
 import java.util.TreeSet;
 import java.util.jar.JarEntry;
@@ -37,17 +40,6 @@ public final class EnrichExtensionYaml {
     Path classpathFile = Path.of(args[3]);
     String extensionName = args[4];
 
-    // Start from the extension's own quarkus-extension.yaml (carried in the runtime jar).
-    String baseYaml = extractEntryText(runtimeJar, "META-INF/quarkus-extension.yaml");
-    if (baseYaml == null || baseYaml.isBlank()) {
-      baseYaml = "name: \"" + extensionName + "\"\nmetadata:\n";
-    }
-
-    // Append build metadata.
-    StringBuilder sb = new StringBuilder(baseYaml);
-    sb.append("  built-with-quarkus-core: \"").append(quarkusVersion).append("\"\n");
-    sb.append("  extension-dependencies:\n");
-
     // Discover extension dependencies from the compile classpath.
     TreeSet<String> deps = new TreeSet<>();
     try (BufferedReader reader = Files.newBufferedReader(classpathFile)) {
@@ -71,11 +63,102 @@ public final class EnrichExtensionYaml {
       }
     }
 
-    for (String coord : deps) {
-      sb.append("  - \"").append(coord).append("\"\n");
+    String baseYaml = extractEntryText(runtimeJar, "META-INF/quarkus-extension.yaml");
+    Files.writeString(
+        output,
+        enrichMetadata(baseYaml, extensionName, quarkusVersion, List.copyOf(deps)),
+        StandardCharsets.UTF_8);
+  }
+
+  private static String enrichMetadata(
+      String baseYaml, String extensionName, String quarkusVersion, List<String> deps)
+      throws IOException {
+    if (baseYaml == null || baseYaml.isBlank()) {
+      baseYaml = "name: \"" + quoteYaml(extensionName) + "\"\nmetadata:\n";
     }
 
-    Files.writeString(output, sb.toString());
+    String normalized = baseYaml.replace("\r\n", "\n").replace('\r', '\n');
+    List<String> lines = new ArrayList<>(List.of(normalized.split("\n", -1)));
+    if (!lines.isEmpty() && lines.get(lines.size() - 1).isEmpty()) {
+      lines.remove(lines.size() - 1);
+    }
+
+    int metadataLine = findTopLevelMetadataLine(lines);
+    if (metadataLine < 0) {
+      if (!lines.isEmpty() && !lines.get(lines.size() - 1).isBlank()) {
+        lines.add("");
+      }
+      lines.add("metadata:");
+      metadataLine = lines.size() - 1;
+    } else if (!lines.get(metadataLine).matches("^metadata\\s*:\\s*(#.*)?$")) {
+      throw new IOException("quarkus-extension.yaml metadata must be a block mapping");
+    }
+
+    int metadataEnd = findMetadataEnd(lines, metadataLine);
+    stripGeneratedMetadata(lines, metadataLine + 1, metadataEnd);
+    metadataEnd = findMetadataEnd(lines, metadataLine);
+
+    List<String> generated = new ArrayList<>();
+    generated.add("  built-with-quarkus-core: \"" + quoteYaml(quarkusVersion) + "\"");
+    generated.add("  extension-dependencies:");
+    for (String coord : deps) {
+      generated.add("    - \"" + quoteYaml(coord) + "\"");
+    }
+    lines.addAll(metadataEnd, generated);
+
+    return String.join("\n", lines) + "\n";
+  }
+
+  private static int findTopLevelMetadataLine(List<String> lines) {
+    for (int i = 0; i < lines.size(); i++) {
+      String line = lines.get(i);
+      if (line.startsWith("metadata:")) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  private static int findMetadataEnd(List<String> lines, int metadataLine) {
+    for (int i = metadataLine + 1; i < lines.size(); i++) {
+      String line = lines.get(i);
+      if (line.isBlank() || line.startsWith("#")) {
+        continue;
+      }
+      if (!Character.isWhitespace(line.charAt(0))) {
+        return i;
+      }
+    }
+    return lines.size();
+  }
+
+  private static void stripGeneratedMetadata(List<String> lines, int start, int end) {
+    for (int i = start; i < end; ) {
+      String line = lines.get(i);
+      if (line.startsWith("  built-with-quarkus-core:")) {
+        lines.remove(i);
+        end--;
+        continue;
+      }
+      if (line.startsWith("  extension-dependencies:")) {
+        lines.remove(i);
+        end--;
+        while (i < end && isExtensionDependencyListLine(lines.get(i))) {
+          lines.remove(i);
+          end--;
+        }
+        continue;
+      }
+      i++;
+    }
+  }
+
+  private static boolean isExtensionDependencyListLine(String line) {
+    return line.startsWith("  - ") || line.startsWith("    - ") || line.isBlank();
+  }
+
+  private static String quoteYaml(String value) {
+    return value.replace("\\", "\\\\").replace("\"", "\\\"");
   }
 
   /** Extracts text content of a single jar entry, or null if absent/unreadable. */
@@ -86,7 +169,7 @@ public final class EnrichExtensionYaml {
         return null;
       }
       try (InputStream is = jf.getInputStream(entry)) {
-        return new String(is.readAllBytes());
+        return new String(is.readAllBytes(), StandardCharsets.UTF_8);
       }
     } catch (IOException e) {
       return null;

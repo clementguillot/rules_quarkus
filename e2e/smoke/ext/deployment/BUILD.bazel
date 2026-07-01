@@ -31,7 +31,8 @@ java_library(
 
 filegroup(
     name = "deployment_jar",
-    srcs = [":deployment"],
+    srcs = ["//ext/runtime"],
+    output_group = "deployment_jar",
     tags = ["manual"],
 )
 

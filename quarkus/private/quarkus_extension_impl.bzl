@@ -16,16 +16,25 @@ load("//quarkus:providers.bzl", "QuarkusExtensionInfo")
 # rule only receives its JavaInfo, not its attributes.
 _RuntimeLibDepsInfo = provider(
     doc = "Merged JavaInfo of a runtime library's dependencies, excluding the library's own jar.",
-    fields = {"java_info": "Merged JavaInfo of the runtime lib's deps/exports/runtime_deps, or None."},
+    fields = {
+        "compile_java_info": "Merged JavaInfo of the runtime lib's deps/exports, or None.",
+        "runtime_java_info": "Merged JavaInfo of the runtime lib's deps/exports/runtime_deps, or None.",
+    },
 )
 
 def _runtime_lib_deps_aspect_impl(_target, ctx):
-    infos = []
+    compile_infos = []
+    runtime_infos = []
     for attr_name in ("deps", "exports", "runtime_deps"):
         for dep in getattr(ctx.rule.attr, attr_name, []):
             if JavaInfo in dep:
-                infos.append(dep[JavaInfo])
-    return [_RuntimeLibDepsInfo(java_info = java_common.merge(infos) if infos else None)]
+                if attr_name != "runtime_deps":
+                    compile_infos.append(dep[JavaInfo])
+                runtime_infos.append(dep[JavaInfo])
+    return [_RuntimeLibDepsInfo(
+        compile_java_info = java_common.merge(compile_infos) if compile_infos else None,
+        runtime_java_info = java_common.merge(runtime_infos) if runtime_infos else None,
+    )]
 
 _runtime_lib_deps_aspect = aspect(implementation = _runtime_lib_deps_aspect_impl)
 
@@ -149,23 +158,27 @@ def _quarkus_extension_runtime_impl(ctx):
 
     # Expose the merged jar together with the runtime library's own deps — but not
     # the library's output jar, which is already inside the merged jar.
-    runtime_lib_deps = ctx.attr.runtime[_RuntimeLibDepsInfo].java_info
+    runtime_lib_deps = ctx.attr.runtime[_RuntimeLibDepsInfo]
     java_info = JavaInfo(
         output_jar = merged_jar,
         compile_jar = merged_jar,
-        runtime_deps = [runtime_lib_deps] if runtime_lib_deps else [],
+        deps = [runtime_lib_deps.compile_java_info] if runtime_lib_deps.compile_java_info else [],
+        runtime_deps = [runtime_lib_deps.runtime_java_info] if runtime_lib_deps.runtime_java_info else [],
     )
+
+    merged_deploy_jar = _build_deployment_jar(ctx)
 
     return [
         DefaultInfo(files = depset([merged_jar])),
         java_info,
+        OutputGroupInfo(deployment_jar = depset([merged_deploy_jar])),
         QuarkusExtensionInfo(
-            deployment_classpath = _build_deployment_classpath(ctx),
+            deployment_classpath = _build_deployment_classpath(ctx, merged_deploy_jar),
         ),
     ]
 
-def _build_deployment_classpath(ctx):
-    """Produces a deployment classpath with pom.properties injected into the deployment jar.
+def _build_deployment_jar(ctx):
+    """Produces a deployment jar with pom.properties injected.
 
     DevUI's ArtifactInfoUtil needs pom.properties inside the deployment jar to
     associate CardPageBuildItem instances with the correct extension card.
@@ -204,6 +217,10 @@ def _build_deployment_classpath(ctx):
         mnemonic = "QuarkusExtDeployJar",
         progress_message = "Injecting pom.properties into deployment jar for %s" % ctx.label.name,
     )
+    return merged_deploy_jar
+
+def _build_deployment_classpath(ctx, merged_deploy_jar):
+    """Builds the deployment classpath with the merged deployment jar replacing the raw jar."""
 
     # Classpath = merged deploy jar + deployment target's transitive deps (excluding its own jar)
     deploy_deps_info = ctx.attr.deployment[_DeployDepsInfo].java_info

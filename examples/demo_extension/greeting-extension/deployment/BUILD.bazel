@@ -36,12 +36,13 @@ java_library(
 )
 
 # Publish the -deployment artifact: `bazel run //greeting-extension/deployment:deployment_publish.publish`.
-# Only the deployment jar is bundled (filegroup+java_import keeps its workspace
-# runtime dep from being inlined); the POM declares the runtime extension artifact
-# and the Quarkus deployment deps.
+# The bundled jar is the metadata-enriched deployment jar produced by
+# quarkus_extension_runtime; the POM declares the runtime extension artifact and
+# the Quarkus deployment deps.
 filegroup(
     name = "deployment_jar",
-    srcs = [":deployment"],
+    srcs = ["//greeting-extension/runtime"],
+    output_group = "deployment_jar",
     tags = ["manual"],
 )
 
