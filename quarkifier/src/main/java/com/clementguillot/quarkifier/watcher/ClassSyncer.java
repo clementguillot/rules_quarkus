@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
@@ -26,6 +27,37 @@ import java.util.jar.JarFile;
 public final class ClassSyncer {
 
   private ClassSyncer() {}
+
+  /**
+   * Returns the class output paths that belong to the reloadable application, dropping
+   * locally-built Quarkus extension jars.
+   *
+   * <p>A jar carrying {@code META-INF/quarkus-extension.properties} is an extension: a dependency,
+   * not part of the reloadable application. Syncing its classes into the mutable classes directory
+   * would expose them to both the application and augment classloaders, breaking build-time
+   * config-mapping lookup ({@code SRCFG00027}). Best-effort: paths that cannot be inspected are
+   * kept.
+   *
+   * @param classesOutputPaths bazel-bin output paths (directories or jar files)
+   * @return the input paths with extension jars removed
+   */
+  public static List<Path> excludeExtensionJars(List<Path> classesOutputPaths) {
+    List<Path> reloadable = new ArrayList<>(classesOutputPaths.size());
+    for (Path path : classesOutputPaths) {
+      boolean isExtension = false;
+      if (path.toString().endsWith(".jar") && Files.isRegularFile(path)) {
+        try (JarFile jar = new JarFile(path.toFile())) {
+          isExtension = jar.getEntry("META-INF/quarkus-extension.properties") != null;
+        } catch (IOException e) {
+          isExtension = false;
+        }
+      }
+      if (!isExtension) {
+        reloadable.add(path);
+      }
+    }
+    return reloadable;
+  }
 
   /**
    * Initial population: extract/copy all {@code .class} files from bazel-bin output paths to {@code

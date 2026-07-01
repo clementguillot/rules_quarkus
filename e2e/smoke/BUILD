@@ -7,8 +7,11 @@ java_library(
     srcs = glob(["src/main/java/**/*.java"]),
     resources = glob(["src/main/resources/**/*"]),
     deps = [
+        # Locally-built custom extension (runtime side); deployment is auto-wired.
+        "//ext/runtime",
         "@maven//:io_quarkus_quarkus_arc",
         "@maven//:io_quarkus_quarkus_rest",
+        "@maven//:jakarta_inject_jakarta_inject_api",
         "@maven//:jakarta_ws_rs_jakarta_ws_rs_api",
     ],
 )
@@ -46,5 +49,16 @@ build_test(
     name = "smoke_test",
     targets = [
         ":app",
+    ],
+)
+
+# Verifies the extension publish artifacts (jars + POMs) build for both halves.
+build_test(
+    name = "publish_test",
+    targets = [
+        "//ext/runtime:runtime_publish-project",
+        "//ext/runtime:runtime_publish-pom",
+        "//ext/deployment:deployment_publish-project",
+        "//ext/deployment:deployment_publish-pom",
     ],
 )

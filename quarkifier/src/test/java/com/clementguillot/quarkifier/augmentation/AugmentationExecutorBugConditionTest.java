@@ -4,9 +4,16 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.clementguillot.quarkifier.AugmentationException;
 import com.clementguillot.quarkifier.QuarkifierConfig;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
+import java.util.jar.JarOutputStream;
+import java.util.zip.ZipEntry;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Tests for the classpath partitioning logic in {@link AugmentationExecutor}.
@@ -110,7 +117,69 @@ class AugmentationExecutorBugConditionTest {
     assertTrue(ex.getMessage().contains("must be a subset"));
   }
 
+  /**
+   * A locally-built extension jar (carrying {@code quarkus-extension.properties}) that appears
+   * among the local app jars must be reclassified as a runtime dependency, not kept as an
+   * application root. The first local app jar (the application artifact) is always kept.
+   */
+  @Test
+  void reclassifyExtensionAppJars_movesExtensionsToRuntimeJars(@TempDir Path tempDir)
+      throws IOException {
+    Path appJar = tempDir.resolve("liblib.jar");
+    writeJar(appJar, Map.of("com/example/app/GreetingResource.class", "bytecode"));
+
+    Path extensionJar = tempDir.resolve("libgreeting-extension.jar");
+    writeJar(
+        extensionJar,
+        Map.of(
+            "META-INF/quarkus-extension.properties",
+            "deployment-artifact=com.example:greeting-extension-deployment:1.0.0",
+            "com/example/greeting/runtime/GreetingService.class",
+            "bytecode"));
+
+    Path mavenJar = tempDir.resolve("quarkus-rest-3.33.2.jar");
+    writeJar(mavenJar, Map.of("io/quarkus/rest/Marker.class", "bytecode"));
+
+    AugmentationExecutor.ClasspathPartition reclassified =
+        LocalExtensionAppJars.reclassify(
+            new AugmentationExecutor.ClasspathPartition(
+                List.of(appJar, extensionJar), List.of(mavenJar)));
+
+    assertEquals(
+        List.of(appJar), reclassified.localAppJars(), "Extension jar must not stay an app root");
+    assertEquals(
+        List.of(mavenJar, extensionJar),
+        reclassified.runtimeJars(),
+        "Extension jar must become a runtime dependency, after the existing runtime jars");
+  }
+
+  /** When no local app jar is an extension, the partition is returned unchanged. */
+  @Test
+  void reclassifyExtensionAppJars_noExtensionsIsNoOp(@TempDir Path tempDir) throws IOException {
+    Path appJar = tempDir.resolve("liblib.jar");
+    writeJar(appJar, Map.of("com/example/app/Foo.class", "bytecode"));
+    Path localLib = tempDir.resolve("libdomain.jar");
+    writeJar(localLib, Map.of("com/example/domain/Bar.class", "bytecode"));
+
+    AugmentationExecutor.ClasspathPartition input =
+        new AugmentationExecutor.ClasspathPartition(List.of(appJar, localLib), List.of());
+    AugmentationExecutor.ClasspathPartition result = LocalExtensionAppJars.reclassify(input);
+
+    assertEquals(input.localAppJars(), result.localAppJars());
+    assertEquals(input.runtimeJars(), result.runtimeJars());
+  }
+
   // ---- Helper ----
+
+  private static void writeJar(Path jar, Map<String, String> entries) throws IOException {
+    try (JarOutputStream out = new JarOutputStream(Files.newOutputStream(jar))) {
+      for (Map.Entry<String, String> entry : entries.entrySet()) {
+        out.putNextEntry(new ZipEntry(entry.getKey()));
+        out.write(entry.getValue().getBytes(StandardCharsets.UTF_8));
+        out.closeEntry();
+      }
+    }
+  }
 
   private static QuarkifierConfig configWith(
       List<Path> applicationClasspath, List<Path> localAppJars) {

@@ -7,6 +7,9 @@
     "com.google.guava:guava": 1943808618,
     "com.google.j2objc:j2objc-annotations": 2003271689,
     "io.quarkus:quarkus-arc": -406974566,
+    "io.quarkus:quarkus-arc-deployment": 1838642928,
+    "io.quarkus:quarkus-core-deployment": 950899707,
+    "io.quarkus:quarkus-extension-processor": 1093258188,
     "io.quarkus:quarkus-junit": -607105226,
     "io.quarkus:quarkus-rest": -2129969500,
     "io.rest-assured:rest-assured": -564555206,
@@ -20,7 +23,12 @@
     "com.aayushatharva.brotli4j:brotli4j": -1258514620,
     "com.aayushatharva.brotli4j:native-osx-aarch64": 624856026,
     "com.aayushatharva.brotli4j:service": -1143019217,
+    "com.fasterxml.jackson.core:jackson-annotations": 1145483352,
     "com.fasterxml.jackson.core:jackson-core": -863050871,
+    "com.fasterxml.jackson.core:jackson-databind": 939448353,
+    "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml": -1376269882,
+    "com.fasterxml.jackson.module:jackson-module-parameter-names": 1226744229,
+    "com.github.javaparser:javaparser-core": -1165910921,
     "com.google.code.findbugs:jsr305": 870839855,
     "com.google.code.gson:gson": -2092238571,
     "com.google.errorprone:error_prone_annotations": 213918278,
@@ -48,6 +56,7 @@
     "io.netty:netty-transport": 155358324,
     "io.netty:netty-transport-native-unix-common": 279328611,
     "io.quarkus.arc:arc": -202246125,
+    "io.quarkus.arc:arc-processor": -272482540,
     "io.quarkus.gizmo:gizmo": 820430385,
     "io.quarkus.gizmo:gizmo2": 1421756058,
     "io.quarkus.resteasy.reactive:resteasy-reactive": -1494053184,
@@ -57,6 +66,10 @@
     "io.quarkus.security:quarkus-security": -1805700597,
     "io.quarkus.vertx.utils:quarkus-vertx-utils": 1956536373,
     "io.quarkus:quarkus-arc": 1530746081,
+    "io.quarkus:quarkus-arc-deployment": -1490200787,
+    "io.quarkus:quarkus-arc-dev": -215608823,
+    "io.quarkus:quarkus-arc-test-supplement": 1495243250,
+    "io.quarkus:quarkus-arc-test-supplement-decorator": -1966936880,
     "io.quarkus:quarkus-bootstrap-app-model": -383225870,
     "io.quarkus:quarkus-bootstrap-core": -735057621,
     "io.quarkus:quarkus-bootstrap-gradle-resolver": 987382197,
@@ -71,6 +84,8 @@
     "io.quarkus:quarkus-core-deployment": 181122474,
     "io.quarkus:quarkus-credentials": 637264164,
     "io.quarkus:quarkus-development-mode-spi": -1406256677,
+    "io.quarkus:quarkus-devui-deployment-spi": 516337979,
+    "io.quarkus:quarkus-extension-processor": 893050077,
     "io.quarkus:quarkus-fs-util": -1554263633,
     "io.quarkus:quarkus-hibernate-validator-spi": 877894256,
     "io.quarkus:quarkus-ide-launcher": -1795725963,
@@ -84,6 +99,7 @@
     "io.quarkus:quarkus-rest-common": -165554905,
     "io.quarkus:quarkus-security-runtime-spi": -764481795,
     "io.quarkus:quarkus-smallrye-context-propagation": -527803629,
+    "io.quarkus:quarkus-smallrye-context-propagation-spi": -692531602,
     "io.quarkus:quarkus-test-common": 26349865,
     "io.quarkus:quarkus-tls-registry": 1346835960,
     "io.quarkus:quarkus-tls-registry-spi": -104484469,
@@ -211,12 +227,14 @@
     "org.graalvm.sdk:nativeimage": -1830909194,
     "org.graalvm.sdk:word": 921752333,
     "org.hamcrest:hamcrest": -820511133,
+    "org.jboss.jdeparser:jdeparser": -319421830,
     "org.jboss.logging:commons-logging-jboss-logging": 322828481,
     "org.jboss.logging:jboss-logging": -509243987,
     "org.jboss.logmanager:jboss-logmanager": -1566036956,
     "org.jboss.slf4j:slf4j-jboss-logmanager": -1436669637,
     "org.jboss.threads:jboss-threads": -983319831,
     "org.jctools:jctools-core": 473448173,
+    "org.jsoup:jsoup": -980892572,
     "org.jspecify:jspecify": 117231129,
     "org.junit.jupiter:junit-jupiter": -1180454764,
     "org.junit.jupiter:junit-jupiter-api": -452374709,
@@ -234,7 +252,8 @@
     "org.ow2.asm:asm-util": 1667785410,
     "org.reactivestreams:reactive-streams": 1281941191,
     "org.slf4j:slf4j-api": -1521593912,
-    "org.wildfly.common:wildfly-common": 1448937172
+    "org.wildfly.common:wildfly-common": 1448937172,
+    "org.yaml:snakeyaml": 1308413731
   },
   "conflict_resolution": {
     "com.google.code.gson:gson:2.8.9": "com.google.code.gson:gson:2.13.2",
@@ -269,11 +288,41 @@
       },
       "version": "1.23.0"
     },
+    "com.fasterxml.jackson.core:jackson-annotations": {
+      "shasums": {
+        "jar": "53ca085f4a150f703f49e1aabd935bd03b43e1ea3d55d135438292af22cef56b"
+      },
+      "version": "2.21"
+    },
     "com.fasterxml.jackson.core:jackson-core": {
       "shasums": {
         "jar": "12e8655b100267b44d0f14d01b1f5082a5105e616174dc4307be1a761e92407b"
       },
       "version": "2.21.2"
+    },
+    "com.fasterxml.jackson.core:jackson-databind": {
+      "shasums": {
+        "jar": "8c982f01f148d805f0aaac2339011244757e0df7c6ff8951f2fa3f433b8ed849"
+      },
+      "version": "2.21.2"
+    },
+    "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml": {
+      "shasums": {
+        "jar": "d25551812fa0c14f37cabaa9401e63eadcea42ce36311183af5622d5bc8a1bc7"
+      },
+      "version": "2.21.2"
+    },
+    "com.fasterxml.jackson.module:jackson-module-parameter-names": {
+      "shasums": {
+        "jar": "1f1c4449bde17778e9e8571667363923427b108622622a7d23206a465586864e"
+      },
+      "version": "2.21.2"
+    },
+    "com.github.javaparser:javaparser-core": {
+      "shasums": {
+        "jar": "d3852d78461c02602eb9bfc15e9fc21ad7c765e6013a1b6d5809a5d0e7db5309"
+      },
+      "version": "3.28.0"
     },
     "com.google.code.findbugs:jsr305": {
       "shasums": {
@@ -437,6 +486,12 @@
       },
       "version": "3.33.2"
     },
+    "io.quarkus.arc:arc-processor": {
+      "shasums": {
+        "jar": "2f255d055ae8fd458f31c1d6e529439a1a63f60557a72d4fcffd4544fd290953"
+      },
+      "version": "3.33.2"
+    },
     "io.quarkus.gizmo:gizmo": {
       "shasums": {
         "jar": "59b8d44767e19a707a63bf9cdd88fb8fb7e0a3310b9bb6f2ee8cef264473bbbe"
@@ -488,6 +543,30 @@
     "io.quarkus:quarkus-arc": {
       "shasums": {
         "jar": "3622aba71868172819feb8039ac3dfbc4c302edfd85661fc001b859e58ab4bbb"
+      },
+      "version": "3.33.2"
+    },
+    "io.quarkus:quarkus-arc-deployment": {
+      "shasums": {
+        "jar": "b5f3b13d27990c39d7871b4dc55c508f2713be1a494f91cc27cabd21ce856b18"
+      },
+      "version": "3.33.2"
+    },
+    "io.quarkus:quarkus-arc-dev": {
+      "shasums": {
+        "jar": "97408bbf92dc3af0ba88479be28c451a151330f28c5c21680d38c14b6d4a55a7"
+      },
+      "version": "3.33.2"
+    },
+    "io.quarkus:quarkus-arc-test-supplement": {
+      "shasums": {
+        "jar": "7b29d1ca0e55136a9cd94bef5bb19fc1c4a3b50c3913c729640211925bee26b7"
+      },
+      "version": "3.33.2"
+    },
+    "io.quarkus:quarkus-arc-test-supplement-decorator": {
+      "shasums": {
+        "jar": "24b1dd99e6f86348308678deedde6f1a2dcc5471d2cffdec73c0dab54f21dea9"
       },
       "version": "3.33.2"
     },
@@ -575,6 +654,18 @@
       },
       "version": "3.33.2"
     },
+    "io.quarkus:quarkus-devui-deployment-spi": {
+      "shasums": {
+        "jar": "18e2d8e4df74cd52aad6292782e0b766e6196dbc4e71123fd6d373a0df68d388"
+      },
+      "version": "3.33.2"
+    },
+    "io.quarkus:quarkus-extension-processor": {
+      "shasums": {
+        "jar": "75f05ed1588aa213ce716f8826e79dbe7a60c4b7856588d3a361e1b97b743f5a"
+      },
+      "version": "3.33.2"
+    },
     "io.quarkus:quarkus-fs-util": {
       "shasums": {
         "jar": "2a0c445126cd72fc79b309ca2aea7a6e11ca7d16b39e5f9a755cc7c91a3dd394"
@@ -650,6 +741,12 @@
     "io.quarkus:quarkus-smallrye-context-propagation": {
       "shasums": {
         "jar": "76966fe16b5c68f5b7ed9b9cad9b2421b3882e367466137e8ba7cf86acf3d269"
+      },
+      "version": "3.33.2"
+    },
+    "io.quarkus:quarkus-smallrye-context-propagation-spi": {
+      "shasums": {
+        "jar": "f106fd5353dcebc3876b1388ff5ed1f9575719f9ef2539802e1bbb35cee7768a"
       },
       "version": "3.33.2"
     },
@@ -1415,6 +1512,12 @@
       },
       "version": "2.2"
     },
+    "org.jboss.jdeparser:jdeparser": {
+      "shasums": {
+        "jar": "a61af67078f0d1b5913e78996a6d76087b4508041e5e1da1b8172aca335b2c57"
+      },
+      "version": "2.1.0"
+    },
     "org.jboss.logging:commons-logging-jboss-logging": {
       "shasums": {
         "jar": "ce4088809c7512228cb34b54686223dec45532b97366a36830f82926b58a4c6c"
@@ -1450,6 +1553,12 @@
         "jar": "d65e5f38bcd0984e26f87187687f1f70dd52740c4d5e046f8d104e01ab5db95f"
       },
       "version": "4.0.5"
+    },
+    "org.jsoup:jsoup": {
+      "shasums": {
+        "jar": "e20a5e78b1372f2a4e620832db4442d5077e5cbde280b24c666a3770844999bc"
+      },
+      "version": "1.15.3"
     },
     "org.jspecify:jspecify": {
       "shasums": {
@@ -1558,12 +1667,31 @@
         "jar": "fa4a710db7ae3e598a5f41639eb54e9f7b09de5fd0f58f56bd6070f21d956374"
       },
       "version": "2.0.1"
+    },
+    "org.yaml:snakeyaml": {
+      "shasums": {
+        "jar": "e6682acf1ace77508ef13649cbf4f8d09d2cf5457bdb61d25ffb6ac0233d78dd"
+      },
+      "version": "2.5"
     }
   },
   "dependencies": {
     "com.aayushatharva.brotli4j:brotli4j": [
       "com.aayushatharva.brotli4j:native-osx-aarch64",
       "com.aayushatharva.brotli4j:service"
+    ],
+    "com.fasterxml.jackson.core:jackson-databind": [
+      "com.fasterxml.jackson.core:jackson-annotations",
+      "com.fasterxml.jackson.core:jackson-core"
+    ],
+    "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml": [
+      "com.fasterxml.jackson.core:jackson-core",
+      "com.fasterxml.jackson.core:jackson-databind",
+      "org.yaml:snakeyaml"
+    ],
+    "com.fasterxml.jackson.module:jackson-module-parameter-names": [
+      "com.fasterxml.jackson.core:jackson-core",
+      "com.fasterxml.jackson.core:jackson-databind"
     ],
     "com.google.code.gson:gson": [
       "com.google.errorprone:error_prone_annotations"
@@ -1664,6 +1792,17 @@
       "jakarta.transaction:jakarta.transaction-api",
       "org.jboss.logging:jboss-logging"
     ],
+    "io.quarkus.arc:arc-processor": [
+      "io.quarkus.arc:arc",
+      "io.quarkus.gizmo:gizmo",
+      "io.quarkus.gizmo:gizmo2",
+      "io.smallrye.common:smallrye-common-annotation",
+      "io.smallrye:jandex",
+      "io.smallrye:jandex-gizmo2",
+      "jakarta.annotation:jakarta.annotation-api",
+      "jakarta.enterprise:jakarta.enterprise.cdi-api",
+      "org.jboss.logging:jboss-logging"
+    ],
     "io.quarkus.gizmo:gizmo": [
       "io.smallrye:jandex",
       "org.ow2.asm:asm",
@@ -1721,6 +1860,25 @@
       "io.quarkus.arc:arc",
       "io.quarkus:quarkus-core",
       "org.eclipse.microprofile.context-propagation:microprofile-context-propagation-api"
+    ],
+    "io.quarkus:quarkus-arc-deployment": [
+      "io.quarkus.arc:arc-processor",
+      "io.quarkus:quarkus-arc",
+      "io.quarkus:quarkus-arc-dev",
+      "io.quarkus:quarkus-arc-test-supplement",
+      "io.quarkus:quarkus-arc-test-supplement-decorator",
+      "io.quarkus:quarkus-core-deployment",
+      "io.quarkus:quarkus-devui-deployment-spi",
+      "io.quarkus:quarkus-smallrye-context-propagation-spi"
+    ],
+    "io.quarkus:quarkus-arc-dev": [
+      "io.quarkus:quarkus-arc"
+    ],
+    "io.quarkus:quarkus-arc-test-supplement": [
+      "jakarta.enterprise:jakarta.enterprise.cdi-api"
+    ],
+    "io.quarkus:quarkus-arc-test-supplement-decorator": [
+      "jakarta.enterprise:jakarta.enterprise.cdi-api"
     ],
     "io.quarkus:quarkus-bootstrap-app-model": [
       "io.quarkus:quarkus-fs-util",
@@ -1824,6 +1982,18 @@
       "io.smallrye.common:smallrye-common-os",
       "org.jboss.logging:jboss-logging"
     ],
+    "io.quarkus:quarkus-devui-deployment-spi": [
+      "io.quarkus:quarkus-core-deployment"
+    ],
+    "io.quarkus:quarkus-extension-processor": [
+      "com.fasterxml.jackson.core:jackson-databind",
+      "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml",
+      "com.fasterxml.jackson.module:jackson-module-parameter-names",
+      "com.github.javaparser:javaparser-core",
+      "io.quarkus:quarkus-bootstrap-app-model",
+      "org.jboss.jdeparser:jdeparser",
+      "org.jsoup:jsoup"
+    ],
     "io.quarkus:quarkus-hibernate-validator-spi": [
       "io.quarkus:quarkus-builder",
       "io.smallrye:jandex"
@@ -1889,6 +2059,10 @@
       "io.quarkus:quarkus-core",
       "io.smallrye:smallrye-context-propagation",
       "jakarta.enterprise:jakarta.enterprise.cdi-api"
+    ],
+    "io.quarkus:quarkus-smallrye-context-propagation-spi": [
+      "io.quarkus:quarkus-core-deployment",
+      "org.eclipse.microprofile.context-propagation:microprofile-context-propagation-api"
     ],
     "io.quarkus:quarkus-test-common": [
       "commons-io:commons-io",
@@ -2475,6 +2649,9 @@
     "com.aayushatharva.brotli4j:service": [
       "com.aayushatharva.brotli4j.service"
     ],
+    "com.fasterxml.jackson.core:jackson-annotations": [
+      "com.fasterxml.jackson.annotation"
+    ],
     "com.fasterxml.jackson.core:jackson-core": [
       "com.fasterxml.jackson.core",
       "com.fasterxml.jackson.core.async",
@@ -2492,6 +2669,77 @@
       "com.fasterxml.jackson.core.sym",
       "com.fasterxml.jackson.core.type",
       "com.fasterxml.jackson.core.util"
+    ],
+    "com.fasterxml.jackson.core:jackson-databind": [
+      "com.fasterxml.jackson.databind",
+      "com.fasterxml.jackson.databind.annotation",
+      "com.fasterxml.jackson.databind.cfg",
+      "com.fasterxml.jackson.databind.deser",
+      "com.fasterxml.jackson.databind.deser.impl",
+      "com.fasterxml.jackson.databind.deser.std",
+      "com.fasterxml.jackson.databind.exc",
+      "com.fasterxml.jackson.databind.ext",
+      "com.fasterxml.jackson.databind.introspect",
+      "com.fasterxml.jackson.databind.jdk14",
+      "com.fasterxml.jackson.databind.json",
+      "com.fasterxml.jackson.databind.jsonFormatVisitors",
+      "com.fasterxml.jackson.databind.jsonschema",
+      "com.fasterxml.jackson.databind.jsontype",
+      "com.fasterxml.jackson.databind.jsontype.impl",
+      "com.fasterxml.jackson.databind.module",
+      "com.fasterxml.jackson.databind.node",
+      "com.fasterxml.jackson.databind.ser",
+      "com.fasterxml.jackson.databind.ser.impl",
+      "com.fasterxml.jackson.databind.ser.std",
+      "com.fasterxml.jackson.databind.type",
+      "com.fasterxml.jackson.databind.util",
+      "com.fasterxml.jackson.databind.util.internal"
+    ],
+    "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml": [
+      "com.fasterxml.jackson.dataformat.yaml",
+      "com.fasterxml.jackson.dataformat.yaml.snakeyaml.error",
+      "com.fasterxml.jackson.dataformat.yaml.util"
+    ],
+    "com.fasterxml.jackson.module:jackson-module-parameter-names": [
+      "com.fasterxml.jackson.module.paramnames"
+    ],
+    "com.github.javaparser:javaparser-core": [
+      "com.github.javaparser",
+      "com.github.javaparser.ast",
+      "com.github.javaparser.ast.body",
+      "com.github.javaparser.ast.comments",
+      "com.github.javaparser.ast.expr",
+      "com.github.javaparser.ast.modules",
+      "com.github.javaparser.ast.nodeTypes",
+      "com.github.javaparser.ast.nodeTypes.modifiers",
+      "com.github.javaparser.ast.observer",
+      "com.github.javaparser.ast.stmt",
+      "com.github.javaparser.ast.type",
+      "com.github.javaparser.ast.validator",
+      "com.github.javaparser.ast.validator.language_level_validations",
+      "com.github.javaparser.ast.validator.language_level_validations.chunks",
+      "com.github.javaparser.ast.validator.postprocessors",
+      "com.github.javaparser.ast.visitor",
+      "com.github.javaparser.javadoc",
+      "com.github.javaparser.javadoc.description",
+      "com.github.javaparser.metamodel",
+      "com.github.javaparser.printer",
+      "com.github.javaparser.printer.concretesyntaxmodel",
+      "com.github.javaparser.printer.configuration",
+      "com.github.javaparser.printer.configuration.imports",
+      "com.github.javaparser.printer.lexicalpreservation",
+      "com.github.javaparser.printer.lexicalpreservation.changes",
+      "com.github.javaparser.quality",
+      "com.github.javaparser.resolution",
+      "com.github.javaparser.resolution.cache",
+      "com.github.javaparser.resolution.declarations",
+      "com.github.javaparser.resolution.logic",
+      "com.github.javaparser.resolution.model",
+      "com.github.javaparser.resolution.model.typesystem",
+      "com.github.javaparser.resolution.promotion",
+      "com.github.javaparser.resolution.types",
+      "com.github.javaparser.resolution.types.parametrization",
+      "com.github.javaparser.utils"
     ],
     "com.google.code.findbugs:jsr305": [
       "javax.annotation",
@@ -2687,6 +2935,10 @@
       "io.quarkus.arc.impl",
       "io.quarkus.arc.impl.bcextensions"
     ],
+    "io.quarkus.arc:arc-processor": [
+      "io.quarkus.arc.processor",
+      "io.quarkus.arc.processor.bcextensions"
+    ],
     "io.quarkus.gizmo:gizmo": [
       "io.quarkus.gizmo"
     ],
@@ -2766,6 +3018,23 @@
       "io.quarkus.arc.runtime.test",
       "io.quarkus.arc.shutdown",
       "io.quarkus.arc.spi"
+    ],
+    "io.quarkus:quarkus-arc-deployment": [
+      "io.quarkus.arc.deployment",
+      "io.quarkus.arc.deployment.devui",
+      "io.quarkus.arc.deployment.init",
+      "io.quarkus.arc.deployment.staticmethods"
+    ],
+    "io.quarkus:quarkus-arc-dev": [
+      "io.quarkus.arc.runtime.dev",
+      "io.quarkus.arc.runtime.dev.console",
+      "io.quarkus.arc.runtime.dev.ui"
+    ],
+    "io.quarkus:quarkus-arc-test-supplement": [
+      "io.quarkus.arc.test.supplement"
+    ],
+    "io.quarkus:quarkus-arc-test-supplement-decorator": [
+      "io.quarkus.arc.test.supplement.decorator"
     ],
     "io.quarkus:quarkus-bootstrap-app-model": [
       "io.quarkus.bootstrap",
@@ -3016,6 +3285,27 @@
       "io.quarkus.dev.testing",
       "io.quarkus.dev.testing.results"
     ],
+    "io.quarkus:quarkus-devui-deployment-spi": [
+      "io.quarkus.devui.spi",
+      "io.quarkus.devui.spi.buildtime",
+      "io.quarkus.devui.spi.buildtime.jsonrpc",
+      "io.quarkus.devui.spi.page",
+      "io.quarkus.devui.spi.welcome",
+      "io.quarkus.devui.spi.workspace"
+    ],
+    "io.quarkus:quarkus-extension-processor": [
+      "io.quarkus.annotation.processor",
+      "io.quarkus.annotation.processor.documentation.config",
+      "io.quarkus.annotation.processor.documentation.config.discovery",
+      "io.quarkus.annotation.processor.documentation.config.formatter",
+      "io.quarkus.annotation.processor.documentation.config.merger",
+      "io.quarkus.annotation.processor.documentation.config.model",
+      "io.quarkus.annotation.processor.documentation.config.resolver",
+      "io.quarkus.annotation.processor.documentation.config.scanner",
+      "io.quarkus.annotation.processor.documentation.config.util",
+      "io.quarkus.annotation.processor.extension",
+      "io.quarkus.annotation.processor.util"
+    ],
     "io.quarkus:quarkus-fs-util": [
       "io.quarkus.fs.util",
       "io.quarkus.fs.util.base",
@@ -3072,6 +3362,9 @@
     ],
     "io.quarkus:quarkus-smallrye-context-propagation": [
       "io.quarkus.smallrye.context.runtime"
+    ],
+    "io.quarkus:quarkus-smallrye-context-propagation-spi": [
+      "io.quarkus.smallrye.context.deployment.spi"
     ],
     "io.quarkus:quarkus-test-common": [
       "io.quarkus.test",
@@ -4267,6 +4560,9 @@
       "org.hamcrest.text",
       "org.hamcrest.xml"
     ],
+    "org.jboss.jdeparser:jdeparser": [
+      "org.jboss.jdeparser"
+    ],
     "org.jboss.logging:commons-logging-jboss-logging": [
       "org.apache.commons.logging",
       "org.apache.commons.logging.impl"
@@ -4298,6 +4594,15 @@
       "org.jctools.queues.atomic.unpadded",
       "org.jctools.queues.unpadded",
       "org.jctools.util"
+    ],
+    "org.jsoup:jsoup": [
+      "org.jsoup",
+      "org.jsoup.helper",
+      "org.jsoup.internal",
+      "org.jsoup.nodes",
+      "org.jsoup.parser",
+      "org.jsoup.safety",
+      "org.jsoup.select"
     ],
     "org.jspecify:jspecify": [
       "org.jspecify.annotations"
@@ -4533,6 +4838,30 @@
       "org.wildfly.common.selector",
       "org.wildfly.common.string",
       "org.wildfly.common.xml"
+    ],
+    "org.yaml:snakeyaml": [
+      "org.yaml.snakeyaml",
+      "org.yaml.snakeyaml.comments",
+      "org.yaml.snakeyaml.composer",
+      "org.yaml.snakeyaml.constructor",
+      "org.yaml.snakeyaml.emitter",
+      "org.yaml.snakeyaml.env",
+      "org.yaml.snakeyaml.error",
+      "org.yaml.snakeyaml.events",
+      "org.yaml.snakeyaml.extensions.compactnotation",
+      "org.yaml.snakeyaml.external.com.google.gdata.util.common.base",
+      "org.yaml.snakeyaml.inspector",
+      "org.yaml.snakeyaml.internal",
+      "org.yaml.snakeyaml.introspector",
+      "org.yaml.snakeyaml.nodes",
+      "org.yaml.snakeyaml.parser",
+      "org.yaml.snakeyaml.reader",
+      "org.yaml.snakeyaml.representer",
+      "org.yaml.snakeyaml.resolver",
+      "org.yaml.snakeyaml.scanner",
+      "org.yaml.snakeyaml.serializer",
+      "org.yaml.snakeyaml.tokens",
+      "org.yaml.snakeyaml.util"
     ]
   },
   "repositories": {
@@ -4541,7 +4870,12 @@
       "com.aayushatharva.brotli4j:brotli4j",
       "com.aayushatharva.brotli4j:native-osx-aarch64",
       "com.aayushatharva.brotli4j:service",
+      "com.fasterxml.jackson.core:jackson-annotations",
       "com.fasterxml.jackson.core:jackson-core",
+      "com.fasterxml.jackson.core:jackson-databind",
+      "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml",
+      "com.fasterxml.jackson.module:jackson-module-parameter-names",
+      "com.github.javaparser:javaparser-core",
       "com.google.code.findbugs:jsr305",
       "com.google.code.gson:gson",
       "com.google.errorprone:error_prone_annotations",
@@ -4569,6 +4903,7 @@
       "io.netty:netty-transport",
       "io.netty:netty-transport-native-unix-common",
       "io.quarkus.arc:arc",
+      "io.quarkus.arc:arc-processor",
       "io.quarkus.gizmo:gizmo",
       "io.quarkus.gizmo:gizmo2",
       "io.quarkus.resteasy.reactive:resteasy-reactive",
@@ -4578,6 +4913,10 @@
       "io.quarkus.security:quarkus-security",
       "io.quarkus.vertx.utils:quarkus-vertx-utils",
       "io.quarkus:quarkus-arc",
+      "io.quarkus:quarkus-arc-deployment",
+      "io.quarkus:quarkus-arc-dev",
+      "io.quarkus:quarkus-arc-test-supplement",
+      "io.quarkus:quarkus-arc-test-supplement-decorator",
       "io.quarkus:quarkus-bootstrap-app-model",
       "io.quarkus:quarkus-bootstrap-core",
       "io.quarkus:quarkus-bootstrap-gradle-resolver",
@@ -4592,6 +4931,8 @@
       "io.quarkus:quarkus-core-deployment",
       "io.quarkus:quarkus-credentials",
       "io.quarkus:quarkus-development-mode-spi",
+      "io.quarkus:quarkus-devui-deployment-spi",
+      "io.quarkus:quarkus-extension-processor",
       "io.quarkus:quarkus-fs-util",
       "io.quarkus:quarkus-hibernate-validator-spi",
       "io.quarkus:quarkus-ide-launcher",
@@ -4605,6 +4946,7 @@
       "io.quarkus:quarkus-rest-common",
       "io.quarkus:quarkus-security-runtime-spi",
       "io.quarkus:quarkus-smallrye-context-propagation",
+      "io.quarkus:quarkus-smallrye-context-propagation-spi",
       "io.quarkus:quarkus-test-common",
       "io.quarkus:quarkus-tls-registry",
       "io.quarkus:quarkus-tls-registry-spi",
@@ -4732,12 +5074,14 @@
       "org.graalvm.sdk:nativeimage",
       "org.graalvm.sdk:word",
       "org.hamcrest:hamcrest",
+      "org.jboss.jdeparser:jdeparser",
       "org.jboss.logging:commons-logging-jboss-logging",
       "org.jboss.logging:jboss-logging",
       "org.jboss.logmanager:jboss-logmanager",
       "org.jboss.slf4j:slf4j-jboss-logmanager",
       "org.jboss.threads:jboss-threads",
       "org.jctools:jctools-core",
+      "org.jsoup:jsoup",
       "org.jspecify:jspecify",
       "org.junit.jupiter:junit-jupiter",
       "org.junit.jupiter:junit-jupiter-api",
@@ -4755,7 +5099,8 @@
       "org.ow2.asm:asm-util",
       "org.reactivestreams:reactive-streams",
       "org.slf4j:slf4j-api",
-      "org.wildfly.common:wildfly-common"
+      "org.wildfly.common:wildfly-common",
+      "org.yaml:snakeyaml"
     ]
   },
   "services": {
@@ -4764,9 +5109,32 @@
         "com.fasterxml.jackson.core.JsonFactory"
       ]
     },
+    "com.fasterxml.jackson.core:jackson-databind": {
+      "com.fasterxml.jackson.core.ObjectCodec": [
+        "com.fasterxml.jackson.databind.ObjectMapper"
+      ]
+    },
+    "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml": {
+      "com.fasterxml.jackson.core.JsonFactory": [
+        "com.fasterxml.jackson.dataformat.yaml.YAMLFactory"
+      ],
+      "com.fasterxml.jackson.core.ObjectCodec": [
+        "com.fasterxml.jackson.dataformat.yaml.YAMLMapper"
+      ]
+    },
+    "com.fasterxml.jackson.module:jackson-module-parameter-names": {
+      "com.fasterxml.jackson.databind.Module": [
+        "com.fasterxml.jackson.module.paramnames.ParameterNamesModule"
+      ]
+    },
     "io.netty:netty-common": {
       "reactor.blockhound.integration.BlockHoundIntegration": [
         "io.netty.util.internal.Hidden$NettyBlockHoundIntegration"
+      ]
+    },
+    "io.quarkus.arc:arc-processor": {
+      "jakarta.enterprise.inject.build.compatible.spi.BuildServices": [
+        "io.quarkus.arc.processor.bcextensions.BuildServicesImpl"
       ]
     },
     "io.quarkus.resteasy.reactive:resteasy-reactive": {
@@ -4823,6 +5191,11 @@
       ],
       "io.smallrye.config.SmallRyeConfigBuilderCustomizer": [
         "io.quarkus.deployment.configuration.BuildTimeConfigBuilderCustomizer"
+      ]
+    },
+    "io.quarkus:quarkus-extension-processor": {
+      "javax.annotation.processing.Processor": [
+        "io.quarkus.annotation.processor.ExtensionAnnotationProcessor"
       ]
     },
     "io.quarkus:quarkus-junit": {

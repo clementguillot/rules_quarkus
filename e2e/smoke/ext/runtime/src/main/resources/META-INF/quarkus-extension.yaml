@@ -1,0 +1,8 @@
+name: "Smoke Extension"
+description: "Minimal custom extension exercised by the rules_quarkus e2e smoke test"
+metadata:
+  keywords:
+    - "smoke"
+  categories:
+    - "misc"
+  status: "experimental"

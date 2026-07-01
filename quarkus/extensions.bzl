@@ -408,16 +408,21 @@ java_library(name = "all", exports = [{all_exports}])
 # ---- Generated @rules_quarkus//quarkus:defs.bzl ----
 
 _DEFS_BZL_TEMPLATE = """\
-\"\"\"Public API — load quarkus_app and quarkus_test from here.
+\"\"\"Public API — load quarkus_app, quarkus_test and quarkus_extension_runtime from here.
 
-    load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_test")
+    load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_test", "quarkus_extension_runtime")
 
 quarkus_app() automatically creates a <name>_dev target for Quarkus dev mode
 with hot-reload support. Use dev=False to opt out.
 Use native=True to create a <name>_native target for GraalVM native image compilation.
+
+quarkus_extension_runtime() wraps a local Quarkus extension runtime module;
+depend on that runtime target from application code and the deployment side is
+added to Quarkus augmentation automatically.
 \"\"\"
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_app_impl.bzl", "quarkus_app_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_dev_impl.bzl", "quarkus_dev_rule")
+load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_extension_impl.bzl", "quarkus_extension_runtime_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_native_app_impl.bzl", "quarkus_native_app_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_native_container_app_impl.bzl", "quarkus_native_container_app_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_test_impl.bzl", _quarkus_test = "quarkus_test")
@@ -535,6 +540,39 @@ def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_clas
         deployment_deps = _DEPLOYMENT_DEPS,
         deps = test_deps,
         **test_kwargs
+    )
+
+def quarkus_extension_runtime(name, group_id, version, runtime_target, deployment_target,
+                              artifact_id):
+    \"\"\"Builds a Quarkus extension runtime target from java_library targets.
+
+    Mirrors the Maven/Gradle extension layout: a runtime module that application
+    code depends on, and a deployment module that runs at augmentation time.
+    Bundles a generated META-INF/quarkus-extension.properties into the runtime jar;
+    the runtime module's own META-INF/quarkus-extension.yaml resource (read by the
+    Dev UI) is carried through, enriched with the Quarkus core version and the
+    extension's extension-dependencies (discovered from the compile classpath).
+
+    Creates:
+      - <name>: the runtime library. Add it to your application's java_library deps;
+        the deployment side is wired into augmentation automatically.
+
+    Args:
+        name: Runtime library target name (the extension's public name).
+        group_id: Maven groupId for the generated deployment-artifact descriptor.
+        version: Maven version for the generated deployment-artifact descriptor.
+        runtime_target: java_library target for the runtime module.
+        deployment_target: java_library target for the deployment module.
+        artifact_id: Extension artifactId (deployment artifact is artifact_id + "-deployment").
+    \"\"\"
+    quarkus_extension_runtime_rule(
+        name = name,
+        runtime = runtime_target,
+        deployment = deployment_target,
+        group_id = group_id,
+        artifact_id = artifact_id,
+        version = version,
+        quarkus_version = _QUARKUS_VERSION,
     )
 """
 

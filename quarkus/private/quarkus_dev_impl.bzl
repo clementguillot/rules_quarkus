@@ -11,7 +11,7 @@ mutable directory for Quarkus hot-reload.
 
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
-load("//quarkus/private:classpath_utils.bzl", "collect_resource_dir_paths", "collect_runtime_classpath", "collect_source_dir_paths", "is_local_artifact", "write_runfiles_paths_file")
+load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_resource_dir_paths", "collect_runtime_classpath", "collect_source_dir_paths", "is_local_artifact", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
 
 def _collect_bazel_targets(deps):
     """Collects local workspace target labels for the file watcher's `bazel build`.
@@ -39,7 +39,7 @@ def _collect_classes_output_dirs(deps, runtime_classpath):
     """Derives bazel-bin class jar paths for syncing into the mutable classes dir.
 
     Direct deps contribute their compiled class jars; transitive local runtime
-    jars are added so classes from workspace dependencies are available too.
+    jars are added so classes from dependencies are available too.
 
     Args:
         deps: List of targets providing JavaInfo.
@@ -73,7 +73,7 @@ def _quarkus_dev_impl(ctx):
         fail("quarkus_dev rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
 
     runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
-    deployment_classpath = collect_runtime_classpath([ctx.attr.deployment_deps]) if ctx.attr.deployment_deps else depset()
+    deployment_classpath = collect_deployment_classpath(ctx.attr.deployment_deps, ctx.attr.deps)
     core_deployment_classpath = collect_runtime_classpath([ctx.attr.core_deployment_deps]) if ctx.attr.core_deployment_deps else depset()
 
     # Classpath and hot-reload metadata files, read by the launcher at runtime
@@ -138,9 +138,10 @@ quarkus_dev_rule = rule(
     executable = True,
     attrs = {
         "core_deployment_deps": attr.label(doc = "Core deployment deps only — quarkus-core-deployment transitive closure (set by macro)."),
-        "deployment_deps": attr.label(doc = "All deployment deps including extensions (set by macro)."),
+        "deployment_deps": attr.label(doc = "Resolved Quarkus deployment closure (set by macro)."),
         "deps": attr.label_list(
             mandatory = True,
+            aspects = [quarkus_extension_deployment_classpath_aspect],
             providers = [JavaInfo],
             doc = "java_library and Maven artifact targets.",
         ),

@@ -13,7 +13,7 @@ that jar paths in the ApplicationModel match the actual runfiles locations.
 
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
-load("//quarkus/private:classpath_utils.bzl", "collect_runtime_classpath", "is_local_artifact", "write_runfiles_paths_file")
+load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_local_app_jars", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
 
 def _build_test_args(test_packages, test_classes):
     """Builds JUnit ConsoleLauncher CLI arguments."""
@@ -25,36 +25,19 @@ def _build_test_args(test_packages, test_classes):
     args.append("--exclude-classname=.*IT$")
     return " ".join(args)
 
-def _collect_local_jars(deps):
-    """Collects jars built in the local workspace (not external Maven jars).
-
-    These are the jars Quarkus needs to scan for @Path endpoints, CDI beans,
-    and test classes.
-    """
-    jars = []
-    seen = {}
-    for dep in deps:
-        if JavaInfo not in dep:
-            continue
-        for jar in dep[JavaInfo].transitive_runtime_jars.to_list():
-            if is_local_artifact(jar) and jar.path not in seen:
-                seen[jar.path] = True
-                jars.append(jar)
-    return jars
-
 def _quarkus_test_impl(ctx):
     if not ctx.attr.deps:
         fail("quarkus_test rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
 
     runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
-    deploy_classpath = collect_runtime_classpath([ctx.attr.deployment_deps]) if ctx.attr.deployment_deps else depset()
+    deploy_classpath = collect_deployment_classpath(ctx.attr.deployment_deps, ctx.attr.deps)
 
     # Runtime classpath (for both JUnit -cp and quarkifier --application-classpath),
     # deployment classpath (for quarkifier only, NOT on JUnit -cp), and the
     # user-built jars Quarkus must scan (comma-separated, for OUTPUT_SOURCES_DIR).
     cp_file = write_runfiles_paths_file(ctx, "_cp.txt", runtime_classpath, ":")
     deploy_cp_file = write_runfiles_paths_file(ctx, "_deploy_cp.txt", deploy_classpath, ":")
-    direct_jars_file = write_runfiles_paths_file(ctx, "_direct_jars.txt", _collect_local_jars(ctx.attr.deps), ",")
+    direct_jars_file = write_runfiles_paths_file(ctx, "_direct_jars.txt", collect_local_app_jars(ctx.attr.deps, runtime_classpath), ",")
 
     tool_jar = ctx.file.quarkifier_tool
     java_runtime = ctx.attr._java_runtime[java_common.JavaRuntimeInfo]
@@ -91,9 +74,10 @@ quarkus_test = rule(
     implementation = _quarkus_test_impl,
     test = True,
     attrs = {
-        "deployment_deps": attr.label(doc = "Deployment deps (set by macro)."),
+        "deployment_deps": attr.label(doc = "Resolved Quarkus deployment closure (set by macro)."),
         "deps": attr.label_list(
             mandatory = True,
+            aspects = [quarkus_extension_deployment_classpath_aspect],
             providers = [JavaInfo],
             doc = "Test java_library targets. Transitive deps (app code, quarkus-junit, etc.) are included automatically.",
         ),

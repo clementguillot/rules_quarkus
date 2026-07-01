@@ -71,8 +71,8 @@ public final class FastJarAssembler {
    *
    * <p>First clears any jars placed by the Quarkus augmentation step (which may use raw classpath
    * filenames with {@code processed_} prefixes), then copies jars with clean Maven-convention
-   * names. Deduplicates by {@code artifactId:version} so that jars from different sources are only
-   * copied once.
+   * names. Deduplicates by full GAV so that the same artifact from different sources is copied once
+   * without dropping unrelated artifacts that share an artifactId and version.
    */
   static void assembleLibDirectories(Path outputDir, List<Path> runtimeJars, ApplicationModel model)
       throws IOException {
@@ -102,7 +102,7 @@ public final class FastJarAssembler {
 
     for (Path jar : runtimeJars) {
       var coords = MavenCoordinateParser.parse(jar);
-      String dedupeKey = coords.artifactId() + ":" + coords.version();
+      String dedupeKey = coords.groupId() + ":" + coords.artifactId() + ":" + coords.version();
 
       if (copiedKeys.contains(dedupeKey)) {
         continue;

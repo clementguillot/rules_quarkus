@@ -47,7 +47,7 @@ public final class AugmentationExecutor {
             "Application classpath is empty; at least one jar is required.");
       }
 
-      ClasspathPartition partition = partitionClasspath(config);
+      ClasspathPartition partition = LocalExtensionAppJars.reclassify(partitionClasspath(config));
       ApplicationModel appModel = buildModel(config, partition);
 
       switch (config.mode()) {

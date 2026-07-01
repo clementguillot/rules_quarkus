@@ -9,7 +9,7 @@ load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusAppInfo")
 load("//quarkus/private:augmentation.bzl", "run_augmentation")
-load("//quarkus/private:classpath_utils.bzl", "collect_runtime_classpath", "collect_source_jars", "is_local_artifact")
+load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_local_app_jars", "collect_runtime_classpath", "collect_source_jars", "quarkus_extension_deployment_classpath_aspect")
 
 def _shell_quote(s):
     """Shell-quotes a string so it survives word splitting."""
@@ -37,8 +37,8 @@ def _quarkus_app_impl(ctx):
         fail("quarkus_app rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
 
     runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
-    deployment_classpath = collect_runtime_classpath([ctx.attr.deployment_deps]) if ctx.attr.deployment_deps else depset()
-    local_jars = [jar for jar in runtime_classpath.to_list() if is_local_artifact(jar)]
+    deployment_classpath = collect_deployment_classpath(ctx.attr.deployment_deps, ctx.attr.deps)
+    local_jars = collect_local_app_jars(ctx.attr.deps, runtime_classpath)
 
     output_dir = ctx.actions.declare_directory(ctx.label.name + "-quarkus-app")
     run_augmentation(ctx, output_dir, runtime_classpath, deployment_classpath, local_jars = local_jars)
@@ -72,9 +72,10 @@ quarkus_app_rule = rule(
     implementation = _quarkus_app_impl,
     executable = True,
     attrs = {
-        "deployment_deps": attr.label(doc = "Deployment deps (set by macro)."),
+        "deployment_deps": attr.label(doc = "Resolved Quarkus deployment closure (set by macro)."),
         "deps": attr.label_list(
             mandatory = True,
+            aspects = [quarkus_extension_deployment_classpath_aspect],
             providers = [JavaInfo],
             doc = "java_library and Maven artifact targets.",
         ),

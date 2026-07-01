@@ -22,6 +22,10 @@ maven.install(
     artifacts = [
         "io.quarkus:quarkus-rest:3.33.2",
         "io.quarkus:quarkus-arc:3.33.2",
+        # Custom-extension build deps (deployment modules + annotation processor)
+        "io.quarkus:quarkus-arc-deployment:3.33.2",
+        "io.quarkus:quarkus-core-deployment:3.33.2",
+        "io.quarkus:quarkus-extension-processor:3.33.2",
         "io.quarkus:quarkus-junit:3.33.2",
         "io.rest-assured:rest-assured:5.5.6",
         "org.junit.jupiter:junit-jupiter:5.13.4",

@@ -1,5 +1,7 @@
 # Private implementation details for rules_quarkus.
 
+load("@rules_java//java:java_binary.bzl", "java_binary")
+
 exports_files([
     "launcher.sh.tpl",
     "dev_launcher.sh.tpl",
@@ -10,3 +12,10 @@ exports_files([
     "classpath_utils.bzl",
     "versions.bzl",
 ])
+
+java_binary(
+    name = "enrich_extension_yaml",
+    srcs = ["EnrichExtensionYaml.java"],
+    main_class = "com.clementguillot.rules_quarkus.EnrichExtensionYaml",
+    visibility = ["//quarkus:__subpackages__"],
+)

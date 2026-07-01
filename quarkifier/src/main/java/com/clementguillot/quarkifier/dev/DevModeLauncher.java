@@ -273,6 +273,7 @@ public final class DevModeLauncher {
     // targetDir.getParent() to find the project root) shows the correct source tree.
     // We create the directory in launch() since Bazel workspaces don't have a target/ dir.
     Path targetDir = projectRoot.resolve("target");
+    Path resourcesOutputPath = config.classesDir() != null ? config.classesDir() : targetDir;
 
     return new DevModeContext.ModuleInfo.Builder()
         .setArtifactKey(ArtifactKey.ga(coords.groupId(), coords.artifactId()))
@@ -282,9 +283,7 @@ public final class DevModeLauncher {
         .setClassesPath(classesPath.toAbsolutePath().toString())
         .setResourcePaths(PathList.from(config.resources()))
         .setResourcesOutputPath(
-            config.resources().isEmpty()
-                ? null
-                : config.resources().get(0).toAbsolutePath().toString())
+            config.resources().isEmpty() ? null : resourcesOutputPath.toAbsolutePath().toString())
         .setTargetDir(targetDir.toAbsolutePath().toString())
         .build();
   }

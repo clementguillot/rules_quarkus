@@ -13,7 +13,7 @@ load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusNativeInfo")
 load("//quarkus/private:augmentation.bzl", "run_augmentation")
-load("//quarkus/private:classpath_utils.bzl", "collect_runtime_classpath")
+load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect")
 
 _GVM_TOOLCHAIN_TYPE = "@rules_graalvm//graalvm/toolchain"
 
@@ -80,7 +80,7 @@ def _quarkus_native_app_impl(ctx):
         fail("quarkus_native_app_rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
 
     runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
-    deployment_classpath = collect_runtime_classpath([ctx.attr.deployment_deps]) if ctx.attr.deployment_deps else depset()
+    deployment_classpath = collect_deployment_classpath(ctx.attr.deployment_deps, ctx.attr.deps)
 
     output_dir = ctx.actions.declare_directory(ctx.label.name + "-native-sources")
     run_augmentation(ctx, output_dir, runtime_classpath, deployment_classpath, mode = "native")
@@ -105,9 +105,10 @@ quarkus_native_app_rule = rule(
     implementation = _quarkus_native_app_impl,
     executable = True,
     attrs = {
-        "deployment_deps": attr.label(doc = "Deployment deps (set by macro)."),
+        "deployment_deps": attr.label(doc = "Resolved Quarkus deployment closure (set by macro)."),
         "deps": attr.label_list(
             mandatory = True,
+            aspects = [quarkus_extension_deployment_classpath_aspect],
             providers = [JavaInfo],
             doc = "java_library and Maven artifact targets.",
         ),

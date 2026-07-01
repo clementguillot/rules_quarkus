@@ -60,6 +60,14 @@ public final class BazelFileWatcher implements Closeable {
   private final Path bazelLogPath;
 
   /**
+   * Hot-reloadable class outputs, with locally-built Quarkus extension jars removed. An extension
+   * is a dependency, not part of the reloadable application: syncing its classes into the mutable
+   * classes directory would expose them to both the application and augment classloaders, breaking
+   * build-time config-mapping lookup ({@code SRCFG00027}).
+   */
+  private final List<Path> reloadableClassesOutputDirs;
+
+  /**
    * Creates a new file watcher. The {@link WatchService} is created eagerly; call {@link #close()}
    * to release it.
    *
@@ -68,6 +76,7 @@ public final class BazelFileWatcher implements Closeable {
    */
   BazelFileWatcher(QuarkifierConfig config) throws IOException {
     this.config = config;
+    this.reloadableClassesOutputDirs = ClassSyncer.excludeExtensionJars(config.classesOutputDirs());
     this.watchService = FileSystems.getDefault().newWatchService();
     this.debounceExecutor =
         Executors.newSingleThreadScheduledExecutor(
@@ -106,7 +115,7 @@ public final class BazelFileWatcher implements Closeable {
     try {
       // Step 1: Populate initial classes FIRST (can take time, must complete before watching)
       LOGGER.debug("[hot-reload] Populating initial classes...");
-      ClassSyncer.populateClassesDir(config.classesOutputDirs(), config.classesDir());
+      ClassSyncer.populateClassesDir(watcher.reloadableClassesOutputDirs, config.classesDir());
       LOGGER.debug("[hot-reload] Initial classes populated");
 
       // Step 2: Register watchers on all source directories
@@ -313,7 +322,7 @@ public final class BazelFileWatcher implements Closeable {
    */
   void syncClasses() {
     try {
-      ClassSyncer.syncClasses(config.classesOutputDirs(), config.classesDir());
+      ClassSyncer.syncClasses(reloadableClassesOutputDirs, config.classesDir());
       LOGGER.debug("[hot-reload] Classes synced successfully");
     } catch (IOException e) {
       LOGGER.errorf("[hot-reload] Failed to sync classes: %s", e.getMessage());
