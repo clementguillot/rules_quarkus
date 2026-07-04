@@ -22,11 +22,26 @@ def run_augmentation(ctx, output_dir, runtime_classpath, deployment_classpath, m
         mode: Quarkifier mode ("native"), or None for the default Fast_Jar mode.
         local_jars: Optional list of local workspace jars (--local-app-jars).
     """
+
+    # Write classpaths to files to avoid E2BIG on large dependency sets.
+    app_cp_file = ctx.actions.declare_file(ctx.label.name + "_app_classpath.txt")
+    app_cp_args = ctx.actions.args()
+    app_cp_args.set_param_file_format("flag_per_line")
+    app_cp_args.add_joined(runtime_classpath, join_with = ":")
+    ctx.actions.write(output = app_cp_file, content = app_cp_args)
+
+    full_deploy_cp = depset(transitive = [runtime_classpath, deployment_classpath])
+    deploy_cp_file = ctx.actions.declare_file(ctx.label.name + "_deploy_classpath.txt")
+    deploy_cp_args = ctx.actions.args()
+    deploy_cp_args.set_param_file_format("flag_per_line")
+    deploy_cp_args.add_joined(full_deploy_cp, join_with = ":")
+    ctx.actions.write(output = deploy_cp_file, content = deploy_cp_args)
+
     args = ctx.actions.args()
-    args.add_joined("--application-classpath", runtime_classpath, join_with = ":")
+    args.add("--application-classpath-file", app_cp_file)
     if local_jars:
         args.add_joined("--local-app-jars", local_jars, join_with = ":")
-    args.add_joined("--deployment-classpath", depset(transitive = [runtime_classpath, deployment_classpath]), join_with = ":")
+    args.add("--deployment-classpath-file", deploy_cp_file)
     args.add("--output-dir", output_dir.path)
     if mode:
         args.add("--mode", mode)
@@ -57,7 +72,7 @@ def run_augmentation(ctx, output_dir, runtime_classpath, deployment_classpath, m
         executable = java_runtime.java_executable_exec_path,
         arguments = [jar_args, args],
         inputs = depset(
-            direct = [tool_jar],
+            direct = [tool_jar, app_cp_file, deploy_cp_file],
             transitive = [runtime_classpath, deployment_classpath, java_runtime.files],
         ),
         outputs = [output_dir],
