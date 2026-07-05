@@ -2,6 +2,7 @@ module(name = "smoke_test")
 
 bazel_dep(name = "com_clementguillot_rules_quarkus", version = "0.0.0", dev_dependency = True)
 bazel_dep(name = "bazel_skylib", version = "1.8.2", dev_dependency = True)
+bazel_dep(name = "rules_shell", version = "0.6.1", dev_dependency = True)
 
 local_path_override(
     module_name = "com_clementguillot_rules_quarkus",
@@ -16,6 +17,31 @@ bazel_dep(name = "rules_go", version = "0.61.0", repo_name = "rules_go")
 # JVM rules
 bazel_dep(name = "rules_java", version = "8.12.0")
 bazel_dep(name = "rules_jvm_external", version = "7.0")
+
+# GraalVM native-image toolchain — only needed by the manual-tagged
+# //big:native_e2big_test (findings/04). Same override as examples/native_image.
+bazel_dep(name = "rules_graalvm", version = "0.11.1")
+git_override(
+    module_name = "rules_graalvm",
+    commit = "f3683e086fea4a8ca59ecdc6e0cff6f3d61b796e",
+    remote = "https://github.com/jesses-canva/rules_graalvm.git",
+)
+
+gvm = use_extension("@rules_graalvm//:extensions.bzl", "graalvm")
+gvm.graalvm(
+    name = "graalvm",
+    distribution = "ce",
+    java_version = "25",
+    version = "25.0.1",
+)
+use_repo(gvm, "graalvm")
+
+# Register only the GraalVM SDK toolchain (@rules_graalvm//graalvm/toolchain
+# type, consumed by quarkus_native_app_rule). Deliberately NOT registering
+# @graalvm//:jvm: that would put GraalVM in the Java toolchain candidate set
+# and force the ~300 MB download for every smoke build instead of only when
+# //big:app_native is requested.
+register_toolchains("@graalvm//:sdk")
 
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.install(
