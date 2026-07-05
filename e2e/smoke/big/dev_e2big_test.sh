@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regression test for findings/01-dev-mode-e2big.md (TDD: fails until fixed).
+# Regression test for E2BIG issues.
 #
 # Launches the quarkus_dev launcher for an app whose runtime classpath joins
 # to ~2 MB — past macOS ARG_MAX (1 MiB total) and Linux MAX_ARG_STRLEN
@@ -43,7 +43,6 @@ trap cleanup EXIT
 for _ in $(seq 1 300); do
   if grep -q "Argument list too long" "${LOG}"; then
     echo "FAIL: dev launcher hit E2BIG — classpaths passed as raw argv" >&2
-    echo "      (see findings/01-dev-mode-e2big.md)" >&2
     tail -n 20 "${LOG}" >&2
     exit 1
   fi

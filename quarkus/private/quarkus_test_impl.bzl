@@ -11,6 +11,7 @@ The two-phase approach (model generation at test time, not build time) ensures
 that jar paths in the ApplicationModel match the actual runfiles locations.
 """
 
+load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_local_app_jars", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
@@ -52,7 +53,7 @@ def _quarkus_test_impl(ctx):
             "%{deploy_cp_file}": deploy_cp_file.short_path,
             "%{direct_jars_file}": direct_jars_file.short_path,
             "%{java_home}": java_runtime.java_home_runfiles_path,
-            "%{jvm_flags}": " ".join(ctx.attr.jvm_flags),
+            "%{jvm_flags}": " ".join([shell.quote(f) for f in ctx.attr.jvm_flags]),
             "%{quarkus_version}": ctx.attr.quarkus_version,
             "%{test_args}": _build_test_args(ctx.attr.test_packages, ctx.attr.test_classes),
             "%{tool_jar}": tool_jar.short_path,

@@ -419,6 +419,39 @@ class QuarkifierConfigTest {
     assertTrue(ex.getMessage().contains("/nonexistent/cp.txt"));
   }
 
+  @Test
+  void parse_coreDeploymentClasspathFromFile(@TempDir Path tempDir) throws Exception {
+    Path cpFile = tempDir.resolve("core_deploy_cp.txt");
+    Files.writeString(cpFile, "core.jar:core2.jar");
+
+    var config =
+        QuarkifierConfig.parse(
+            "--application-classpath", "a.jar",
+            "--deployment-classpath", "d.jar",
+            "--output-dir", "/out",
+            "--core-deployment-classpath-file", cpFile.toString());
+
+    assertEquals(
+        List.of(Path.of("core.jar"), Path.of("core2.jar")), config.coreDeploymentClasspath());
+  }
+
+  @Test
+  void parse_localAppJarsFromFile(@TempDir Path tempDir) throws Exception {
+    Path jarsFile = tempDir.resolve("local_jars.txt");
+    Files.writeString(jarsFile, "app.jar:lib.jar:util.jar");
+
+    var config =
+        QuarkifierConfig.parse(
+            "--application-classpath", "a.jar",
+            "--deployment-classpath", "d.jar",
+            "--output-dir", "/out",
+            "--local-app-jars-file", jarsFile.toString());
+
+    assertEquals(
+        List.of(Path.of("app.jar"), Path.of("lib.jar"), Path.of("util.jar")),
+        config.localAppJars());
+  }
+
   // ---- value validation ----
 
   @Test

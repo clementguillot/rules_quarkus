@@ -5,6 +5,7 @@ set -euo pipefail
 cleanup() {
     rm -rf "${OUTPUT_DIR:-}"
     rm -rf "${CLASSES_DIR:-}"
+    rm -f "${ABS_APP_CP_FILE:-}" "${ABS_DEPLOY_CP_FILE:-}" "${ABS_CORE_DEPLOY_CP_FILE:-}"
 }
 trap cleanup EXIT ERR TERM INT QUIT ABRT
 
@@ -17,30 +18,25 @@ APP_CP_FILE="${RUNFILES_DIR}/%{workspace}/%{app_cp_file}"
 DEPLOY_CP_FILE="${RUNFILES_DIR}/%{workspace}/%{deploy_cp_file}"
 CORE_DEPLOY_CP_FILE="${RUNFILES_DIR}/%{workspace}/%{core_deploy_cp_file}"
 
-# Read classpaths from files, prefixing each entry with the runfiles dir
-APP_CP=""
-while IFS=: read -ra ENTRIES; do
-  for entry in "${ENTRIES[@]}"; do
-    if [ -n "$APP_CP" ]; then APP_CP="${APP_CP}:"; fi
-    APP_CP="${APP_CP}${RUNFILES_DIR}/%{workspace}/${entry}"
-  done
-done < "$APP_CP_FILE"
+# Build absolute-path classpath files for quarkifier (avoids E2BIG on Linux).
+# Each entry in the source files is prefixed with the runfiles directory.
+_prefix_cp_to_file() {
+  local src="$1" dest="$2"
+  # Prefix every colon-separated entry in one pass. The prefix is passed via
+  # the environment: ENVIRON values are byte-exact, whereas awk -v would
+  # reinterpret backslash escape sequences in the value.
+  CP_PREFIX="${RUNFILES_DIR}/%{workspace}/" awk \
+    'BEGIN{FS=":"; OFS=":"; p=ENVIRON["CP_PREFIX"]} {for(i=1;i<=NF;i++) $i=p $i; print}' \
+    < "$src" > "$dest"
+}
 
-DEPLOY_CP=""
-while IFS=: read -ra ENTRIES; do
-  for entry in "${ENTRIES[@]}"; do
-    if [ -n "$DEPLOY_CP" ]; then DEPLOY_CP="${DEPLOY_CP}:"; fi
-    DEPLOY_CP="${DEPLOY_CP}${RUNFILES_DIR}/%{workspace}/${entry}"
-  done
-done < "$DEPLOY_CP_FILE"
+ABS_APP_CP_FILE=$(mktemp)
+ABS_DEPLOY_CP_FILE=$(mktemp)
+ABS_CORE_DEPLOY_CP_FILE=$(mktemp)
 
-CORE_DEPLOY_CP=""
-while IFS=: read -ra ENTRIES; do
-  for entry in "${ENTRIES[@]}"; do
-    if [ -n "$CORE_DEPLOY_CP" ]; then CORE_DEPLOY_CP="${CORE_DEPLOY_CP}:"; fi
-    CORE_DEPLOY_CP="${CORE_DEPLOY_CP}${RUNFILES_DIR}/%{workspace}/${entry}"
-  done
-done < "$CORE_DEPLOY_CP_FILE"
+_prefix_cp_to_file "$APP_CP_FILE" "$ABS_APP_CP_FILE"
+_prefix_cp_to_file "$DEPLOY_CP_FILE" "$ABS_DEPLOY_CP_FILE"
+_prefix_cp_to_file "$CORE_DEPLOY_CP_FILE" "$ABS_CORE_DEPLOY_CP_FILE"
 
 # Read source directories for hot-reload
 SOURCE_DIRS_FILE="${RUNFILES_DIR}/%{workspace}/%{source_dirs_file}"
@@ -77,7 +73,7 @@ CLASSES_DIR=""
 WORKSPACE_ROOT="${BUILD_WORKSPACE_DIRECTORY:-$(pwd)}"
 BAZEL_EXEC_ROOT=$(bazel info execution_root 2>/dev/null || printf '%s' "$WORKSPACE_ROOT")
 HOT_RELOAD_ARGS=()
-RESOURCES_ARG=""
+RESOURCES_VALUE=""
 
 # Resolve resource dirs to absolute paths
 if [ -n "$RESOURCE_DIRS" ]; then
@@ -90,9 +86,7 @@ if [ -n "$RESOURCE_DIRS" ]; then
             ABS_RESOURCE_DIRS="${ABS_RESOURCE_DIRS}${abs_rd}"
         fi
     done
-    if [ -n "$ABS_RESOURCE_DIRS" ]; then
-        RESOURCES_ARG="--resources ${ABS_RESOURCE_DIRS}"
-    fi
+    RESOURCES_VALUE="$ABS_RESOURCE_DIRS"
 fi
 
 if [ -n "$SOURCE_DIRS" ] && [ -n "$BAZEL_TARGETS" ]; then
@@ -124,18 +118,49 @@ if [ -n "$SOURCE_DIRS" ] && [ -n "$BAZEL_TARGETS" ]; then
     )
 fi
 
-"$JAVA" \
-  -Djava.util.logging.manager=org.jboss.logmanager.LogManager \
-  -jar "$TOOL_JAR" \
-  --application-classpath "$APP_CP" \
-  --deployment-classpath "$DEPLOY_CP" \
-  --core-deployment-classpath "$CORE_DEPLOY_CP" \
-  --output-dir "$OUTPUT_DIR" \
-  --mode dev \
-  --expected-quarkus-version %{quarkus_version} \
-  --app-name %{app_name} \
-  %{app_version_flag} \
-  --workspace-dir "$WORKSPACE_ROOT" \
-  ${RESOURCES_ARG} \
-  ${HOT_RELOAD_ARGS[@]+"${HOT_RELOAD_ARGS[@]}"} \
-  "$@" || exit $?
+# Use a JDK @argfile to pass all java arguments, avoiding E2BIG.
+# This keeps the actual execve argv to just: java @argfile
+# JDK argfile tokenizes on whitespace; values with spaces must be double-quoted,
+# and backslash/double-quote must be escaped inside the quotes.
+_q() {
+  local v="$1"
+  v="${v//\\/\\\\}"
+  v="${v//\"/\\\"}"
+  printf '"%s"\n' "$v"
+}
+
+_JAVA_ARGFILE=$(mktemp "${OUTPUT_DIR}/quarkus_dev_args_XXXXXX")
+{
+  echo "-Djava.util.logging.manager=org.jboss.logmanager.LogManager"
+  _q "-jar"
+  _q "$TOOL_JAR"
+  echo "--application-classpath-file"
+  _q "$ABS_APP_CP_FILE"
+  echo "--deployment-classpath-file"
+  _q "$ABS_DEPLOY_CP_FILE"
+  echo "--core-deployment-classpath-file"
+  _q "$ABS_CORE_DEPLOY_CP_FILE"
+  echo "--output-dir"
+  _q "$OUTPUT_DIR"
+  echo "--mode"
+  echo "dev"
+  echo "--expected-quarkus-version"
+  echo "%{quarkus_version}"
+  echo "--app-name"
+  echo "%{app_name}"
+  if [ -n "%{app_version}" ]; then
+    echo "--app-version"
+    _q "%{app_version}"
+  fi
+  echo "--workspace-dir"
+  _q "$WORKSPACE_ROOT"
+  if [ -n "$RESOURCES_VALUE" ]; then
+    echo "--resources"
+    _q "$RESOURCES_VALUE"
+  fi
+  for arg in ${HOT_RELOAD_ARGS[@]+"${HOT_RELOAD_ARGS[@]}"}; do
+    _q "$arg"
+  done
+} > "$_JAVA_ARGFILE"
+
+"$JAVA" "@$_JAVA_ARGFILE" "$@" || exit $?

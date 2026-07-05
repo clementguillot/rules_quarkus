@@ -104,8 +104,8 @@ $RUNTIME run --rm "${{USER_ARGS[@]}}" --entrypoint bash \\
   -c '
     mkdir -p /tmp/work && cd /tmp/work &&
     cp -a /project-src/. . &&
-    ARGS=$(sed -e "s| {app_name}-runner -jar | -jar |" -e "s|--enable-monitoring=[^ ]*||g" native-image.args) &&
-    native-image $ARGS -o /output/{app_name}
+    sed -e "s| {app_name}-runner -jar | -jar |" -e "s|--enable-monitoring=[^ ]*||g" native-image.args > /tmp/work/native-image.args.rewritten &&
+    native-image @/tmp/work/native-image.args.rewritten -o /output/{app_name}
   '
 """
 

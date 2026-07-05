@@ -67,6 +67,7 @@ public record QuarkifierConfig(
               --deployment-classpath <jar:jar:...> \\
               [--deployment-classpath-file <path>] \\
               [--core-deployment-classpath <jar:jar:...>] \\
+              [--core-deployment-classpath-file <path>] \\
               --output-dir <path> \\
               [--resources <path,path,...>] \\
               [--mode normal|test|dev] \\
@@ -81,7 +82,8 @@ public record QuarkifierConfig(
               [--classes-output-dirs <dir,dir,...>] \\
               [--workspace-dir <path>] \\
               [--bazel-build-timeout-seconds <seconds>] \\
-              [--local-app-jars <jar:jar:...>]""";
+              [--local-app-jars <jar:jar:...>] \\
+              [--local-app-jars-file <path>]""";
 
   /**
    * Parses CLI arguments into an {@link QuarkifierConfig}.
@@ -161,6 +163,8 @@ public record QuarkifierConfig(
             readFileContent(requireValue(args, ++i, args[i - 1]));
         case "--core-deployment-classpath" -> raw.coreDeployCp =
             requireValue(args, ++i, args[i - 1]);
+        case "--core-deployment-classpath-file" -> raw.coreDeployCp =
+            readFileContent(requireValue(args, ++i, args[i - 1]));
         case "--output-dir" -> raw.outputDir =
             requireNonEmptyValue(args, ++i, args[i - 1], "--output-dir");
         case "--resources" -> raw.resources = requireValue(args, ++i, args[i - 1]);
@@ -182,6 +186,8 @@ public record QuarkifierConfig(
         case "--bazel-build-timeout-seconds" -> raw.bazelBuildTimeoutSeconds =
             requireValue(args, ++i, args[i - 1]);
         case "--local-app-jars" -> raw.localAppJars = requireValue(args, ++i, args[i - 1]);
+        case "--local-app-jars-file" -> raw.localAppJars =
+            readFileContent(requireValue(args, ++i, args[i - 1]));
         default -> throw new InvalidArgumentsException("Unknown argument: " + args[i]);
       }
     }

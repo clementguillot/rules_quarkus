@@ -19,7 +19,7 @@ bazel_dep(name = "rules_java", version = "8.12.0")
 bazel_dep(name = "rules_jvm_external", version = "7.0")
 
 # GraalVM native-image toolchain — only needed by the manual-tagged
-# //big:native_e2big_test (findings/04). Same override as examples/native_image.
+# //big:native_e2big_test. Same override as examples/native_image.
 bazel_dep(name = "rules_graalvm", version = "0.11.1")
 git_override(
     module_name = "rules_graalvm",
