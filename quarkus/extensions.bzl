@@ -466,37 +466,30 @@ def quarkus_app(name, dev = True, native = False, native_container_build = False
         **kwargs
     )
 
-    deps = kwargs.get("deps", [])
-    version = kwargs.get("version", "")
+    # Attrs shared by the secondary (_dev / _native) targets.
+    common = dict(
+        quarkus_version = _QUARKUS_VERSION,
+        quarkifier_tool = _QUARKIFIER_TOOL,
+        deployment_deps = _DEPLOYMENT_DEPS,
+        deps = kwargs.get("deps", []),
+        version = kwargs.get("version", ""),
+    )
     main_class = kwargs.get("main_class", "")
     if dev:
         quarkus_dev_rule(
             name = name + "_dev",
-            quarkus_version = _QUARKUS_VERSION,
-            quarkifier_tool = _QUARKIFIER_TOOL,
-            deployment_deps = _DEPLOYMENT_DEPS,
             core_deployment_deps = _CORE_DEPLOYMENT_DEPS,
-            deps = deps,
-            version = version,
+            **common
         )
     if native:
         quarkus_native_app_rule(
             name = name + "_native",
-            quarkus_version = _QUARKUS_VERSION,
-            quarkifier_tool = _QUARKIFIER_TOOL,
-            deployment_deps = _DEPLOYMENT_DEPS,
-            deps = deps,
-            version = version,
             main_class = main_class,
+            **common
         )
     if native_container_build:
         quarkus_native_container_app_rule(
             name = name + "_native",
-            quarkus_version = _QUARKUS_VERSION,
-            quarkifier_tool = _QUARKIFIER_TOOL,
-            deployment_deps = _DEPLOYMENT_DEPS,
-            deps = deps,
-            version = version,
             main_class = main_class,
             container_runtime = native_container_runtime,
             builder_image = native_builder_image,
@@ -505,6 +498,7 @@ def quarkus_app(name, dev = True, native = False, native_container_build = False
                 "@platforms//cpu:x86_64": "amd64",
                 "//conditions:default": "unsupported",
             }}),
+            **common
         )
 
 def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_classes = None, jvm_flags = None, **kwargs):

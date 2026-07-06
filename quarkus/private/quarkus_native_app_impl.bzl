@@ -21,7 +21,8 @@ _GVM_TOOLCHAIN_TYPE = "@rules_graalvm//graalvm/toolchain"
 # correctly. The args file ends with "<output-name> -jar <runner>.jar": the
 # output-name token is removed and replaced by -o with the absolute output
 # path. Monitoring options that may be incompatible with the installed
-# GraalVM version are stripped.
+# GraalVM version are stripped. The rewritten args are passed via @argfile
+# so the -cp line (one entry per dependency jar) never lands on argv (E2BIG).
 _NATIVE_IMAGE_SCRIPT = """
 set -euo pipefail
 EXECROOT="$(pwd)"
@@ -33,8 +34,9 @@ case "$CC_PATH" in
   *) CC_PATH="$EXECROOT/$CC_PATH" ;;
 esac
 cd "{native_sources}"
-ARGS=$(sed -e 's| {runner_name} -jar | -jar |' -e 's|--enable-monitoring=[^ ]*||g' native-image.args)
-exec "$NATIVE_IMAGE" $ARGS -H:CCompilerPath="$CC_PATH" -o "$OUTPUT"
+REWRITTEN_ARGS=$(mktemp)
+sed -e 's| {runner_name} -jar | -jar |' -e 's|--enable-monitoring=[^ ]*||g' native-image.args > "$REWRITTEN_ARGS"
+exec "$NATIVE_IMAGE" "@$REWRITTEN_ARGS" -H:CCompilerPath="$CC_PATH" -o "$OUTPUT"
 """
 
 def _run_native_image(ctx, output_dir, binary):

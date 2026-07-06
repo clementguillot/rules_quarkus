@@ -6,6 +6,8 @@ java_library(
     name = "lib",
     srcs = glob(["src/main/java/**/*.java"]),
     resources = glob(["src/main/resources/**/*"]),
+    # //big reuses the app sources for the E2BIG regression targets.
+    visibility = ["//big:__pkg__"],
     deps = [
         # Locally-built custom extension (runtime side); deployment is auto-wired.
         "//ext/runtime",
@@ -26,6 +28,8 @@ java_library(
     name = "test_lib",
     testonly = True,
     srcs = glob(["src/test/java/**/*.java"]),
+    # //big reuses the test sources for the E2BIG regression targets.
+    visibility = ["//big:__pkg__"],
     deps = [
         ":lib",
         "@maven//:io_quarkus_quarkus_junit",

@@ -1,0 +1,107 @@
+# E2BIG regression targets.
+#
+# The kernel rejects execve() when the argument list is too large:
+#   - macOS: total argv+env limit ARG_MAX = 1 MiB (no per-argument limit)
+#   - Linux: additionally caps any single argument at MAX_ARG_STRLEN = 128 KiB
+#
+# PR #103 fixed this for the augmentation action's --application-classpath /
+# --deployment-classpath by moving them into files, but several other spots
+# still join the whole classpath into a single argv string. To reproduce on
+# macOS (the larger limit), we synthesize a dependency set whose classpath
+# strings exceed 1 MiB: 6000 empty jars with ~180-char names.
+#   - exec-path entries  (~223 B each): ~1.34 MB  → breaks argv at build time
+#   - runfiles-prefixed  (~330 B each): ~2 MB     → breaks argv at run/test time
+
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@com_clementguillot_rules_quarkus//quarkus:defs.bzl", "quarkus_native_app_rule")
+load("@rules_java//java:java_import.bzl", "java_import")
+load("@rules_java//java:java_library.bzl", "java_library")
+load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_test")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+_N = 6000
+
+_PAD = "x" * 170
+
+_BIG_JARS = ["dep_{}{}.jar".format(
+    _PAD,
+    ("000" + str(i))[-4:],
+) for i in range(_N)]
+
+# Seed: a valid (near-empty) jar produced by the java toolchain, so that every
+# consumer (ijar, JarFile in the quarkifier) can open the copies.
+java_library(name = "seed")
+
+genrule(
+    name = "gen_big_jars",
+    srcs = [":seed"],
+    outs = _BIG_JARS,
+    cmd = "for i in $$(seq 0 {last}); do cp $< \"$(RULEDIR)/dep_{pad}$$(printf '%04d' $$i).jar\"; done".format(
+        last = _N - 1,
+        pad = _PAD,
+    ),
+)
+
+# All 6000 jars on one classpath. These are *local workspace* jars, so they are
+# also collected into --local-app-jars.
+java_import(
+    name = "bigjars",
+    jars = [":gen_big_jars"],
+)
+
+# NOTE: //:lib must stay FIRST — the quarkifier treats the first classpath /
+# local-app-jars entry as the application artifact.
+_BIG_DEPS = [
+    "//:lib",
+    ":bigjars",
+]
+
+quarkus_app(
+    name = "app",
+    version = "1.0.0-SNAPSHOT",
+    deps = _BIG_DEPS,
+)
+
+build_test(
+    name = "augmentation_e2big_test",
+    targets = [":app"],
+)
+
+sh_test(
+    name = "dev_e2big_test",
+    size = "large",
+    srcs = ["dev_e2big_test.sh"],
+    args = ["$(rlocationpath :app_dev)"],
+    data = [":app_dev"],
+)
+
+quarkus_test(
+    name = "test_e2big_test",
+    size = "large",
+    test_classes = ["smoke.GreetingResourceTest"],
+    deps = [
+        ":bigjars",
+        "//:test_lib",
+    ],
+)
+
+# Tagged manual: needs the rules_graalvm toolchain (large GraalVM download)
+# and, once fixed, performs a real native compilation. Run explicitly:
+#   bazel test //big:native_e2big_test
+#
+# Instantiates the rule directly (not the quarkus_app macro) because the macro
+# does not forward tags to the native target.
+quarkus_native_app_rule(
+    name = "app_native",
+    deployment_deps = "@rules_quarkus//deployment:all",
+    quarkifier_tool = "@rules_quarkus//quarkifier:tool.jar",
+    quarkus_version = "3.33.2",
+    tags = ["manual"],
+    deps = _BIG_DEPS,
+)
+
+build_test(
+    name = "native_e2big_test",
+    tags = ["manual"],
+    targets = [":app_native"],
+)

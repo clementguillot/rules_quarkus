@@ -14,48 +14,41 @@ WORKSPACE_DIR="${RUNFILES_DIR}/%{workspace}"
 TOOL_JAR="${WORKSPACE_DIR}/%{tool_jar}"
 JAVA="${WORKSPACE_DIR}/%{java_home}/bin/java"
 
-# Read runtime classpath (app + test jars, for both JUnit -cp and quarkifier)
-CLASSPATH=""
-while IFS=: read -ra ENTRIES; do
-  for entry in "${ENTRIES[@]}"; do
-    if [ -n "$CLASSPATH" ]; then CLASSPATH="${CLASSPATH}:"; fi
-    CLASSPATH="${CLASSPATH}${WORKSPACE_DIR}/${entry}"
-  done
-done < "${WORKSPACE_DIR}/%{classpath_file}"
+# Stream classpaths into temp files using awk (O(n), safe with special chars in paths).
+# Each source file has separator-delimited relative paths; we prefix with WORKSPACE_DIR.
+# The prefix and separator are passed via the environment: ENVIRON values are
+# byte-exact, whereas awk -v would reinterpret backslash escape sequences.
+_prefix_entries() {
+  local sep="$1" src="$2" dest="$3"
+  CP_PREFIX="${WORKSPACE_DIR}/" CP_SEP="$sep" awk \
+    'BEGIN{FS=ENVIRON["CP_SEP"]; OFS=FS; p=ENVIRON["CP_PREFIX"]} {for(i=1;i<=NF;i++) $i=p $i; print}' \
+    < "$src" > "$dest"
+}
 
-# Read deployment classpath (for quarkifier only, NOT on JUnit -cp)
-DEPLOY_CP=""
-while IFS=: read -ra ENTRIES; do
-  for entry in "${ENTRIES[@]}"; do
-    if [ -n "$DEPLOY_CP" ]; then DEPLOY_CP="${DEPLOY_CP}:"; fi
-    DEPLOY_CP="${DEPLOY_CP}${WORKSPACE_DIR}/${entry}"
-  done
-done < "${WORKSPACE_DIR}/%{deploy_cp_file}"
+# Runtime classpath (app + test jars, for both JUnit -cp and quarkifier)
+APP_CP_FILE=$(mktemp)
+_prefix_entries ":" "${WORKSPACE_DIR}/%{classpath_file}" "$APP_CP_FILE"
 
-# Read direct dep jars (comma-separated, for OUTPUT_SOURCES_DIR).
-# These are the user's app and test jars that Quarkus needs to scan.
-DIRECT_JARS=""
-while IFS=, read -ra ENTRIES; do
-  for entry in "${ENTRIES[@]}"; do
-    if [ -n "$DIRECT_JARS" ]; then DIRECT_JARS="${DIRECT_JARS},"; fi
-    DIRECT_JARS="${DIRECT_JARS}${WORKSPACE_DIR}/${entry}"
-  done
-done < "${WORKSPACE_DIR}/%{direct_jars_file}"
+# Deployment classpath (for quarkifier only, NOT on JUnit -cp)
+DEPLOY_CP_FILE=$(mktemp)
+_prefix_entries ":" "${WORKSPACE_DIR}/%{deploy_cp_file}" "$DEPLOY_CP_FILE"
 
-# Colon-separated version for --local-app-jars (quarkifier expects ':' separator)
-LOCAL_APP_JARS="${DIRECT_JARS//,/:}"
+# Combined deploy classpath = app + deploy (quarkifier needs both)
+COMBINED_DEPLOY_CP_FILE=$(mktemp)
+{ tr -d '\n' < "$APP_CP_FILE"; printf ':'; tr -d '\n' < "$DEPLOY_CP_FILE"; } > "$COMBINED_DEPLOY_CP_FILE"
+
+# Direct dep jars: comma-separated in source, prefix each entry.
+# Produces two files: comma-separated (for OUTPUT_SOURCES_DIR / test discovery)
+# and colon-separated (for --local-app-jars-file).
+DIRECT_JARS_FILE=$(mktemp)
+_prefix_entries "," "${WORKSPACE_DIR}/%{direct_jars_file}" "$DIRECT_JARS_FILE"
+
+LOCAL_APP_JARS_FILE=$(mktemp)
+sed 's/,/:/g' < "$DIRECT_JARS_FILE" > "$LOCAL_APP_JARS_FILE"
 
 # Phase 1: Generate serialized ApplicationModel at test time.
 MODEL_DIR=$(mktemp -d)
 trap "rm -rf $MODEL_DIR" EXIT
-
-# Write the combined deployment classpath (app + deploy) to a temp file.
-# This avoids "Argument list too long" on Linux when the classpath contains
-# many jars with long paths (the unified @rules_quarkus repo has longer paths).
-APP_CP_FILE=$(mktemp)
-echo -n "$CLASSPATH" > "$APP_CP_FILE"
-COMBINED_DEPLOY_CP_FILE=$(mktemp)
-echo -n "$CLASSPATH:$DEPLOY_CP" > "$COMBINED_DEPLOY_CP_FILE"
 
 "$JAVA" \
   -Djava.util.logging.manager=org.jboss.logmanager.LogManager \
@@ -64,19 +57,21 @@ echo -n "$CLASSPATH:$DEPLOY_CP" > "$COMBINED_DEPLOY_CP_FILE"
   --deployment-classpath-file "$COMBINED_DEPLOY_CP_FILE" \
   --output-dir "$MODEL_DIR" \
   --mode test \
-  --local-app-jars "$LOCAL_APP_JARS" \
+  --local-app-jars-file "$LOCAL_APP_JARS_FILE" \
   --expected-quarkus-version %{quarkus_version} \
   --app-name %{app_name}
 
 if [ $? -ne 0 ]; then
-  rm -f "$APP_CP_FILE" "$COMBINED_DEPLOY_CP_FILE"
+  rm -f "$APP_CP_FILE" "$DEPLOY_CP_FILE" "$COMBINED_DEPLOY_CP_FILE" "$LOCAL_APP_JARS_FILE" "$DIRECT_JARS_FILE"
   echo "ERROR: Quarkifier test model generation failed" >&2
   exit 1
 fi
 
-rm -f "$APP_CP_FILE" "$COMBINED_DEPLOY_CP_FILE"
+# Keep APP_CP_FILE and DIRECT_JARS_FILE for phase 2; clean the rest.
+rm -f "$DEPLOY_CP_FILE" "$COMBINED_DEPLOY_CP_FILE" "$LOCAL_APP_JARS_FILE"
 
 if [ ! -f "$MODEL_DIR/test-app-model.dat" ]; then
+  rm -f "$APP_CP_FILE" "$DIRECT_JARS_FILE"
   echo "ERROR: test-app-model.dat was not generated" >&2
   exit 1
 fi
@@ -89,37 +84,56 @@ fi
 TEST_ARGS="%{test_args}"
 JAR_CMD="${WORKSPACE_DIR}/%{java_home}/bin/jar"
 if ! echo "$TEST_ARGS" | grep -q '\-\-select-\|--scan-'; then
-  IFS=',' read -ra JAR_ENTRIES <<< "$DIRECT_JARS"
-  for jar_path in "${JAR_ENTRIES[@]}"; do
-    if [ -f "$jar_path" ]; then
-      while IFS= read -r cls; do
-        # Convert path to class name: org/acme/FooTest.class -> org.acme.FooTest
-        cls="${cls%.class}"
-        cls="${cls//\//.}"
-        # Match JUnit's default pattern and exclude IT classes
-        if echo "$cls" | grep -qE '(^Test|[.$]Test|Tests?$)' && ! echo "$cls" | grep -qE 'IT$'; then
-          TEST_ARGS="${TEST_ARGS} --select-class=${cls}"
-        fi
-      done < <("$JAR_CMD" tf "$jar_path" 2>/dev/null | grep '\.class$' | grep -v '\$')
-    fi
-  done
+  while IFS=, read -ra JAR_ENTRIES; do
+    for jar_path in "${JAR_ENTRIES[@]}"; do
+      if [ -f "$jar_path" ]; then
+        while IFS= read -r cls; do
+          cls="${cls%.class}"
+          cls="${cls//\//.}"
+          if echo "$cls" | grep -qE '(^Test|[.$]Test|Tests?$)' && ! echo "$cls" | grep -qE 'IT$'; then
+            TEST_ARGS="${TEST_ARGS} --select-class=${cls}"
+          fi
+        done < <("$JAR_CMD" tf "$jar_path" 2>/dev/null | grep '\.class$' | grep -v '\$')
+      fi
+    done
+  done < "$DIRECT_JARS_FILE"
 fi
 
 REPORTS_DIR=$(mktemp -d)
-"$JAVA" \
+
+# Use a JDK @argfile to avoid E2BIG on the -cp and -DOUTPUT_SOURCES_DIR args.
+# Values are double-quoted per JDK argfile syntax to handle paths with spaces;
+# backslash and double-quote are escaped inside the quotes.
+_argfile_escape() { tr -d '\n' | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
+JAVA_ARGS_FILE=$(mktemp)
+{
+  printf '%s\n' "-cp"
+  printf '"'
+  _argfile_escape < "$APP_CP_FILE"
+  printf '"\n'
+  printf '"'
+  printf '%s' "-DOUTPUT_SOURCES_DIR="
+  _argfile_escape < "$DIRECT_JARS_FILE"
+  printf '"\n'
+} > "$JAVA_ARGS_FILE"
+
+rm -f "$DIRECT_JARS_FILE"
+
+"$JAVA" "@$JAVA_ARGS_FILE" \
   --add-opens=java.base/java.lang=ALL-UNNAMED \
   --add-opens=java.base/java.lang.invoke=ALL-UNNAMED \
   -Djava.util.logging.manager=org.jboss.logmanager.LogManager \
   -Dquarkus-internal-test.serialized-app-model.path="$MODEL_DIR/test-app-model.dat" \
-  -DOUTPUT_SOURCES_DIR="$DIRECT_JARS" \
   -Dplatform.quarkus.native.builder-image=quay.io/quarkus/ubi-quarkus-mandrel-builder-image:jdk-21 \
   -Dquarkus.package.jar.type=fast-jar \
   %{jvm_flags} \
-  -cp "$CLASSPATH" \
   org.junit.platform.console.ConsoleLauncher \
   $TEST_ARGS \
   --reports-dir="$REPORTS_DIR"
 JUNIT_EXIT=$?
+
+rm -f "$JAVA_ARGS_FILE" "$APP_CP_FILE"
 
 # Check XML reports for the real test result.
 if ls "$REPORTS_DIR"/TEST-*.xml >/dev/null 2>&1; then

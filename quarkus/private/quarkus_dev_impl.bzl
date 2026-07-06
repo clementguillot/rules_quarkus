@@ -117,7 +117,7 @@ def _write_dev_launcher(ctx, tool_jar, files, java_runtime):
         substitutions = {
             "%{app_cp_file}": files.app_cp.short_path,
             "%{app_name}": ctx.label.name.removesuffix("_dev"),
-            "%{app_version_flag}": "--app-version " + ctx.attr.version if ctx.attr.version else "",
+            "%{app_version}": ctx.attr.version,
             "%{bazel_targets_file}": files.bazel_targets.short_path,
             "%{classes_output_dirs_file}": files.classes_output_dirs.short_path,
             "%{core_deploy_cp_file}": files.core_deploy_cp.short_path,

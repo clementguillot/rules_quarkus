@@ -96,11 +96,19 @@ def _enrich_extension_yaml(ctx, runtime_jar):
     )
     return enriched_yaml
 
-def _quarkus_extension_runtime_impl(ctx):
-    runtime_jar = ctx.attr.runtime[JavaInfo].java_outputs[0].class_jar
+def _write_descriptor_files(ctx):
+    """Generates the extension descriptor resources injected into the runtime jar.
 
-    # Generate META-INF/quarkus-extension.properties — links the runtime jar to its
-    # -deployment artifact (normally produced by the Maven/Gradle Quarkus build plugin).
+    - META-INF/quarkus-extension.properties links the runtime jar to its
+      -deployment artifact (normally produced by the Maven/Gradle Quarkus build
+      plugin).
+    - pom.properties is needed so other local extensions (via the enrichment
+      tool) can discover this extension's coordinates on the compile classpath.
+
+    Returns:
+        struct(properties, pom_props, pom_props_path): the two declared Files
+        and the jar-internal path for pom.properties.
+    """
     deployment_gav = "{group}:{artifact}-deployment:{version}".format(
         group = ctx.attr.group_id,
         artifact = ctx.attr.artifact_id,
@@ -112,8 +120,6 @@ def _quarkus_extension_runtime_impl(ctx):
         content = "deployment-artifact=" + deployment_gav + "\n",
     )
 
-    # pom.properties is needed so other local extensions (via the enrichment tool)
-    # can discover this extension's coordinates on the compile classpath.
     pom_props_file = ctx.actions.declare_file(ctx.label.name + "_runtime_pom.properties")
     ctx.actions.write(
         output = pom_props_file,
@@ -127,13 +133,19 @@ def _quarkus_extension_runtime_impl(ctx):
         g = ctx.attr.group_id,
         a = ctx.attr.artifact_id,
     )
+    return struct(
+        properties = properties_file,
+        pom_props = pom_props_file,
+        pom_props_path = pom_props_path,
+    )
 
-    enriched_yaml = _enrich_extension_yaml(ctx, runtime_jar)
+def _merge_runtime_jar(ctx, runtime_jar, descriptors, enriched_yaml):
+    """Merges the runtime jar with the descriptor resources via singlejar.
 
-    # Merge the runtime jar (classes, config-roots.list) with the generated descriptor
-    # and the enriched yaml. The descriptor must live in the same jar as the runtime
-    # classes so Quarkus treats it as a runtime extension and loads its build-time
-    # config. singlejar's --resources override the source yaml carried in --sources.
+    The descriptor must live in the same jar as the runtime classes so Quarkus
+    treats it as a runtime extension and loads its build-time config.
+    singlejar's --resources override the source yaml carried in --sources.
+    """
     merged_jar = ctx.actions.declare_file(_runtime_jar_path(
         ctx.attr.group_id,
         ctx.attr.artifact_id,
@@ -142,19 +154,26 @@ def _quarkus_extension_runtime_impl(ctx):
     args = ctx.actions.args()
     args.add("--output", merged_jar)
     args.add("--sources", runtime_jar)
-    args.add("--resources", "%s:%s" % (properties_file.path, "META-INF/quarkus-extension.properties"))
+    args.add("--resources", "%s:%s" % (descriptors.properties.path, "META-INF/quarkus-extension.properties"))
     args.add("--resources", "%s:%s" % (enriched_yaml.path, "META-INF/quarkus-extension.yaml"))
-    args.add("--resources", "%s:%s" % (pom_props_file.path, pom_props_path))
+    args.add("--resources", "%s:%s" % (descriptors.pom_props.path, descriptors.pom_props_path))
     args.add("--dont_change_compression")
     args.add("--exclude_build_data")
     ctx.actions.run(
         executable = ctx.executable._singlejar,
         arguments = [args],
-        inputs = [runtime_jar, properties_file, enriched_yaml, pom_props_file],
+        inputs = [runtime_jar, descriptors.properties, enriched_yaml, descriptors.pom_props],
         outputs = [merged_jar],
         mnemonic = "QuarkusExtJar",
         progress_message = "Building Quarkus extension runtime jar for %s" % ctx.label.name,
     )
+    return merged_jar
+
+def _quarkus_extension_runtime_impl(ctx):
+    runtime_jar = ctx.attr.runtime[JavaInfo].java_outputs[0].class_jar
+    descriptors = _write_descriptor_files(ctx)
+    enriched_yaml = _enrich_extension_yaml(ctx, runtime_jar)
+    merged_jar = _merge_runtime_jar(ctx, runtime_jar, descriptors, enriched_yaml)
 
     # Expose the merged jar together with the runtime library's own deps — but not
     # the library's output jar, which is already inside the merged jar.
