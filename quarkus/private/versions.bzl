@@ -18,6 +18,25 @@ RULES_VERSION = "0.0.0" if _RULES_VERSION.startswith("$Format") else _RULES_VERS
 GITHUB_OWNER = "clementguillot"
 GITHUB_REPO = "rules_quarkus"
 
+# SHA-256 checksums of the per-minor quarkifier release jars, keyed by minor
+# version (e.g. "3.33").
+#
+# Intentionally EMPTY in the git tree: the jar hashes only exist once the
+# release workflow has built the jars. release_prep.sh builds them, computes
+# the checksums, and patches this map into the copy of this file that ships
+# inside the release source archive — so the released tarball deliberately
+# differs from `git archive <tag>` on this one declaration (same idea as the
+# export-subst RULES_VERSION above). The BCR integrity of the archive then
+# transitively pins the jars.
+#
+# When the map is empty (git checkout, or a custom quarkifier_url without
+# quarkus.toolchain(quarkifier_sha256 = ...)), the download is unverified and
+# the module extension prints the hash to pin.
+#
+# The exact line `QUARKIFIER_SHA256 = {}` is the patch anchor for
+# release_prep.sh — do not reformat it.
+QUARKIFIER_SHA256 = {}
+
 # Maven Central URL for Coursier-based deployment artifact resolution.
 MAVEN_CENTRAL = "https://repo1.maven.org/maven2"
 

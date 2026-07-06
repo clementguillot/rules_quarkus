@@ -71,6 +71,7 @@ The configured `quarkus_version` applies to every `quarkus_app`, generated `<nam
 | `lock_file` | `None` | Path to `maven_install.json` for extension auto-discovery |
 | `extension_group_prefixes` | `["io.quarkus", "io.quarkiverse."]` | Maven groupId prefixes identifying Quarkus extensions |
 | `quarkifier_source_dir` | `None` | Label in the rules_quarkus source dir for local dev builds |
+| `quarkifier_sha256` | `""` | SHA-256 pin for the quarkifier jar download. Released versions carry their own checksums, so this is only needed with `git_override`/`archive_override` (the build prints the hash to pin when verification is off) |
 
 ## 4. Create Your Application
 

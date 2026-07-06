@@ -10,7 +10,7 @@ Produces a single generated repository (@rules_quarkus) containing:
   - deployment/: deployment jars resolved via Coursier
 """
 
-load("//quarkus/private:versions.bzl", "COURSIER_SHA256", "COURSIER_URL", "GITHUB_OWNER", "GITHUB_REPO", "MAVEN_CENTRAL", "RULES_VERSION", "SUPPORTED_VERSIONS")
+load("//quarkus/private:versions.bzl", "COURSIER_SHA256", "COURSIER_URL", "GITHUB_OWNER", "GITHUB_REPO", "MAVEN_CENTRAL", "QUARKIFIER_SHA256", "RULES_VERSION", "SUPPORTED_VERSIONS")
 
 _DEFAULT_EXTENSION_GROUP_PREFIXES = ["io.quarkus", "io.quarkiverse."]
 
@@ -201,11 +201,34 @@ def _build_quarkifier_from_source(rctx):
     rctx.symlink(deploy_jar, "quarkifier/tool.jar")
 
 def _resolve_quarkifier_tool(rctx):
-    """Materializes quarkifier/tool.jar from a local build or a release download."""
+    """Materializes quarkifier/tool.jar from a local build or a release download.
+
+    Release downloads are verified against the checksum patched into
+    QUARKIFIER_SHA256 by release_prep.sh (or supplied by the user via
+    quarkus.toolchain(quarkifier_sha256 = ...)). Without a checksum the
+    download still works, but the computed hash is printed so it can be
+    pinned — the jar is executable code run by build actions, dev mode, and
+    tests, so unverified use should be a deliberate choice.
+    """
     if rctx.attr.quarkifier_source_dir:
         _build_quarkifier_from_source(rctx)
     elif rctx.attr.quarkifier_url:
-        rctx.download(url = rctx.attr.quarkifier_url, output = "quarkifier/tool.jar")
+        if rctx.attr.quarkifier_sha256:
+            rctx.download(
+                url = rctx.attr.quarkifier_url,
+                output = "quarkifier/tool.jar",
+                sha256 = rctx.attr.quarkifier_sha256,
+            )
+        else:
+            result = rctx.download(url = rctx.attr.quarkifier_url, output = "quarkifier/tool.jar")
+
+            # buildifier: disable=print
+            print((
+                "\nWARNING: rules_quarkus downloaded the quarkifier tool jar without " +
+                "checksum verification:\n    {url}\n" +
+                "Pin it in MODULE.bazel:\n" +
+                "    quarkus.toolchain(quarkifier_sha256 = \"{sha}\", ...)\n"
+            ).format(url = rctx.attr.quarkifier_url, sha = result.sha256))
     else:
         fail("Either quarkifier_source_dir or quarkifier_url must be set")
 
@@ -618,6 +641,7 @@ _rules_quarkus_repo = repository_rule(
             doc = "bin/java of the hermetic JDK used to run Coursier when the host has no usable JVM.",
         ),
         "quarkifier_build_target": attr.string(doc = "Bazel target for the per-minor deploy jar (local build mode)."),
+        "quarkifier_sha256": attr.string(doc = "SHA-256 checksum for the quarkifier jar download (release mode). Empty disables verification."),
         "quarkifier_source_dir": attr.label(doc = "Label in the rules_quarkus source dir (local build mode)."),
         "quarkifier_url": attr.string(doc = "URL to download the quarkifier jar from (release mode)."),
         "quarkus_version": attr.string(mandatory = True, doc = "Quarkus version."),
@@ -644,6 +668,9 @@ def _quarkifier_repo_attrs(tc, minor):
             minor,
             release_tag,
         ),
+        # User-supplied pin wins; otherwise the checksum patched into the
+        # release archive by release_prep.sh (empty in the git tree).
+        "quarkifier_sha256": tc.quarkifier_sha256 or QUARKIFIER_SHA256.get(minor, ""),
     }
 
 def _quarkus_impl(mctx):
@@ -676,6 +703,15 @@ _toolchain_tag = tag_class(
         ),
         "lock_file": attr.label(
             doc = "Path to maven_install.json for auto-discovering Quarkus extensions.",
+        ),
+        "quarkifier_sha256": attr.string(
+            doc = """\
+SHA-256 checksum of the quarkifier release jar, overriding the checksum
+bundled in the release archive. Normally not needed: released versions carry
+their own checksums. Set it when consuming rules_quarkus via git_override or
+archive_override, where the bundled checksum map is empty — the build prints
+the hash to pin when verification is disabled.
+""",
         ),
         "quarkifier_source_dir": attr.label(
             doc = """\
