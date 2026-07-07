@@ -186,10 +186,16 @@ public final class EnrichExtensionYaml {
   }
 
   /**
-   * Extracts "groupId:artifactId" from the first pom.properties found under META-INF/maven/ in the
-   * jar, or null if none.
+   * Extracts "groupId:artifactId" from pom.properties under META-INF/maven/ in the jar, or null if
+   * none.
+   *
+   * <p>Shaded jars can carry several pom.properties (their own plus relocated dependencies'), and
+   * jar entry order is arbitrary — so prefer the entry whose artifactId matches the jar's file name
+   * (Maven convention: {@code artifactId-version.jar}) over whichever happens to come first.
    */
   private static String extractPomCoordinates(Path jar) {
+    String fileName = jar.getFileName().toString();
+    String fallback = null;
     try (JarFile jf = new JarFile(jar.toFile())) {
       Enumeration<JarEntry> entries = jf.entries();
       while (entries.hasMoreElements()) {
@@ -205,12 +211,17 @@ public final class EnrichExtensionYaml {
         String groupId = props.getProperty("groupId");
         String artifactId = props.getProperty("artifactId");
         if (groupId != null && artifactId != null) {
-          return groupId + ":" + artifactId;
+          if (fileName.startsWith(artifactId + "-") || fileName.equals(artifactId + ".jar")) {
+            return groupId + ":" + artifactId;
+          }
+          if (fallback == null) {
+            fallback = groupId + ":" + artifactId;
+          }
         }
       }
     } catch (IOException e) {
       // Fall through
     }
-    return null;
+    return fallback;
   }
 }

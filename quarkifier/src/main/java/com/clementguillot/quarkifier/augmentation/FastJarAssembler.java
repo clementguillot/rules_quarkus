@@ -138,8 +138,15 @@ public final class FastJarAssembler {
         if (!Files.isRegularFile(resource)) {
           continue;
         }
+        // Resource paths are flattened to their file name; a full
+        // structure-preserving layout would need a base-dir concept the CLI
+        // does not have. Surface collisions instead of dropping silently.
         String entryName = resource.getFileName().toString();
         if (addedEntries.contains(entryName)) {
+          LOGGER.warnf(
+              "Duplicate resource file name '%s' (%s); keeping the first occurrence —"
+                  + " resource paths are flattened to their file name.",
+              entryName, resource);
           continue;
         }
         addedEntries.add(entryName);
