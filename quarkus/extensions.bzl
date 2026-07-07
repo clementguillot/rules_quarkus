@@ -442,6 +442,20 @@ def _maven_relative_path(jar_path):
             return "/".join(parts[maven2_idx + 1:])
     return parts[-1]
 
+def _jar_target_name(relative_jar_path):
+    """Derives the java_import target name from the Maven-relative jar path.
+
+    Uses the group/artifact/version directory — unique per GAV — rather than
+    the bare file name: different groupIds can publish the same
+    artifactId-version.jar, and a name collision must never drop a jar from
+    the deployment classpath.
+    """
+    if "/" in relative_jar_path:
+        base = relative_jar_path.rsplit("/", 1)[0]
+    else:
+        base = relative_jar_path.removesuffix(".jar")
+    return base.replace("/", "_").replace(".", "_").replace("-", "_")
+
 def _copy_jars_into_repo(rctx, copies):
     """Copies resolved jars into the repository directory.
 
@@ -475,6 +489,7 @@ def _write_deployment_build(rctx, all_jars, core_jar_set):
 
     Generates one java_import per jar plus two aggregate java_library targets:
     "core" (quarkus-core-deployment closure) and "all" (every deployment jar).
+    Import names are internal — consumers depend on :core / :all.
     """
     imports = []
     all_targets = []
@@ -482,17 +497,34 @@ def _write_deployment_build(rctx, all_jars, core_jar_set):
     copies = []
     seen = {}
     for jar_path in all_jars:
-        jar_file = jar_path.split("/")[-1]
-        target_name = jar_file.replace(".jar", "").replace(".", "_").replace("-", "_")
-        if target_name in seen:
-            continue
-        seen[target_name] = True
-
         relative_jar_path = _maven_relative_path(jar_path)
-        copies.append((jar_path, "deployment/jars/" + relative_jar_path))
+        target_name = _jar_target_name(relative_jar_path)
+        jar_repo_path = "jars/" + relative_jar_path
+
+        # Residual collisions (same file name in the non-maven2 fallback, or
+        # the same GAV path from two sources) are disambiguated instead of
+        # dropped: every resolved jar must stay on the deployment classpath.
+        if target_name in seen:
+            seen[target_name] += 1
+            n = seen[target_name]
+
+            # buildifier: disable=print
+            print(("WARNING: rules_quarkus: deployment jars collide on target name '{}' " +
+                   "({}); keeping both, this one as '{}_dup{}'.").format(
+                target_name,
+                jar_path,
+                target_name,
+                n,
+            ))
+            target_name = "{}_dup{}".format(target_name, n)
+            jar_repo_path = "jars/dup{}/{}".format(n, relative_jar_path)
+        else:
+            seen[target_name] = 1
+
+        copies.append((jar_path, "deployment/" + jar_repo_path))
 
         imports.append(
-            'java_import(name = "{n}", jars = ["jars/{j}"], visibility = ["//visibility:public"])'.format(n = target_name, j = relative_jar_path),
+            'java_import(name = "{n}", jars = ["{j}"], visibility = ["//visibility:public"])'.format(n = target_name, j = jar_repo_path),
         )
         all_targets.append('":{}"'.format(target_name))
         if jar_path in core_jar_set:
