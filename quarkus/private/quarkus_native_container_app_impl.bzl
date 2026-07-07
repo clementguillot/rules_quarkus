@@ -13,6 +13,7 @@ load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusNativeInfo")
 load("//quarkus/private:augmentation.bzl", "run_augmentation")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect")
+load("//quarkus/private:versions.bzl", "DEFAULT_NATIVE_BUILDER_IMAGE")
 
 # Container runtime auto-detection is backported from Quarkus
 # ContainerRuntimeUtil.java. Inside the container, the args file ends with
@@ -107,6 +108,11 @@ $RUNTIME run --rm "${{USER_ARGS[@]}}" --entrypoint bash \\
     sed -e "s| {app_name}-runner -jar | -jar |" -e "s|--enable-monitoring=[^ ]*||g" native-image.args > /tmp/work/native-image.args.rewritten &&
     native-image @/tmp/work/native-image.args.rewritten -o /output/{app_name}
   '
+
+# Log the resolved image digest for provenance: with a tag-only builder_image
+# the binary's toolchain is otherwise unrecorded (and unpinned).
+BUILDER_DIGEST=$($RUNTIME image inspect --format '{{{{index .RepoDigests 0}}}}' '{builder_image}' 2>/dev/null || true)
+echo "Native image built with builder image: ${{BUILDER_DIGEST:-{builder_image}}}"
 """
 
 def _quarkus_native_container_app_impl(ctx):
@@ -160,8 +166,13 @@ quarkus_native_container_app_rule = rule(
     executable = True,
     attrs = {
         "builder_image": attr.string(
-            default = "quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25",
-            doc = "Container image with native-image tool (Mandrel/GraalVM builder).",
+            default = DEFAULT_NATIVE_BUILDER_IMAGE,
+            doc = """\
+Container image with the native-image tool (Mandrel/GraalVM builder). Pin it
+by digest (image:tag@sha256:...): a bare tag is mutable, so the same Bazel
+action key could cover binaries produced by different GraalVM versions —
+including entries in a shared remote cache.
+""",
         ),
         "container_runtime": attr.string(
             default = "auto",

@@ -10,9 +10,14 @@ import java.util.Properties;
  */
 public final class BuildProperties {
 
-  /** Default Mandrel builder image used when none is specified. */
+  /**
+   * Default Mandrel builder image used when none is specified. Digest-pinned to match {@code
+   * DEFAULT_NATIVE_BUILDER_IMAGE} in {@code quarkus/private/versions.bzl} — a mutable tag would let
+   * the recorded toolchain drift underneath identical build keys.
+   */
   public static final String DEFAULT_BUILDER_IMAGE =
-      "quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25";
+      "quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25"
+          + "@sha256:4dda6a3d677b57614849557d0d18aac7326c4f30175142b0f1bb91bdcfc5c29a";
 
   private BuildProperties() {}
 

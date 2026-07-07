@@ -566,13 +566,17 @@ load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_extension_impl.
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_native_app_impl.bzl", "quarkus_native_app_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_native_container_app_impl.bzl", "quarkus_native_container_app_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_test_impl.bzl", _quarkus_test = "quarkus_test")
+load("@com_clementguillot_rules_quarkus//quarkus/private:versions.bzl", "DEFAULT_NATIVE_BUILDER_IMAGE")
 load("@rules_java//java:java_library.bzl", "java_library")
 
 _QUARKUS_VERSION = "{version}"
 _QUARKIFIER_TOOL = "@rules_quarkus//quarkifier:tool.jar"
 _DEPLOYMENT_DEPS = "@rules_quarkus//deployment:all"
 _CORE_DEPLOYMENT_DEPS = "@rules_quarkus//deployment:core"
-_DEFAULT_BUILDER_IMAGE = "quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25"
+
+# Digest-pinned so the native-image toolchain is part of the action key
+# (a mutable tag lets the same cache key cover different GraalVM versions).
+_DEFAULT_BUILDER_IMAGE = DEFAULT_NATIVE_BUILDER_IMAGE
 
 def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_container_build = False,
                 native_container_runtime = "auto", native_builder_image = _DEFAULT_BUILDER_IMAGE,
