@@ -44,6 +44,7 @@ import org.jboss.logging.Logger;
  * <p>Runs as a daemon thread inside the quarkifier process in DEV mode. Implements {@link
  * Closeable} to ensure the {@link WatchService} and executor are properly released.
  */
+@SuppressWarnings("PMD.TooManyMethods") // cohesive watch/build/sync lifecycle
 public final class BazelFileWatcher implements Closeable {
 
   private static final Logger LOGGER = Logger.getLogger(BazelFileWatcher.class);
@@ -55,6 +56,7 @@ public final class BazelFileWatcher implements Closeable {
   private final ScheduledExecutorService debounceExecutor;
   private final AtomicBoolean buildInProgress = new AtomicBoolean(false);
   private final AtomicBoolean pendingBuild = new AtomicBoolean(false);
+  private final AtomicBoolean staleOutputsWarned = new AtomicBoolean(false);
   private volatile ScheduledFuture<?> debounceTask;
   private final Map<Path, WatchKey> watchKeys = new ConcurrentHashMap<>();
   private final Path bazelLogPath;
@@ -246,6 +248,7 @@ public final class BazelFileWatcher implements Closeable {
           long elapsed = System.currentTimeMillis() - start;
 
           if (success) {
+            warnIfOutputsWentStale(start);
             syncClasses();
             LOGGER.debugf("[hot-reload] Build successful, classes synced (%dms)", elapsed);
           } else {
@@ -272,8 +275,12 @@ public final class BazelFileWatcher implements Closeable {
    */
   boolean runBazelBuild(List<String> targets) {
     List<String> command = new ArrayList<>();
-    command.add("bazel");
+    command.add(config.bazelCommand());
     command.add("build");
+    // Extra flags so the rebuild uses the same configuration as the original
+    // `bazel run` — otherwise outputs land in a different bazel-out tree than
+    // the recorded classes output paths.
+    command.addAll(config.bazelBuildArgs());
     command.addAll(targets);
 
     LOGGER.debugf("[hot-reload] Rebuilding %s...", String.join(" ", targets));
@@ -295,15 +302,21 @@ public final class BazelFileWatcher implements Closeable {
 
       if (!finished) {
         LOGGER.warnf(
-            "[hot-reload] Bazel build timed out after %d seconds, destroying process", timeout);
+            "[hot-reload] Bazel build timed out after %d seconds, destroying process."
+                + " Killing the client may leave the server-side build running; the next"
+                + " rebuild can then block on the workspace lock until it finishes. Raise"
+                + " --bazel-build-timeout-seconds if your builds are legitimately slow.",
+            timeout);
         process.destroyForcibly();
+        logBazelLogTail();
         return false;
       }
 
       int exitCode = process.exitValue();
       if (exitCode != 0) {
-        LOGGER.debugf(
+        LOGGER.warnf(
             "[hot-reload] Bazel build failed with exit code %d (see %s)", exitCode, bazelLogPath);
+        logBazelLogTail();
       }
       return exitCode == 0;
     } catch (IOException e) {
@@ -313,6 +326,60 @@ public final class BazelFileWatcher implements Closeable {
       Thread.currentThread().interrupt();
       LOGGER.warn("[hot-reload] Build interrupted");
       return false;
+    }
+  }
+
+  /**
+   * Warns (once per session) when a successful rebuild updated none of the recorded class output
+   * paths — the telltale sign that the rebuild ran in a different configuration than the original
+   * {@code bazel run} (e.g. the user launched dev mode with {@code --config} or {@code -c opt}), so
+   * hot-reload would silently sync stale classes.
+   *
+   * <p>Directories are skipped (their mtime does not reflect nested changes); a fully-incremental
+   * no-op rebuild could in theory trigger a false warning, which is why this warns instead of
+   * failing and only fires once.
+   *
+   * @param buildStartMillis wall-clock time at which the rebuild was started
+   */
+  private void warnIfOutputsWentStale(long buildStartMillis) {
+    if (staleOutputsWarned.get()) {
+      return;
+    }
+    long threshold = buildStartMillis - 2000; // slack for coarse mtime granularity
+    for (Path path : reloadableClassesOutputDirs) {
+      try {
+        if (Files.isDirectory(path)) {
+          return; // cannot cheaply track directory freshness; assume OK
+        }
+        if (Files.exists(path) && Files.getLastModifiedTime(path).toMillis() >= threshold) {
+          return; // at least one output was rewritten by this build
+        }
+      } catch (IOException ignored) {
+        // Unreadable path — let syncClasses surface the real error.
+      }
+    }
+    if (staleOutputsWarned.compareAndSet(false, true)) {
+      LOGGER.warnf(
+          "[hot-reload] Build succeeded but none of the class output paths were updated: %s."
+              + " If you launch dev mode with extra Bazel flags (e.g. --config, -c opt), set"
+              + " dev_build_args on quarkus_app/quarkus_dev so hot-reload rebuilds use the same"
+              + " configuration — otherwise code changes will not be picked up.",
+          reloadableClassesOutputDirs);
+    }
+  }
+
+  /** Logs the tail of the bazel build log so failures are visible without digging for the file. */
+  private void logBazelLogTail() {
+    try {
+      List<String> lines = Files.readAllLines(bazelLogPath);
+      int from = Math.max(0, lines.size() - 20);
+      LOGGER.warnf(
+          "[hot-reload] Last %d lines of %s:%n%s",
+          lines.size() - from,
+          bazelLogPath,
+          String.join(System.lineSeparator(), lines.subList(from, lines.size())));
+    } catch (IOException e) {
+      LOGGER.debugf("[hot-reload] Could not read bazel log %s: %s", bazelLogPath, e.getMessage());
     }
   }
 

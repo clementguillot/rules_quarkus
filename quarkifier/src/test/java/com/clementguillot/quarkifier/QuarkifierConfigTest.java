@@ -370,6 +370,10 @@ class QuarkifierConfigTest {
             "/home/user/project",
             "--bazel-build-timeout-seconds",
             "120",
+            "--bazel-command",
+            "/usr/local/bin/bazelisk",
+            "--bazel-build-args",
+            "--config=dev,-c,opt",
             "--local-app-jars",
             "a.jar");
 
@@ -509,13 +513,49 @@ class QuarkifierConfigTest {
   }
 
   @Test
-  void parse_defaultTimeoutIs60() throws QuarkifierConfig.InvalidArgumentsException {
+  void parse_defaultTimeoutIs600() throws QuarkifierConfig.InvalidArgumentsException {
     var config =
         QuarkifierConfig.parse(
             "--application-classpath", "a.jar",
             "--deployment-classpath", "d.jar",
             "--output-dir", "/out");
-    assertEquals(60, config.bazelBuildTimeoutSeconds());
+    assertEquals(600, config.bazelBuildTimeoutSeconds());
+  }
+
+  @Test
+  void parse_defaultBazelCommandAndBuildArgs() throws QuarkifierConfig.InvalidArgumentsException {
+    var config =
+        QuarkifierConfig.parse(
+            "--application-classpath", "a.jar",
+            "--deployment-classpath", "d.jar",
+            "--output-dir", "/out");
+    assertEquals("bazel", config.bazelCommand());
+    assertEquals(List.of(), config.bazelBuildArgs());
+  }
+
+  @Test
+  void parse_bazelCommandAndBuildArgs() throws QuarkifierConfig.InvalidArgumentsException {
+    var config =
+        QuarkifierConfig.parse(
+            "--application-classpath", "a.jar",
+            "--deployment-classpath", "d.jar",
+            "--output-dir", "/out",
+            "--bazel-command", "/opt/bazelisk",
+            "--bazel-build-args", "--config=dev,-c,opt");
+    assertEquals("/opt/bazelisk", config.bazelCommand());
+    assertEquals(List.of("--config=dev", "-c", "opt"), config.bazelBuildArgs());
+  }
+
+  @Test
+  void parse_emptyBazelCommand_throws() {
+    assertThrows(
+        QuarkifierConfig.InvalidArgumentsException.class,
+        () ->
+            QuarkifierConfig.parse(
+                "--application-classpath", "a.jar",
+                "--deployment-classpath", "d.jar",
+                "--output-dir", "/out",
+                "--bazel-command", ""));
   }
 
   @Test

@@ -108,6 +108,13 @@ def _quarkus_dev_impl(ctx):
 
     return [DefaultInfo(executable = launcher, runfiles = runfiles)]
 
+def _join_dev_build_args(args):
+    """Validates and comma-joins dev_build_args; fails if any entry contains a comma."""
+    for arg in args:
+        if "," in arg:
+            fail("dev_build_args: commas are not supported (used as delimiter); got '{}'".format(arg))
+    return ",".join(args)
+
 def _write_dev_launcher(ctx, tool_jar, files, java_runtime):
     """Expands the dev launcher template with the metadata file locations."""
     launcher = ctx.actions.declare_file(ctx.label.name + "_dev.sh")
@@ -119,6 +126,7 @@ def _write_dev_launcher(ctx, tool_jar, files, java_runtime):
             "%{app_name}": ctx.label.name.removesuffix("_dev"),
             "%{app_version}": ctx.attr.version,
             "%{bazel_targets_file}": files.bazel_targets.short_path,
+            "%{dev_build_args}": _join_dev_build_args(ctx.attr.dev_build_args),
             "%{classes_output_dirs_file}": files.classes_output_dirs.short_path,
             "%{core_deploy_cp_file}": files.core_deploy_cp.short_path,
             "%{deploy_cp_file}": files.deploy_cp.short_path,
@@ -144,6 +152,14 @@ quarkus_dev_rule = rule(
             aspects = [quarkus_extension_deployment_classpath_aspect],
             providers = [JavaInfo],
             doc = "java_library and Maven artifact targets.",
+        ),
+        "dev_build_args": attr.string_list(
+            doc = """\
+Extra flags for the hot-reload `bazel build` (e.g. ["--config=dev"]). Must
+match the configuration used to `bazel run` the dev target — otherwise
+rebuilt classes land in a different bazel-out tree and hot-reload syncs
+stale files. Flags containing commas are not supported.
+""",
         ),
         "quarkifier_tool": attr.label(
             allow_single_file = [".jar"],

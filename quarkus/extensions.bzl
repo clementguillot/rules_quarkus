@@ -511,7 +511,7 @@ _DEPLOYMENT_DEPS = "@rules_quarkus//deployment:all"
 _CORE_DEPLOYMENT_DEPS = "@rules_quarkus//deployment:core"
 _DEFAULT_BUILDER_IMAGE = "quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25"
 
-def quarkus_app(name, dev = True, native = False, native_container_build = False,
+def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_container_build = False,
                 native_container_runtime = "auto", native_builder_image = _DEFAULT_BUILDER_IMAGE,
                 **kwargs):
     \"\"\"Builds a Quarkus application with optional dev-mode and native targets.
@@ -524,6 +524,9 @@ def quarkus_app(name, dev = True, native = False, native_container_build = False
     Args:
         name: Target name.
         dev: If True (default), also creates a <name>_dev target for dev mode.
+        dev_build_args: Extra flags for the hot-reload `bazel build` (e.g. ["--config=dev"]).
+            Must match the flags you pass to `bazel run` for the dev target, otherwise
+            rebuilt classes land in a different output tree and hot-reload syncs stale files.
         native: If True, creates a <name>_native target using rules_graalvm (host compilation).
         native_container_build: If True, creates a <name>_native target using Docker/Podman (container compilation).
         native_container_runtime: Container runtime: 'auto' (default), 'docker', or 'podman'.
@@ -556,6 +559,7 @@ def quarkus_app(name, dev = True, native = False, native_container_build = False
         quarkus_dev_rule(
             name = name + "_dev",
             core_deployment_deps = _CORE_DEPLOYMENT_DEPS,
+            dev_build_args = dev_build_args,
             **common
         )
     if native:

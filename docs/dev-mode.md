@@ -146,6 +146,31 @@ Quarkus 3.31+ changed `ApplicationModelSerializer` to use JSON format by default
 
 When source dirs are empty, hot-reload is disabled but the Dev UI still works.
 
+### Hot-Reload Build Configuration
+
+On a source change, `BazelFileWatcher` runs `bazel build <targets>` (binary resolved by
+the launcher: `bazel` from `PATH`, falling back to `bazelisk`; overridable via
+`--bazel-command`). The class output paths it syncs from were recorded **at analysis
+time**, in the configuration used to build the dev target — so if you launch dev mode
+with configuration-affecting flags (`--config`, `-c opt`, `--define`, ...), the
+hot-reload build must use the same flags or its outputs land in a different
+`bazel-out/<config>` tree and the sync picks up stale files. Pass them via
+`dev_build_args`:
+
+```starlark
+quarkus_app(
+    name = "app",
+    dev_build_args = ["--config=dev"],
+    ...
+)
+```
+
+Then run `bazel run --config=dev //pkg:app_dev`. The watcher warns once per session
+when a successful rebuild updates none of the recorded class outputs — the telltale
+sign of a configuration mismatch. The rebuild timeout defaults to 600 s
+(`--bazel-build-timeout-seconds`); on timeout or build failure, the tail of
+`bazel-hot-reload.log` is echoed to the console.
+
 ## Known Limitations
 
 - **Dependencies graph direct links**: The Dev UI "Application Dependencies" graph shows all runtime extensions as direct deps of the root node (instead of only user-declared ones like Maven does), because Bazel's flat classpath doesn't distinguish user-declared from transitive extensions ([#51](https://github.com/clementguillot/rules_quarkus/issues/51)).
