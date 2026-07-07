@@ -170,7 +170,13 @@ public final class BazelFileWatcher implements Closeable {
       while (!Thread.currentThread().isInterrupted()) {
         WatchKey key = watchService.take(); // blocks until event
         boolean rebuildNeeded = processEvents(key);
-        key.reset();
+        if (!key.reset()) {
+          // Directory deleted or key invalidated: drop it so the OS watch
+          // resource is released (inotify watches are bounded per user) and
+          // the map does not grow across branch switches in long sessions.
+          key.cancel();
+          watchKeys.values().remove(key);
+        }
 
         if (rebuildNeeded) {
           scheduleDebouncedBuild();

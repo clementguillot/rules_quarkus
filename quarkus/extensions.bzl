@@ -799,11 +799,32 @@ def _quarkifier_repo_attrs(tc, minor):
     }
 
 def _quarkus_impl(mctx):
-    toolchains = mctx.modules[0].tags.toolchain
-    if not toolchains:
+    # Collect toolchain tags from every module, root module first: the root's
+    # choice wins, but a single fixed @rules_quarkus repo means only one
+    # Quarkus version per workspace — conflicting requests must fail loudly
+    # instead of silently using whichever tag happens to come first.
+    root_tags = []
+    dep_tags = []
+    for mod in mctx.modules:
+        for tag in mod.tags.toolchain:
+            if mod.is_root:
+                root_tags.append(tag)
+            else:
+                dep_tags.append(tag)
+    ordered_tags = root_tags + dep_tags
+    if not ordered_tags:
         fail("quarkus.toolchain() must be called in MODULE.bazel")
 
-    tc = toolchains[0]
+    tc = ordered_tags[0]
+    for tag in ordered_tags[1:]:
+        if tag.quarkus_version != tc.quarkus_version:
+            fail(("Conflicting quarkus.toolchain() versions requested: '{}' and '{}'. " +
+                  "A workspace supports a single Quarkus version; align the " +
+                  "quarkus_version attributes (the root module's choice wins ties).").format(
+                tc.quarkus_version,
+                tag.quarkus_version,
+            ))
+
     version = tc.quarkus_version
     minor = _validate_version(version)
 
