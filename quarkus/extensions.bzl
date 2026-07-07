@@ -208,10 +208,22 @@ def _build_quarkifier_from_source(rctx):
 
     Runs a nested Bazel build with a dedicated output base so it does not
     clash with the outer build holding the workspace lock.
+
+    The build runs on every fetch — a previous `test -f` fast path silently
+    reused stale jars after quarkifier source edits, making bugfixes appear
+    to have no effect during development. With a warm nested output base the
+    no-change build is a no-op in seconds. The quarkifier source tree is
+    additionally watched so edits invalidate this repository and trigger a
+    refetch in the first place.
     """
-    src_workspace_raw = str(rctx.path(rctx.attr.quarkifier_source_dir).dirname)
-    realpath_result = rctx.execute(["realpath", src_workspace_raw])
-    src_workspace = realpath_result.stdout.strip() if realpath_result.return_code == 0 else src_workspace_raw
+    src_workspace = str(rctx.path(rctx.attr.quarkifier_source_dir).dirname)
+
+    # Invalidate this repo when quarkifier sources change (Bazel 7.1+). The
+    # watched subtree must not contain build outputs: watching the whole
+    # source workspace would self-invalidate on every nested build (it hosts
+    # .bazel-nested-build/ and the bazel-* convenience symlinks).
+    if hasattr(rctx, "watch_tree"):
+        rctx.watch_tree(src_workspace + "/quarkifier")
 
     nested_output_base = src_workspace + "/.bazel-nested-build"
 
@@ -225,19 +237,25 @@ def _build_quarkifier_from_source(rctx):
     target = rctx.attr.quarkifier_build_target
     deploy_jar = bazel_bin + "/" + target.lstrip("/").replace(":", "/")
 
-    if rctx.execute(["test", "-f", deploy_jar]).return_code != 0:
-        rctx.report_progress("Building {} from source".format(target))
-        build_result = rctx.execute(
-            ["bazel", "--output_base=" + nested_output_base, "build", target, "--lockfile_mode=off"],
-            working_directory = src_workspace,
-            timeout = 300,
-        )
-        if build_result.return_code != 0:
-            fail("Failed to build {} in {}:\n{}".format(target, src_workspace, build_result.stderr))
-        if rctx.execute(["test", "-f", deploy_jar]).return_code != 0:
-            fail("Quarkifier deploy jar not found at: {}".format(deploy_jar))
+    rctx.report_progress("Building {} from source".format(target))
+    build_result = rctx.execute(
+        ["bazel", "--output_base=" + nested_output_base, "build", target, "--lockfile_mode=off"],
+        working_directory = src_workspace,
+        # Generous: a cold nested build fetches the maven deps over the network.
+        timeout = 600,
+    )
+    if build_result.return_code != 0:
+        fail("Failed to build {} in {}:\n{}".format(target, src_workspace, build_result.stderr))
+    if not rctx.path(deploy_jar).exists:
+        fail("Quarkifier deploy jar not found at: {}".format(deploy_jar))
 
-    rctx.symlink(deploy_jar, "quarkifier/tool.jar")
+    # Copy (not symlink): a symlink into the nested bazel-bin dangles after a
+    # `bazel clean` in the source checkout, with no repo invalidation to heal it.
+    if rctx.execute(["mkdir", "-p", "quarkifier"]).return_code != 0:
+        fail("Failed to create the quarkifier directory in the repository")
+    copy_result = rctx.execute(["cp", deploy_jar, "quarkifier/tool.jar"])
+    if copy_result.return_code != 0:
+        fail("Failed to copy the quarkifier deploy jar into the repository: " + copy_result.stderr)
 
 def _resolve_quarkifier_tool(rctx):
     """Materializes quarkifier/tool.jar from a local build or a release download.
