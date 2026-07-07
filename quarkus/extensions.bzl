@@ -431,7 +431,7 @@ def _maven_relative_path(jar_path):
     """Returns the jar path relative to its Maven repository root.
 
     Preserving the Maven directory structure (group/artifact/version/file) in
-    the deployment symlinks is required for Dev UI version extraction.
+    the copied deployment jars is required for Dev UI version extraction.
     Coursier cache paths contain a "maven2" component; everything after it is
     the Maven-layout path. Falls back to the bare file name.
     """
@@ -442,8 +442,36 @@ def _maven_relative_path(jar_path):
             return "/".join(parts[maven2_idx + 1:])
     return parts[-1]
 
+def _copy_jars_into_repo(rctx, copies):
+    """Copies resolved jars into the repository directory.
+
+    The repository must own its files: symlinks into the machine-global
+    Coursier cache dangle when the cache is cleaned (with no repo
+    invalidation to recover), and later cache mutations change action inputs
+    underneath Bazel — a remote-cache poisoning vector. Copying snapshots the
+    verified download while the global cache keeps making fetches fast.
+
+    Args:
+        rctx: Repository context.
+        copies: List of (source path, repo-relative destination) tuples.
+    """
+    if not copies:
+        return
+    rctx.report_progress("Copying deployment jars into the repository")
+
+    # One mkdir for all parent directories (small argv), then one cp per jar
+    # (batching all jars into a single argv could exceed the kernel limits).
+    dest_dirs = {dest.rsplit("/", 1)[0]: True for _, dest in copies}
+    result = rctx.execute(["mkdir", "-p"] + list(dest_dirs.keys()))
+    if result.return_code != 0:
+        fail("Failed to create deployment jar directories: " + result.stderr)
+    for src, dest in copies:
+        result = rctx.execute(["cp", src, dest])
+        if result.return_code != 0:
+            fail("Failed to copy deployment jar {} to {}: {}".format(src, dest, result.stderr))
+
 def _write_deployment_build(rctx, all_jars, core_jar_set):
-    """Symlinks resolved jars and writes the deployment/ BUILD file.
+    """Copies resolved jars into the repo and writes the deployment/ BUILD file.
 
     Generates one java_import per jar plus two aggregate java_library targets:
     "core" (quarkus-core-deployment closure) and "all" (every deployment jar).
@@ -451,6 +479,7 @@ def _write_deployment_build(rctx, all_jars, core_jar_set):
     imports = []
     all_targets = []
     core_targets = []
+    copies = []
     seen = {}
     for jar_path in all_jars:
         jar_file = jar_path.split("/")[-1]
@@ -460,7 +489,7 @@ def _write_deployment_build(rctx, all_jars, core_jar_set):
         seen[target_name] = True
 
         relative_jar_path = _maven_relative_path(jar_path)
-        rctx.symlink(jar_path, "deployment/jars/" + relative_jar_path)
+        copies.append((jar_path, "deployment/jars/" + relative_jar_path))
 
         imports.append(
             'java_import(name = "{n}", jars = ["jars/{j}"], visibility = ["//visibility:public"])'.format(n = target_name, j = relative_jar_path),
@@ -468,6 +497,8 @@ def _write_deployment_build(rctx, all_jars, core_jar_set):
         all_targets.append('":{}"'.format(target_name))
         if jar_path in core_jar_set:
             core_targets.append('":{}"'.format(target_name))
+
+    _copy_jars_into_repo(rctx, copies)
 
     rctx.file("deployment/BUILD.bazel", content = """\
 load("@rules_java//java:java_import.bzl", "java_import")
