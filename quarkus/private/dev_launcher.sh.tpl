@@ -71,44 +71,55 @@ CLASSES_DIR=""
 
 # Resolve absolute paths for hot-reload if source dirs are available
 WORKSPACE_ROOT="${BUILD_WORKSPACE_DIRECTORY:-$(pwd)}"
-BAZEL_EXEC_ROOT=$(bazel info execution_root 2>/dev/null || printf '%s' "$WORKSPACE_ROOT")
+
+# Resolve the bazel binary once: dev mode runs with a sanitized PATH in some
+# setups, and bazelisk-only installs have no `bazel` shim.
+BAZEL_BIN=$(command -v bazel || command -v bazelisk || echo bazel)
+BAZEL_EXEC_ROOT=$("$BAZEL_BIN" info execution_root 2>/dev/null || printf '%s' "$WORKSPACE_ROOT")
 HOT_RELOAD_ARGS=()
 RESOURCES_VALUE=""
 
-# Resolve resource dirs to absolute paths
+# Prefixing helper: accumulate into an array (O(1) append) and join once.
+# String accumulation in a loop is quadratic in bash and takes minutes on
+# large entry counts (many local workspace jars).
+_join_comma() {
+  local IFS=','
+  printf '%s' "$*"
+}
+
+# Resolve resource dirs to absolute paths, keeping only ones that exist
 if [ -n "$RESOURCE_DIRS" ]; then
-    ABS_RESOURCE_DIRS=""
+    RD_ABS=()
     IFS=',' read -ra RD_ENTRIES <<< "$RESOURCE_DIRS"
     for rd in "${RD_ENTRIES[@]}"; do
         abs_rd="${WORKSPACE_ROOT}/${rd}"
         if [ -d "$abs_rd" ]; then
-            if [ -n "$ABS_RESOURCE_DIRS" ]; then ABS_RESOURCE_DIRS="${ABS_RESOURCE_DIRS},"; fi
-            ABS_RESOURCE_DIRS="${ABS_RESOURCE_DIRS}${abs_rd}"
+            RD_ABS+=("$abs_rd")
         fi
     done
-    RESOURCES_VALUE="$ABS_RESOURCE_DIRS"
+    if [ "${#RD_ABS[@]}" -gt 0 ]; then
+        RESOURCES_VALUE=$(_join_comma "${RD_ABS[@]}")
+    fi
 fi
 
 if [ -n "$SOURCE_DIRS" ] && [ -n "$BAZEL_TARGETS" ]; then
     CLASSES_DIR=$(mktemp -d "quarkus_hotreload_classes_XXXXXX")
 
     # Resolve source dirs to absolute paths
-    ABS_SOURCE_DIRS=""
+    SD_ABS=()
     IFS=',' read -ra SD_ENTRIES <<< "$SOURCE_DIRS"
     for sd in "${SD_ENTRIES[@]}"; do
-        abs_sd="${WORKSPACE_ROOT}/${sd}"
-        if [ -n "$ABS_SOURCE_DIRS" ]; then ABS_SOURCE_DIRS="${ABS_SOURCE_DIRS},"; fi
-        ABS_SOURCE_DIRS="${ABS_SOURCE_DIRS}${abs_sd}"
+        SD_ABS+=("${WORKSPACE_ROOT}/${sd}")
     done
+    ABS_SOURCE_DIRS=$(_join_comma "${SD_ABS[@]}")
 
     # Resolve classes output dirs to absolute paths
-    ABS_CLASSES_OUTPUT_DIRS=""
+    COD_ABS=()
     IFS=',' read -ra COD_ENTRIES <<< "$CLASSES_OUTPUT_DIRS"
     for cod in "${COD_ENTRIES[@]}"; do
-        abs_cod="${BAZEL_EXEC_ROOT}/${cod}"
-        if [ -n "$ABS_CLASSES_OUTPUT_DIRS" ]; then ABS_CLASSES_OUTPUT_DIRS="${ABS_CLASSES_OUTPUT_DIRS},"; fi
-        ABS_CLASSES_OUTPUT_DIRS="${ABS_CLASSES_OUTPUT_DIRS}${abs_cod}"
+        COD_ABS+=("${BAZEL_EXEC_ROOT}/${cod}")
     done
+    ABS_CLASSES_OUTPUT_DIRS=$(_join_comma "${COD_ABS[@]}")
 
     HOT_RELOAD_ARGS=(
       "--source-dirs" "$ABS_SOURCE_DIRS"
@@ -154,6 +165,12 @@ _JAVA_ARGFILE=$(mktemp "${OUTPUT_DIR}/quarkus_dev_args_XXXXXX")
   fi
   echo "--workspace-dir"
   _q "$WORKSPACE_ROOT"
+  echo "--bazel-command"
+  _q "$BAZEL_BIN"
+  if [ -n "%{dev_build_args}" ]; then
+    echo "--bazel-build-args"
+    _q "%{dev_build_args}"
+  fi
   if [ -n "$RESOURCES_VALUE" ]; then
     echo "--resources"
     _q "$RESOURCES_VALUE"

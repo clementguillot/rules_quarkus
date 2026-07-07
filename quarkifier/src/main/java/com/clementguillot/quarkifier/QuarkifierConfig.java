@@ -35,7 +35,11 @@ import java.util.regex.Pattern;
  * @param classesOutputDirs bazel-bin output directories containing .class files (comma-separated on
  *     CLI)
  * @param workspaceDir Bazel workspace root directory for running bazel build (may be {@code null})
- * @param bazelBuildTimeoutSeconds timeout in seconds for bazel build process (default: 60)
+ * @param bazelBuildTimeoutSeconds timeout in seconds for bazel build process (default: 600)
+ * @param bazelCommand bazel binary to invoke for hot-reload builds (default: {@code bazel})
+ * @param bazelBuildArgs extra flags for the hot-reload {@code bazel build} (comma-separated on
+ *     CLI). Must match the configuration used to launch dev mode, otherwise rebuilt classes land in
+ *     a different output tree.
  * @param localAppJars local workspace jars to use as application roots (colon-separated on CLI).
  *     When empty, the caller handles fallback (e.g. using {@code applicationClasspath.get(0)}).
  */
@@ -57,6 +61,8 @@ public record QuarkifierConfig(
     List<Path> classesOutputDirs,
     Path workspaceDir,
     long bazelBuildTimeoutSeconds,
+    String bazelCommand,
+    List<String> bazelBuildArgs,
     List<Path> localAppJars) {
 
   private static final String USAGE =
@@ -82,6 +88,8 @@ public record QuarkifierConfig(
               [--classes-output-dirs <dir,dir,...>] \\
               [--workspace-dir <path>] \\
               [--bazel-build-timeout-seconds <seconds>] \\
+              [--bazel-command <path>] \\
+              [--bazel-build-args <flag,flag,...>] \\
               [--local-app-jars <jar:jar:...>] \\
               [--local-app-jars-file <path>]""";
 
@@ -125,6 +133,8 @@ public record QuarkifierConfig(
         raw.classesOutputDirs != null ? splitPaths(raw.classesOutputDirs, ",") : List.of(),
         raw.workspaceDir != null ? Path.of(raw.workspaceDir) : null,
         parseTimeout(raw.bazelBuildTimeoutSeconds),
+        raw.bazelCommand != null ? raw.bazelCommand : "bazel",
+        raw.bazelBuildArgs != null ? splitStrings(raw.bazelBuildArgs, ",") : List.of(),
         raw.localAppJars != null ? splitPaths(raw.localAppJars, ":") : List.of());
   }
 
@@ -148,6 +158,8 @@ public record QuarkifierConfig(
     String classesOutputDirs;
     String workspaceDir;
     String bazelBuildTimeoutSeconds;
+    String bazelCommand;
+    String bazelBuildArgs;
     String localAppJars;
   }
 
@@ -185,6 +197,9 @@ public record QuarkifierConfig(
         case "--workspace-dir" -> raw.workspaceDir = requireValue(args, ++i, args[i - 1]);
         case "--bazel-build-timeout-seconds" -> raw.bazelBuildTimeoutSeconds =
             requireValue(args, ++i, args[i - 1]);
+        case "--bazel-command" -> raw.bazelCommand =
+            requireNonEmptyValue(args, ++i, args[i - 1], "--bazel-command");
+        case "--bazel-build-args" -> raw.bazelBuildArgs = requireValue(args, ++i, args[i - 1]);
         case "--local-app-jars" -> raw.localAppJars = requireValue(args, ++i, args[i - 1]);
         case "--local-app-jars-file" -> raw.localAppJars =
             readFileContent(requireValue(args, ++i, args[i - 1]));
@@ -213,8 +228,10 @@ public record QuarkifierConfig(
     addArgUnlessEmpty(list, "--bazel-targets", String.join(",", bazelTargets));
     addArgUnlessEmpty(list, "--classes-output-dirs", joinPaths(classesOutputDirs, ","));
     addArgIfPresent(list, "--workspace-dir", workspaceDir != null ? workspaceDir.toString() : null);
-    // Always include timeout for round-trip consistency
+    // Always include timeout and bazel command for round-trip consistency
     addArg(list, "--bazel-build-timeout-seconds", String.valueOf(bazelBuildTimeoutSeconds));
+    addArg(list, "--bazel-command", bazelCommand);
+    addArgUnlessEmpty(list, "--bazel-build-args", String.join(",", bazelBuildArgs));
     addArgUnlessEmpty(list, "--local-app-jars", joinPaths(localAppJars, ":"));
     return list.toArray(String[]::new);
   }
@@ -254,7 +271,10 @@ public record QuarkifierConfig(
   private static long parseTimeout(String bazelBuildTimeoutSeconds)
       throws InvalidArgumentsException {
     if (bazelBuildTimeoutSeconds == null) {
-      return 60;
+      // Generous default: a configuration change or cold analysis on a large
+      // repo easily exceeds one minute, and a killed client leaves the server
+      // build running (the next attempt then blocks on the workspace lock).
+      return 600;
     }
     try {
       long timeout = Long.parseLong(bazelBuildTimeoutSeconds);
