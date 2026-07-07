@@ -125,7 +125,7 @@ rm -f "$DIRECT_JARS_FILE"
   --add-opens=java.base/java.lang.invoke=ALL-UNNAMED \
   -Djava.util.logging.manager=org.jboss.logmanager.LogManager \
   -Dquarkus-internal-test.serialized-app-model.path="$MODEL_DIR/test-app-model.dat" \
-  -Dplatform.quarkus.native.builder-image=quay.io/quarkus/ubi-quarkus-mandrel-builder-image:jdk-21 \
+  -Dplatform.quarkus.native.builder-image=quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25@sha256:4dda6a3d677b57614849557d0d18aac7326c4f30175142b0f1bb91bdcfc5c29a \
   -Dquarkus.package.jar.type=fast-jar \
   %{jvm_flags} \
   org.junit.platform.console.ConsoleLauncher \

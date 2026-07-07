@@ -203,7 +203,17 @@ bazel build //:my_app_native
 |-----------|---------|-------------|
 | `native_container_build` | `False` | Enable container-based native compilation |
 | `native_container_runtime` | `"auto"` | Container runtime: `"auto"`, `"docker"`, or `"podman"` |
-| `native_builder_image` | `quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25` | Builder image containing `native-image` |
+| `native_builder_image` | `quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25@sha256:…` | Builder image containing `native-image`, pinned by digest |
+
+### Builder Image Pinning
+
+The default builder image is pinned by **manifest digest** (`image:tag@sha256:...`),
+and custom `native_builder_image` values should be too. A bare tag is a mutable
+pointer: when the tag moves to a new Mandrel release, machines with different pull
+dates produce different binaries under the *same* Bazel action key — and whichever
+uploads first wins in a shared remote cache. With a digest, updating the toolchain
+is an explicit, reviewable change (Renovate understands the `tag@digest` form).
+The build logs the resolved digest after each container compilation for provenance.
 
 ### Container Runtime Auto-Detection
 

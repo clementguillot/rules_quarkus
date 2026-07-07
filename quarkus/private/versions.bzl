@@ -40,6 +40,14 @@ QUARKIFIER_SHA256 = {}
 # Maven Central URL for Coursier-based deployment artifact resolution.
 MAVEN_CENTRAL = "https://repo1.maven.org/maven2"
 
+# Default builder image for container-based native compilation, pinned by
+# manifest-list digest (covers amd64 + aarch64). A bare tag is a mutable
+# pointer: the same Bazel action key could silently produce binaries with
+# different GraalVM versions over time or across machines — poisoning shared
+# remote caches. The digest makes the action key honest; bumping the
+# toolchain is an explicit change here (Renovate understands tag@digest).
+DEFAULT_NATIVE_BUILDER_IMAGE = "quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25@sha256:4dda6a3d677b57614849557d0d18aac7326c4f30175142b0f1bb91bdcfc5c29a"
+
 # Coursier fat JAR, pinned for reproducible deployment artifact resolution.
 COURSIER_VERSION = "2.1.24"
 COURSIER_URL = "https://github.com/coursier/coursier/releases/download/v{v}/coursier.jar".format(v = COURSIER_VERSION)
