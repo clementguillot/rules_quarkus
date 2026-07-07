@@ -113,7 +113,29 @@ def _matches_prefix(group_id, prefixes):
             return True
     return False
 
-def _append_deployment_artifacts_from_lock_map(lock_artifacts, deployment_artifacts, prefixes, version):
+def _lock_artifact_versions(lock_data):
+    """Builds a "group:artifact" → version map from the lock file's resolved artifacts.
+
+    rules_jvm_external lock files store the resolved version of every artifact
+    in the "artifacts" map ({"g:a": {"shasums": {...}, "version": "..."}}).
+    """
+    versions = {}
+    artifacts = lock_data.get("artifacts", {})
+    if type(artifacts) != "dict":
+        return versions
+    for coord_key, info in artifacts.items():
+        if type(info) != "dict":
+            continue
+        version = info.get("version", "")
+        if not version:
+            continue
+        parts = coord_key.split(":")
+        if len(parts) < 2:
+            continue
+        versions[parts[0] + ":" + parts[1]] = version
+    return versions
+
+def _append_deployment_artifacts_from_lock_map(lock_artifacts, deployment_artifacts, prefixes, quarkus_version, versions_by_ga):
     seen = {gav: True for gav in deployment_artifacts}
     for coord_key in lock_artifacts:
         parts = coord_key.split(":")
@@ -125,7 +147,23 @@ def _append_deployment_artifacts_from_lock_map(lock_artifacts, deployment_artifa
             continue
         if not _matches_prefix(group_id, prefixes):
             continue
-        deployment_gav = group_id + ":" + artifact_id + "-deployment:" + version
+
+        # Extensions version independently from Quarkus core (e.g. Quarkiverse),
+        # and a deployment artifact must match its runtime counterpart exactly,
+        # so use the runtime artifact's own version from the lock file. Fall
+        # back to the Quarkus version only when the lock carries no version —
+        # correct for io.quarkus artifacts, a guess for anything else.
+        ga = group_id + ":" + artifact_id
+        version = versions_by_ga.get(ga, "")
+        if not version:
+            version = quarkus_version
+            if group_id != "io.quarkus":
+                # buildifier: disable=print
+                print(("WARNING: rules_quarkus could not determine the version of {} from the " +
+                       "maven lock file; assuming Quarkus version {} for its -deployment " +
+                       "artifact, which may not exist for independently-versioned extensions.").format(ga, quarkus_version))
+
+        deployment_gav = ga + "-deployment:" + version
         if deployment_gav not in seen:
             seen[deployment_gav] = True
             deployment_artifacts.append(deployment_gav)
@@ -139,18 +177,19 @@ def _discover_deployment_artifacts(mctx, tc, version):
         lock_content = mctx.read(tc.lock_file)
         if lock_content:
             lock_data = json.decode(lock_content)
+            versions_by_ga = _lock_artifact_versions(lock_data)
 
             # Prefer direct dependencies first for deterministic ordering, then
             # scan the resolved graph too so transitive Quarkus extensions are
             # not missed. Non-extension internal modules that do not publish a
             # -deployment artifact are filtered during the Coursier retry.
             input_artifacts = lock_data.get("__INPUT_ARTIFACTS_HASH", {})
-            if input_artifacts:
-                _append_deployment_artifacts_from_lock_map(input_artifacts, deployment_artifacts, prefixes, version)
+            if input_artifacts and type(input_artifacts) == "dict":
+                _append_deployment_artifacts_from_lock_map(input_artifacts, deployment_artifacts, prefixes, version, versions_by_ga)
 
             resolved_artifacts = lock_data.get("artifacts", lock_data.get("dependencies", lock_data.get("__RESOLVED_ARTIFACTS_HASH", {})))
-            if resolved_artifacts:
-                _append_deployment_artifacts_from_lock_map(resolved_artifacts, deployment_artifacts, prefixes, version)
+            if resolved_artifacts and type(resolved_artifacts) == "dict":
+                _append_deployment_artifacts_from_lock_map(resolved_artifacts, deployment_artifacts, prefixes, version, versions_by_ga)
 
     # quarkus-devui-deployment is a conditional dev dependency of
     # quarkus-vertx-http (Dev UI): Quarkus activates it only in dev mode via
@@ -343,6 +382,7 @@ def _resolve_deployment_jars(rctx, java, core_jar_paths):
     rctx.report_progress("Resolving deployment artifacts")
     fetch_artifacts = list(rctx.attr.deployment_artifacts)
     first_stderr = ""
+    dropped = []
     result = _coursier_fetch(rctx, java, fetch_artifacts)
     for _ in range(3):
         if result.return_code == 0:
@@ -361,6 +401,7 @@ def _resolve_deployment_jars(rctx, java, core_jar_paths):
             break
         if not first_stderr:
             first_stderr = result.stderr
+        dropped += [a for a in fetch_artifacts if a in missing]
         fetch_artifacts = filtered
         result = _coursier_fetch(rctx, java, fetch_artifacts)
 
@@ -369,6 +410,19 @@ def _resolve_deployment_jars(rctx, java, core_jar_paths):
         if first_stderr:
             message += "\n\n(Initial error before retry:\n{})".format(first_stderr)
         fail(message)
+
+    if dropped:
+        # Internal (non-extension) modules matching extension_group_prefixes
+        # legitimately have no -deployment artifact, but a real extension in
+        # this list means its build steps will silently not run — surface it.
+        # buildifier: disable=print
+        print(("WARNING: rules_quarkus skipped deployment artifacts that do not exist in the " +
+               "Maven repository:\n    {}\n" +
+               "Internal (non-extension) modules matching extension_group_prefixes are expected " +
+               "here. If one of these is a real Quarkus extension, its deployment jar was NOT " +
+               "resolved — check the artifact's version in your maven lock file.").format(
+            "\n    ".join(dropped),
+        ))
 
     seen_jars = {p: True for p in core_jar_paths}
     return list(core_jar_paths) + _jar_paths_from_fetch_output(result.stdout, seen_jars)
