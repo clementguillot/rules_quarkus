@@ -208,12 +208,16 @@ public final class DevModeLauncher {
    * already covered by the core deployment classpath. Matches Maven's {@code
    * ConfiguredClassLoading.getParentFirstArtifacts()}.
    */
-  private static List<Path> collectParentFirstRuntimeJars(
+  // Visible for testing
+  static List<Path> collectParentFirstRuntimeJars(
       QuarkifierConfig config, ApplicationModel appModel) {
-    Set<ArtifactKey> parentFirstKeys = new HashSet<>();
+    // Use GA strings for lookup — ArtifactKey.ga() creates GACT with type=null
+    // which never equals the type="jar" keys from dep.getKey(). Same workaround as
+    // QuarkusAppModelBuilder.applyParentFirstFromMetadata.
+    Set<String> parentFirstGAs = new HashSet<>();
     for (ResolvedDependency dep : appModel.getDependencies()) {
       if (dep.isClassLoaderParentFirst()) {
-        parentFirstKeys.add(dep.getKey());
+        parentFirstGAs.add(dep.getGroupId() + ":" + dep.getArtifactId());
       }
     }
 
@@ -225,8 +229,8 @@ public final class DevModeLauncher {
     List<Path> parentFirstJars = new ArrayList<>();
     for (Path jar : config.applicationClasspath()) {
       var coords = MavenCoordinateParser.parse(jar);
-      ArtifactKey key = ArtifactKey.ga(coords.groupId(), coords.artifactId());
-      if (parentFirstKeys.contains(key) && !coreArtifactIds.contains(coords.artifactId())) {
+      String ga = coords.groupId() + ":" + coords.artifactId();
+      if (parentFirstGAs.contains(ga) && !coreArtifactIds.contains(coords.artifactId())) {
         parentFirstJars.add(jar);
       }
     }
