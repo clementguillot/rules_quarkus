@@ -4,6 +4,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.clementguillot.quarkifier.QuarkifierConfig;
 import io.quarkus.bootstrap.app.QuarkusBootstrap;
+import io.quarkus.bootstrap.model.ApplicationModel;
+import io.quarkus.bootstrap.model.ApplicationModelBuilder;
+import io.quarkus.maven.dependency.DependencyFlags;
+import io.quarkus.maven.dependency.ResolvedDependencyBuilder;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -145,5 +149,62 @@ class DevModeLauncherTest {
     assertEquals(
         Path.of("app.jar").toAbsolutePath().toString(),
         context.getApplicationRoot().getMain().getClassesPath());
+  }
+
+  /**
+   * Regression: collectParentFirstRuntimeJars must return jars flagged CLASSLOADER_PARENT_FIRST
+   * even though dep.getKey() has type="jar" (GACT strict equals).
+   */
+  @Test
+  void collectParentFirstRuntimeJars_returnsParentFirstJar_despiteGactTypeMismatch() {
+    // Jar path that MavenCoordinateParser can parse: uses a dot-segment as stop marker
+    // so the parser identifies the groupId correctly
+    Path parentFirstJar =
+        Path.of("/cache/v1.repo/org/example/parent-first-lib/1.0/parent-first-lib-1.0.jar");
+    Path regularJar = Path.of("/cache/v1.repo/org/example/regular-lib/2.0/regular-lib-2.0.jar");
+    // Core classpath uses a different jar so parent-first isn't excluded
+    Path coreJar = Path.of("/cache/v1.repo/io/quarkus/quarkus-core/3.27.4/quarkus-core-3.27.4.jar");
+
+    var config =
+        devConfig(
+            "--application-classpath",
+            parentFirstJar + ":" + regularJar,
+            "--core-deployment-classpath",
+            coreJar.toString());
+
+    // Build model with one dep flagged CLASSLOADER_PARENT_FIRST (type="jar" as in production)
+    var modelBuilder = new ApplicationModelBuilder();
+    modelBuilder.setAppArtifact(
+        ResolvedDependencyBuilder.newInstance()
+            .setGroupId("com.example")
+            .setArtifactId("app")
+            .setVersion("1.0")
+            .setType("jar")
+            .setRuntimeCp()
+            .setDeploymentCp());
+    var parentFirstDep =
+        ResolvedDependencyBuilder.newInstance()
+            .setGroupId("org.example")
+            .setArtifactId("parent-first-lib")
+            .setVersion("1.0")
+            .setType("jar")
+            .setFlags(DependencyFlags.CLASSLOADER_PARENT_FIRST)
+            .setRuntimeCp()
+            .setDeploymentCp();
+    modelBuilder.addDependency(parentFirstDep);
+    modelBuilder.addParentFirstArtifact(parentFirstDep.getKey());
+    modelBuilder.addDependency(
+        ResolvedDependencyBuilder.newInstance()
+            .setGroupId("org.example")
+            .setArtifactId("regular-lib")
+            .setVersion("2.0")
+            .setType("jar")
+            .setRuntimeCp()
+            .setDeploymentCp());
+    ApplicationModel model = modelBuilder.build();
+
+    List<Path> result = DevModeLauncher.collectParentFirstRuntimeJars(config, model);
+
+    assertEquals(List.of(parentFirstJar), result);
   }
 }
