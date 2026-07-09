@@ -14,11 +14,13 @@ that jar paths in the ApplicationModel match the actual runfiles locations.
 load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
-load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_local_app_jars", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
+load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_extension_runtime_jars", "collect_local_app_jars", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
 
-def _build_test_args(test_packages, test_classes):
+def _build_test_args(test_packages, test_classes, fail_if_no_tests):
     """Builds JUnit ConsoleLauncher CLI arguments."""
-    args = ["execute", "--fail-if-no-tests"]
+    args = ["execute"]
+    if fail_if_no_tests:
+        args.append("--fail-if-no-tests")
     for pkg in test_packages:
         args.append("--select-package=" + pkg)
     for cls in test_classes:
@@ -36,9 +38,12 @@ def _quarkus_test_impl(ctx):
     # Runtime classpath (for both JUnit -cp and quarkifier --application-classpath),
     # deployment classpath (for quarkifier only, NOT on JUnit -cp), and the
     # user-built jars Quarkus must scan (comma-separated, for OUTPUT_SOURCES_DIR).
+    # Extension runtime jars are excluded from direct_jars: leaving them as app
+    # roots exposes their @ConfigRoot classes to both classloaders (SRCFG00027).
     cp_file = write_runfiles_paths_file(ctx, "_cp.txt", runtime_classpath, ":")
     deploy_cp_file = write_runfiles_paths_file(ctx, "_deploy_cp.txt", deploy_classpath, ":")
-    direct_jars_file = write_runfiles_paths_file(ctx, "_direct_jars.txt", collect_local_app_jars(ctx.attr.deps, runtime_classpath), ",")
+    ext_rt_jars = collect_extension_runtime_jars(ctx.attr.deps)
+    direct_jars_file = write_runfiles_paths_file(ctx, "_direct_jars.txt", collect_local_app_jars(ctx.attr.deps, runtime_classpath, ext_rt_jars), ",")
 
     tool_jar = ctx.file.quarkifier_tool
     java_runtime = ctx.attr._java_runtime[java_common.JavaRuntimeInfo]
@@ -55,7 +60,8 @@ def _quarkus_test_impl(ctx):
             "%{java_home}": java_runtime.java_home_runfiles_path,
             "%{jvm_flags}": " ".join([shell.quote(f) for f in ctx.attr.jvm_flags]),
             "%{quarkus_version}": ctx.attr.quarkus_version,
-            "%{test_args}": _build_test_args(ctx.attr.test_packages, ctx.attr.test_classes),
+            "%{test_args}": _build_test_args(ctx.attr.test_packages, ctx.attr.test_classes, ctx.attr.fail_if_no_tests),
+            "%{fail_if_no_tests}": "true" if ctx.attr.fail_if_no_tests else "false",
             "%{tool_jar}": tool_jar.short_path,
             "%{workspace}": ctx.workspace_name,
         },
@@ -81,6 +87,10 @@ quarkus_test = rule(
             aspects = [quarkus_extension_deployment_classpath_aspect],
             providers = [JavaInfo],
             doc = "Test java_library targets. Transitive deps (app code, quarkus-junit, etc.) are included automatically.",
+        ),
+        "fail_if_no_tests": attr.bool(
+            default = True,
+            doc = "Fail the test if zero tests are discovered/executed. Set to False for targets where an empty test set is acceptable.",
         ),
         "jvm_flags": attr.string_list(
             doc = "JVM flags passed to the java command when running tests.",

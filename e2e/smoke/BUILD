@@ -1,6 +1,7 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@rules_java//java:java_library.bzl", "java_library")
 load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_test")
+load(":expect_test_failure.bzl", "expect_test_failure_test")
 
 java_library(
     name = "lib",
@@ -27,7 +28,10 @@ quarkus_app(
 java_library(
     name = "test_lib",
     testonly = True,
-    srcs = glob(["src/test/java/**/*.java"]),
+    srcs = glob(
+        ["src/test/java/**/*.java"],
+        exclude = ["src/test/java/smoke/EmptyTest.java"],
+    ),
     # //big reuses the test sources for the E2BIG regression targets.
     visibility = ["//big:__pkg__"],
     deps = [
@@ -54,6 +58,43 @@ build_test(
     targets = [
         ":app",
     ],
+)
+
+# --- fail_if_no_tests smoke tests (issue #125) ---
+#
+# EmptyTest.java is a @QuarkusTest with zero @Test methods.
+java_library(
+    name = "empty_test_lib",
+    testonly = True,
+    srcs = ["src/test/java/smoke/EmptyTest.java"],
+    deps = [
+        ":lib",
+        "@maven//:io_quarkus_quarkus_junit",
+        "@maven//:org_junit_jupiter_junit_jupiter",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+        "@maven//:org_junit_platform_junit_platform_console_standalone",
+        "@maven//:org_junit_platform_junit_platform_launcher",
+    ],
+)
+
+# Zero tests + strict mode (default) — must fail.
+quarkus_test(
+    name = "empty_test_strict",
+    tags = ["manual"],
+    deps = [":empty_test_lib"],
+)
+
+# Wraps empty_test_strict and asserts it fails. This target runs in CI.
+expect_test_failure_test(
+    name = "empty_test_strict_fails",
+    target = ":empty_test_strict",
+)
+
+# Zero tests + lenient mode — must pass. Runs in CI directly.
+quarkus_test(
+    name = "empty_test_lenient",
+    fail_if_no_tests = False,
+    deps = [":empty_test_lib"],
 )
 
 # Verifies the extension publish artifacts (jars + POMs) build for both halves.

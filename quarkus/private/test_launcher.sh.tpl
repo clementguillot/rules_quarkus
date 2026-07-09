@@ -135,11 +135,22 @@ JUNIT_EXIT=$?
 
 rm -f "$JAVA_ARGS_FILE" "$APP_CP_FILE"
 
-# Check XML reports for the real test result.
+# Determine final exit code.
+# ConsoleLauncher exits non-zero on Quarkus session-shutdown exceptions
+# (ClassCastException in ConfigLauncherSession) even when all tests
+# pass. The XML report is the source of truth for pass/fail, with one guard:
+# if zero tests actually executed, that's a failure (misconfigured test_packages,
+# no @Test methods, etc.) regardless of what the exit code says.
 if ls "$REPORTS_DIR"/TEST-*.xml >/dev/null 2>&1; then
   if grep -q 'failures="[1-9]' "$REPORTS_DIR"/TEST-*.xml 2>/dev/null || \
      grep -q 'errors="[1-9]' "$REPORTS_DIR"/TEST-*.xml 2>/dev/null; then
     rm -rf "$REPORTS_DIR"
+    exit 1
+  fi
+  if [ "%{fail_if_no_tests}" = "true" ] && \
+     ! grep -q 'tests="[1-9]' "$REPORTS_DIR"/TEST-*.xml 2>/dev/null; then
+    rm -rf "$REPORTS_DIR"
+    echo "ERROR: Zero tests executed (check test_packages / test_classes configuration)" >&2
     exit 1
   fi
   rm -rf "$REPORTS_DIR"
