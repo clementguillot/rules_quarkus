@@ -14,7 +14,7 @@ that jar paths in the ApplicationModel match the actual runfiles locations.
 load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
-load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_local_app_jars", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
+load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_extension_runtime_jars", "collect_local_app_jars", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
 
 def _build_test_args(test_packages, test_classes, fail_if_no_tests):
     """Builds JUnit ConsoleLauncher CLI arguments."""
@@ -38,9 +38,12 @@ def _quarkus_test_impl(ctx):
     # Runtime classpath (for both JUnit -cp and quarkifier --application-classpath),
     # deployment classpath (for quarkifier only, NOT on JUnit -cp), and the
     # user-built jars Quarkus must scan (comma-separated, for OUTPUT_SOURCES_DIR).
+    # Extension runtime jars are excluded from direct_jars: leaving them as app
+    # roots exposes their @ConfigRoot classes to both classloaders (SRCFG00027).
     cp_file = write_runfiles_paths_file(ctx, "_cp.txt", runtime_classpath, ":")
     deploy_cp_file = write_runfiles_paths_file(ctx, "_deploy_cp.txt", deploy_classpath, ":")
-    direct_jars_file = write_runfiles_paths_file(ctx, "_direct_jars.txt", collect_local_app_jars(ctx.attr.deps, runtime_classpath), ",")
+    ext_rt_jars = collect_extension_runtime_jars(ctx.attr.deps)
+    direct_jars_file = write_runfiles_paths_file(ctx, "_direct_jars.txt", collect_local_app_jars(ctx.attr.deps, runtime_classpath, ext_rt_jars), ",")
 
     tool_jar = ctx.file.quarkifier_tool
     java_runtime = ctx.attr._java_runtime[java_common.JavaRuntimeInfo]

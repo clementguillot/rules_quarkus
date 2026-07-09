@@ -7,6 +7,7 @@ QuarkusExtensionDeploymentClasspathInfo = provider(
     doc = "Transitive deployment classpath contributed by local Quarkus extensions.",
     fields = {
         "deployment_classpath": "Depset of deployment classpath jars.",
+        "extension_runtime_jars": "Depset of extension runtime jars (to exclude from app roots).",
     },
 )
 
@@ -17,26 +18,35 @@ def _as_list(value):
 
 def _collect_aspect_attr_classpaths(ctx, attr_name):
     if not hasattr(ctx.rule.attr, attr_name):
-        return []
+        return [], []
 
     classpaths = []
+    ext_rt_jars = []
     for dep in _as_list(getattr(ctx.rule.attr, attr_name)):
         if QuarkusExtensionDeploymentClasspathInfo in dep:
             classpaths.append(dep[QuarkusExtensionDeploymentClasspathInfo].deployment_classpath)
-    return classpaths
+            ext_rt_jars.append(dep[QuarkusExtensionDeploymentClasspathInfo].extension_runtime_jars)
+    return classpaths, ext_rt_jars
 
 def _quarkus_extension_deployment_classpath_aspect_impl(target, ctx):
     classpaths = []
+    ext_rt_jars = []
     if QuarkusExtensionInfo in target:
         classpaths.append(target[QuarkusExtensionInfo].deployment_classpath)
 
-    classpaths.extend(_collect_aspect_attr_classpaths(ctx, "deps"))
-    classpaths.extend(_collect_aspect_attr_classpaths(ctx, "runtime_deps"))
-    classpaths.extend(_collect_aspect_attr_classpaths(ctx, "exports"))
+        # The extension's own output jar is an extension runtime jar.
+        if JavaInfo in target:
+            ext_rt_jars.append(depset(target[JavaInfo].runtime_output_jars))
+
+    for attr_name in ("deps", "runtime_deps", "exports"):
+        cps, rts = _collect_aspect_attr_classpaths(ctx, attr_name)
+        classpaths.extend(cps)
+        ext_rt_jars.extend(rts)
 
     return [
         QuarkusExtensionDeploymentClasspathInfo(
             deployment_classpath = depset(transitive = classpaths),
+            extension_runtime_jars = depset(transitive = ext_rt_jars),
         ),
     ]
 
@@ -85,6 +95,20 @@ def collect_extension_deployment_classpath(deps):
             transitive.append(dep[QuarkusExtensionDeploymentClasspathInfo].deployment_classpath)
     return depset(transitive = transitive)
 
+def collect_extension_runtime_jars(deps):
+    """Collects extension runtime jars from deps (to exclude from app roots).
+
+    Args:
+        deps: List of targets that may provide QuarkusExtensionDeploymentClasspathInfo
+    Returns:
+        A depset of extension runtime jar Files.
+    """
+    transitive = []
+    for dep in deps:
+        if QuarkusExtensionDeploymentClasspathInfo in dep:
+            transitive.append(dep[QuarkusExtensionDeploymentClasspathInfo].extension_runtime_jars)
+    return depset(transitive = transitive)
+
 def collect_deployment_classpath(deployment_deps, deps):
     """Builds the full Quarkus deployment classpath.
 
@@ -102,7 +126,7 @@ def collect_deployment_classpath(deployment_deps, deps):
         collect_extension_deployment_classpath(deps),
     ])
 
-def collect_local_app_jars(deps, runtime_classpath):
+def collect_local_app_jars(deps, runtime_classpath, exclude_jars = None):
     """Returns local workspace jars with direct-dep output jars ordered first.
 
     The quarkifier treats the first `--local-app-jars` entry as the application
@@ -114,20 +138,26 @@ def collect_local_app_jars(deps, runtime_classpath):
     Args:
         deps: List of direct dep targets that may provide JavaInfo.
         runtime_classpath: Depset of transitive runtime jars.
+        exclude_jars: Optional depset of jars to exclude (e.g. extension runtime jars).
     Returns:
         A deduplicated, direct-first ordered list of local jar Files.
     """
+    excluded_paths = {}
+    if exclude_jars:
+        for jar in exclude_jars.to_list():
+            excluded_paths[jar.path] = True
+
     seen = {}
     ordered = []
     for dep in deps:
         if JavaInfo not in dep or dep.label.workspace_name:
             continue
         for jar in dep[JavaInfo].runtime_output_jars:
-            if jar.path not in seen:
+            if jar.path not in seen and jar.path not in excluded_paths:
                 seen[jar.path] = True
                 ordered.append(jar)
     for jar in runtime_classpath.to_list():
-        if is_local_artifact(jar) and jar.path not in seen:
+        if is_local_artifact(jar) and jar.path not in seen and jar.path not in excluded_paths:
             seen[jar.path] = True
             ordered.append(jar)
     return ordered
