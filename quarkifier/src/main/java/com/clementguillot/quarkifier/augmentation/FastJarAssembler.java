@@ -9,8 +9,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
@@ -34,9 +36,11 @@ import org.jboss.logging.Logger;
  *       classpath
  * </ol>
  */
+@SuppressWarnings({"PMD.GodClass", "PMD.TooManyMethods"})
 public final class FastJarAssembler {
 
   private static final String JAR_EXTENSION = ".jar";
+  private static final Set<String> EXCLUDED_ARTIFACT_IDS = Set.of("quarkus-ide-launcher");
   private static final Logger LOGGER = Logger.getLogger(FastJarAssembler.class);
 
   private FastJarAssembler() {}
@@ -66,13 +70,14 @@ public final class FastJarAssembler {
   }
 
   /**
-   * Copies runtime jars into {@code lib/boot/} or {@code lib/main/} based on the {@code
-   * CLASSLOADER_RUNNER_PARENT_FIRST} flag from extension properties.
+   * Normalizes jar filenames in {@code lib/boot/} and {@code lib/main/} to Maven-convention names,
+   * preserving the jar content that Quarkus augmentation placed (which may have removed entries via
+   * {@code RemovedResourceBuildItem} or class-removing transformers).
    *
-   * <p>First clears any jars placed by the Quarkus augmentation step (which may use raw classpath
-   * filenames with {@code processed_} prefixes), then copies jars with clean Maven-convention
-   * names. Deduplicates by full GAV so that the same artifact from different sources is copied once
-   * without dropping unrelated artifacts that share an artifactId and version.
+   * <p>Strategy: rename augmented jars in-place, reclassify between boot/main based on the model's
+   * {@code CLASSLOADER_RUNNER_PARENT_FIRST} flag, and fill in any jars not placed by augmentation
+   * from the original runtime classpath. This avoids overwriting filtered jars with pristine
+   * originals.
    */
   static void assembleLibDirectories(Path outputDir, List<Path> runtimeJars, ApplicationModel model)
       throws IOException {
@@ -80,37 +85,131 @@ public final class FastJarAssembler {
     Path quarkusAppDir = resolveQuarkusAppDir(outputDir);
     Path libBoot = quarkusAppDir.resolve("lib").resolve("boot");
     Path libMain = quarkusAppDir.resolve("lib").resolve("main");
-
-    // Clear jars placed by Quarkus augmentation (they use raw classpath filenames
-    // which may include "processed_" prefixes and inconsistent naming).
-    clearJars(libBoot);
-    clearJars(libMain);
     Files.createDirectories(libBoot);
     Files.createDirectories(libMain);
 
-    Set<String> bootArtifactIds = new HashSet<>();
+    Set<String> bootArtifactIds = collectBootArtifactIds(model);
+    Map<String, MavenCoordinateParser.Coordinates> coordsByArtVer =
+        buildRuntimeCoordsLookup(runtimeJars);
+
+    Set<String> presentKeys = new HashSet<>();
+    renameAugmentedJars(libBoot, libMain, bootArtifactIds, coordsByArtVer, presentKeys);
+    fillMissingJars(runtimeJars, libBoot, libMain, bootArtifactIds, presentKeys);
+  }
+
+  /** Collects artifact IDs that belong in the boot classloader. */
+  private static Set<String> collectBootArtifactIds(ApplicationModel model) {
+    Set<String> ids = new HashSet<>();
     for (var dep : model.getDependencies()) {
       if (dep.isFlagSet(DependencyFlags.CLASSLOADER_RUNNER_PARENT_FIRST)) {
-        bootArtifactIds.add(dep.getArtifactId());
+        ids.add(dep.getArtifactId());
       }
     }
-    bootArtifactIds.add("quarkus-bootstrap-runner");
-    bootArtifactIds.add("quarkus-classloader-commons");
+    ids.add("quarkus-bootstrap-runner");
+    ids.add("quarkus-classloader-commons");
+    return ids;
+  }
 
-    Set<String> copiedKeys = new HashSet<>();
-    Set<String> excludedArtifactIds = Set.of("quarkus-ide-launcher"); // IDE/dev-mode only
+  /**
+   * Builds a lookup from {@code artifactId:version} → full coordinates from the runtime classpath.
+   * Augmented jars in lib/ often lack a groupId in their filename, so we match on
+   * artifactId:version and recover the groupId from the classpath entry.
+   */
+  private static Map<String, MavenCoordinateParser.Coordinates> buildRuntimeCoordsLookup(
+      List<Path> runtimeJars) {
+    Map<String, MavenCoordinateParser.Coordinates> lookup = new HashMap<>();
+    for (Path jar : runtimeJars) {
+      var coords = MavenCoordinateParser.parse(jar);
+      lookup.putIfAbsent(coords.artifactId() + ":" + coords.version(), coords);
+    }
+    return lookup;
+  }
+
+  /**
+   * Renames augmented jars already in lib/ to Maven-convention names, reclassifying between boot
+   * and main as needed. Populates {@code presentKeys} with GAVs already handled.
+   */
+  private static void renameAugmentedJars(
+      Path libBoot,
+      Path libMain,
+      Set<String> bootArtifactIds,
+      Map<String, MavenCoordinateParser.Coordinates> coordsByArtVer,
+      Set<String> presentKeys)
+      throws IOException {
+
+    List<Path> snapshot = new ArrayList<>();
+    for (Path dir : List.of(libBoot, libMain)) {
+      if (!Files.isDirectory(dir)) {
+        continue;
+      }
+      try (var s = Files.list(dir)) {
+        s.filter(p -> p.toString().endsWith(JAR_EXTENSION)).forEach(snapshot::add);
+      }
+    }
+    for (Path jar : snapshot) {
+      renameOneAugmentedJar(jar, libBoot, libMain, bootArtifactIds, coordsByArtVer, presentKeys);
+    }
+  }
+
+  /** Renames (or deletes) a single augmented jar to its Maven-convention location. */
+  private static void renameOneAugmentedJar(
+      Path jar,
+      Path libBoot,
+      Path libMain,
+      Set<String> bootArtifactIds,
+      Map<String, MavenCoordinateParser.Coordinates> coordsByArtVer,
+      Set<String> presentKeys)
+      throws IOException {
+
+    var coords = MavenCoordinateParser.parse(jar);
+    var fullCoords =
+        coordsByArtVer.getOrDefault(coords.artifactId() + ":" + coords.version(), coords);
+    String dedupeKey =
+        fullCoords.groupId() + ":" + fullCoords.artifactId() + ":" + fullCoords.version();
+
+    if (EXCLUDED_ARTIFACT_IDS.contains(fullCoords.artifactId())
+        || presentKeys.contains(dedupeKey)) {
+      deleteQuietly(jar);
+      return;
+    }
+    presentKeys.add(dedupeKey);
+
+    String mavenName =
+        fullCoords.groupId()
+            + "."
+            + fullCoords.artifactId()
+            + "-"
+            + fullCoords.version()
+            + JAR_EXTENSION;
+    Path targetDir = bootArtifactIds.contains(fullCoords.artifactId()) ? libBoot : libMain;
+    Path targetPath = targetDir.resolve(mavenName);
+
+    if (!jar.equals(targetPath)) {
+      makeWritableIfExists(jar);
+      Files.move(jar, targetPath, StandardCopyOption.REPLACE_EXISTING);
+    }
+  }
+
+  /**
+   * Copies jars from the runtime classpath that augmentation didn't place (e.g. jars with no
+   * Quarkus dependency mapping).
+   */
+  private static void fillMissingJars(
+      List<Path> runtimeJars,
+      Path libBoot,
+      Path libMain,
+      Set<String> bootArtifactIds,
+      Set<String> presentKeys)
+      throws IOException {
 
     for (Path jar : runtimeJars) {
       var coords = MavenCoordinateParser.parse(jar);
       String dedupeKey = coords.groupId() + ":" + coords.artifactId() + ":" + coords.version();
 
-      if (copiedKeys.contains(dedupeKey)) {
+      if (presentKeys.contains(dedupeKey) || EXCLUDED_ARTIFACT_IDS.contains(coords.artifactId())) {
         continue;
       }
-      if (excludedArtifactIds.contains(coords.artifactId())) {
-        continue;
-      }
-      copiedKeys.add(dedupeKey);
+      presentKeys.add(dedupeKey);
 
       String mavenName =
           coords.groupId() + "." + coords.artifactId() + "-" + coords.version() + JAR_EXTENSION;
@@ -138,9 +237,6 @@ public final class FastJarAssembler {
         if (!Files.isRegularFile(resource)) {
           continue;
         }
-        // Resource paths are flattened to their file name; a full
-        // structure-preserving layout would need a base-dir concept the CLI
-        // does not have. Surface collisions instead of dropping silently.
         String entryName = resource.getFileName().toString();
         if (addedEntries.contains(entryName)) {
           LOGGER.warnf(
@@ -165,10 +261,6 @@ public final class FastJarAssembler {
    * <p>Jars in {@code lib/boot/} are registered as parent-first (loaded by the boot classloader),
    * which is critical for the JBoss LogManager to intercept JUL before any other logging framework
    * initializes. All other jars are indexed normally for the RunnerClassLoader.
-   *
-   * @param outputDir the augmentation output directory
-   * @param mainClass the fully-qualified main class name, or {@code null} to use the default {@code
-   *     io.quarkus.runner.GeneratedMain}
    */
   static void regenerateApplicationDat(Path outputDir, String mainClass) throws IOException {
     Path quarkusAppDir = resolveQuarkusAppDir(outputDir).toAbsolutePath();
@@ -281,43 +373,34 @@ public final class FastJarAssembler {
     return Files.isDirectory(quarkusAppDir) ? quarkusAppDir : outputDir;
   }
 
-  /**
-   * Makes a file writable, throwing {@link IOException} if the permission change fails.
-   *
-   * <p>Quarkus augmentation output files are sometimes read-only. We need to make them writable
-   * before overwriting or deleting them.
-   */
+  /** Makes a file writable, throwing {@link IOException} if the permission change fails. */
   private static void makeWritable(Path file) throws IOException {
     if (!file.toFile().setWritable(true)) {
       throw new IOException("Cannot make file writable: " + file);
     }
   }
 
-  /** Removes all .jar files from a directory. */
-  private static void clearJars(Path dir) throws IOException {
-    if (!Files.isDirectory(dir)) {
-      return;
+  /** Deletes a file, making it writable first if needed. Logs and continues on failure. */
+  private static void deleteQuietly(Path file) {
+    try {
+      Files.delete(file);
+    } catch (IOException e) {
+      if (!file.toFile().setWritable(true)) {
+        LOGGER.warnf("Cannot make file writable, skipping delete: %s", file);
+        return;
+      }
+      try {
+        Files.delete(file);
+      } catch (IOException retryFailed) {
+        LOGGER.warnf("Cannot delete file after making writable: %s", file);
+      }
     }
-    try (var stream = Files.list(dir)) {
-      stream
-          .filter(p -> p.toString().endsWith(JAR_EXTENSION))
-          .forEach(
-              p -> {
-                try {
-                  Files.delete(p);
-                } catch (IOException e) {
-                  // Retry after making writable — Quarkus output jars may be read-only.
-                  if (!p.toFile().setWritable(true)) {
-                    LOGGER.warnf("Cannot make file writable, skipping delete: %s", p);
-                    return;
-                  }
-                  try {
-                    Files.delete(p);
-                  } catch (IOException retryFailed) {
-                    LOGGER.warnf("Cannot delete file after making writable: %s", p);
-                  }
-                }
-              });
+  }
+
+  /** Makes a file writable if it exists. No-op for missing files. */
+  private static void makeWritableIfExists(Path file) throws IOException {
+    if (Files.exists(file) && !file.toFile().setWritable(true)) {
+      throw new IOException("Cannot make file writable: " + file);
     }
   }
 }

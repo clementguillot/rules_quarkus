@@ -93,11 +93,16 @@ class FastJarAssemblerTest {
   }
 
   @Test
-  void assembleLibDirectories_clearsStaleAugmentationJars() throws IOException {
+  void assembleLibDirectories_renamesStaleAugmentationJars() throws IOException {
     Path outputDir = quarkusAppDir();
     Path libMain = outputDir.resolve("quarkus-app/lib/main");
     Files.createDirectories(libMain);
-    Files.writeString(libMain.resolve("processed_quarkus-arc-3.33.2.jar"), "stale");
+    // Simulate a jar placed by augmentation with a "processed_" filename.
+    // Write it in a Maven-layout temp dir so MavenCoordinateParser can resolve its GAV.
+    Path augmentedJar =
+        createJarAt(
+            "lib-stage/io/quarkus/quarkus-arc/3.33.2", "io.quarkus", "quarkus-arc", "3.33.2");
+    Files.copy(augmentedJar, libMain.resolve("processed_quarkus-arc-3.33.2.jar"));
     ApplicationModel model = modelWith(dep("io.quarkus", "quarkus-arc", "3.33.2", false));
 
     FastJarAssembler.assembleLibDirectories(
@@ -105,8 +110,81 @@ class FastJarAssemblerTest {
 
     assertFalse(
         Files.exists(libMain.resolve("processed_quarkus-arc-3.33.2.jar")),
-        "stale processed_ jar from augmentation must be removed");
+        "stale processed_ jar from augmentation must be renamed");
     assertTrue(Files.exists(libMain.resolve("io.quarkus.quarkus-arc-3.33.2.jar")));
+  }
+
+  @Test
+  void assembleLibDirectories_preservesAugmentedJarContent() throws IOException {
+    // Regression test: if augmentation removed an entry from a jar,
+    // assembleLibDirectories must NOT overwrite it with the pristine original.
+    Path outputDir = quarkusAppDir();
+    Path libMain = outputDir.resolve("quarkus-app/lib/main");
+    Files.createDirectories(libMain);
+
+    // Create a "pristine" runtime jar WITH a service file entry.
+    Path pristineJar =
+        createJarWithEntry(
+            "pristine/io/fabric8/kubernetes-httpclient-vertx/6.13.0",
+            "io.fabric8",
+            "kubernetes-httpclient-vertx",
+            "6.13.0",
+            "META-INF/services/io.fabric8.kubernetes.client.http.HttpClient$Factory",
+            "io.fabric8.kubernetes.client.vertx.VertxHttpClientFactory");
+
+    // Create an "augmented" jar (placed by Quarkus) WITHOUT the service file.
+    // This simulates RemovedResourceBuildItem having stripped the entry.
+    Path augmentedJar =
+        createJarAt(
+            "augmented/io/fabric8/kubernetes-httpclient-vertx/6.13.0",
+            "io.fabric8",
+            "kubernetes-httpclient-vertx",
+            "6.13.0");
+    Files.copy(augmentedJar, libMain.resolve("processed_kubernetes-httpclient-vertx-6.13.0.jar"));
+
+    ApplicationModel model =
+        modelWith(dep("io.fabric8", "kubernetes-httpclient-vertx", "6.13.0", false));
+
+    FastJarAssembler.assembleLibDirectories(outputDir, List.of(pristineJar), model);
+
+    // The assembled jar must come from augmentation (no service file), not the pristine original.
+    Path resultJar = libMain.resolve("io.fabric8.kubernetes-httpclient-vertx-6.13.0.jar");
+    assertTrue(Files.exists(resultJar), "jar should be present with Maven-convention name");
+    try (var jar = new JarFile(resultJar.toFile())) {
+      assertNull(
+          jar.getEntry("META-INF/services/io.fabric8.kubernetes.client.http.HttpClient$Factory"),
+          "removed service file must NOT be resurrected from the pristine classpath jar");
+    }
+  }
+
+  @Test
+  void assembleLibDirectories_reclassifiesBootToMainWithoutDeletion() throws IOException {
+    // Regression: a jar placed in lib/boot by augmentation but classified as main by the model
+    // must be moved to lib/main, not deleted by the dedupe check on the second directory pass.
+    Path outputDir = quarkusAppDir();
+    Path libBoot = outputDir.resolve("quarkus-app/lib/boot");
+    Path libMain = outputDir.resolve("quarkus-app/lib/main");
+    Files.createDirectories(libBoot);
+    Files.createDirectories(libMain);
+
+    // Augmentation placed this jar in boot, but the model says it belongs in main.
+    Path augmentedJar =
+        createJarAt("stage/io/quarkus/quarkus-arc/3.33.2", "io.quarkus", "quarkus-arc", "3.33.2");
+    Files.copy(augmentedJar, libBoot.resolve("processed_quarkus-arc-3.33.2.jar"));
+
+    ApplicationModel model = modelWith(dep("io.quarkus", "quarkus-arc", "3.33.2", false));
+
+    FastJarAssembler.assembleLibDirectories(
+        outputDir, List.of(createJar("io.quarkus", "quarkus-arc", "3.33.2")), model);
+
+    Path expectedTarget = libMain.resolve("io.quarkus.quarkus-arc-3.33.2.jar");
+    assertTrue(Files.exists(expectedTarget), "jar must be reclassified from boot to main");
+    assertFalse(
+        Files.exists(libBoot.resolve("processed_quarkus-arc-3.33.2.jar")),
+        "original boot location must be vacated");
+    assertFalse(
+        Files.exists(libBoot.resolve("io.quarkus.quarkus-arc-3.33.2.jar")),
+        "jar must not remain in boot under its new name");
   }
 
   // ---- assembleResourcesJar ----
@@ -224,6 +302,29 @@ class FastJarAssemblerTest {
     Path jar = dir.resolve(artifactId + "-" + version + ".jar");
     try (var jos = new JarOutputStream(new FileOutputStream(jar.toFile()))) {
       jos.putNextEntry(new JarEntry("META-INF/"));
+      jos.closeEntry();
+    }
+    return jar;
+  }
+
+  /** Creates a jar at a Maven-layout path with a specific entry and content. */
+  private Path createJarWithEntry(
+      String root,
+      String groupId,
+      String artifactId,
+      String version,
+      String entryName,
+      String entryContent)
+      throws IOException {
+    Path dir =
+        tempDir.resolve(root + "/" + groupId.replace('.', '/') + "/" + artifactId + "/" + version);
+    Files.createDirectories(dir);
+    Path jar = dir.resolve(artifactId + "-" + version + ".jar");
+    try (var jos = new JarOutputStream(new FileOutputStream(jar.toFile()))) {
+      jos.putNextEntry(new JarEntry("META-INF/"));
+      jos.closeEntry();
+      jos.putNextEntry(new JarEntry(entryName));
+      jos.write(entryContent.getBytes(java.nio.charset.StandardCharsets.UTF_8));
       jos.closeEntry();
     }
     return jar;
