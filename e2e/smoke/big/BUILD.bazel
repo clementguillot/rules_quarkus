@@ -75,6 +75,15 @@ sh_test(
     data = [":app_dev"],
 )
 
+# Regression test for issue #132: exec_root resolution without convenience symlinks.
+sh_test(
+    name = "dev_symlink_prefix_test",
+    size = "large",
+    srcs = ["dev_symlink_prefix_test.sh"],
+    args = ["$(rlocationpath :app_dev)"],
+    data = [":app_dev"],
+)
+
 quarkus_test(
     name = "test_e2big_test",
     size = "large",

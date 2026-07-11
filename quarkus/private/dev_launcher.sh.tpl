@@ -75,7 +75,9 @@ WORKSPACE_ROOT="${BUILD_WORKSPACE_DIRECTORY:-$(pwd)}"
 # Resolve the bazel binary once: dev mode runs with a sanitized PATH in some
 # setups, and bazelisk-only installs have no `bazel` shim.
 BAZEL_BIN=$(command -v bazel || command -v bazelisk || echo bazel)
-BAZEL_EXEC_ROOT=$("$BAZEL_BIN" info execution_root 2>/dev/null || printf '%s' "$WORKSPACE_ROOT")
+# Run `bazel info` from the real workspace so it attaches to the user's
+# existing Bazel server instead of spawning a throwaway one from runfiles cwd.
+BAZEL_EXEC_ROOT=$(cd "$WORKSPACE_ROOT" && "$BAZEL_BIN" info execution_root 2>/dev/null || printf '%s' "$WORKSPACE_ROOT")
 HOT_RELOAD_ARGS=()
 RESOURCES_VALUE=""
 
