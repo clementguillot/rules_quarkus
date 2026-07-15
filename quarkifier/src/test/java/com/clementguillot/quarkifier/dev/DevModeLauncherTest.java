@@ -30,11 +30,7 @@ class DevModeLauncherTest {
                 "--app-name", "my-app",
                 "--app-version", "1.0.0"));
     args.addAll(List.of(extraArgs));
-    try {
-      return QuarkifierConfig.parse(args.toArray(String[]::new));
-    } catch (QuarkifierConfig.InvalidArgumentsException e) {
-      throw new IllegalStateException("Invalid test config", e);
-    }
+    return QuarkifierConfig.parse(args.toArray(String[]::new));
   }
 
   @Test

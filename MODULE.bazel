@@ -70,6 +70,8 @@ maven.install(
         "io.quarkus:quarkus-core:3.27.4",
         "io.quarkus:quarkus-core-deployment:3.27.4",
         "io.quarkus.arc:arc:3.27.4",
+        # CLI framework
+        "info.picocli:picocli:4.7.7",
         # Test framework
         "org.junit.platform:junit-platform-launcher:6.0.3",
         "org.junit.platform:junit-platform-console-standalone:6.0.3",
@@ -92,6 +94,8 @@ maven.install(
         "io.quarkus:quarkus-core:3.33.2",
         "io.quarkus:quarkus-core-deployment:3.33.2",
         "io.quarkus.arc:arc:3.33.2",
+        # CLI framework
+        "info.picocli:picocli:4.7.7",
         # Test framework
         "org.junit.platform:junit-platform-launcher:6.0.3",
         "org.junit.platform:junit-platform-console-standalone:6.0.3",

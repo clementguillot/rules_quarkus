@@ -14,6 +14,41 @@ ARCHIVE="rules_quarkus-$TAG.tar.gz"
 # Resolve the commit SHA for the tag
 COMMIT=$(git rev-list -n 1 ${TAG})
 
+# Stamp quarkifier version resources before any jars are built. The source
+# archive is produced from `git archive` later, so its extracted copy must be
+# stamped separately as well.
+_stamp_quarkifier_versions() {
+  local root=$1
+  local version=${TAG:1}
+  for props in "$root"/quarkifier/src/main/resources_*/quarkifier-version.properties; do
+    sed -i.bak "s/^quarkifier\\.version=dev$/quarkifier.version=${version}/" "$props"
+    rm -f "$props.bak"
+    if ! grep -Fxq "quarkifier.version=${version}" "$props"; then
+      echo "ERROR: failed to stamp quarkifier version in $props" >&2
+      exit 1
+    fi
+  done
+}
+
+# Keep local dry-runs from leaving tracked resource files modified. Release CI
+# uses a disposable checkout, but restoring here also protects developer runs.
+WORKTREE_VERSION_FILES=(quarkifier/src/main/resources_*/quarkifier-version.properties)
+VERSION_BACKUP_DIR=$(mktemp -d)
+for props in "${WORKTREE_VERSION_FILES[@]}"; do
+  resource_dir=$(basename "$(dirname "$props")")
+  cp "$props" "$VERSION_BACKUP_DIR/$resource_dir.properties"
+done
+_restore_worktree_versions() {
+  for props in "${WORKTREE_VERSION_FILES[@]}"; do
+    resource_dir=$(basename "$(dirname "$props")")
+    cp "$VERSION_BACKUP_DIR/$resource_dir.properties" "$props"
+  done
+  rm -rf "$VERSION_BACKUP_DIR"
+}
+trap _restore_worktree_versions EXIT
+
+_stamp_quarkifier_versions "."
+
 # ---- Quarkifier deploy jars -------------------------------------------------
 # Build the per-minor jars, release them next to the source archive, and patch
 # their SHA-256 into the archive's versions.bzl. Chain of trust: the BCR
@@ -23,6 +58,8 @@ COMMIT=$(git rev-list -n 1 ${TAG})
 for target in $(bazel query 'filter("quarkifier_[0-9]+_[0-9]+_deploy.jar$", //quarkifier:*)'); do
   bazel build "$target"
 done
+_restore_worktree_versions
+trap - EXIT
 
 # sha256sum on Linux (CI); shasum on macOS for local dry-runs.
 _sha256() {
@@ -68,6 +105,8 @@ SHA_BLOCK="$SHA_BLOCK" awk \
   '$0 == "QUARKIFIER_SHA256 = {}" { print ENVIRON["SHA_BLOCK"]; next } { print }' \
   "$VERSIONS_BZL" > "$VERSIONS_BZL.tmp"
 mv "$VERSIONS_BZL.tmp" "$VERSIONS_BZL"
+
+_stamp_quarkifier_versions "$workdir/$PREFIX"
 
 # Deterministic tarball: stable entry order/ownership, commit timestamp for
 # mtimes (matching git archive's convention), no gzip timestamp.

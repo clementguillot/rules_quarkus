@@ -14,18 +14,27 @@ java -jar quarkifier_<minor>_deploy.jar \
   [--application-classpath-file <path>] \
   [--deployment-classpath-file <path>] \
   [--core-deployment-classpath <jar:jar:...>] \
+  [--core-deployment-classpath-file <path>] \
   --output-dir <path> \
   [--resources <path,path,...>] \
-  [--mode normal|test|dev] \
+  [--mode normal|test|dev|native] \
   [--expected-quarkus-version <version>] \
   [--app-name <name>] \
   [--app-version <version>] \
+  [--main-class <class>] \
+  [--native-builder-image <image>] \
   [--source-dirs <dir,dir,...>] \
   [--classes-dir <path>] \
   [--bazel-targets <label,label,...>] \
   [--classes-output-dirs <dir,dir,...>] \
   [--workspace-dir <path>] \
-  [--bazel-build-timeout-seconds <seconds>]
+  [--bazel-build-timeout-seconds <seconds>] \
+  [--bazel-command <path>] \
+  [--bazel-build-args <flag,flag,...>] \
+  [--local-app-jars <jar:jar:...>] \
+  [--local-app-jars-file <path>] \
+  [-h|--help] \
+  [-V|--version]
 ```
 
 ### Flags
@@ -37,20 +46,29 @@ java -jar quarkifier_<minor>_deploy.jar \
 | `--deployment-classpath` | Yes* | — | Colon-separated list of runtime + deployment jars |
 | `--deployment-classpath-file` | No | — | File containing the deployment classpath (alternative to `--deployment-classpath`) |
 | `--core-deployment-classpath` | No | `[]` | Colon-separated list of core deployment jars (dev mode only) |
+| `--core-deployment-classpath-file` | No | — | File containing the core deployment classpath |
 | `--output-dir` | Yes | — | Directory where Fast_Jar output is written |
 | `--resources` | No | `[]` | Comma-separated list of resource file paths |
-| `--mode` | No | `normal` | Augmentation mode: `normal`, `test`, or `dev` |
+| `--mode` | No | `normal` | Augmentation mode: `normal`, `test`, `dev`, or `native` |
 | `--expected-quarkus-version` | No | `null` | Expected Quarkus version for mismatch warnings |
 | `--app-name` | No | `null` | Application name for Quarkus startup banner |
 | `--app-version` | No | `null` | Application version for Quarkus startup banner |
+| `--main-class` | No | `null` | Fully-qualified custom main class annotated with `@QuarkusMain` |
+| `--native-builder-image` | No | `null` | Native builder image for `platform.quarkus.native.builder-image` |
 | `--source-dirs` | No | `[]` | Comma-separated source directories for dev mode hot-reload |
 | `--classes-dir` | No | `null` | Mutable directory for .class files in dev mode |
 | `--bazel-targets` | No | `[]` | Comma-separated Bazel targets to rebuild on source changes |
 | `--classes-output-dirs` | No | `[]` | Comma-separated bazel-bin output directories containing .class files |
 | `--workspace-dir` | No | `null` | Bazel workspace root directory for running bazel build |
-| `--bazel-build-timeout-seconds` | No | `60` | Timeout in seconds for bazel build process |
+| `--bazel-build-timeout-seconds` | No | `600` | Timeout in seconds for bazel build process |
+| `--bazel-command` | No | `bazel` | Bazel binary to invoke for hot-reload builds |
+| `--bazel-build-args` | No | `[]` | Comma-separated extra flags for the hot-reload bazel build |
+| `--local-app-jars` | No | `[]` | Colon-separated local workspace jars to use as application roots |
+| `--local-app-jars-file` | No | — | File containing local app jars (alternative to `--local-app-jars`) |
+| `-h`, `--help` | — | — | Show help message and exit |
+| `-V`, `--version` | — | — | Show version info and exit |
 
-*Either the inline flag or the `-file` variant must be provided. The `-file` variants read the classpath from a file (one line, colon-separated paths) to avoid "Argument list too long" errors on Linux when the classpath is very long.
+*Either the inline flag or the `-file` variant must be provided. The `-file` variants read the classpath from a file (one line, colon-separated paths) to avoid "Argument list too long" errors on Linux when the classpath is very long. When both inline and file are provided, the file variant takes precedence regardless of argument order.
 
 ### Exit Codes
 
@@ -64,9 +82,11 @@ java -jar quarkifier_<minor>_deploy.jar \
 
 ```
 com.clementguillot.quarkifier
-├── QuarkifierLauncher              Entry point, orchestrates the pipeline
-├── QuarkifierConfig                Immutable record for CLI config
-├── AugmentationMode                Enum: NORMAL, TEST, DEV
+├── QuarkifierLauncher              Entry point (thin shell, delegates to picocli)
+├── QuarkifierCommand               Picocli @Command: CLI parsing, validation, pipeline execution
+├── QuarkifierConfig                Immutable record for config + toArgs() serialization
+├── QuarkifierVersionProvider       Picocli IVersionProvider: reads version from classpath resource
+├── AugmentationMode                Enum: NORMAL, TEST, DEV, NATIVE
 ├── AugmentationException           Checked exception wrapping build errors
 ├── BuildProperties                 Default build system properties
 │
@@ -99,7 +119,7 @@ com.clementguillot.quarkifier
 
 ## QuarkifierConfig Record
 
-All CLI arguments are parsed into an immutable `QuarkifierConfig` record:
+All CLI arguments are parsed by picocli into `QuarkifierCommand` fields, then forwarded to an immutable `QuarkifierConfig` record:
 
 ```java
 public record QuarkifierConfig(
@@ -112,12 +132,17 @@ public record QuarkifierConfig(
     String expectedQuarkusVersion,
     String appName,
     String appVersion,
+    String mainClass,
+    String nativeBuilderImage,
     List<Path> sourceDirs,
     Path classesDir,
     List<String> bazelTargets,
     List<Path> classesOutputDirs,
     Path workspaceDir,
-    long bazelBuildTimeoutSeconds
+    long bazelBuildTimeoutSeconds,
+    String bazelCommand,
+    List<String> bazelBuildArgs,
+    List<Path> localAppJars
 ) { ... }
 ```
 
@@ -157,7 +182,7 @@ graph LR
 
 ### Step 1: CLI Parsing
 
-`QuarkifierConfig.parse()` validates required arguments and returns an immutable config. Exits with code 2 on invalid input.
+`QuarkifierCommand` (picocli `@Command`) parses and validates arguments, resolves `--*-file` fallbacks, and builds an immutable `QuarkifierConfig`. Picocli exits with code 2 on invalid input. The convenience method `QuarkifierConfig.parse()` delegates to this for programmatic use.
 
 ### Step 2: Extension Scanning
 
