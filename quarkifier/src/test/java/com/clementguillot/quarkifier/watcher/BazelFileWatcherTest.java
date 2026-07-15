@@ -23,7 +23,7 @@ class BazelFileWatcherTest {
         new java.util.ArrayList<>(
             List.of(
                 "--application-classpath", "app.jar",
-                "--deployment-classpath", "",
+                "--deployment-classpath", "deploy.jar",
                 "--output-dir", outputDir.toString(),
                 "--mode", "dev",
                 "--expected-quarkus-version", "3.27.4",
@@ -40,11 +40,7 @@ class BazelFileWatcherTest {
               .map(Path::toString)
               .collect(java.util.stream.Collectors.joining(",")));
     }
-    try {
-      return QuarkifierConfig.parse(args.toArray(String[]::new));
-    } catch (QuarkifierConfig.InvalidArgumentsException e) {
-      throw new IllegalStateException("Invalid test config", e);
-    }
+    return QuarkifierConfig.parse(args.toArray(String[]::new));
   }
 
   @Test

@@ -21,6 +21,15 @@ def quarkifier_targets(minor, maven_repo):
     bin_name = "quarkifier_" + minor
     test_name = "quarkifier_test_" + minor
     pmd_name = "pmd_test_" + minor
+    version_res_name = "version_resources_" + minor
+
+    # Per-minor version properties as a resource-only library with strip prefix
+    # so the file lands at the classpath root (same pattern as java_3_XX for sources).
+    java_library(
+        name = version_res_name,
+        resources = native.glob(["src/main/resources_{minor}/**/*".format(minor = minor)]),
+        resource_strip_prefix = "quarkifier/src/main/resources_" + minor,
+    )
 
     java_library(
         name = lib_name,
@@ -28,6 +37,7 @@ def quarkifier_targets(minor, maven_repo):
         resources = native.glob(["src/main/resources/**/*"]),
         visibility = ["//quarkifier:__pkg__"],
         deps = [
+            ":" + version_res_name,
             # Quarkus Bootstrap
             maven_repo + "//:io_quarkus_quarkus_bootstrap_app_model",
             maven_repo + "//:io_quarkus_quarkus_bootstrap_core",
@@ -38,6 +48,8 @@ def quarkifier_targets(minor, maven_repo):
             # ArC runtime — needed in the deploy jar so ASM's ClassWriter can resolve
             # types like io.quarkus.arc.impl.ParameterizedTypeImpl during augmentation.
             maven_repo + "//:io_quarkus_arc_arc",
+            # CLI framework
+            maven_repo + "//:info_picocli_picocli",
             # Logging
             maven_repo + "//:org_jboss_logging_jboss_logging",
         ],
@@ -64,6 +76,7 @@ def quarkifier_targets(minor, maven_repo):
             ":" + lib_name,
             maven_repo + "//:io_quarkus_quarkus_bootstrap_app_model",
             maven_repo + "//:io_quarkus_quarkus_bootstrap_core",
+            maven_repo + "//:info_picocli_picocli",
             maven_repo + "//:org_junit_jupiter_junit_jupiter",
             maven_repo + "//:org_junit_platform_junit_platform_console_standalone",
             maven_repo + "//:org_junit_platform_junit_platform_launcher",

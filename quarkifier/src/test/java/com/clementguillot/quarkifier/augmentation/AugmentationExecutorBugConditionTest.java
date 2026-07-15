@@ -195,11 +195,7 @@ class AugmentationExecutorBugConditionTest {
       args.add("--local-app-jars");
       args.add(joinPaths(localAppJars));
     }
-    try {
-      return QuarkifierConfig.parse(args.toArray(String[]::new));
-    } catch (QuarkifierConfig.InvalidArgumentsException e) {
-      throw new IllegalStateException("Invalid test config", e);
-    }
+    return QuarkifierConfig.parse(args.toArray(String[]::new));
   }
 
   private static String joinPaths(List<Path> paths) {
