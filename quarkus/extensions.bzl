@@ -733,6 +733,7 @@ def quarkus_extension_runtime(name, group_id, version, runtime_target, deploymen
         artifact_id = artifact_id,
         version = version,
         quarkus_version = _QUARKUS_VERSION,
+        quarkifier_tool = _QUARKIFIER_TOOL,
     )
 """
 

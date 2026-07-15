@@ -53,6 +53,7 @@ trap "rm -rf $MODEL_DIR" EXIT
 "$JAVA" \
   -Djava.util.logging.manager=org.jboss.logmanager.LogManager \
   -jar "$TOOL_JAR" \
+  augmentation \
   --application-classpath-file "$APP_CP_FILE" \
   --deployment-classpath-file "$COMBINED_DEPLOY_CP_FILE" \
   --output-dir "$MODEL_DIR" \

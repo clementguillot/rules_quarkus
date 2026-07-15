@@ -8,9 +8,13 @@ package com.clementguillot.quarkifier;
  */
 public final class QuarkifierLauncher {
 
+  private static final String JUL_MANAGER_PROPERTY = "java.util.logging.manager";
+  private static final String JBOSS_LOG_MANAGER = "org.jboss.logmanager.LogManager";
+
   private QuarkifierLauncher() {}
 
   public static void main(String... args) {
+    System.setProperty(JUL_MANAGER_PROPERTY, JBOSS_LOG_MANAGER);
     int exitCode = QuarkifierCommand.createCommandLine().execute(args);
     System.exit(exitCode);
   }

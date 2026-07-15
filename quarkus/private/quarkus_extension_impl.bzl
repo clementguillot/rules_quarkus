@@ -80,17 +80,24 @@ def _enrich_extension_yaml(ctx, runtime_jar):
     classpath_args.add_all(compile_classpath)
     ctx.actions.write(output = classpath_file, content = classpath_args)
 
+    tool_jar = ctx.file.quarkifier_tool
+    java_runtime = ctx.attr._java_runtime[java_common.JavaRuntimeInfo]
+
+    args = ctx.actions.args()
+    args.add("-jar")
+    args.add(tool_jar)
+    args.add("enrich-extension")
+    args.add(runtime_jar)
+    args.add(enriched_yaml)
+    args.add(ctx.attr.quarkus_version)
+    args.add(classpath_file)
+    args.add(ctx.label.name)
+
     ctx.actions.run(
-        executable = ctx.executable._enrich_yaml,
-        inputs = depset([runtime_jar, classpath_file], transitive = [compile_classpath]),
+        executable = java_runtime.java_executable_exec_path,
+        inputs = depset([runtime_jar, classpath_file, tool_jar], transitive = [compile_classpath, java_runtime.files]),
         outputs = [enriched_yaml],
-        arguments = [
-            runtime_jar.path,
-            enriched_yaml.path,
-            ctx.attr.quarkus_version,
-            classpath_file.path,
-            ctx.label.name,
-        ],
+        arguments = [args],
         mnemonic = "QuarkusExtYaml",
         progress_message = "Enriching quarkus-extension.yaml for %{label}",
     )
@@ -271,10 +278,14 @@ quarkus_extension_runtime_rule = rule(
             executable = True,
             cfg = "exec",
         ),
-        "_enrich_yaml": attr.label(
-            default = Label("//quarkus/private:enrich_extension_yaml"),
-            executable = True,
+        "quarkifier_tool": attr.label(
+            allow_single_file = [".jar"],
+            doc = "Quarkifier deploy jar for extension enrichment (set by macro).",
+        ),
+        "_java_runtime": attr.label(
+            default = "@bazel_tools//tools/jdk:current_java_runtime",
             cfg = "exec",
+            providers = [java_common.JavaRuntimeInfo],
         ),
     },
     provides = [JavaInfo, QuarkusExtensionInfo],

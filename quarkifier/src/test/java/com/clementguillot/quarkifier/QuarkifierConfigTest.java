@@ -465,6 +465,12 @@ class QuarkifierConfigTest {
   }
 
   @Test
+  void noSubcommand_printsUsageExitZero() {
+    int exitCode = QuarkifierCommand.createCommandLine().execute();
+    assertEquals(0, exitCode);
+  }
+
+  @Test
   void version_exitCodeIsZero() {
     int exitCode = QuarkifierCommand.createCommandLine().execute("--version");
     assertEquals(0, exitCode);
@@ -472,8 +478,8 @@ class QuarkifierConfigTest {
 
   @Test
   void usageError_exitCodeIsTwo() {
-    // No args at all → missing required --output-dir
-    int exitCode = QuarkifierCommand.createCommandLine().execute();
+    // augmentation without required --output-dir → exit 2
+    int exitCode = QuarkifierCommand.createCommandLine().execute("augmentation");
     assertEquals(2, exitCode);
   }
 
@@ -483,7 +489,9 @@ class QuarkifierConfigTest {
     var errorOutput = new StringWriter();
     commandLine.setErr(new PrintWriter(errorOutput, true));
 
-    int exitCode = commandLine.execute("--deployment-classpath", "d.jar", "--output-dir", "/out");
+    int exitCode =
+        commandLine.execute(
+            "augmentation", "--deployment-classpath", "d.jar", "--output-dir", "/out");
 
     assertEquals(2, exitCode);
     assertTrue(errorOutput.toString().contains("--application-classpath"));

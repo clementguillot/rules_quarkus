@@ -73,6 +73,7 @@ def run_augmentation(ctx, output_dir, runtime_classpath, deployment_classpath, m
     jar_args.add("-Djava.util.logging.manager=org.jboss.logmanager.LogManager")
     jar_args.add("-jar")
     jar_args.add(tool_jar)
+    jar_args.add("augmentation")
 
     if mode == "native":
         mnemonic = "QuarkusNativeAugmentation"
