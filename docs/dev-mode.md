@@ -24,15 +24,17 @@ Unlike production augmentation (which runs in-process), dev mode uses a **separa
 ```mermaid
 sequenceDiagram
     participant Script as dev_launcher.sh
-    participant QC as QuarkifierConfig
+    participant CLI as QuarkifierCommand
+    participant AC as AugmentationCommand
     participant AE as AugmentationExecutor
     participant DML as DevModeLauncher
     participant Child as Child JVM Process
     participant DMM as DevModeMain
     participant IDM as IsolatedDevModeMain
 
-    Script->>QC: java -jar quarkifier_<minor>_deploy.jar --mode dev ...
-    QC->>AE: execute(config)
+    Script->>CLI: java -jar quarkifier_<minor>_deploy.jar augmentation --mode dev ...
+    CLI->>AC: dispatch subcommand
+    AC->>AE: execute(config)
     AE->>AE: buildApplicationModel(...)
     AE->>DML: launch(config, appModel)
     DML->>DML: buildDevModeContext(config)

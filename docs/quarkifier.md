@@ -7,8 +7,17 @@ The Quarkifier (`com.clementguillot.quarkifier`) is a standalone Java tool that 
 
 ## CLI Interface
 
+The top-level command dispatches to `augmentation` and `enrich-extension`:
+
+```
+java -jar quarkifier_<minor>_deploy.jar [--help] [--version] <command>
+```
+
+### Augmentation
+
 ```
 java -jar quarkifier_<minor>_deploy.jar \
+  augmentation \
   --application-classpath <jar:jar:...> \
   --deployment-classpath <jar:jar:...> \
   [--application-classpath-file <path>] \
@@ -37,7 +46,7 @@ java -jar quarkifier_<minor>_deploy.jar \
   [-V|--version]
 ```
 
-### Flags
+#### Flags
 
 | Flag | Required | Default | Description |
 |---|---|---|---|
@@ -70,12 +79,28 @@ java -jar quarkifier_<minor>_deploy.jar \
 
 *Either the inline flag or the `-file` variant must be provided. The `-file` variants read the classpath from a file (one line, colon-separated paths) to avoid "Argument list too long" errors on Linux when the classpath is very long. When both inline and file are provided, the file variant takes precedence regardless of argument order.
 
+### Extension enrichment
+
+```
+java -jar quarkifier_<minor>_deploy.jar \
+  enrich-extension \
+  <runtime.jar> \
+  <output.yaml> \
+  <quarkus-version> \
+  <classpath-file> \
+  <extension-name>
+```
+
+This command reads `META-INF/quarkus-extension.yaml` from the runtime jar, adds
+the Quarkus core version and extension dependencies discovered from the compile
+classpath, then writes the enriched YAML to the requested output path.
+
 ### Exit Codes
 
 | Code | Meaning |
 |---|---|
 | 0 | Success (warnings may have been emitted to stderr) |
-| 1 | Augmentation failure (stack trace on stderr) |
+| 1 | Command execution failure |
 | 2 | Invalid CLI arguments (usage message on stderr) |
 
 ## Package Structure
@@ -83,7 +108,9 @@ java -jar quarkifier_<minor>_deploy.jar \
 ```
 com.clementguillot.quarkifier
 ├── QuarkifierLauncher              Entry point (thin shell, delegates to picocli)
-├── QuarkifierCommand               Picocli @Command: CLI parsing, validation, pipeline execution
+├── QuarkifierCommand               Top-level picocli command dispatcher
+├── AugmentationCommand             Parses augmentation options and executes the pipeline
+├── EnrichExtensionCommand          Parses extension-enrichment arguments
 ├── QuarkifierConfig                Immutable record for config + toArgs() serialization
 ├── QuarkifierVersionProvider       Picocli IVersionProvider: reads version from classpath resource
 ├── AugmentationMode                Enum: NORMAL, TEST, DEV, NATIVE
@@ -93,6 +120,7 @@ com.clementguillot.quarkifier
 ├── extension/                      Extension discovery and validation
 │   ├── ExtensionInfo               Record: groupId, artifactId, version, sourceJar
 │   ├── ExtensionScanner            Scans jars for quarkus-extension.properties
+│   ├── ExtensionYamlEnricher       Enriches quarkus-extension.yaml build metadata
 │   ├── DeploymentArtifactResolver  Maps extensions to their -deployment jars
 │   ├── MissingDeploymentArtifactException
 │   └── VersionChecker              Compares extension versions against expected
@@ -119,7 +147,8 @@ com.clementguillot.quarkifier
 
 ## QuarkifierConfig Record
 
-All CLI arguments are parsed by picocli into `QuarkifierCommand` fields, then forwarded to an immutable `QuarkifierConfig` record:
+Augmentation arguments are parsed by picocli into `AugmentationCommand` fields,
+then forwarded to an immutable `QuarkifierConfig` record:
 
 ```java
 public record QuarkifierConfig(
@@ -182,7 +211,11 @@ graph LR
 
 ### Step 1: CLI Parsing
 
-`QuarkifierCommand` (picocli `@Command`) parses and validates arguments, resolves `--*-file` fallbacks, and builds an immutable `QuarkifierConfig`. Picocli exits with code 2 on invalid input. The convenience method `QuarkifierConfig.parse()` delegates to this for programmatic use.
+`QuarkifierCommand` dispatches to `AugmentationCommand`, which parses and
+validates augmentation arguments, resolves `--*-file` fallbacks, and builds an
+immutable `QuarkifierConfig`. Picocli exits with code 2 on invalid input. The
+convenience method `QuarkifierConfig.parse()` delegates to the augmentation
+subcommand for programmatic use.
 
 ### Step 2: Extension Scanning
 

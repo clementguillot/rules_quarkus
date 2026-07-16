@@ -59,13 +59,19 @@ public record QuarkifierConfig(
    * Parses CLI arguments into a {@link QuarkifierConfig} via picocli.
    *
    * <p>Convenience factory used by tests and internal callers that already have an args array.
+   * Automatically prepends the {@code augmentation} subcommand.
    *
-   * @throws IllegalStateException wrapping any picocli parse/validation error
+   * @throws picocli.CommandLine.ParameterException on parse/validation error
    */
   public static QuarkifierConfig parse(String... args) {
     var commandLine = QuarkifierCommand.createCommandLine();
-    commandLine.parseArgs(args);
-    return ((QuarkifierCommand) commandLine.getCommand()).toConfig();
+    // Prepend "augmentation" subcommand for callers that pass raw option args
+    String[] fullArgs = new String[args.length + 1];
+    fullArgs[0] = "augmentation";
+    System.arraycopy(args, 0, fullArgs, 1, args.length);
+    commandLine.parseArgs(fullArgs);
+    var augCmd = commandLine.getSubcommands().get("augmentation").getCommand();
+    return ((AugmentationCommand) augCmd).toConfig();
   }
 
   /** Serializes this config back to a CLI argument array, suitable for round-trip testing. */

@@ -147,6 +147,7 @@ _JAVA_ARGFILE=$(mktemp "${OUTPUT_DIR}/quarkus_dev_args_XXXXXX")
   echo "-Djava.util.logging.manager=org.jboss.logmanager.LogManager"
   _q "-jar"
   _q "$TOOL_JAR"
+  echo "augmentation"
   echo "--application-classpath-file"
   _q "$ABS_APP_CP_FILE"
   echo "--deployment-classpath-file"
