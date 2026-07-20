@@ -15,8 +15,9 @@
 | Direct Quarkus build API instead of Maven/Gradle wrapper | Avoids shelling out to external build tools; enables proper Bazel action caching and sandboxing |
 | Quarkifier as a separate Java binary | Isolates Quarkus deployment classpath from the user's build classpath; can be versioned independently |
 | Fast_Jar as default packaging | Quarkus's recommended format; fastest startup; simplest directory layout to produce |
-| Deployment artifact auto-resolution via lock file + Coursier | Module extension reads `maven_install.json` to discover extensions, downloads `-deployment` counterparts with transitive deps |
-| Three generated repositories from module extension | Separates concerns: toolchains config, quarkifier tool, deployment deps |
+| Explicit ApplicationModel | A Bazel aspect and resolver catalogs preserve graph/workspace facts before a version-specific Java adapter applies Quarkus semantics |
+| Deployment artifact auto-resolution via descriptors + Coursier | Module extension scans locked jars for exact `deployment-artifact` coordinates and resolves their transitive graph |
+| One generated repository from module extension | Keeps generated rules, the versioned Quarkifier, model catalogs, and copied deployment artifacts under `@rules_quarkus` |
 | Post-processing of Fast_Jar output | Quarkus augmentation output uses raw classpath filenames; post-processing normalizes jar names, classifies boot vs main, and regenerates metadata |
 
 ## Three-Layer Architecture
@@ -32,7 +33,8 @@ graph TD
         QA_IMPL["quarkus_app_rule (quarkus_app_impl.bzl)"]
         QD_IMPL["quarkus_dev_rule (quarkus_dev_impl.bzl)"]
         PROVIDERS["QuarkusAppInfo provider"]
-        CP_UTILS["classpath_utils.bzl"]
+        MODEL_ASPECT["application_model_aspect.bzl"]
+        MODEL_ASSEMBLY["model_assembly.bzl"]
     end
 
     subgraph "Module Extension Layer"
@@ -44,8 +46,7 @@ graph TD
         LAUNCHER["QuarkifierLauncher"]
         CONFIG["QuarkifierConfig"]
         SCANNER["ExtensionScanner"]
-        RESOLVER["DeploymentArtifactResolver"]
-        VCHECK["VersionChecker"]
+        MODEL_ADAPTER["ExplicitApplicationModelBuilder"]
         EXECUTOR["AugmentationExecutor"]
         DEVMODE["DevModeLauncher"]
     end
@@ -55,12 +56,12 @@ graph TD
     RULES_REPO --> QA_IMPL
     RULES_REPO --> QD_IMPL
     QA_IMPL --> PROVIDERS
-    QA_IMPL --> CP_UTILS
+    QA_IMPL --> MODEL_ASPECT
+    MODEL_ASPECT --> MODEL_ASSEMBLY
     EXT --> RULES_REPO
     LAUNCHER --> CONFIG
     LAUNCHER --> SCANNER
-    LAUNCHER --> RESOLVER
-    LAUNCHER --> VCHECK
+    LAUNCHER --> MODEL_ADAPTER
     LAUNCHER --> EXECUTOR
     EXECUTOR --> DEVMODE
 ```
@@ -79,11 +80,32 @@ A single generated repository containing everything needed to build Quarkus appl
 - **`quarkifier/tool.jar`** — the quarkifier deploy jar, resolved in priority order:
   1. **Local source build** — user provides `quarkifier_source_dir`, the extension builds and symlinks the deploy jar
   2. **GitHub release download** — fetches from `https://github.com/clementguillot/rules_quarkus/releases/`
-- **`deployment/`** — deployment jars downloaded with transitive dependencies using Coursier. Auto-discovers Quarkus extensions from the user's `maven_install.json` by scanning for artifacts matching configurable group prefixes (default: `io.quarkus`, `io.quarkiverse.`), then appends `-deployment` to each artifact ID. Produces two `java_library` targets:
+- **`model/`** — strict runtime, deployment, and platform catalogs used by the hermetic model-assembly action
+- **`deployment/`** — deployment jars downloaded with transitive dependencies using Coursier. Extension runtime jars pinned by `maven_install.json` are scanned for `META-INF/quarkus-extension.properties`; the exact descriptor-declared deployment coordinate is resolved without artifact-name guessing. Produces two `java_library` targets:
   - `:core` — transitive deps of `quarkus-core-deployment` (used for the dev jar manifest classpath)
   - `:all` — all deployment jars including extension-specific deployment jars and conditional dev dependencies
 
-Jar symlinks preserve the Maven directory structure from the Coursier cache so that the Dev UI's version extraction logic works correctly.
+Deployment jars are copied into the generated repository in Maven directory
+layout. Copying makes them stable Bazel inputs even if the machine-global
+Coursier cache changes, while retaining the layout needed by Dev UI version
+extraction.
+
+## Explicit ApplicationModel flow
+
+Every lifecycle rule applies the same internal aspect to its ordinary
+`java_library` graph. The aspect emits small, version-independent target
+fragments containing direct edges, artifact outputs, source/resources, build
+files, workspace identity, and local-extension aliases. A hermetic action joins
+those fragments with the generated resolver catalogs and validates
+`quarkus-bazel-model-v1`.
+
+The Quarkifier reads that contract and uses the adapter compiled for the chosen
+Quarkus line to construct `ApplicationModel`. It does not infer graph edges from
+jar names or embedded POMs on this path. Normal, dev, test, and native-sources
+all use this boundary; only lifecycle-specific root/test facts differ.
+
+See [ADR 0001](adr/0001-explicit-application-model.md) for the ownership and DX
+invariants.
 
 ## Build Flow
 
@@ -100,12 +122,11 @@ sequenceDiagram
     quarkus_app_rule->>quarkus_app_rule: Collect runtime + deployment classpath via JavaInfo
     quarkus_app_rule->>Quarkifier: ctx.actions.run(java -jar quarkifier_<minor>_deploy.jar ...)
     Quarkifier->>Quarkifier: 1. Parse CLI args → QuarkifierConfig
-    Quarkifier->>Quarkifier: 2. Scan classpath for extensions (ExtensionScanner)
-    Quarkifier->>Quarkifier: 3. Resolve deployment artifacts (DeploymentArtifactResolver)
-    Quarkifier->>Quarkifier: 4. Check version mismatches (VersionChecker)
-    Quarkifier->>QuarkusAPI: 5. Build ApplicationModel, run augmentation
+    Quarkifier->>Quarkifier: 2. Read and validate explicit v1 model
+    Quarkifier->>Quarkifier: 3. Check invocation mode and embedded tool version
+    Quarkifier->>QuarkusAPI: 4. Adapt ApplicationModel, run augmentation
     QuarkusAPI-->>Quarkifier: Raw Fast_Jar output
-    Quarkifier->>Quarkifier: 6. Post-process output
+    Quarkifier->>Quarkifier: 5. Post-process output
     Quarkifier-->>quarkus_app_rule: Complete Fast_Jar directory
     quarkus_app_rule->>quarkus_app_rule: Generate launcher.sh
     quarkus_app_rule-->>Bazel: DefaultInfo + QuarkusAppInfo
@@ -118,7 +139,7 @@ See [Quarkifier Tool Reference](quarkifier.md) for the full pipeline details.
 The pipeline in brief:
 
 1. **CLI parsing** → `QuarkifierConfig` record
-2. **Extension scanning** → reads `META-INF/quarkus-extension.properties` from each jar
+2. **Explicit model validation** → checks schema, graph invariants, mode, and tool version
 3. **Deployment resolution** → matches extensions to `-deployment` jars
 4. **Version checking** → warns on mismatches against expected Quarkus version
 5. **Augmentation** → builds `ApplicationModel`, runs `QuarkusBootstrap` → `AugmentAction`

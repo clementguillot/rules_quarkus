@@ -32,14 +32,18 @@ public final class ExtensionYamlEnricher {
    * @param output path where the enriched yaml is written
    * @param quarkusVersion Quarkus core version string
    * @param classpathFile file listing the compile classpath (one jar per line)
-   * @param extensionName extension display name (used as fallback if no yaml exists)
+   * @param project extension project metadata
    */
   public static void enrich(
-      Path runtimeJar, Path output, String quarkusVersion, Path classpathFile, String extensionName)
+      Path runtimeJar,
+      Path output,
+      String quarkusVersion,
+      Path classpathFile,
+      ExtensionProjectInfo project)
       throws IOException {
     Set<String> deps = discoverExtensionDependencies(classpathFile);
     String baseYaml = extractEntryText(runtimeJar, "META-INF/quarkus-extension.yaml");
-    String enriched = enrichMetadata(baseYaml, extensionName, quarkusVersion, List.copyOf(deps));
+    String enriched = enrichMetadata(baseYaml, project, quarkusVersion, List.copyOf(deps));
     Files.writeString(output, enriched, StandardCharsets.UTF_8);
   }
 
@@ -72,11 +76,12 @@ public final class ExtensionYamlEnricher {
   // ---- yaml enrichment ----
 
   @SuppressWarnings("PMD.CognitiveComplexity")
-  static String enrichMetadata(String inputYaml, String extName, String qVersion, List<String> deps)
+  static String enrichMetadata(
+      String inputYaml, ExtensionProjectInfo project, String qVersion, List<String> deps)
       throws IOException {
     String yaml =
         (inputYaml == null || inputYaml.isBlank())
-            ? "name: \"" + quoteYaml(extName) + "\"\nmetadata:\n"
+            ? "name: \"" + quoteYaml(project.name()) + "\"\nmetadata:\n"
             : inputYaml;
 
     String normalized = yaml.replace("\r\n", "\n").replace('\r', '\n');
@@ -84,6 +89,8 @@ public final class ExtensionYamlEnricher {
     if (!lines.isEmpty() && lines.get(lines.size() - 1).isEmpty()) {
       lines.remove(lines.size() - 1);
     }
+
+    ExtensionArtifactCoordinates.ensure(lines, project);
 
     int metadataLine = findTopLevelMetadataLine(lines);
     if (metadataLine < 0) {

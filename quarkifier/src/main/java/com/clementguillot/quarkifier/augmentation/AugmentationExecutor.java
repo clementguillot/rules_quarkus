@@ -4,10 +4,13 @@ import com.clementguillot.quarkifier.AugmentationException;
 import com.clementguillot.quarkifier.AugmentationMode;
 import com.clementguillot.quarkifier.BuildProperties;
 import com.clementguillot.quarkifier.QuarkifierConfig;
+import com.clementguillot.quarkifier.QuarkifierVersionProvider;
 import com.clementguillot.quarkifier.dev.AppModelSerializerImpl;
 import com.clementguillot.quarkifier.dev.AppModelSerializerStrategy;
 import com.clementguillot.quarkifier.dev.DevModeLauncher;
-import com.clementguillot.quarkifier.model.QuarkusAppModelBuilder;
+import com.clementguillot.quarkifier.model.ExplicitApplicationModelBuilder;
+import com.clementguillot.quarkifier.model.transport.BazelApplicationModel;
+import com.clementguillot.quarkifier.model.transport.BazelApplicationModelReader;
 import io.quarkus.bootstrap.app.AugmentAction;
 import io.quarkus.bootstrap.app.AugmentResult;
 import io.quarkus.bootstrap.app.CuratedApplication;
@@ -48,7 +51,12 @@ public final class AugmentationExecutor {
       }
 
       ClasspathPartition partition = LocalExtensionAppJars.reclassify(partitionClasspath(config));
-      ApplicationModel appModel = buildModel(config, partition);
+      ApplicationModel appModel = buildModel(config);
+      List<Path> effectiveRuntimeJars = RuntimeJarSelector.select(partition, appModel);
+      if (config.applicationModelSnapshotOutput() != null) {
+        ExplicitApplicationModelBuilder.serialize(
+            appModel, config.applicationModelSnapshotOutput());
+      }
 
       switch (config.mode()) {
           // DEV: delegate to DevModeLauncher which starts IsolatedDevModeMain
@@ -59,12 +67,12 @@ public final class AugmentationExecutor {
         case TEST -> serializeTestModel(outputDir, appModel);
         case NATIVE -> {
           runAugmentation(config, partition.localAppJars(), appModel, outputDir);
-          NativeSourcesAssembler.assemble(outputDir, partition.runtimeJars());
+          NativeSourcesAssembler.assemble(outputDir, effectiveRuntimeJars);
         }
         case NORMAL -> {
           runAugmentation(config, partition.localAppJars(), appModel, outputDir);
           FastJarAssembler.assemble(
-              outputDir, partition.runtimeJars(), appModel, config.resources(), config.mainClass());
+              outputDir, effectiveRuntimeJars, appModel, config.resources(), config.mainClass());
         }
         default -> throw new AugmentationException("Unhandled mode: " + config.mode());
       }
@@ -75,22 +83,36 @@ public final class AugmentationExecutor {
     }
   }
 
-  private static ApplicationModel buildModel(QuarkifierConfig config, ClasspathPartition partition)
-      throws Exception {
-    if (config.mode() == AugmentationMode.TEST) {
-      return QuarkusAppModelBuilder.buildForTest(
-          partition.localAppJars(),
-          partition.runtimeJars(),
-          config.deploymentClasspath(),
-          config.appName(),
-          config.appVersion());
+  private static ApplicationModel buildModel(QuarkifierConfig config) throws Exception {
+    if (config.applicationModel() == null) {
+      throw new AugmentationException("--application-model is required");
     }
-    return QuarkusAppModelBuilder.build(
-        partition.localAppJars(),
-        partition.runtimeJars(),
-        config.deploymentClasspath(),
-        config.appName(),
-        config.appVersion());
+    var explicitModel = BazelApplicationModelReader.read(config.applicationModel());
+    validateModelCompatibility(config.mode(), explicitModel);
+    return ExplicitApplicationModelBuilder.build(explicitModel);
+  }
+
+  static void validateModelCompatibility(AugmentationMode mode, BazelApplicationModel explicitModel)
+      throws AugmentationException {
+    if (!mode.name().equals(explicitModel.mode().name())) {
+      throw new AugmentationException(
+          "Explicit application model mode "
+              + explicitModel.mode()
+              + " does not match augmentation mode "
+              + mode);
+    }
+    String targetedQuarkusVersion = QuarkifierVersionProvider.targetedQuarkusVersion();
+    if ("unknown".equals(targetedQuarkusVersion)) {
+      throw new AugmentationException(
+          "Cannot determine the Quarkus version targeted by this quarkifier artifact");
+    }
+    if (!targetedQuarkusVersion.equals(explicitModel.quarkusVersion())) {
+      throw new AugmentationException(
+          "Explicit application model Quarkus version "
+              + explicitModel.quarkusVersion()
+              + " does not match quarkifier target version "
+              + targetedQuarkusVersion);
+    }
   }
 
   /** Writes the serialized test ApplicationModel to {@code <output-dir>/test-app-model.dat}. */
@@ -125,7 +147,11 @@ public final class AugmentationExecutor {
                     ? config.appName()
                     : "quarkus-run")
             .setMode(mapMode(config.mode()))
-            .setIsolateDeployment(false)
+            // Workspace dependencies are present in both the augmentation and deployment
+            // layers. Isolation is required to keep reloadable runtime classes in exactly one
+            // layer; otherwise config mappings and build-step parameters can have distinct Class
+            // identities.
+            .setIsolateDeployment(true)
             .setFlatClassPath(true)
             .setLocalProjectDiscovery(false)
             .setBuildSystemProperties(buildProps)

@@ -13,6 +13,12 @@ fi
 WORKSPACE_DIR="${RUNFILES_DIR}/%{workspace}"
 TOOL_JAR="${WORKSPACE_DIR}/%{tool_jar}"
 JAVA="${WORKSPACE_DIR}/%{java_home}/bin/java"
+MODEL_FILE="${WORKSPACE_DIR}/%{model_file}"
+MODEL_REAL=$(realpath "$MODEL_FILE")
+case "$MODEL_REAL" in
+  */bazel-out/*) MODEL_EXEC_ROOT="${MODEL_REAL%%/bazel-out/*}" ;;
+  *) MODEL_EXEC_ROOT="$WORKSPACE_DIR" ;;
+esac
 
 # Stream classpaths into temp files using awk (O(n), safe with special chars in paths).
 # Each source file has separator-delimited relative paths; we prefix with WORKSPACE_DIR.
@@ -25,17 +31,25 @@ _prefix_entries() {
     < "$src" > "$dest"
 }
 
+_realpath_entries() {
+  local src="$1" dest="$2"
+  while IFS=: read -ra ENTRIES; do
+    local first=true
+    for entry in "${ENTRIES[@]}"; do
+      if [ "$first" = false ]; then printf ':' >> "$dest"; fi
+      local resolved
+      resolved=$(realpath "$entry")
+      printf '%s' "$resolved" >> "$dest"
+      first=false
+    done
+  done < "$src"
+}
+
 # Runtime classpath (app + test jars, for both JUnit -cp and quarkifier)
 APP_CP_FILE=$(mktemp)
 _prefix_entries ":" "${WORKSPACE_DIR}/%{classpath_file}" "$APP_CP_FILE"
-
-# Deployment classpath (for quarkifier only, NOT on JUnit -cp)
-DEPLOY_CP_FILE=$(mktemp)
-_prefix_entries ":" "${WORKSPACE_DIR}/%{deploy_cp_file}" "$DEPLOY_CP_FILE"
-
-# Combined deploy classpath = app + deploy (quarkifier needs both)
-COMBINED_DEPLOY_CP_FILE=$(mktemp)
-{ tr -d '\n' < "$APP_CP_FILE"; printf ':'; tr -d '\n' < "$DEPLOY_CP_FILE"; } > "$COMBINED_DEPLOY_CP_FILE"
+MODEL_APP_CP_FILE=$(mktemp)
+_realpath_entries "$APP_CP_FILE" "$MODEL_APP_CP_FILE"
 
 # Direct dep jars: comma-separated in source, prefix each entry.
 # Produces two files: comma-separated (for OUTPUT_SOURCES_DIR / test discovery)
@@ -44,32 +58,51 @@ DIRECT_JARS_FILE=$(mktemp)
 _prefix_entries "," "${WORKSPACE_DIR}/%{direct_jars_file}" "$DIRECT_JARS_FILE"
 
 LOCAL_APP_JARS_FILE=$(mktemp)
-sed 's/,/:/g' < "$DIRECT_JARS_FILE" > "$LOCAL_APP_JARS_FILE"
+while IFS=, read -ra JAR_ENTRIES; do
+  first=true
+  for jar_path in "${JAR_ENTRIES[@]}"; do
+    if [ "$first" = false ]; then printf ':' >> "$LOCAL_APP_JARS_FILE"; fi
+    resolved_jar=$(realpath "$jar_path")
+    printf '%s' "$resolved_jar" >> "$LOCAL_APP_JARS_FILE"
+    first=false
+  done
+done < "$DIRECT_JARS_FILE"
 
 # Phase 1: Generate serialized ApplicationModel at test time.
 MODEL_DIR=$(mktemp -d)
 trap "rm -rf $MODEL_DIR" EXIT
 
-"$JAVA" \
+# Optional conformance hook. Kept out of the public quarkus_test API: CI can
+# request the exact post-curation Quarkus-native model without changing BUILD
+# files, matching the Maven/Gradle snapshot fixture convention.
+SNAPSHOT_ARGS=()
+if [ -n "${RULES_QUARKUS_APPLICATION_MODEL_SNAPSHOT:-}" ]; then
+  SNAPSHOT_ARGS=(
+    --application-model-snapshot-output
+    "$RULES_QUARKUS_APPLICATION_MODEL_SNAPSHOT"
+  )
+fi
+
+(cd "$MODEL_EXEC_ROOT" && "$JAVA" \
   -Djava.util.logging.manager=org.jboss.logmanager.LogManager \
   -jar "$TOOL_JAR" \
   augmentation \
-  --application-classpath-file "$APP_CP_FILE" \
-  --deployment-classpath-file "$COMBINED_DEPLOY_CP_FILE" \
+  --application-classpath-file "$MODEL_APP_CP_FILE" \
   --output-dir "$MODEL_DIR" \
   --mode test \
+  --application-model "$MODEL_FILE" \
+  ${SNAPSHOT_ARGS[@]+"${SNAPSHOT_ARGS[@]}"} \
   --local-app-jars-file "$LOCAL_APP_JARS_FILE" \
-  --expected-quarkus-version %{quarkus_version} \
-  --app-name %{app_name}
+  --app-name %{app_name})
 
 if [ $? -ne 0 ]; then
-  rm -f "$APP_CP_FILE" "$DEPLOY_CP_FILE" "$COMBINED_DEPLOY_CP_FILE" "$LOCAL_APP_JARS_FILE" "$DIRECT_JARS_FILE"
+  rm -f "$APP_CP_FILE" "$MODEL_APP_CP_FILE" "$LOCAL_APP_JARS_FILE" "$DIRECT_JARS_FILE"
   echo "ERROR: Quarkifier test model generation failed" >&2
   exit 1
 fi
 
 # Keep APP_CP_FILE and DIRECT_JARS_FILE for phase 2; clean the rest.
-rm -f "$DEPLOY_CP_FILE" "$COMBINED_DEPLOY_CP_FILE" "$LOCAL_APP_JARS_FILE"
+rm -f "$MODEL_APP_CP_FILE" "$LOCAL_APP_JARS_FILE"
 
 if [ ! -f "$MODEL_DIR/test-app-model.dat" ]; then
   rm -f "$APP_CP_FILE" "$DIRECT_JARS_FILE"

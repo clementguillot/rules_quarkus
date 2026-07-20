@@ -23,6 +23,9 @@ mkdir -p "${WORK}"
 # and fake the .runfiles link next to the copy.
 cp "${LAUNCHER}" "${WORK}/dev.sh"
 ln -sfn "${TEST_SRCDIR}" "${WORK}/dev.sh.runfiles"
+# The copied script no longer sits beside its real runfiles tree. Point its runfiles root directly
+# at this test's merged tree instead of relying on relative symlink traversal from the temp cwd.
+sed -i.bak "s|^RUNFILES_DIR=.*|RUNFILES_DIR=\"${TEST_SRCDIR}\"|" "${WORK}/dev.sh"
 
 # cd so the launcher's relative mktemp dirs land in the test tmpdir.
 cd "${WORK}"

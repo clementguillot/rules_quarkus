@@ -60,7 +60,7 @@ sequenceDiagram
 
 The manifest classpath contains two categories of jars, matching Maven's `DevMojo`:
 
-1. **Core deployment infrastructure** — the transitive closure of `quarkus-core-deployment`, resolved separately via `@rules_quarkus//deployment:core`. For jars that also exist on the application classpath, the `@maven` version is preferred to avoid class identity conflicts between Coursier and `rules_jvm_external` copies.
+1. **Dev process infrastructure** — the transitive closures of `quarkus-bootstrap-gradle-resolver`, `quarkus-bootstrap-maven-resolver`, and `quarkus-core-deployment`, resolved separately via `@rules_quarkus//deployment:core`. This matches the roots in Quarkus Gradle's `QUARKUS_BOOTSTRAP_RESOLVER_CONFIGURATION`; the Maven plugin gets the Maven resolver from its own plugin classpath. For jars that also exist on the application classpath, the `@maven` version is preferred to avoid class identity conflicts between Coursier and `rules_jvm_external` copies.
 
 2. **Parent-first runtime artifacts** — runtime jars flagged as `CLASSLOADER_PARENT_FIRST` in the `ApplicationModel` (logging, Jakarta APIs, etc.).
 
@@ -74,10 +74,10 @@ The `quarkus_dev` rule manages three separate classpaths:
 |-----------|--------|---------|
 | `application_classpath` | `deps` runtime jars | Runtime deps for the ApplicationModel |
 | `deployment_classpath` | `@rules_quarkus//deployment:all` | All deployment jars for the ApplicationModel |
-| `core_deployment_classpath` | `@rules_quarkus//deployment:core` | Core deployment infrastructure for the dev jar manifest |
+| `core_deployment_classpath` | `@rules_quarkus//deployment:core` | Bootstrap resolvers and core deployment infrastructure for the dev jar manifest |
 
 The `@rules_quarkus//deployment` package resolves these in two Coursier phases:
-1. `coursier fetch io.quarkus:quarkus-core-deployment:VERSION` → `:core` target (~70 jars)
+1. `coursier fetch` both Quarkus bootstrap resolvers plus `quarkus-core-deployment` → `:core` target
 2. `coursier fetch` all extension deployment GAVs → `:all` target (superset of `:core`, ~300 jars)
 
 ## Classloader Hierarchy
@@ -85,7 +85,7 @@ The `@rules_quarkus//deployment` package resolves these in two Coursier phases:
 ```mermaid
 graph TD
     subgraph "System ClassLoader (dev.jar manifest)"
-        SYS["DevModeMain<br/>quarkus-core-deployment transitive closure<br/>+ parent-first runtime artifacts"]
+        SYS["DevModeMain<br/>bootstrap resolver + core deployment closures<br/>+ parent-first runtime artifacts"]
     end
 
     subgraph "Augment ClassLoader (from ApplicationModel)"
@@ -102,18 +102,21 @@ graph TD
 
 ## Conditional Dev Dependencies
 
-Many Quarkus extensions declare `conditional-dev-dependencies` in their `quarkus-extension.properties`. These are runtime modules activated only in dev mode. Maven's resolver handles them automatically; we resolve them explicitly in `extensions.bzl`:
-
-- **`quarkus-devui-deployment`** — conditional dev dep of `quarkus-vertx-http` (provides the Dev UI)
-- **`quarkus-devui`** — the Dev UI runtime jar; its generated ArC beans reference classes that must be on the runtime classpath
-- **`quarkus-devui-spi`** — contains SPI classes (e.g., `McpServerConfiguration`) referenced by generated ArC beans; has no extension metadata so it won't be auto-detected
-- **`{extension}-dev` jars** (e.g., `quarkus-arc-dev`, `quarkus-rest-dev`) — contain dev-mode-specific classes like `EventsMonitor` that Dev UI build steps reference
-
-The `QuarkusAppModelBuilder` also scans the deployment classpath for runtime extensions pulled in transitively (e.g., `quarkus-devui` via `quarkus-devui-deployment`) and marks them appropriately in the `ApplicationModel`. Additionally, `io.quarkus` jars ending with `-spi` are automatically marked as runtime classpath entries.
+Quarkus extension descriptors can declare both ordinary conditional dependencies
+and `conditional-dev-dependencies`. Repository setup retains the exact candidate
+runtime/deployment graph. Model assembly applies a mode-aware fixpoint: DEV can
+activate both kinds, NORMAL/TEST/NATIVE only activate ordinary conditionals,
+dependency conditions use full artifact keys, and newly activated extensions
+can trigger further candidates. Dev UI is therefore discovered through the
+same generic descriptor graph as any other conditional extension; no hardcoded
+`quarkus-devui`, `-dev`, or `-spi` list is used.
 
 ## Parent-First Artifacts
 
-`QuarkusAppModelBuilder.markParentFirstArtifacts()` marks infrastructure jars as parent-first so the augment classloader delegates to the system classloader for them. This prevents `LinkageError` and `ClassCastException`.
+The explicit model adapter applies descriptor-driven parent-first,
+runner-parent-first, and lesser-priority artifact keys using full GACT matching.
+This makes the augment classloader delegate infrastructure jars to the system
+classloader without artifact-ID heuristics.
 
 Key categories: bootstrap (`quarkus-bootstrap-core`, `quarkus-bootstrap-maven-resolver`, etc.), core (`quarkus-core`, `quarkus-value-registry`), config (`smallrye-config-core`, `smallrye-config-common`, `microprofile-config-api`), logging (`jboss-logmanager`, `jboss-logging`), Jakarta APIs.
 
@@ -127,17 +130,12 @@ Quarkus 3.31+ changed `ApplicationModelSerializer` to use JSON format by default
 - **3.27.4**: `BootstrapUtils.serializeAppModel()` (Java Object Serialization)
 - **3.33.2**: `ApplicationModelSerializer.serialize()` (JSON)
 
-### PlatformImports Null Check
+### Explicit metadata
 
-`ApplicationModel.asMap()` (used by the JSON serializer) calls `getPlatforms().asMap()` without a null check. Since we bypass Maven/Gradle resolution, `platformImports` is never set. Workaround: `QuarkusAppModelBuilder` sets an empty `PlatformImportsImpl()`.
-
-### GACT Key Mismatch
-
-`handleExtensionProperties()` creates GACT keys with empty type, but our dependencies have type `"jar"`. The `CLASSLOADER_RUNNER_PARENT_FIRST` flag is never set by `buildDependencies()`. Workaround: `fixRunnerParentFirstFlags()` sets the flag by `artifactId` matching.
-
-### Extension Capabilities
-
-`handleExtensionProperties()` doesn't process `provides-capabilities` / `requires-capabilities`. Workaround: `registerExtensions()` manually reads and registers them.
+Platform imports/properties, capabilities, and classloading keys are populated
+from the validated v1 model and exact extension descriptors. The old empty
+`PlatformImportsImpl`, artifact-ID runner-parent-first repair, and classpath
+inference paths have been removed.
 
 ## Source Directory Flow
 

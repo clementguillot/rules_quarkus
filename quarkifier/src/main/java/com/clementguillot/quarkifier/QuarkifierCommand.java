@@ -10,6 +10,8 @@ import picocli.CommandLine.Command;
  *
  * <ul>
  *   <li>{@code augmentation} — run Quarkus build-time augmentation
+ *   <li>{@code assemble-model} — assemble the explicit Bazel application model
+ *   <li>{@code discover-extensions} — read deployment coordinates from runtime descriptors
  *   <li>{@code enrich-extension} — enrich a quarkus-extension.yaml with build metadata
  * </ul>
  */
@@ -18,7 +20,13 @@ import picocli.CommandLine.Command;
     mixinStandardHelpOptions = true,
     versionProvider = QuarkifierVersionProvider.class,
     description = "Quarkus build tooling for Bazel.",
-    subcommands = {AugmentationCommand.class, EnrichExtensionCommand.class})
+    subcommands = {
+      AugmentationCommand.class,
+      AssembleModelCommand.class,
+      CompareModelsCommand.class,
+      DiscoverExtensionsCommand.class,
+      EnrichExtensionCommand.class
+    })
 public final class QuarkifierCommand implements Runnable {
 
   @CommandLine.Spec private CommandLine.Model.CommandSpec spec;

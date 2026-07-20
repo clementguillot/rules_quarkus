@@ -23,8 +23,8 @@ bazel_dep(name = "rules_jvm_external", version = "7.0")
 bazel_dep(name = "rules_graalvm", version = "0.11.1")
 git_override(
     module_name = "rules_graalvm",
-    commit = "f3683e086fea4a8ca59ecdc6e0cff6f3d61b796e",
-    remote = "https://github.com/jesses-canva/rules_graalvm.git",
+    commit = "0241d7a902171ce6d5647fa45f7f4789626edb4f",
+    remote = "https://github.com/sgammon/rules_graalvm.git",
 )
 
 gvm = use_extension("@rules_graalvm//:extensions.bzl", "graalvm")
@@ -48,6 +48,8 @@ maven.install(
     artifacts = [
         "io.quarkus:quarkus-rest:3.33.2",
         "io.quarkus:quarkus-arc:3.33.2",
+        # Activates quarkus-rest's normal conditional quarkus-rest-kotlin dependency.
+        "io.quarkus:quarkus-kotlin:3.33.2",
         # Custom-extension build deps (deployment modules + annotation processor)
         "io.quarkus:quarkus-arc-deployment:3.33.2",
         "io.quarkus:quarkus-core-deployment:3.33.2",

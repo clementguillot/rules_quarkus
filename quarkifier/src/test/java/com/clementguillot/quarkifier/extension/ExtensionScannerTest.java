@@ -29,6 +29,8 @@ class ExtensionScannerTest {
     assertEquals("quarkus-resteasy-reactive", info.artifactId());
     assertEquals("3.27.4", info.version());
     assertEquals(jar, info.sourceJar());
+    assertEquals(
+        "io.quarkus:quarkus-resteasy-reactive-deployment:3.27.4", info.deploymentArtifact());
   }
 
   @Test
@@ -47,7 +49,9 @@ class ExtensionScannerTest {
   void parseDeploymentArtifact_malformedGav() {
     var props = new Properties();
     props.setProperty("deployment-artifact", "io.quarkus:only-two-parts");
-    assertNull(ExtensionScanner.parseDeploymentArtifact(props, Path.of("x.jar")));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> ExtensionScanner.parseDeploymentArtifact(props, Path.of("x.jar")));
   }
 
   @Test
@@ -66,14 +70,42 @@ class ExtensionScannerTest {
   @Test
   void parseDeploymentArtifact_extraGavParts() {
     var props = new Properties();
-    props.setProperty("deployment-artifact", "io.quarkus:quarkus-arc-deployment:jar:3.27.4");
+    props.setProperty(
+        "deployment-artifact", "io.quarkus:quarkus-arc-deployment:special:jar:3.27.4");
 
     ExtensionInfo info = ExtensionScanner.parseDeploymentArtifact(props, Path.of("x.jar"));
 
     assertNotNull(info);
     assertEquals("io.quarkus", info.groupId());
     assertEquals("quarkus-arc", info.artifactId());
-    assertEquals("jar", info.version()); // 3rd part is version regardless of format
+    assertEquals("3.27.4", info.version());
+    assertEquals("io.quarkus:quarkus-arc-deployment:special:jar:3.27.4", info.deploymentArtifact());
+  }
+
+  @Test
+  void parseDescriptor_preservesResolverRuntimeIdentityAndConditionalMetadata() {
+    var props = new Properties();
+    props.setProperty("deployment-artifact", "custom.group:unrelated-build-steps:special:jar:9.1");
+    props.setProperty(
+        "conditional-dependencies", "custom.group:feature:9.1  custom.group:nested:zip:9.1");
+    props.setProperty("conditional-dev-dependencies", "custom.group:dev-helper:9.1");
+    props.setProperty("dependency-condition", "custom.group:trigger custom.group:typed::zip");
+
+    ExtensionInfo info =
+        ExtensionScanner.parseDescriptor(
+            props, Path.of("runtime.jar"), "custom.group:actual-runtime:tests:jar:9.1");
+
+    assertNotNull(info);
+    assertEquals("custom.group", info.groupId());
+    assertEquals("actual-runtime", info.artifactId());
+    assertEquals("9.1", info.version());
+    assertEquals("custom.group:actual-runtime:tests:jar:9.1", info.runtimeArtifact());
+    assertEquals(
+        List.of("custom.group:feature:9.1", "custom.group:nested:zip:9.1"),
+        info.conditionalDependencies());
+    assertEquals(List.of("custom.group:dev-helper:9.1"), info.conditionalDevDependencies());
+    assertEquals(
+        List.of("custom.group:trigger", "custom.group:typed::zip"), info.dependencyConditions());
   }
 
   @Test

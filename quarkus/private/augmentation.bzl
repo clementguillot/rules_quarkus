@@ -23,7 +23,7 @@ def _write_classpath_file(ctx, name_suffix, jars):
     ctx.actions.write(output = out, content = args)
     return out
 
-def run_augmentation(ctx, output_dir, runtime_classpath, deployment_classpath, mode = None, local_jars = None):
+def run_augmentation(ctx, output_dir, runtime_classpath, conditional_classpath, deployment_classpath, mode = None, local_jars = None, model_file = None):
     """Runs the quarkifier deploy jar to augment the application.
 
     The deploy jar is a fat jar containing all tool classes + dependencies,
@@ -31,23 +31,28 @@ def run_augmentation(ctx, output_dir, runtime_classpath, deployment_classpath, m
     internally via the augment classloader + TCCL.
 
     Args:
-        ctx: Rule context. Must define quarkifier_tool, quarkus_version,
-            version, main_class attrs and the _java_runtime attr.
+        ctx: Rule context. Must define quarkifier_tool, main_class attrs and the
+            _java_runtime attr.
         output_dir: Declared directory the quarkifier writes into.
         runtime_classpath: Depset of runtime classpath jars.
+        conditional_classpath: Depset of internally resolved conditional candidates. These are
+            action inputs only; activation is controlled exclusively by the explicit model.
         deployment_classpath: Depset of deployment classpath jars.
         mode: Quarkifier mode ("native"), or None for the default Fast_Jar mode.
         local_jars: Optional list of local workspace jars, passed via
             --local-app-jars-file. The first entry is treated as the
             application artifact, so order matters.
+        model_file: Explicit Bazel model JSON. Required for every Bazel lifecycle.
+
+    Returns:
+        The declared application-model snapshot file produced during augmentation.
     """
 
+    if not model_file:
+        fail("run_augmentation requires an explicit application model; Bazel actions must not use legacy classpath inference")
+
     app_cp_file = _write_classpath_file(ctx, "_app_classpath.txt", runtime_classpath)
-    deploy_cp_file = _write_classpath_file(
-        ctx,
-        "_deploy_classpath.txt",
-        depset(transitive = [runtime_classpath, deployment_classpath]),
-    )
+    model_snapshot = ctx.actions.declare_file(ctx.label.name + ".quarkus-application-model.json")
 
     args = ctx.actions.args()
     args.add("--application-classpath-file", app_cp_file)
@@ -55,16 +60,14 @@ def run_augmentation(ctx, output_dir, runtime_classpath, deployment_classpath, m
     if local_jars:
         local_jars_file = _write_classpath_file(ctx, "_local_app_jars.txt", local_jars)
         args.add("--local-app-jars-file", local_jars_file)
-    args.add("--deployment-classpath-file", deploy_cp_file)
+    args.add("--application-model", model_file)
+    args.add("--application-model-snapshot-output", model_snapshot)
     args.add("--output-dir", output_dir.path)
     if mode:
         args.add("--mode", mode)
-    args.add("--expected-quarkus-version", ctx.attr.quarkus_version)
     args.add("--app-name", ctx.label.name)
     if hasattr(ctx.attr, "builder_image") and ctx.attr.builder_image:
         args.add("--native-builder-image", ctx.attr.builder_image)
-    if ctx.attr.version:
-        args.add("--app-version", ctx.attr.version)
     if ctx.attr.main_class:
         args.add("--main-class", ctx.attr.main_class)
 
@@ -87,10 +90,11 @@ def run_augmentation(ctx, output_dir, runtime_classpath, deployment_classpath, m
         executable = java_runtime.java_executable_exec_path,
         arguments = [jar_args, args],
         inputs = depset(
-            direct = [tool_jar, app_cp_file, deploy_cp_file] + ([local_jars_file] if local_jars_file else []),
-            transitive = [runtime_classpath, deployment_classpath, java_runtime.files],
+            direct = [tool_jar, app_cp_file, model_file] + ([local_jars_file] if local_jars_file else []),
+            transitive = [runtime_classpath, conditional_classpath, deployment_classpath, java_runtime.files],
         ),
-        outputs = [output_dir],
+        outputs = [output_dir, model_snapshot],
         mnemonic = mnemonic,
         progress_message = progress_message,
     )
+    return model_snapshot

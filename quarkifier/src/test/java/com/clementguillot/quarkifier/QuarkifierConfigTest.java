@@ -6,6 +6,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -18,7 +19,12 @@ class QuarkifierConfigTest {
 
   /** Parses args via picocli and returns the config, or throws on usage error. */
   private static QuarkifierConfig parse(String... args) {
-    return QuarkifierConfig.parse(args);
+    var arguments = new ArrayList<>(List.of(args));
+    if (!arguments.contains("--application-model")) {
+      arguments.add("--application-model");
+      arguments.add("model.json");
+    }
+    return QuarkifierConfig.parse(arguments.toArray(String[]::new));
   }
 
   @Test
@@ -27,41 +33,32 @@ class QuarkifierConfigTest {
     var ex =
         assertThrows(
             CommandLine.MissingParameterException.class,
-            () -> parse("--application-classpath", "a.jar", "--deployment-classpath", "d.jar"));
+            () -> parse("--application-classpath", "a.jar"));
     assertTrue(ex.getMessage().contains("--output-dir"));
   }
 
   @Test
   void parse_missingApplicationClasspath() {
     var ex =
-        assertThrows(
-            CommandLine.ParameterException.class,
-            () -> parse("--deployment-classpath", "d.jar", "--output-dir", "/out"));
+        assertThrows(CommandLine.ParameterException.class, () -> parse("--output-dir", "/out"));
     assertTrue(ex.getMessage().contains("--application-classpath"));
   }
 
   @Test
-  void parse_missingDeploymentClasspath() {
+  void parse_missingApplicationModel() {
     var ex =
         assertThrows(
-            CommandLine.ParameterException.class,
-            () -> parse("--application-classpath", "a.jar", "--output-dir", "/out"));
-    assertTrue(ex.getMessage().contains("--deployment-classpath"));
+            CommandLine.MissingParameterException.class,
+            () ->
+                QuarkifierConfig.parse("--application-classpath", "a.jar", "--output-dir", "/out"));
+    assertTrue(ex.getMessage().contains("--application-model"));
   }
 
   @Test
   void parse_unknownArgument() {
     assertThrows(
         CommandLine.UnmatchedArgumentException.class,
-        () ->
-            parse(
-                "--application-classpath",
-                "a.jar",
-                "--deployment-classpath",
-                "d.jar",
-                "--output-dir",
-                "/out",
-                "--bogus-flag"));
+        () -> parse("--application-classpath", "a.jar", "--output-dir", "/out", "--bogus-flag"));
   }
 
   @Test
@@ -72,7 +69,6 @@ class QuarkifierConfigTest {
             () ->
                 parse(
                     "--application-classpath", "a.jar",
-                    "--deployment-classpath", "d.jar",
                     "--output-dir", "/out",
                     "--mode", "invalid"));
     assertTrue(ex.getMessage().contains("invalid"));
@@ -83,7 +79,6 @@ class QuarkifierConfigTest {
     var config =
         parse(
             "--application-classpath", "a.jar",
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out");
     assertEquals(AugmentationMode.NORMAL, config.mode());
   }
@@ -97,7 +92,6 @@ class QuarkifierConfigTest {
             () ->
                 parse(
                     "--application-classpath", "",
-                    "--deployment-classpath", "d.jar",
                     "--output-dir", "/out"));
     assertTrue(ex.getMessage().contains("--application-classpath"));
   }
@@ -107,7 +101,6 @@ class QuarkifierConfigTest {
     var config =
         parse(
             "--application-classpath", "a.jar",
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out",
             "--mode", "test");
     assertEquals(AugmentationMode.TEST, config.mode());
@@ -118,7 +111,6 @@ class QuarkifierConfigTest {
     var config =
         parse(
             "--application-classpath", "a.jar",
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out",
             "--source-dirs", "src/main/java,lib/src/main/java");
     assertEquals(
@@ -130,7 +122,6 @@ class QuarkifierConfigTest {
     var config =
         parse(
             "--application-classpath", "a.jar",
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out");
     assertTrue(config.sourceDirs().isEmpty());
   }
@@ -140,7 +131,6 @@ class QuarkifierConfigTest {
     var config =
         parse(
             "--application-classpath", "a.jar",
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out",
             "--classes-dir", "/tmp/classes");
     assertEquals(Path.of("/tmp/classes"), config.classesDir());
@@ -151,7 +141,6 @@ class QuarkifierConfigTest {
     var config =
         parse(
             "--application-classpath", "a.jar",
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out");
     assertNull(config.classesDir());
   }
@@ -161,7 +150,6 @@ class QuarkifierConfigTest {
     var config =
         parse(
             "--application-classpath", "a.jar",
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out",
             "--bazel-targets", "//pkg:lib,//pkg:other");
     assertEquals(List.of("//pkg:lib", "//pkg:other"), config.bazelTargets());
@@ -172,7 +160,6 @@ class QuarkifierConfigTest {
     var config =
         parse(
             "--application-classpath", "a.jar",
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out");
     assertTrue(config.bazelTargets().isEmpty());
   }
@@ -182,7 +169,6 @@ class QuarkifierConfigTest {
     var config =
         parse(
             "--application-classpath", "a.jar",
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out",
             "--classes-output-dirs", "bazel-bin/pkg/lib,bazel-bin/pkg/other");
     assertEquals(
@@ -195,7 +181,6 @@ class QuarkifierConfigTest {
     var config =
         parse(
             "--application-classpath", "a.jar",
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out");
     assertTrue(config.classesOutputDirs().isEmpty());
   }
@@ -205,7 +190,6 @@ class QuarkifierConfigTest {
     var config =
         parse(
             "--application-classpath", "a.jar",
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out",
             "--workspace-dir", "/home/user/project");
     assertEquals(Path.of("/home/user/project"), config.workspaceDir());
@@ -216,7 +200,6 @@ class QuarkifierConfigTest {
     var config =
         parse(
             "--application-classpath", "a.jar",
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out");
     assertNull(config.workspaceDir());
   }
@@ -228,7 +211,6 @@ class QuarkifierConfigTest {
     var original =
         parse(
             "--application-classpath", "a.jar",
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out");
 
     assertEquals(original, parse(original.toArgs()));
@@ -239,14 +221,11 @@ class QuarkifierConfigTest {
     var original =
         parse(
             "--application-classpath", "a.jar:b.jar",
-            "--deployment-classpath", "d.jar:e.jar",
             "--core-deployment-classpath", "core.jar",
             "--output-dir", "/out",
             "--resources", "src/main/resources,extra/resources",
             "--mode", "dev",
-            "--expected-quarkus-version", "3.33.2",
             "--app-name", "my-app",
-            "--app-version", "1.2.3",
             "--main-class", "com.example.Main",
             "--native-builder-image", "quay.io/quarkus/builder:jdk-25",
             "--source-dirs", "src/main/java,lib/src/main/java",
@@ -269,27 +248,25 @@ class QuarkifierConfigTest {
     Path cpFile = tempDir.resolve("app_cp.txt");
     Files.writeString(cpFile, "a.jar:b.jar\n");
 
-    var config =
-        parse(
-            "--application-classpath-file", cpFile.toString(),
-            "--deployment-classpath", "d.jar",
-            "--output-dir", "/out");
+    var config = parse("--application-classpath-file", cpFile.toString(), "--output-dir", "/out");
 
     assertEquals(List.of(Path.of("a.jar"), Path.of("b.jar")), config.applicationClasspath());
   }
 
   @Test
-  void parse_deploymentClasspathFromFile(@TempDir Path tempDir) throws Exception {
-    Path cpFile = tempDir.resolve("deploy_cp.txt");
-    Files.writeString(cpFile, "d.jar:e.jar");
-
-    var config =
-        parse(
-            "--application-classpath", "a.jar",
-            "--deployment-classpath-file", cpFile.toString(),
-            "--output-dir", "/out");
-
-    assertEquals(List.of(Path.of("d.jar"), Path.of("e.jar")), config.deploymentClasspath());
+  void parse_removedLegacyOptionsAreRejected() {
+    for (String option :
+        List.of(
+            "--deployment-classpath",
+            "--deployment-classpath-file",
+            "--expected-quarkus-version",
+            "--app-version")) {
+      assertThrows(
+          CommandLine.UnmatchedArgumentException.class,
+          () ->
+              parse(
+                  "--application-classpath", "a.jar", "--output-dir", "/out", option, "obsolete"));
+    }
   }
 
   @Test
@@ -300,7 +277,6 @@ class QuarkifierConfigTest {
             () ->
                 parse(
                     "--application-classpath-file", "/nonexistent/cp.txt",
-                    "--deployment-classpath", "d.jar",
                     "--output-dir", "/out"));
     assertTrue(ex.getMessage().contains("/nonexistent/cp.txt"));
   }
@@ -313,7 +289,6 @@ class QuarkifierConfigTest {
     var config =
         parse(
             "--application-classpath", "a.jar",
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out",
             "--core-deployment-classpath-file", cpFile.toString());
 
@@ -329,7 +304,6 @@ class QuarkifierConfigTest {
     var config =
         parse(
             "--application-classpath", "a.jar",
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out",
             "--local-app-jars-file", jarsFile.toString());
 
@@ -348,7 +322,6 @@ class QuarkifierConfigTest {
             () ->
                 parse(
                     "--application-classpath", "a.jar",
-                    "--deployment-classpath", "d.jar",
                     "--output-dir", "/out",
                     "--main-class", "  "));
     assertTrue(ex.getMessage().contains("--main-class"));
@@ -362,7 +335,6 @@ class QuarkifierConfigTest {
             () ->
                 parse(
                     "--application-classpath", "a.jar",
-                    "--deployment-classpath", "d.jar",
                     "--output-dir", "/out",
                     "--native-builder-image", ""));
     assertTrue(ex.getMessage().contains("--native-builder-image"));
@@ -376,7 +348,6 @@ class QuarkifierConfigTest {
         () ->
             parse(
                 "--application-classpath", "a.jar",
-                "--deployment-classpath", "d.jar",
                 "--output-dir", "/out",
                 "--bazel-build-timeout-seconds", "soon"));
   }
@@ -388,7 +359,6 @@ class QuarkifierConfigTest {
         () ->
             parse(
                 "--application-classpath", "a.jar",
-                "--deployment-classpath", "d.jar",
                 "--output-dir", "/out",
                 "--bazel-build-timeout-seconds", "-5"));
   }
@@ -398,7 +368,6 @@ class QuarkifierConfigTest {
     var config =
         parse(
             "--application-classpath", "a.jar",
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out");
     assertEquals(600, config.bazelBuildTimeoutSeconds());
   }
@@ -408,7 +377,6 @@ class QuarkifierConfigTest {
     var config =
         parse(
             "--application-classpath", "a.jar",
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out");
     assertEquals("bazel", config.bazelCommand());
     assertEquals(List.of(), config.bazelBuildArgs());
@@ -419,7 +387,6 @@ class QuarkifierConfigTest {
     var config =
         parse(
             "--application-classpath", "a.jar",
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out",
             "--bazel-command", "/opt/bazelisk",
             "--bazel-build-args", "--config=dev,-c,opt");
@@ -437,7 +404,6 @@ class QuarkifierConfigTest {
             () ->
                 parse(
                     "--application-classpath", "a.jar",
-                    "--deployment-classpath", "d.jar",
                     "--output-dir", "/out",
                     "--bazel-command", ""));
     assertTrue(ex.getMessage().contains("--bazel-command"));
@@ -452,7 +418,6 @@ class QuarkifierConfigTest {
         () ->
             parse(
                 "--application-classpath", "a.jar",
-                "--deployment-classpath", "d.jar",
                 "--output-dir", ""));
   }
 
@@ -477,6 +442,11 @@ class QuarkifierConfigTest {
   }
 
   @Test
+  void packagedToolDeclaresTargetedQuarkusVersion() {
+    assertNotEquals("unknown", QuarkifierVersionProvider.targetedQuarkusVersion());
+  }
+
+  @Test
   void usageError_exitCodeIsTwo() {
     // augmentation without required --output-dir → exit 2
     int exitCode = QuarkifierCommand.createCommandLine().execute("augmentation");
@@ -491,7 +461,7 @@ class QuarkifierConfigTest {
 
     int exitCode =
         commandLine.execute(
-            "augmentation", "--deployment-classpath", "d.jar", "--output-dir", "/out");
+            "augmentation", "--application-model", "model.json", "--output-dir", "/out");
 
     assertEquals(2, exitCode);
     assertTrue(errorOutput.toString().contains("--application-classpath"));
@@ -507,7 +477,6 @@ class QuarkifierConfigTest {
         parse(
             "--application-classpath", "inline.jar",
             "--application-classpath-file", cpFile.toString(),
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out");
 
     assertEquals(List.of(Path.of("from-file.jar")), config.applicationClasspath());
@@ -523,7 +492,6 @@ class QuarkifierConfigTest {
         parse(
             "--application-classpath-file", cpFile.toString(),
             "--application-classpath", "inline.jar",
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out");
 
     assertEquals(List.of(Path.of("from-file.jar")), config.applicationClasspath());
@@ -535,7 +503,6 @@ class QuarkifierConfigTest {
     var config =
         parse(
             "--application-classpath", "a.jar",
-            "--deployment-classpath", "d.jar",
             "--output-dir", "/out",
             "--mode", "test",
             "--mode", "dev");

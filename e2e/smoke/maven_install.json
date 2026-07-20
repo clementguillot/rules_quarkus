@@ -11,6 +11,7 @@
     "io.quarkus:quarkus-core-deployment": 950899707,
     "io.quarkus:quarkus-extension-processor": 1093258188,
     "io.quarkus:quarkus-junit": -607105226,
+    "io.quarkus:quarkus-kotlin": 158644689,
     "io.quarkus:quarkus-rest": -2129969500,
     "io.rest-assured:rest-assured": -564555206,
     "org.junit.jupiter:junit-jupiter": -2009586108,
@@ -93,6 +94,7 @@
     "io.quarkus:quarkus-junit": -2083339591,
     "io.quarkus:quarkus-junit-common": 1334894697,
     "io.quarkus:quarkus-junit-config": 937428723,
+    "io.quarkus:quarkus-kotlin": -901638103,
     "io.quarkus:quarkus-mutiny": 1017454100,
     "io.quarkus:quarkus-netty": 1089003681,
     "io.quarkus:quarkus-rest": -244959429,
@@ -134,6 +136,7 @@
     "io.smallrye.config:smallrye-config-common": -2015173406,
     "io.smallrye.config:smallrye-config-core": -981282327,
     "io.smallrye.reactive:mutiny": 1238625008,
+    "io.smallrye.reactive:mutiny-kotlin": -453649463,
     "io.smallrye.reactive:mutiny-smallrye-context-propagation": 438044661,
     "io.smallrye.reactive:mutiny-zero-flow-adapters": -1034804767,
     "io.smallrye.reactive:smallrye-mutiny-vertx-auth-common": 602955190,
@@ -149,6 +152,7 @@
     "io.smallrye:smallrye-context-propagation": 786105975,
     "io.smallrye:smallrye-context-propagation-api": 2087773564,
     "io.smallrye:smallrye-context-propagation-storage": -380864209,
+    "io.smallrye:smallrye-fault-tolerance-kotlin": 1268715803,
     "io.smallrye:smallrye-fault-tolerance-vertx": 1227906790,
     "io.vertx:vertx-auth-common": 1390224344,
     "io.vertx:vertx-bridge-common": -1225050642,
@@ -234,6 +238,14 @@
     "org.jboss.slf4j:slf4j-jboss-logmanager": -1436669637,
     "org.jboss.threads:jboss-threads": -983319831,
     "org.jctools:jctools-core": 473448173,
+    "org.jetbrains.kotlin:kotlin-reflect": -1168038027,
+    "org.jetbrains.kotlin:kotlin-stdlib": 251078790,
+    "org.jetbrains.kotlin:kotlin-stdlib-jdk7": 1824653863,
+    "org.jetbrains.kotlin:kotlin-stdlib-jdk8": -1569531214,
+    "org.jetbrains.kotlinx:kotlinx-coroutines-core": 893755309,
+    "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm": -454368340,
+    "org.jetbrains.kotlinx:kotlinx-coroutines-jdk8": 1926111233,
+    "org.jetbrains:annotations": 1790698553,
     "org.jsoup:jsoup": -980892572,
     "org.jspecify:jspecify": 117231129,
     "org.junit.jupiter:junit-jupiter": -1180454764,
@@ -708,6 +720,12 @@
       },
       "version": "3.33.2"
     },
+    "io.quarkus:quarkus-kotlin": {
+      "shasums": {
+        "jar": "ec6cb75d3539181fb64a5de1b808e6ac98f2a244447b7e8b531620cc9bc6b881"
+      },
+      "version": "3.33.2"
+    },
     "io.quarkus:quarkus-mutiny": {
       "shasums": {
         "jar": "a3bb17178cc764ec5f8db954592cd87a165a255e438b2872ce65536ca1e79b33"
@@ -954,6 +972,12 @@
       },
       "version": "3.1.1"
     },
+    "io.smallrye.reactive:mutiny-kotlin": {
+      "shasums": {
+        "jar": "f572158fc4e9647e47c826578adef89bb15c9cbd965c31ca20a8bec605b7e340"
+      },
+      "version": "3.1.1"
+    },
     "io.smallrye.reactive:mutiny-smallrye-context-propagation": {
       "shasums": {
         "jar": "6ff915c658e8f14bdd59425e697c2bf3c7e409a09f9eb68446af32157f5152e1"
@@ -1043,6 +1067,12 @@
         "jar": "0fb685500b833b819c934147f0d2f0ab00397df196442aa3fa0b1a6d962dedd0"
       },
       "version": "2.3.0"
+    },
+    "io.smallrye:smallrye-fault-tolerance-kotlin": {
+      "shasums": {
+        "jar": "6f83d509cd7f430510fdffa252c537043eb6ff9e888d8c00aa218fa070a2785c"
+      },
+      "version": "6.10.1"
     },
     "io.smallrye:smallrye-fault-tolerance-vertx": {
       "shasums": {
@@ -1554,6 +1584,54 @@
       },
       "version": "4.0.5"
     },
+    "org.jetbrains.kotlin:kotlin-reflect": {
+      "shasums": {
+        "jar": "10b4a1b5e3957efe90f474bd04a747249a259b2615a6f0504507d323c2be350b"
+      },
+      "version": "2.3.10"
+    },
+    "org.jetbrains.kotlin:kotlin-stdlib": {
+      "shasums": {
+        "jar": "f61662c6d3a2f8ef5bd34362a02d877772c39f393cd394feb259dfaf7f4d8437"
+      },
+      "version": "2.3.10"
+    },
+    "org.jetbrains.kotlin:kotlin-stdlib-jdk7": {
+      "shasums": {
+        "jar": "9c208de17b6d0d701629cb972eb568d092f28af863e32ef68f22374dc8b8b8fb"
+      },
+      "version": "2.3.10"
+    },
+    "org.jetbrains.kotlin:kotlin-stdlib-jdk8": {
+      "shasums": {
+        "jar": "6581d8c24374200577b84149d8be7f744e07e1cd3bc425179a3b9d07bf3f6741"
+      },
+      "version": "2.3.10"
+    },
+    "org.jetbrains.kotlinx:kotlinx-coroutines-core": {
+      "shasums": {
+        "jar": "319b653009d49c70982f98df29cc84fc7025b092cb0571c8e7532e3ad4366dae"
+      },
+      "version": "1.10.2"
+    },
+    "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm": {
+      "shasums": {
+        "jar": "5ca175b38df331fd64155b35cd8cae1251fa9ee369709b36d42e0a288ccce3fd"
+      },
+      "version": "1.10.2"
+    },
+    "org.jetbrains.kotlinx:kotlinx-coroutines-jdk8": {
+      "shasums": {
+        "jar": "f861f9fa3b3088e6f7c59bc92a91adacf687b5bdeb081cf3608c5454f7739625"
+      },
+      "version": "1.10.2"
+    },
+    "org.jetbrains:annotations": {
+      "shasums": {
+        "jar": "2037be378980d3ba9333e97955f3b2cde392aa124d04ca73ce2eee6657199297"
+      },
+      "version": "26.0.2"
+    },
     "org.jsoup:jsoup": {
       "shasums": {
         "jar": "e20a5e78b1372f2a4e620832db4442d5077e5cbde280b24c666a3770844999bc"
@@ -2023,6 +2101,16 @@
       "io.smallrye.config:smallrye-config",
       "org.junit.jupiter:junit-jupiter-api"
     ],
+    "io.quarkus:quarkus-kotlin": [
+      "io.quarkus:quarkus-core",
+      "io.smallrye.reactive:mutiny-kotlin",
+      "io.smallrye:smallrye-fault-tolerance-kotlin",
+      "org.jetbrains.kotlin:kotlin-reflect",
+      "org.jetbrains.kotlin:kotlin-stdlib",
+      "org.jetbrains.kotlin:kotlin-stdlib-jdk8",
+      "org.jetbrains.kotlinx:kotlinx-coroutines-jdk8",
+      "org.jetbrains:annotations"
+    ],
     "io.quarkus:quarkus-mutiny": [
       "io.quarkus:quarkus-core",
       "io.quarkus:quarkus-smallrye-context-propagation",
@@ -2250,6 +2338,11 @@
     "io.smallrye.reactive:mutiny": [
       "io.smallrye.common:smallrye-common-annotation",
       "org.jctools:jctools-core"
+    ],
+    "io.smallrye.reactive:mutiny-kotlin": [
+      "io.smallrye.reactive:mutiny",
+      "org.jetbrains.kotlin:kotlin-stdlib",
+      "org.jetbrains.kotlinx:kotlinx-coroutines-core"
     ],
     "io.smallrye.reactive:mutiny-smallrye-context-propagation": [
       "io.smallrye.reactive:mutiny",
@@ -2570,6 +2663,30 @@
       "io.smallrye.common:smallrye-common-function",
       "org.jboss.logging:jboss-logging",
       "org.wildfly.common:wildfly-common"
+    ],
+    "org.jetbrains.kotlin:kotlin-reflect": [
+      "org.jetbrains.kotlin:kotlin-stdlib"
+    ],
+    "org.jetbrains.kotlin:kotlin-stdlib": [
+      "org.jetbrains:annotations"
+    ],
+    "org.jetbrains.kotlin:kotlin-stdlib-jdk7": [
+      "org.jetbrains.kotlin:kotlin-stdlib"
+    ],
+    "org.jetbrains.kotlin:kotlin-stdlib-jdk8": [
+      "org.jetbrains.kotlin:kotlin-stdlib",
+      "org.jetbrains.kotlin:kotlin-stdlib-jdk7"
+    ],
+    "org.jetbrains.kotlinx:kotlinx-coroutines-core": [
+      "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm"
+    ],
+    "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm": [
+      "org.jetbrains.kotlin:kotlin-stdlib",
+      "org.jetbrains:annotations"
+    ],
+    "org.jetbrains.kotlinx:kotlinx-coroutines-jdk8": [
+      "org.jetbrains.kotlin:kotlin-stdlib",
+      "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm"
     ],
     "org.junit.jupiter:junit-jupiter": [
       "org.junit.jupiter:junit-jupiter-api",
@@ -3581,6 +3698,10 @@
       "io.smallrye.mutiny.tuples",
       "io.smallrye.mutiny.unchecked"
     ],
+    "io.smallrye.reactive:mutiny-kotlin": [
+      "io.smallrye.mutiny",
+      "io.smallrye.mutiny.coroutines"
+    ],
     "io.smallrye.reactive:mutiny-smallrye-context-propagation": [
       "io.smallrye.mutiny.context"
     ],
@@ -3658,6 +3779,9 @@
     "io.smallrye:smallrye-context-propagation-storage": [
       "io.smallrye.context.storage.impl",
       "io.smallrye.context.storage.spi"
+    ],
+    "io.smallrye:smallrye-fault-tolerance-kotlin": [
+      "io.smallrye.faulttolerance.kotlin.impl"
     ],
     "io.smallrye:smallrye-fault-tolerance-vertx": [
       "io.smallrye.faulttolerance.vertx"
@@ -4595,6 +4719,147 @@
       "org.jctools.queues.unpadded",
       "org.jctools.util"
     ],
+    "org.jetbrains.kotlin:kotlin-reflect": [
+      "kotlin.reflect.full",
+      "kotlin.reflect.jvm",
+      "kotlin.reflect.jvm.internal",
+      "kotlin.reflect.jvm.internal.calls",
+      "kotlin.reflect.jvm.internal.impl",
+      "kotlin.reflect.jvm.internal.impl.builtins",
+      "kotlin.reflect.jvm.internal.impl.builtins.functions",
+      "kotlin.reflect.jvm.internal.impl.builtins.jvm",
+      "kotlin.reflect.jvm.internal.impl.descriptors",
+      "kotlin.reflect.jvm.internal.impl.descriptors.annotations",
+      "kotlin.reflect.jvm.internal.impl.descriptors.deserialization",
+      "kotlin.reflect.jvm.internal.impl.descriptors.impl",
+      "kotlin.reflect.jvm.internal.impl.descriptors.java",
+      "kotlin.reflect.jvm.internal.impl.descriptors.runtime.components",
+      "kotlin.reflect.jvm.internal.impl.descriptors.runtime.structure",
+      "kotlin.reflect.jvm.internal.impl.incremental",
+      "kotlin.reflect.jvm.internal.impl.incremental.components",
+      "kotlin.reflect.jvm.internal.impl.km",
+      "kotlin.reflect.jvm.internal.impl.km.internal",
+      "kotlin.reflect.jvm.internal.impl.km.internal.common",
+      "kotlin.reflect.jvm.internal.impl.km.internal.extensions",
+      "kotlin.reflect.jvm.internal.impl.km.jvm",
+      "kotlin.reflect.jvm.internal.impl.km.jvm.internal",
+      "kotlin.reflect.jvm.internal.impl.load.java",
+      "kotlin.reflect.jvm.internal.impl.load.java.components",
+      "kotlin.reflect.jvm.internal.impl.load.java.descriptors",
+      "kotlin.reflect.jvm.internal.impl.load.java.lazy",
+      "kotlin.reflect.jvm.internal.impl.load.java.lazy.descriptors",
+      "kotlin.reflect.jvm.internal.impl.load.java.lazy.types",
+      "kotlin.reflect.jvm.internal.impl.load.java.sources",
+      "kotlin.reflect.jvm.internal.impl.load.java.structure",
+      "kotlin.reflect.jvm.internal.impl.load.java.typeEnhancement",
+      "kotlin.reflect.jvm.internal.impl.load.kotlin",
+      "kotlin.reflect.jvm.internal.impl.load.kotlin.header",
+      "kotlin.reflect.jvm.internal.impl.metadata",
+      "kotlin.reflect.jvm.internal.impl.metadata.builtins",
+      "kotlin.reflect.jvm.internal.impl.metadata.deserialization",
+      "kotlin.reflect.jvm.internal.impl.metadata.jvm",
+      "kotlin.reflect.jvm.internal.impl.metadata.jvm.deserialization",
+      "kotlin.reflect.jvm.internal.impl.metadata.serialization",
+      "kotlin.reflect.jvm.internal.impl.name",
+      "kotlin.reflect.jvm.internal.impl.platform",
+      "kotlin.reflect.jvm.internal.impl.protobuf",
+      "kotlin.reflect.jvm.internal.impl.renderer",
+      "kotlin.reflect.jvm.internal.impl.resolve",
+      "kotlin.reflect.jvm.internal.impl.resolve.calls.inference",
+      "kotlin.reflect.jvm.internal.impl.resolve.constants",
+      "kotlin.reflect.jvm.internal.impl.resolve.deprecation",
+      "kotlin.reflect.jvm.internal.impl.resolve.descriptorUtil",
+      "kotlin.reflect.jvm.internal.impl.resolve.jvm",
+      "kotlin.reflect.jvm.internal.impl.resolve.sam",
+      "kotlin.reflect.jvm.internal.impl.resolve.scopes",
+      "kotlin.reflect.jvm.internal.impl.resolve.scopes.receivers",
+      "kotlin.reflect.jvm.internal.impl.serialization",
+      "kotlin.reflect.jvm.internal.impl.serialization.deserialization",
+      "kotlin.reflect.jvm.internal.impl.serialization.deserialization.builtins",
+      "kotlin.reflect.jvm.internal.impl.serialization.deserialization.descriptors",
+      "kotlin.reflect.jvm.internal.impl.storage",
+      "kotlin.reflect.jvm.internal.impl.types",
+      "kotlin.reflect.jvm.internal.impl.types.checker",
+      "kotlin.reflect.jvm.internal.impl.types.error",
+      "kotlin.reflect.jvm.internal.impl.types.extensions",
+      "kotlin.reflect.jvm.internal.impl.types.model",
+      "kotlin.reflect.jvm.internal.impl.types.typeUtil",
+      "kotlin.reflect.jvm.internal.impl.types.typesApproximation",
+      "kotlin.reflect.jvm.internal.impl.util",
+      "kotlin.reflect.jvm.internal.impl.util.capitalizeDecapitalize",
+      "kotlin.reflect.jvm.internal.impl.util.collectionUtils",
+      "kotlin.reflect.jvm.internal.impl.utils",
+      "kotlin.reflect.jvm.internal.impl.utils.addToStdlib",
+      "kotlin.reflect.jvm.internal.types"
+    ],
+    "org.jetbrains.kotlin:kotlin-stdlib": [
+      "kotlin",
+      "kotlin.annotation",
+      "kotlin.collections",
+      "kotlin.collections.builders",
+      "kotlin.collections.jdk8",
+      "kotlin.collections.unsigned",
+      "kotlin.comparisons",
+      "kotlin.concurrent",
+      "kotlin.concurrent.atomics",
+      "kotlin.concurrent.internal",
+      "kotlin.contracts",
+      "kotlin.coroutines",
+      "kotlin.coroutines.cancellation",
+      "kotlin.coroutines.intrinsics",
+      "kotlin.coroutines.jvm.internal",
+      "kotlin.enums",
+      "kotlin.experimental",
+      "kotlin.internal",
+      "kotlin.internal.jdk7",
+      "kotlin.internal.jdk8",
+      "kotlin.io",
+      "kotlin.io.encoding",
+      "kotlin.io.path",
+      "kotlin.jdk7",
+      "kotlin.js",
+      "kotlin.jvm",
+      "kotlin.jvm.functions",
+      "kotlin.jvm.internal",
+      "kotlin.jvm.internal.markers",
+      "kotlin.jvm.internal.unsafe",
+      "kotlin.jvm.jdk8",
+      "kotlin.jvm.optionals",
+      "kotlin.math",
+      "kotlin.properties",
+      "kotlin.random",
+      "kotlin.random.jdk8",
+      "kotlin.ranges",
+      "kotlin.reflect",
+      "kotlin.sequences",
+      "kotlin.streams.jdk8",
+      "kotlin.system",
+      "kotlin.text",
+      "kotlin.text.jdk8",
+      "kotlin.time",
+      "kotlin.time.jdk8",
+      "kotlin.uuid"
+    ],
+    "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm": [
+      "_COROUTINE",
+      "kotlinx.coroutines",
+      "kotlinx.coroutines.channels",
+      "kotlinx.coroutines.debug.internal",
+      "kotlinx.coroutines.flow",
+      "kotlinx.coroutines.flow.internal",
+      "kotlinx.coroutines.future",
+      "kotlinx.coroutines.internal",
+      "kotlinx.coroutines.intrinsics",
+      "kotlinx.coroutines.scheduling",
+      "kotlinx.coroutines.selects",
+      "kotlinx.coroutines.stream",
+      "kotlinx.coroutines.sync",
+      "kotlinx.coroutines.time"
+    ],
+    "org.jetbrains:annotations": [
+      "org.intellij.lang.annotations",
+      "org.jetbrains.annotations"
+    ],
     "org.jsoup:jsoup": [
       "org.jsoup",
       "org.jsoup.helper",
@@ -4940,6 +5205,7 @@
       "io.quarkus:quarkus-junit",
       "io.quarkus:quarkus-junit-common",
       "io.quarkus:quarkus-junit-config",
+      "io.quarkus:quarkus-kotlin",
       "io.quarkus:quarkus-mutiny",
       "io.quarkus:quarkus-netty",
       "io.quarkus:quarkus-rest",
@@ -4981,6 +5247,7 @@
       "io.smallrye.config:smallrye-config-common",
       "io.smallrye.config:smallrye-config-core",
       "io.smallrye.reactive:mutiny",
+      "io.smallrye.reactive:mutiny-kotlin",
       "io.smallrye.reactive:mutiny-smallrye-context-propagation",
       "io.smallrye.reactive:mutiny-zero-flow-adapters",
       "io.smallrye.reactive:smallrye-mutiny-vertx-auth-common",
@@ -4996,6 +5263,7 @@
       "io.smallrye:smallrye-context-propagation",
       "io.smallrye:smallrye-context-propagation-api",
       "io.smallrye:smallrye-context-propagation-storage",
+      "io.smallrye:smallrye-fault-tolerance-kotlin",
       "io.smallrye:smallrye-fault-tolerance-vertx",
       "io.vertx:vertx-auth-common",
       "io.vertx:vertx-bridge-common",
@@ -5081,6 +5349,14 @@
       "org.jboss.slf4j:slf4j-jboss-logmanager",
       "org.jboss.threads:jboss-threads",
       "org.jctools:jctools-core",
+      "org.jetbrains.kotlin:kotlin-reflect",
+      "org.jetbrains.kotlin:kotlin-stdlib",
+      "org.jetbrains.kotlin:kotlin-stdlib-jdk7",
+      "org.jetbrains.kotlin:kotlin-stdlib-jdk8",
+      "org.jetbrains.kotlinx:kotlinx-coroutines-core",
+      "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm",
+      "org.jetbrains.kotlinx:kotlinx-coroutines-jdk8",
+      "org.jetbrains:annotations",
       "org.jsoup:jsoup",
       "org.jspecify:jspecify",
       "org.junit.jupiter:junit-jupiter",
@@ -5340,6 +5616,11 @@
         "io.smallrye.context.SmallRyeContextManagerProvider"
       ]
     },
+    "io.smallrye:smallrye-fault-tolerance-kotlin": {
+      "io.smallrye.faulttolerance.core.invocation.AsyncSupport": [
+        "io.smallrye.faulttolerance.kotlin.impl.CoroutineSupport"
+      ]
+    },
     "io.smallrye:smallrye-fault-tolerance-vertx": {
       "io.smallrye.faulttolerance.core.event.loop.EventLoop": [
         "io.smallrye.faulttolerance.vertx.VertxEventLoop"
@@ -5414,6 +5695,19 @@
     "org.jboss.slf4j:slf4j-jboss-logmanager": {
       "org.slf4j.spi.SLF4JServiceProvider": [
         "org.slf4j.impl.JBossSlf4jServiceProvider"
+      ]
+    },
+    "org.jetbrains.kotlin:kotlin-reflect": {
+      "kotlin.reflect.jvm.internal.impl.builtins.BuiltInsLoader": [
+        "kotlin.reflect.jvm.internal.impl.serialization.deserialization.builtins.BuiltInsLoaderImpl"
+      ],
+      "kotlin.reflect.jvm.internal.impl.km.internal.extensions.MetadataExtensions": [
+        "kotlin.reflect.jvm.internal.impl.km.jvm.internal.JvmMetadataExtensions"
+      ],
+      "kotlin.reflect.jvm.internal.impl.resolve.ExternalOverridabilityCondition": [
+        "kotlin.reflect.jvm.internal.impl.load.java.ErasedOverridabilityCondition",
+        "kotlin.reflect.jvm.internal.impl.load.java.FieldOverridabilityCondition",
+        "kotlin.reflect.jvm.internal.impl.load.java.JavaIncompatibilityRulesOverridabilityCondition"
       ]
     },
     "org.junit.jupiter:junit-jupiter-engine": {

@@ -23,12 +23,10 @@ class BazelFileWatcherTest {
         new java.util.ArrayList<>(
             List.of(
                 "--application-classpath", "app.jar",
-                "--deployment-classpath", "deploy.jar",
+                "--application-model", "model.json",
                 "--output-dir", outputDir.toString(),
                 "--mode", "dev",
-                "--expected-quarkus-version", "3.27.4",
                 "--app-name", "test-app",
-                "--app-version", "1.0.0",
                 "--classes-dir", tempDir.resolve("classes").toString(),
                 "--bazel-targets", "//pkg:lib",
                 "--workspace-dir", tempDir.toString(),

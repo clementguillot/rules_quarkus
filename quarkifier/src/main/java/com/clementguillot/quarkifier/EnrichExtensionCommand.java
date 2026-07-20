@@ -1,5 +1,6 @@
 package com.clementguillot.quarkifier;
 
+import com.clementguillot.quarkifier.extension.ExtensionProjectInfo;
 import com.clementguillot.quarkifier.extension.ExtensionYamlEnricher;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -33,9 +34,23 @@ public final class EnrichExtensionCommand implements Callable<Integer> {
   @Parameters(index = "4", description = "Extension display name.")
   private String extensionName;
 
+  @Parameters(index = "5", description = "Extension group ID.")
+  private String groupId;
+
+  @Parameters(index = "6", description = "Extension artifact ID.")
+  private String artifactId;
+
+  @Parameters(index = "7", description = "Extension version.")
+  private String extensionVersion;
+
   @Override
   public Integer call() throws IOException {
-    ExtensionYamlEnricher.enrich(runtimeJar, output, quarkusVersion, classpathFile, extensionName);
+    ExtensionYamlEnricher.enrich(
+        runtimeJar,
+        output,
+        quarkusVersion,
+        classpathFile,
+        new ExtensionProjectInfo(extensionName, groupId, artifactId, extensionVersion));
     return 0;
   }
 }

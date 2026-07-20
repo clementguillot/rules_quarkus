@@ -59,7 +59,10 @@ quarkus.toolchain(
 use_repo(quarkus, "rules_quarkus")
 ```
 
-The `lock_file` is used to auto-discover which Quarkus extensions you're using and download their `-deployment` counterparts.
+The `lock_file` identifies the exact runtime jars to scan. For every jar carrying
+`META-INF/quarkus-extension.properties`, rules_quarkus resolves the descriptor's
+exact `deployment-artifact` coordinate; it does not infer names from groupIds or
+an `-deployment` suffix.
 
 The configured `quarkus_version` applies to every `quarkus_app`, generated `<name>_dev` target, and `quarkus_test` target in the workspace. For projects that need to validate both supported versions, use separate workspaces, separate example directories, or separate CI jobs with different `MODULE.bazel` configurations.
 
@@ -69,7 +72,7 @@ The configured `quarkus_version` applies to every `quarkus_app`, generated `<nam
 |---|---|---|
 | `quarkus_version` | (required) | Quarkus version: `"3.27.4"` or `"3.33.2"` |
 | `lock_file` | `None` | Path to `maven_install.json` for extension auto-discovery |
-| `extension_group_prefixes` | `["io.quarkus", "io.quarkiverse."]` | Maven groupId prefixes identifying Quarkus extensions |
+| `extension_group_prefixes` | `["io.quarkus", "io.quarkiverse."]` | Deprecated compatibility option; descriptor discovery no longer filters by groupId |
 | `quarkifier_source_dir` | `None` | Label in the rules_quarkus source dir for local dev builds |
 | `quarkifier_sha256` | `""` | SHA-256 pin for the quarkifier jar download. Released versions carry their own checksums, so this is only needed with `git_override`/`archive_override` (the build prints the hash to pin when verification is off) |
 
@@ -145,6 +148,27 @@ bazel run //:helloworld
 ```
 
 The application starts on `http://localhost:8080`. Visit `http://localhost:8080/hello` to see the response.
+
+### Inspect the resolved application model
+
+Every application exposes diagnostic output groups without changing the normal
+build outputs:
+
+```bash
+bazel build //:helloworld \
+  --output_groups=quarkus_model,quarkus_application_model
+```
+
+- `bazel-bin/helloworld.quarkus-bazel-model-v1.json` is the strict Bazel-owned
+  input: exact graph edges, scopes, classpath facts, workspace modules,
+  platforms, and provenance.
+- `bazel-bin/helloworld.quarkus-application-model.json` is the curated
+  Quarkus-native snapshot after the version adapter has run.
+
+Model assembly fails before Quarkus starts when it finds missing coordinates,
+dangling edges, duplicate identities, ambiguous artifact joins, or a missing
+descriptor-declared deployment artifact. This fail-closed behavior is internal;
+application BUILD declarations do not gain model attributes.
 
 ## 6. Dev Mode (Hot-Reload + Dev UI)
 

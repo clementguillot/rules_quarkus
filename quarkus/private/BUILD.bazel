@@ -1,7 +1,12 @@
 # Private implementation details for rules_quarkus.
 
+load(":model_catalogs_test.bzl", "model_catalogs_test_suite")
+
 exports_files([
+    "application_model_aspect.bzl",
     "launcher.sh.tpl",
+    "model_catalogs_test.bzl",
+    "model_assembly.bzl",
     "dev_launcher.sh.tpl",
     "test_launcher.sh.tpl",
     "quarkus_app_impl.bzl",
@@ -10,3 +15,5 @@ exports_files([
     "classpath_utils.bzl",
     "versions.bzl",
 ])
+
+model_catalogs_test_suite()
