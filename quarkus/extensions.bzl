@@ -962,8 +962,9 @@ def _write_conditional_build(rctx, all_jars):
         jar_repo_path = "jars/" + relative_jar_path
         if target_name in seen:
             seen[target_name] += 1
-            target_name = "{}_dup{}".format(target_name, seen[target_name])
-            jar_repo_path = "jars/dup{}/{}".format(seen[target_name], relative_jar_path)
+            n = seen[target_name]
+            target_name = "{}_dup{}".format(target_name, n)
+            jar_repo_path = "jars/dup{}/{}".format(n, relative_jar_path)
         else:
             seen[target_name] = 1
         copies.append((jar_path, "conditional/" + jar_repo_path))

@@ -1,7 +1,7 @@
 package com.clementguillot.quarkifier.model;
 
-import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.ArtifactCoordinates;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.Platform;
+import com.clementguillot.quarkifier.model.transport.BazelArtifactCoordinates;
 import io.quarkus.bootstrap.app.ApplicationModelSerializer;
 import io.quarkus.bootstrap.model.ApplicationModel;
 import io.quarkus.bootstrap.model.PlatformImports;
@@ -42,7 +42,7 @@ final class QuarkusModelVersionAdapter {
     platformMap.put("platform-properties", source.properties());
     platformMap.put(
         "imported-boms",
-        source.imports().stream().map(QuarkusModelVersionAdapter::coordinates).toList());
+        source.imports().stream().map(BazelArtifactCoordinates::canonical).toList());
     platformMap.put(
         "release-info",
         source.releases().stream()
@@ -55,23 +55,11 @@ final class QuarkusModelVersionAdapter {
                   releaseMap.put(
                       "boms",
                       release.memberBoms().stream()
-                          .map(QuarkusModelVersionAdapter::coordinates)
+                          .map(BazelArtifactCoordinates::canonical)
                           .toList());
                   return releaseMap;
                 })
             .toList());
     return PlatformImports.fromMap(platformMap);
-  }
-
-  private static String coordinates(ArtifactCoordinates coordinates) {
-    return coordinates.groupId()
-        + ":"
-        + coordinates.artifactId()
-        + ":"
-        + coordinates.classifier()
-        + ":"
-        + coordinates.type()
-        + ":"
-        + coordinates.version();
   }
 }

@@ -1,5 +1,20 @@
 package com.clementguillot.quarkifier.model.transport;
 
+import static com.clementguillot.quarkifier.model.transport.StrictJsonReader.bool;
+import static com.clementguillot.quarkifier.model.transport.StrictJsonReader.enumeration;
+import static com.clementguillot.quarkifier.model.transport.StrictJsonReader.fields;
+import static com.clementguillot.quarkifier.model.transport.StrictJsonReader.mapArray;
+import static com.clementguillot.quarkifier.model.transport.StrictJsonReader.nonBlank;
+import static com.clementguillot.quarkifier.model.transport.StrictJsonReader.nullableString;
+import static com.clementguillot.quarkifier.model.transport.StrictJsonReader.objectMap;
+import static com.clementguillot.quarkifier.model.transport.StrictJsonReader.parseRoot;
+import static com.clementguillot.quarkifier.model.transport.StrictJsonReader.problem;
+import static com.clementguillot.quarkifier.model.transport.StrictJsonReader.required;
+import static com.clementguillot.quarkifier.model.transport.StrictJsonReader.schema;
+import static com.clementguillot.quarkifier.model.transport.StrictJsonReader.string;
+import static com.clementguillot.quarkifier.model.transport.StrictJsonReader.stringArray;
+import static com.clementguillot.quarkifier.model.transport.StrictJsonReader.stringMap;
+
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.ArtifactCoordinates;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.ArtifactKey;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.DependencyScope;
@@ -19,12 +34,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -32,8 +43,12 @@ import java.util.Set;
 @SuppressWarnings({
   "PMD.AvoidDuplicateLiterals",
   "PMD.CouplingBetweenObjects",
+  "PMD.ExcessiveImports",
   "PMD.GodClass",
-  "PMD.TooManyMethods"
+  "PMD.TooManyMethods",
+  "PMD.TooManyStaticImports",
+  // Mapper methods are consumed through method references in mapArray calls.
+  "PMD.UnusedPrivateMethod"
 })
 public final class BazelModelInputReader {
 
@@ -41,15 +56,18 @@ public final class BazelModelInputReader {
 
   private BazelModelInputReader() {}
 
+  // ---- Public entry points ----
+
   public static Roots readRoots(Path path) throws IOException {
     return readRoots(readDocument(path));
   }
 
   public static Roots readRoots(String document) {
-    Map<String, Object> root = root(document);
+    Map<String, Object> root = parseRoot(document);
     fields(root, "$", "schemaVersion", "applicationLabel", "rootIds");
     schema(root, BazelModelInputs.ROOTS_SCHEMA);
-    var result = new Roots(string(root, "applicationLabel", "$"), strings(root, "rootIds", "$"));
+    var result =
+        new Roots(string(root, "applicationLabel", "$"), stringArray(root, "rootIds", "$"));
     nonBlank(result.applicationLabel(), "$.applicationLabel");
     uniqueNonBlank(result.rootIds(), "$.rootIds", false);
     return result;
@@ -60,7 +78,7 @@ public final class BazelModelInputReader {
   }
 
   public static TargetFragment readTargetFragment(String document) {
-    Map<String, Object> root = root(document);
+    Map<String, Object> root = parseRoot(document);
     fields(
         root,
         "$",
@@ -92,12 +110,12 @@ public final class BazelModelInputReader {
             string(root, "buildFile", "$"),
             bool(root, "neverlink", "$"),
             nullableCoordinates(root, "coordinates", "$"),
-            objects(root, "runtimeOutputJars", "$", BazelModelInputReader::fileReference),
-            objects(root, "outputDirectories", "$", BazelModelInputReader::fileReference),
-            objects(root, "sourceJars", "$", BazelModelInputReader::fileReference),
-            objects(root, "sources", "$", BazelModelInputReader::fileReference),
-            objects(root, "resources", "$", BazelModelInputReader::fileReference),
-            objects(root, "edges", "$", BazelModelInputReader::targetEdge));
+            mapArray(root, "runtimeOutputJars", "$", BazelModelInputReader::fileReference),
+            mapArray(root, "outputDirectories", "$", BazelModelInputReader::fileReference),
+            mapArray(root, "sourceJars", "$", BazelModelInputReader::fileReference),
+            mapArray(root, "sources", "$", BazelModelInputReader::fileReference),
+            mapArray(root, "resources", "$", BazelModelInputReader::fileReference),
+            mapArray(root, "edges", "$", BazelModelInputReader::targetEdge));
     validateTargetFragment(result);
     return result;
   }
@@ -107,13 +125,13 @@ public final class BazelModelInputReader {
   }
 
   public static RuntimeCatalog readRuntimeCatalog(String document) {
-    Map<String, Object> root = root(document);
+    Map<String, Object> root = parseRoot(document);
     fields(root, "$", "schemaVersion", "nodes", "directArtifacts", "conflictResolution");
     schema(root, BazelModelInputs.RUNTIME_CATALOG_SCHEMA);
     var result =
         new RuntimeCatalog(
-            objects(root, "nodes", "$", BazelModelInputReader::runtimeNode),
-            strings(root, "directArtifacts", "$"),
+            mapArray(root, "nodes", "$", BazelModelInputReader::runtimeNode),
+            stringArray(root, "directArtifacts", "$"),
             stringMap(root, "conflictResolution", "$"));
     validateRuntimeCatalog(result);
     return result;
@@ -124,7 +142,7 @@ public final class BazelModelInputReader {
   }
 
   public static DeploymentCatalog readDeploymentCatalog(String document) {
-    Map<String, Object> root = root(document);
+    Map<String, Object> root = parseRoot(document);
     fields(
         root,
         "$",
@@ -140,9 +158,9 @@ public final class BazelModelInputReader {
         new DeploymentCatalog(
             string(root, "resolver", "$"),
             string(root, "resolverReportVersion", "$"),
-            strings(root, "roots", "$"),
-            strings(root, "droppedRoots", "$"),
-            objects(root, "nodes", "$", BazelModelInputReader::deploymentNode),
+            stringArray(root, "roots", "$"),
+            stringArray(root, "droppedRoots", "$"),
+            mapArray(root, "nodes", "$", BazelModelInputReader::deploymentNode),
             stringMap(root, "conflictResolution", "$"));
     validateDeploymentCatalog(result);
     return result;
@@ -153,7 +171,7 @@ public final class BazelModelInputReader {
   }
 
   public static ConditionalCatalog readConditionalCatalog(String document) {
-    Map<String, Object> root = root(document);
+    Map<String, Object> root = parseRoot(document);
     fields(
         root,
         "$",
@@ -169,9 +187,9 @@ public final class BazelModelInputReader {
         new ConditionalCatalog(
             string(root, "resolver", "$"),
             string(root, "resolverReportVersion", "$"),
-            strings(root, "roots", "$"),
-            objects(root, "nodes", "$", BazelModelInputReader::conditionalNode),
-            objects(root, "extensions", "$", BazelModelInputReader::extensionDescriptor),
+            stringArray(root, "roots", "$"),
+            mapArray(root, "nodes", "$", BazelModelInputReader::conditionalNode),
+            mapArray(root, "extensions", "$", BazelModelInputReader::extensionDescriptor),
             stringMap(root, "conflictResolution", "$"));
     validateConditionalCatalog(result);
     return result;
@@ -182,37 +200,19 @@ public final class BazelModelInputReader {
   }
 
   public static PlatformCatalog readPlatformCatalog(String document) {
-    Map<String, Object> root = root(document);
+    Map<String, Object> root = parseRoot(document);
     fields(root, "$", "schemaVersion", "imports", "propertyFiles", "properties");
     schema(root, BazelModelInputs.PLATFORM_CATALOG_SCHEMA);
     var result =
         new PlatformCatalog(
-            objects(root, "imports", "$", BazelModelInputReader::coordinates),
-            strings(root, "propertyFiles", "$"),
+            mapArray(root, "imports", "$", BazelModelInputReader::coordinates),
+            stringArray(root, "propertyFiles", "$"),
             stringMap(root, "properties", "$"));
-    var imports = new HashSet<String>();
-    for (int index = 0; index < result.imports().size(); index++) {
-      ArtifactCoordinates coordinates = result.imports().get(index);
-      validateCoordinates(coordinates, "$.imports[" + index + "]");
-      if (!"pom".equals(coordinates.type()) || !coordinates.classifier().isEmpty()) {
-        throw problem("$.imports[" + index + "]", "platform imports must be unclassified POMs");
-      }
-      if (!imports.add(BazelArtifactCoordinates.canonical(coordinates))) {
-        throw problem("$.imports[" + index + "]", "duplicate platform import");
-      }
-    }
-    uniqueNonBlank(result.propertyFiles(), "$.propertyFiles", false);
-    result
-        .properties()
-        .forEach(
-            (key, value) -> {
-              nonBlank(key, "$.properties key");
-              if (value == null) {
-                throw problem("$.properties." + key, "must not be null");
-              }
-            });
+    validatePlatformCatalog(result);
     return result;
   }
+
+  // ---- Object mappers ----
 
   private static FileReference fileReference(Map<String, Object> value, String path) {
     fields(value, path, "path", "shortPath", "owner", "isSource");
@@ -230,7 +230,7 @@ public final class BazelModelInputReader {
         string(value, "relation", path),
         enumeration(value, "scope", path, DependencyScope.class),
         bool(value, "optional", path),
-        objects(value, "exclusions", path, BazelModelInputReader::artifactKey));
+        mapArray(value, "exclusions", path, BazelModelInputReader::artifactKey));
   }
 
   private static ArtifactKey artifactKey(Map<String, Object> value, String path) {
@@ -244,13 +244,12 @@ public final class BazelModelInputReader {
         string(value, "coordinateKey", path),
         string(value, "targetName", path),
         coordinates(
-            object(required(value, "coordinates", path), path + ".coordinates"),
+            objectMap(required(value, "coordinates", path), path + ".coordinates"),
             path + ".coordinates"),
-        strings(value, "dependencies", path));
+        stringArray(value, "dependencies", path));
   }
 
-  private static ArtifactCoordinates coordinates(Map<String, Object> value, String parentPath) {
-    String path = parentPath;
+  static ArtifactCoordinates coordinates(Map<String, Object> value, String path) {
     fields(value, path, "groupId", "artifactId", "classifier", "type", "version");
     return new ArtifactCoordinates(
         string(value, "groupId", path),
@@ -266,7 +265,7 @@ public final class BazelModelInputReader {
     if (raw == null) {
       return null;
     }
-    return coordinates(object(raw, path + "." + field), path + "." + field);
+    return coordinates(objectMap(raw, path + "." + field), path + "." + field);
   }
 
   private static DeploymentCatalogNode deploymentNode(Map<String, Object> value, String path) {
@@ -274,8 +273,8 @@ public final class BazelModelInputReader {
     return new DeploymentCatalogNode(
         string(value, "coordinate", path),
         string(value, "repoPath", path),
-        strings(value, "dependencies", path),
-        strings(value, "exclusions", path));
+        stringArray(value, "dependencies", path),
+        stringArray(value, "exclusions", path));
   }
 
   private static ConditionalCatalogNode conditionalNode(Map<String, Object> value, String path) {
@@ -283,8 +282,8 @@ public final class BazelModelInputReader {
     return new ConditionalCatalogNode(
         string(value, "coordinate", path),
         string(value, "repoPath", path),
-        strings(value, "dependencies", path),
-        strings(value, "exclusions", path));
+        stringArray(value, "dependencies", path),
+        stringArray(value, "exclusions", path));
   }
 
   private static ExtensionDescriptor extensionDescriptor(Map<String, Object> value, String path) {
@@ -299,10 +298,12 @@ public final class BazelModelInputReader {
     return new ExtensionDescriptor(
         string(value, "runtimeArtifact", path),
         string(value, "deploymentArtifact", path),
-        strings(value, "conditionalDependencies", path),
-        strings(value, "conditionalDevDependencies", path),
-        strings(value, "dependencyConditions", path));
+        stringArray(value, "conditionalDependencies", path),
+        stringArray(value, "conditionalDevDependencies", path),
+        stringArray(value, "dependencyConditions", path));
   }
+
+  // ---- Validation ----
 
   private static void validateTargetFragment(TargetFragment value) {
     nonBlank(value.targetId(), "$.targetId");
@@ -324,6 +325,10 @@ public final class BazelModelInputReader {
     validateFiles(value.sourceJars(), "$.sourceJars", true);
     validateFiles(value.sources(), "$.sources", true);
     validateFiles(value.resources(), "$.resources", true);
+    validateEdges(value);
+  }
+
+  private static void validateEdges(TargetFragment value) {
     var edgeKeys = new HashSet<String>();
     for (int index = 0; index < value.edges().size(); index++) {
       TargetEdge edge = value.edges().get(index);
@@ -447,9 +452,15 @@ public final class BazelModelInputReader {
         throw problem("$.roots", "unknown conditional coordinate '" + root + "'");
       }
     }
+    validateExtensions(value.extensions(), coordinates);
+    validateStringMap(value.conflictResolution(), "$.conflictResolution");
+  }
+
+  private static void validateExtensions(
+      List<ExtensionDescriptor> extensions, Set<String> resolvedCoordinates) {
     var runtimes = new HashSet<String>();
-    for (int index = 0; index < value.extensions().size(); index++) {
-      ExtensionDescriptor descriptor = value.extensions().get(index);
+    for (int index = 0; index < extensions.size(); index++) {
+      ExtensionDescriptor descriptor = extensions.get(index);
       String path = "$.extensions[" + index + "]";
       String runtime =
           BazelArtifactCoordinates.canonical(
@@ -459,16 +470,43 @@ public final class BazelModelInputReader {
         throw problem(path + ".runtimeArtifact", "duplicate extension descriptor");
       }
       validateConditionalCoordinates(
-          descriptor.conditionalDependencies(), path + ".conditionalDependencies", coordinates);
+          descriptor.conditionalDependencies(),
+          path + ".conditionalDependencies",
+          resolvedCoordinates);
       validateConditionalCoordinates(
           descriptor.conditionalDevDependencies(),
           path + ".conditionalDevDependencies",
-          coordinates);
+          resolvedCoordinates);
       uniqueNonBlank(descriptor.dependencyConditions(), path + ".dependencyConditions", true);
       descriptor.dependencyConditions().forEach(condition -> validateArtifactKey(condition, path));
     }
-    validateStringMap(value.conflictResolution(), "$.conflictResolution");
   }
+
+  private static void validatePlatformCatalog(PlatformCatalog result) {
+    var imports = new HashSet<String>();
+    for (int index = 0; index < result.imports().size(); index++) {
+      ArtifactCoordinates coord = result.imports().get(index);
+      validateCoordinates(coord, "$.imports[" + index + "]");
+      if (!"pom".equals(coord.type()) || !coord.classifier().isEmpty()) {
+        throw problem("$.imports[" + index + "]", "platform imports must be unclassified POMs");
+      }
+      if (!imports.add(BazelArtifactCoordinates.canonical(coord))) {
+        throw problem("$.imports[" + index + "]", "duplicate platform import");
+      }
+    }
+    uniqueNonBlank(result.propertyFiles(), "$.propertyFiles", false);
+    result
+        .properties()
+        .forEach(
+            (key, value) -> {
+              nonBlank(key, "$.properties key");
+              if (value == null) {
+                throw problem("$.properties." + key, "must not be null");
+              }
+            });
+  }
+
+  // ---- Validation helpers ----
 
   private static void validateConditionalCoordinates(
       List<String> values, String path, Set<String> resolvedCoordinates) {
@@ -556,135 +594,6 @@ public final class BazelModelInputReader {
     }
   }
 
-  private static String readDocument(Path path) throws IOException {
-    if (Files.size(path) > MAX_DOCUMENT_BYTES) {
-      throw new BazelApplicationModelException("Model input exceeds size limit: " + path);
-    }
-    return Files.readString(path, StandardCharsets.UTF_8);
-  }
-
-  private static Map<String, Object> root(String document) {
-    return object(StrictJson.parse(document), "$");
-  }
-
-  private static void schema(Map<String, Object> root, String expected) {
-    String actual = string(root, "schemaVersion", "$");
-    String path = "$.schemaVersion";
-    if (!expected.equals(actual)) {
-      throw problem(path, "expected '" + expected + "', got '" + actual + "'");
-    }
-  }
-
-  private static <T> T enumeration(
-      Map<String, Object> value, String field, String path, Class<T> type) {
-    String raw = string(value, field, path);
-    for (T constant : type.getEnumConstants()) {
-      if (((Enum<?>) constant).name().toLowerCase(Locale.ROOT).equals(raw)) {
-        return constant;
-      }
-    }
-    throw problem(path + "." + field, "unsupported enum value '" + raw + "'");
-  }
-
-  private static String string(Map<String, Object> value, String field, String path) {
-    Object raw = required(value, field, path);
-    if (!(raw instanceof String result)) {
-      throw problem(path + "." + field, "expected a string");
-    }
-    return result;
-  }
-
-  private static String nullableString(Map<String, Object> value, String field, String path) {
-    Object raw = required(value, field, path);
-    if (raw == null) {
-      return null;
-    }
-    if (!(raw instanceof String result)) {
-      throw problem(path + "." + field, "expected a string or null");
-    }
-    return result;
-  }
-
-  private static boolean bool(Map<String, Object> value, String field, String path) {
-    Object raw = required(value, field, path);
-    if (!(raw instanceof Boolean result)) {
-      throw problem(path + "." + field, "expected a boolean");
-    }
-    return result;
-  }
-
-  private static List<String> strings(Map<String, Object> value, String field, String path) {
-    List<Object> raw = array(required(value, field, path), path + "." + field);
-    var result = new ArrayList<String>(raw.size());
-    for (int index = 0; index < raw.size(); index++) {
-      if (!(raw.get(index) instanceof String element)) {
-        throw problem(path + "." + field + "[" + index + "]", "expected a string");
-      }
-      result.add(element);
-    }
-    return result;
-  }
-
-  private static Map<String, String> stringMap(
-      Map<String, Object> value, String field, String path) {
-    Map<String, Object> raw = object(required(value, field, path), path + "." + field);
-    var result = new LinkedHashMap<String, String>();
-    raw.forEach(
-        (key, element) -> {
-          if (!(element instanceof String string)) {
-            throw problem(path + "." + field + "." + key, "expected a string");
-          }
-          result.put(key, string);
-        });
-    return result;
-  }
-
-  private static <T> List<T> objects(
-      Map<String, Object> value, String field, String path, ObjectMapper<T> mapper) {
-    List<Object> raw = array(required(value, field, path), path + "." + field);
-    var result = new ArrayList<T>(raw.size());
-    for (int index = 0; index < raw.size(); index++) {
-      String itemPath = path + "." + field + "[" + index + "]";
-      result.add(mapper.map(object(raw.get(index), itemPath), itemPath));
-    }
-    return result;
-  }
-
-  @SuppressWarnings("unchecked")
-  private static Map<String, Object> object(Object value, String path) {
-    if (!(value instanceof Map<?, ?>)) {
-      throw problem(path, "expected an object");
-    }
-    return (Map<String, Object>) value;
-  }
-
-  @SuppressWarnings("unchecked")
-  private static List<Object> array(Object value, String path) {
-    if (!(value instanceof List<?>)) {
-      throw problem(path, "expected an array");
-    }
-    return (List<Object>) value;
-  }
-
-  private static Object required(Map<String, Object> value, String field, String path) {
-    if (!value.containsKey(field)) {
-      throw problem(path, "missing required field '" + field + "'");
-    }
-    return value.get(field);
-  }
-
-  private static void fields(Map<String, Object> value, String path, String... expectedFields) {
-    Set<String> expected = new LinkedHashSet<>(List.of(expectedFields));
-    for (String field : value.keySet()) {
-      if (!expected.contains(field)) {
-        throw problem(path, "unknown field '" + field + "'");
-      }
-    }
-    for (String field : expected) {
-      required(value, field, path);
-    }
-  }
-
   private static void uniqueNonBlank(List<String> values, String path, boolean allowEmpty) {
     if (!allowEmpty && values.isEmpty()) {
       throw problem(path, "must not be empty");
@@ -707,19 +616,10 @@ public final class BazelModelInputReader {
         });
   }
 
-  private static void nonBlank(String value, String path) {
-    if (value == null || value.isBlank()) {
-      throw problem(path, "must not be blank");
+  private static String readDocument(Path path) throws IOException {
+    if (Files.size(path) > MAX_DOCUMENT_BYTES) {
+      throw new BazelApplicationModelException("Model input exceeds size limit: " + path);
     }
-  }
-
-  private static BazelApplicationModelException problem(String path, String message) {
-    return new BazelApplicationModelException(
-        "Invalid Bazel model input at " + path + ": " + message);
-  }
-
-  @FunctionalInterface
-  private interface ObjectMapper<T> {
-    T map(Map<String, Object> value, String path);
+    return Files.readString(path, StandardCharsets.UTF_8);
   }
 }

@@ -9,6 +9,7 @@ import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.Sourc
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.WorkspaceModule;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModelValidator;
 import com.clementguillot.quarkifier.model.transport.BazelArtifactCoordinates;
+import com.clementguillot.quarkifier.model.transport.ExtensionDescriptorReader;
 import io.quarkus.bootstrap.model.ApplicationModel;
 import io.quarkus.bootstrap.model.ApplicationModelBuilder;
 import io.quarkus.bootstrap.model.CapabilityContract;
@@ -23,7 +24,6 @@ import io.quarkus.maven.dependency.DependencyFlags;
 import io.quarkus.maven.dependency.ResolvedDependencyBuilder;
 import io.quarkus.paths.PathList;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -36,7 +36,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
-import java.util.jar.JarFile;
 
 /** Quarkus adapter for the validated, version-independent Bazel model transport. */
 @SuppressWarnings({
@@ -47,8 +46,6 @@ import java.util.jar.JarFile;
   "PMD.TooManyMethods"
 })
 public final class ExplicitApplicationModelBuilder {
-
-  private static final String DESCRIPTOR = "META-INF/quarkus-extension.properties";
 
   private ExplicitApplicationModelBuilder() {}
 
@@ -544,16 +541,9 @@ public final class ExplicitApplicationModelBuilder {
         if (!rawPath.endsWith(".jar")) {
           continue;
         }
-        try (JarFile jar = new JarFile(Path.of(rawPath).toFile())) {
-          var entry = jar.getJarEntry(DESCRIPTOR);
-          if (entry == null) {
-            continue;
-          }
-          Properties properties = new Properties();
-          try (InputStream input = jar.getInputStream(entry)) {
-            properties.load(input);
-          }
-          return Optional.of(properties);
+        Optional<Properties> result = ExtensionDescriptorReader.readFromJar(Path.of(rawPath));
+        if (result.isPresent()) {
+          return result;
         }
       }
       return Optional.empty();

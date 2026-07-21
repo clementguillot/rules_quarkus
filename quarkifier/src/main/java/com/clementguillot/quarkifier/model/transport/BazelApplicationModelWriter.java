@@ -320,7 +320,7 @@ public final class BazelApplicationModelWriter {
       if (index > 0) {
         comma(json);
       }
-      quoted(json, values.get(index));
+      StrictJson.appendQuoted(json, values.get(index));
     }
     json.append(']');
   }
@@ -336,63 +336,24 @@ public final class BazelApplicationModelWriter {
   }
 
   private static void member(StringBuilder json, String name, String value) {
-    quoted(json, name);
+    StrictJson.appendQuoted(json, name);
     json.append(':');
-    quoted(json, value);
+    StrictJson.appendQuoted(json, value);
   }
 
   private static void nullableMember(StringBuilder json, String name, String value) {
-    quoted(json, name);
+    StrictJson.appendQuoted(json, name);
     json.append(':');
     if (value == null) {
       json.append("null");
     } else {
-      quoted(json, value);
+      StrictJson.appendQuoted(json, value);
     }
   }
 
   private static void booleanMember(StringBuilder json, String name, boolean value) {
-    quoted(json, name);
+    StrictJson.appendQuoted(json, name);
     json.append(':').append(value);
-  }
-
-  private static void quoted(StringBuilder json, String value) {
-    json.append('"');
-    for (int index = 0; index < value.length(); index++) {
-      char current = value.charAt(index);
-      switch (current) {
-        case '"' -> json.append("\\\"");
-        case '\\' -> json.append("\\\\");
-        case '\b' -> json.append("\\b");
-        case '\f' -> json.append("\\f");
-        case '\n' -> json.append("\\n");
-        case '\r' -> json.append("\\r");
-        case '\t' -> json.append("\\t");
-        default -> appendCharacter(json, value, index, current);
-      }
-      if (Character.isHighSurrogate(current)) {
-        index++;
-      }
-    }
-    json.append('"');
-  }
-
-  private static void appendCharacter(StringBuilder json, String value, int index, char current) {
-    if (current < 0x20) {
-      json.append(String.format(Locale.ROOT, "\\u%04x", (int) current));
-      return;
-    }
-    if (Character.isLowSurrogate(current)) {
-      throw new BazelApplicationModelException("Cannot serialize an unpaired low surrogate");
-    }
-    if (Character.isHighSurrogate(current)) {
-      if (index + 1 >= value.length() || !Character.isLowSurrogate(value.charAt(index + 1))) {
-        throw new BazelApplicationModelException("Cannot serialize an unpaired high surrogate");
-      }
-      json.append(current).append(value.charAt(index + 1));
-      return;
-    }
-    json.append(current);
   }
 
   private static void comma(StringBuilder json) {

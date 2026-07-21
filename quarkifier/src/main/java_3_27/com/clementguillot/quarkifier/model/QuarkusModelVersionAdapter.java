@@ -2,6 +2,7 @@ package com.clementguillot.quarkifier.model;
 
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.ArtifactCoordinates;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.Platform;
+import com.clementguillot.quarkifier.model.transport.BazelArtifactCoordinates;
 import io.quarkus.bootstrap.model.ApplicationModel;
 import io.quarkus.bootstrap.model.PlatformImports;
 import io.quarkus.bootstrap.model.PlatformImportsImpl;
@@ -66,7 +67,7 @@ final class QuarkusModelVersionAdapter {
                         + "#"
                         + release.version(),
                     release.memberBoms().stream()
-                        .map(QuarkusModelVersionAdapter::coordinates)
+                        .map(BazelArtifactCoordinates::canonical)
                         .reduce((left, right) -> left + "," + right)
                         .orElse("")));
     Path temporary = Files.createTempFile("rules-quarkus-platform-", ".properties");
@@ -95,17 +96,5 @@ final class QuarkusModelVersionAdapter {
       Files.deleteIfExists(temporary);
     }
     return result;
-  }
-
-  private static String coordinates(ArtifactCoordinates coordinates) {
-    return coordinates.groupId()
-        + ":"
-        + coordinates.artifactId()
-        + ":"
-        + coordinates.classifier()
-        + ":"
-        + coordinates.type()
-        + ":"
-        + coordinates.version();
   }
 }

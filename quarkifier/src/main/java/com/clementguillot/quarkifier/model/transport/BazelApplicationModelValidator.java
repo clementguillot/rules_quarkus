@@ -8,7 +8,6 @@ import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.NodeK
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.SourceSet;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.WorkspaceModule;
 import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -271,29 +270,39 @@ public final class BazelApplicationModelValidator {
 
   private static void validateAcyclic(Map<String, Node> nodes) {
     var state = new HashMap<String, VisitState>();
-    var stack = new ArrayDeque<String>();
-    for (String id : nodes.keySet()) {
-      visit(id, nodes, state, stack);
+    var stack = new ArrayDeque<Frame>();
+    for (String startId : nodes.keySet()) {
+      if (state.get(startId) == VisitState.VISITED) {
+        continue;
+      }
+      stack.addLast(new Frame(startId, 0));
+      state.put(startId, VisitState.VISITING);
+      while (!stack.isEmpty()) {
+        Frame frame = stack.peekLast();
+        List<DependencyEdge> edges = nodes.get(frame.id).dependencies();
+        if (frame.edgeIndex >= edges.size()) {
+          stack.removeLast();
+          state.put(frame.id, VisitState.VISITED);
+          continue;
+        }
+        String targetId = edges.get(frame.edgeIndex).targetId();
+        frame.edgeIndex++;
+        VisitState targetState = state.get(targetId);
+        if (targetState == VisitState.VISITED) {
+          continue;
+        }
+        if (targetState == VisitState.VISITING) {
+          var cycle = new ArrayDeque<String>();
+          for (Frame f : stack) {
+            cycle.addLast(f.id);
+          }
+          cycle.addLast(targetId);
+          throw problem("$.nodes", "dependency cycle detected: " + String.join(" -> ", cycle));
+        }
+        state.put(targetId, VisitState.VISITING);
+        stack.addLast(new Frame(targetId, 0));
+      }
     }
-  }
-
-  private static void visit(
-      String id, Map<String, Node> nodes, Map<String, VisitState> state, Deque<String> stack) {
-    VisitState current = state.get(id);
-    if (current == VisitState.VISITED) {
-      return;
-    }
-    if (current == VisitState.VISITING) {
-      stack.addLast(id);
-      throw problem("$.nodes", "dependency cycle detected: " + String.join(" -> ", stack));
-    }
-    state.put(id, VisitState.VISITING);
-    stack.addLast(id);
-    for (DependencyEdge edge : nodes.get(id).dependencies()) {
-      visit(edge.targetId(), nodes, state, stack);
-    }
-    stack.removeLast();
-    state.put(id, VisitState.VISITED);
   }
 
   private static void validatePlatform(BazelApplicationModel model) {
@@ -409,5 +418,15 @@ public final class BazelApplicationModelValidator {
   private enum VisitState {
     VISITING,
     VISITED
+  }
+
+  private static final class Frame {
+    final String id;
+    int edgeIndex;
+
+    Frame(String id, int edgeIndex) {
+      this.id = id;
+      this.edgeIndex = edgeIndex;
+    }
   }
 }

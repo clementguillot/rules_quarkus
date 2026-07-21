@@ -3,6 +3,7 @@ package com.clementguillot.quarkifier;
 import com.clementguillot.quarkifier.extension.ExtensionInfo;
 import com.clementguillot.quarkifier.extension.ExtensionScanner;
 import com.clementguillot.quarkifier.extension.ExtensionScanner.ArtifactInput;
+import com.clementguillot.quarkifier.model.transport.StrictJson;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -143,7 +144,11 @@ public final class DiscoverExtensionsCommand implements Callable<Integer> {
   }
 
   private static void member(StringBuilder json, String name, String value, boolean comma) {
-    json.append("      \"").append(name).append("\": \"").append(escape(value)).append('"');
+    json.append("      \"")
+        .append(name)
+        .append("\": \"")
+        .append(StrictJson.escape(value))
+        .append('"');
     json.append(comma ? ",\n" : "\n");
   }
 
@@ -153,32 +158,8 @@ public final class DiscoverExtensionsCommand implements Callable<Integer> {
       if (index > 0) {
         json.append(", ");
       }
-      json.append('"').append(escape(values.get(index))).append('"');
+      json.append('"').append(StrictJson.escape(values.get(index))).append('"');
     }
     json.append(']').append(comma ? ",\n" : "\n");
-  }
-
-  private static String escape(String value) {
-    StringBuilder escaped = new StringBuilder();
-    for (int index = 0; index < value.length(); index++) {
-      char character = value.charAt(index);
-      switch (character) {
-        case '"' -> escaped.append("\\\"");
-        case '\\' -> escaped.append("\\\\");
-        case '\b' -> escaped.append("\\b");
-        case '\f' -> escaped.append("\\f");
-        case '\n' -> escaped.append("\\n");
-        case '\r' -> escaped.append("\\r");
-        case '\t' -> escaped.append("\\t");
-        default -> {
-          if (character < 0x20) {
-            escaped.append(String.format("\\u%04x", (int) character));
-          } else {
-            escaped.append(character);
-          }
-        }
-      }
-    }
-    return escaped.toString();
   }
 }

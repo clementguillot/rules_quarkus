@@ -43,7 +43,6 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.jar.JarFile;
 
 /** Strictly joins Bazel target facts and resolver catalogs into the v1 transport model. */
 @SuppressWarnings({
@@ -55,7 +54,6 @@ import java.util.jar.JarFile;
 })
 public final class BazelApplicationModelAssembler {
 
-  private static final String DESCRIPTOR = "META-INF/quarkus-extension.properties";
   private static final String DEPLOYMENT_ARTIFACT = "deployment-artifact";
 
   private BazelApplicationModelAssembler() {}
@@ -663,52 +661,64 @@ public final class BazelApplicationModelAssembler {
         Map<String, RuntimeFacts> facts = runtimeFacts(applicationId);
         List<String> extensions = extensionDeployments.keySet().stream().sorted().toList();
         for (String extensionId : extensions) {
-          MutableNode extensionNode = nodes.get(extensionId);
-          if (extensionNode == null || !extensionNode.runtime) {
-            continue;
-          }
-          ExtensionDescriptor descriptor =
-              descriptorsByRuntime.get(
-                  BazelArtifactCoordinates.canonical(extensionNode.coordinates));
-          if (descriptor == null) {
-            continue;
-          }
-          List<String> candidates = new ArrayList<>(descriptor.conditionalDependencies());
-          if (inputs.mode() == Mode.DEV) {
-            for (String candidate : descriptor.conditionalDevDependencies()) {
-              if (!candidates.contains(candidate)) {
-                candidates.add(candidate);
-              }
-            }
-          }
-          for (String candidate : candidates) {
-            String canonical =
-                BazelArtifactCoordinates.canonical(BazelArtifactCoordinates.parse(candidate));
-            String declaration = extensionId + "\u0000" + canonical;
-            if (processed.contains(declaration)) {
-              continue;
-            }
-            RuntimeFacts inherited = facts.getOrDefault(extensionId, RuntimeFacts.COMPILE);
-            if (matchesAny(BazelArtifactCoordinates.parse(candidate), inherited.exclusions())) {
-              processed.add(declaration);
-              continue;
-            }
-            MutableNode existing = nodesByCoordinates.get(canonical);
-            if (existing != null && existing.runtime) {
-              processed.add(declaration);
-              continue;
-            }
-            ExtensionDescriptor candidateDescriptor = descriptorsByRuntime.get(canonical);
-            if (candidateDescriptor != null
-                && !conditionsSatisfied(candidateDescriptor.dependencyConditions())) {
-              continue;
-            }
-            activateConditionalClosure(extensionId, canonical, inherited);
-            processed.add(declaration);
+          if (activateExtensionConditionals(extensionId, facts, processed)) {
             changed = true;
           }
         }
       }
+    }
+
+    private boolean activateExtensionConditionals(
+        String extensionId, Map<String, RuntimeFacts> facts, Set<String> processed) {
+      MutableNode extensionNode = nodes.get(extensionId);
+      if (extensionNode == null || !extensionNode.runtime) {
+        return false;
+      }
+      ExtensionDescriptor descriptor =
+          descriptorsByRuntime.get(BazelArtifactCoordinates.canonical(extensionNode.coordinates));
+      if (descriptor == null) {
+        return false;
+      }
+      boolean activated = false;
+      for (String candidate : conditionalCandidates(descriptor)) {
+        String canonical =
+            BazelArtifactCoordinates.canonical(BazelArtifactCoordinates.parse(candidate));
+        String declaration = extensionId + "\u0000" + canonical;
+        if (processed.contains(declaration)) {
+          continue;
+        }
+        RuntimeFacts inherited = facts.getOrDefault(extensionId, RuntimeFacts.COMPILE);
+        if (matchesAny(BazelArtifactCoordinates.parse(candidate), inherited.exclusions())) {
+          processed.add(declaration);
+          continue;
+        }
+        MutableNode existing = nodesByCoordinates.get(canonical);
+        if (existing != null && existing.runtime) {
+          processed.add(declaration);
+          continue;
+        }
+        ExtensionDescriptor candidateDescriptor = descriptorsByRuntime.get(canonical);
+        if (candidateDescriptor != null
+            && !conditionsSatisfied(candidateDescriptor.dependencyConditions())) {
+          continue;
+        }
+        activateConditionalClosure(extensionId, canonical, inherited);
+        processed.add(declaration);
+        activated = true;
+      }
+      return activated;
+    }
+
+    private List<String> conditionalCandidates(ExtensionDescriptor descriptor) {
+      List<String> candidates = new ArrayList<>(descriptor.conditionalDependencies());
+      if (inputs.mode() == Mode.DEV) {
+        for (String candidate : descriptor.conditionalDevDependencies()) {
+          if (!candidates.contains(candidate)) {
+            candidates.add(candidate);
+          }
+        }
+      }
+      return candidates;
     }
 
     private boolean conditionsSatisfied(List<String> conditions) {
@@ -749,75 +759,97 @@ public final class BazelApplicationModelAssembler {
         }
         MutableNode node = nodesByCoordinates.get(step.coordinates());
         boolean existingRuntime = node != null && node.runtime;
-        if (node == null) {
-          String path = inputs.conditionalPaths().get(catalogNode.repoPath());
-          if (isBlank(path)) {
-            fail(
-                "no action input path was supplied for conditional artifact "
-                    + step.coordinates()
-                    + " (catalog path "
-                    + catalogNode.repoPath()
-                    + ")");
-          }
-          node =
-              new MutableNode(
-                  conditionalId(coordinates),
-                  NodeKind.MAVEN,
-                  coordinates,
-                  List.of(path),
-                  null,
-                  null);
-          node.runtime = true;
-          node.deployment = true;
-          addNode(node);
-          runtimeNodeIds.add(node.id);
-        } else {
-          if (!existingRuntime) {
-            // A conditional candidate can already have been materialized while wiring a
-            // deployment closure. Its deployment-side outgoing edges are not its runtime Maven
-            // graph and commonly point back to the declaring extension. Rebuild those edges from
-            // the conditional resolver catalog before promoting it to the runtime graph.
-            node.kind = NodeKind.MAVEN;
-            node.edges.clear();
-          }
-          node.runtime = true;
-          node.deployment = true;
-          node.compileOnly = false;
-        }
-        ExtensionDescriptor descriptor = descriptorsByRuntime.get(step.coordinates());
-        if (descriptor != null) {
-          String deployment =
-              BazelArtifactCoordinates.canonical(
-                  BazelArtifactCoordinates.parse(descriptor.deploymentArtifact()));
-          extensionDeployments.putIfAbsent(node.id, deployment);
-          if (step.injectionEligible() && !existingRuntime) {
-            conditionalInjectionParents.putIfAbsent(node.id, step.parentId());
-          }
-        }
-        MutableNode parent = nodes.get(step.parentId());
-        if (!reaches(node.id, parent.id)) {
-          parent.addEdge(
-              new DependencyEdge(
-                  node.id,
-                  DependencyRelation.DEPS,
-                  inherited.scope(),
-                  inherited.optional(),
-                  inherited.exclusions()));
-        }
-        if (existingRuntime) {
+        node = materializeConditionalNode(node, catalogNode, coordinates, step.coordinates());
+        registerConditionalExtension(node, step, existingRuntime);
+        linkConditionalParent(node, step, inherited);
+        if (existingRuntime || !expanded.add(step.coordinates())) {
           continue;
         }
-        if (!expanded.add(step.coordinates())) {
-          continue;
+        enqueueConditionalChildren(node, catalogNode, step, inherited, pending);
+      }
+    }
+
+    private MutableNode materializeConditionalNode(
+        MutableNode existing,
+        ConditionalCatalogNode catalogNode,
+        ArtifactCoordinates coordinates,
+        String canonical) {
+      if (existing == null) {
+        String path = inputs.conditionalPaths().get(catalogNode.repoPath());
+        if (isBlank(path)) {
+          fail(
+              "no action input path was supplied for conditional artifact "
+                  + canonical
+                  + " (catalog path "
+                  + catalogNode.repoPath()
+                  + ")");
         }
-        boolean childInjectionEligible = step.injectionEligible() && descriptor == null;
-        for (String dependency : catalogNode.dependencies()) {
-          ArtifactCoordinates dependencyCoordinates = BazelArtifactCoordinates.parse(dependency);
-          String dependencyCanonical = BazelArtifactCoordinates.canonical(dependencyCoordinates);
-          if (!matchesAny(dependencyCoordinates, inherited.exclusions())) {
-            pending.addLast(
-                new ConditionalStep(node.id, dependencyCanonical, childInjectionEligible));
-          }
+        var node =
+            new MutableNode(
+                conditionalId(coordinates), NodeKind.MAVEN, coordinates, List.of(path), null, null);
+        node.runtime = true;
+        node.deployment = true;
+        addNode(node);
+        runtimeNodeIds.add(node.id);
+        return node;
+      }
+      if (!existing.runtime) {
+        // A conditional candidate can already have been materialized while wiring a
+        // deployment closure. Its deployment-side outgoing edges are not its runtime Maven
+        // graph and commonly point back to the declaring extension. Rebuild those edges from
+        // the conditional resolver catalog before promoting it to the runtime graph.
+        existing.kind = NodeKind.MAVEN;
+        existing.edges.clear();
+      }
+      existing.runtime = true;
+      existing.deployment = true;
+      existing.compileOnly = false;
+      return existing;
+    }
+
+    private void registerConditionalExtension(
+        MutableNode node, ConditionalStep step, boolean existingRuntime) {
+      ExtensionDescriptor descriptor = descriptorsByRuntime.get(step.coordinates());
+      if (descriptor == null) {
+        return;
+      }
+      String deployment =
+          BazelArtifactCoordinates.canonical(
+              BazelArtifactCoordinates.parse(descriptor.deploymentArtifact()));
+      extensionDeployments.putIfAbsent(node.id, deployment);
+      if (step.injectionEligible() && !existingRuntime) {
+        conditionalInjectionParents.putIfAbsent(node.id, step.parentId());
+      }
+    }
+
+    private void linkConditionalParent(
+        MutableNode node, ConditionalStep step, RuntimeFacts inherited) {
+      MutableNode parent = nodes.get(step.parentId());
+      if (!reaches(node.id, parent.id)) {
+        parent.addEdge(
+            new DependencyEdge(
+                node.id,
+                DependencyRelation.DEPS,
+                inherited.scope(),
+                inherited.optional(),
+                inherited.exclusions()));
+      }
+    }
+
+    private void enqueueConditionalChildren(
+        MutableNode node,
+        ConditionalCatalogNode catalogNode,
+        ConditionalStep step,
+        RuntimeFacts inherited,
+        Deque<ConditionalStep> pending) {
+      ExtensionDescriptor descriptor = descriptorsByRuntime.get(step.coordinates());
+      boolean childInjectionEligible = step.injectionEligible() && descriptor == null;
+      for (String dependency : catalogNode.dependencies()) {
+        ArtifactCoordinates dependencyCoordinates = BazelArtifactCoordinates.parse(dependency);
+        String dependencyCanonical = BazelArtifactCoordinates.canonical(dependencyCoordinates);
+        if (!matchesAny(dependencyCoordinates, inherited.exclusions())) {
+          pending.addLast(
+              new ConditionalStep(node.id, dependencyCanonical, childInjectionEligible));
         }
       }
     }
@@ -913,7 +945,7 @@ public final class BazelApplicationModelAssembler {
       String result = null;
       for (String rawPath : node.paths) {
         if (rawPath.endsWith(".jar")) {
-          Optional<Properties> descriptor = readDescriptor(Path.of(rawPath));
+          Optional<Properties> descriptor = ExtensionDescriptorReader.readFromJar(Path.of(rawPath));
           if (descriptor.isPresent()) {
             String deployment = descriptor.orElseThrow().getProperty(DEPLOYMENT_ARTIFACT);
             if (isBlank(deployment)) {
@@ -1369,20 +1401,6 @@ public final class BazelApplicationModelAssembler {
               topLevelRuntimeExtension),
           workspaceId,
           bazelLabel);
-    }
-  }
-
-  private static Optional<Properties> readDescriptor(Path path) throws IOException {
-    try (JarFile jar = new JarFile(path.toFile())) {
-      var entry = jar.getJarEntry(DESCRIPTOR);
-      if (entry == null) {
-        return Optional.empty();
-      }
-      Properties properties = new Properties();
-      try (InputStream input = jar.getInputStream(entry)) {
-        properties.load(input);
-      }
-      return Optional.of(properties);
     }
   }
 

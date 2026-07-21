@@ -257,4 +257,47 @@ public final class StrictJson {
       return StrictJson.error(message, offset);
     }
   }
+
+  // ---- JSON string escaping (shared by Writer and Commands) ----
+
+  /** Appends a JSON-escaped, double-quoted string to {@code out}. */
+  public static void appendQuoted(StringBuilder out, String value) {
+    out.append('"');
+    for (int index = 0; index < value.length(); index++) {
+      char current = value.charAt(index);
+      switch (current) {
+        case '"' -> out.append("\\\"");
+        case '\\' -> out.append("\\\\");
+        case '\b' -> out.append("\\b");
+        case '\f' -> out.append("\\f");
+        case '\n' -> out.append("\\n");
+        case '\r' -> out.append("\\r");
+        case '\t' -> out.append("\\t");
+        default -> {
+          if (current < 0x20) {
+            out.append(String.format(java.util.Locale.ROOT, "\\u%04x", (int) current));
+          } else if (Character.isHighSurrogate(current)) {
+            if (index + 1 >= value.length() || !Character.isLowSurrogate(value.charAt(index + 1))) {
+              throw new BazelApplicationModelException(
+                  "Cannot serialize an unpaired high surrogate");
+            }
+            out.append(current).append(value.charAt(++index));
+          } else if (Character.isLowSurrogate(current)) {
+            throw new BazelApplicationModelException("Cannot serialize an unpaired low surrogate");
+          } else {
+            out.append(current);
+          }
+        }
+      }
+    }
+    out.append('"');
+  }
+
+  /** Returns a JSON-escaped string without surrounding quotes. */
+  public static String escape(String value) {
+    var out = new StringBuilder(value.length() + 8);
+    appendQuoted(out, value);
+    // Strip the surrounding quotes
+    return out.substring(1, out.length() - 1);
+  }
 }

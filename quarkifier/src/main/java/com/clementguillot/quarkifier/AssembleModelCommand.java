@@ -141,7 +141,7 @@ public final class AssembleModelCommand implements Callable<Integer> {
     for (String line : readManifestLines(targetFragmentsFile)) {
       fragments.add(BazelModelInputReader.readTargetFragment(Path.of(line)));
     }
-    Map<String, String> deploymentPaths = readDeploymentPaths(deploymentPathsFile);
+    Map<String, String> deploymentPaths = readMappings(deploymentPathsFile, "deployment repoPath");
     BazelApplicationModel model =
         BazelApplicationModelAssembler.assemble(
             new BazelApplicationModelAssembler.Inputs(
@@ -168,10 +168,6 @@ public final class AssembleModelCommand implements Callable<Integer> {
     return 0;
   }
 
-  private static Map<String, String> readDeploymentPaths(Path path) throws IOException {
-    return readMappings(path, "deployment repoPath");
-  }
-
   private static Map<String, String> readMappings(Path path, String keyDescription)
       throws IOException {
     var result = new LinkedHashMap<String, String>();
@@ -181,7 +177,7 @@ public final class AssembleModelCommand implements Callable<Integer> {
           || separator == line.length() - 1
           || line.indexOf('\t', separator + 1) >= 0) {
         throw new BazelApplicationModelException(
-            "Invalid deployment path manifest entry in " + path + ": " + line);
+            "Invalid " + keyDescription + " manifest entry in " + path + ": " + line);
       }
       String repoPath = line.substring(0, separator);
       String actionPath = line.substring(separator + 1);
