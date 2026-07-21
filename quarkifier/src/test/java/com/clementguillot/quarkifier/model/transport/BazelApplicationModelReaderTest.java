@@ -43,7 +43,6 @@ class BazelApplicationModelReaderTest {
     assertEquals(DependencyScope.COMPILE, model.nodes().get(0).dependencies().get(0).scope());
     assertEquals("//:app", model.workspaceModules().get(0).bazelLabel());
     assertEquals("io.quarkus.platform", model.platform().imports().get(0).groupId());
-    assertEquals("runtime lock + Bazel aspect", model.diagnostics().provenance().get(0));
   }
 
   @Test
@@ -59,8 +58,7 @@ class BazelApplicationModelReaderTest {
             model.applicationId(),
             List.of(model.nodes().get(1), model.nodes().get(0)),
             model.workspaceModules(),
-            model.platform(),
-            model.diagnostics());
+            model.platform());
 
     assertEquals(model, BazelApplicationModelReader.read(canonical));
     assertEquals(canonical, BazelApplicationModelWriter.toJson(reordered));
@@ -79,8 +77,7 @@ class BazelApplicationModelReaderTest {
             model.applicationId(),
             model.nodes(),
             model.workspaceModules(),
-            model.platform(),
-            model.diagnostics());
+            model.platform());
 
     String canonical = BazelApplicationModelWriter.toJson(escaped);
 
@@ -238,8 +235,7 @@ class BazelApplicationModelReaderTest {
             model.applicationId(),
             List.of(injectedApp, runtimeExtension, deployment),
             model.workspaceModules(),
-            model.platform(),
-            model.diagnostics());
+            model.platform());
 
     BazelApplicationModelValidator.validate(injected);
   }
@@ -360,10 +356,6 @@ class BazelApplicationModelReaderTest {
                 "version":"3.33.2"
               }]
             }]
-          },
-          "diagnostics":{
-            "warnings":[],
-            "provenance":["runtime lock + Bazel aspect"]
           }
         }
         """;

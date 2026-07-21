@@ -48,8 +48,7 @@ class ExplicitApplicationModelBuilderTest {
             application.id(),
             List.of(application),
             List.of(),
-            new BazelApplicationModel.Platform(List.of(), Map.of(), List.of()),
-            new BazelApplicationModel.Diagnostics(List.of(), List.of()));
+            new BazelApplicationModel.Platform(List.of(), Map.of(), List.of()));
 
     var built = ExplicitApplicationModelBuilder.build(model);
     Path resolved = built.getAppArtifact().getResolvedPaths().getSinglePath();
@@ -110,14 +109,12 @@ class ExplicitApplicationModelBuilderTest {
             application.id(),
             List.of(application),
             List.of(workspace),
-            new BazelApplicationModel.Platform(List.of(), Map.of(), List.of()),
-            new BazelApplicationModel.Diagnostics(List.of(), List.of()));
+            new BazelApplicationModel.Platform(List.of(), Map.of(), List.of()));
 
-    ExplicitApplicationModelBuilder.serialize(
-        ExplicitApplicationModelBuilder.build(model), serialized);
+    QuarkusModelVersionAdapter.serialize(ExplicitApplicationModelBuilder.build(model), serialized);
 
     assertTrue(Files.size(serialized) > 0);
-    var roundTripped = ExplicitApplicationModelBuilder.deserialize(serialized);
+    var roundTripped = QuarkusModelVersionAdapter.deserialize(serialized);
     assertEquals("test:app::jar:1.0", roundTripped.getAppArtifact().toGACTVString());
     assertEquals(
         "io.quarkus.bootstrap.workspace.LazySourceDir",

@@ -73,13 +73,6 @@ public final class BazelApplicationModelWriter {
     comma(json);
     json.append("\"releases\":");
     platformReleases(json, model.platform().releases());
-    json.append('}');
-    comma(json);
-    json.append("\"diagnostics\":{\"warnings\":");
-    stringArray(json, sorted(model.diagnostics().warnings()));
-    comma(json);
-    json.append("\"provenance\":");
-    stringArray(json, sorted(model.diagnostics().provenance()));
     json.append("}}\n");
     return json.toString();
   }

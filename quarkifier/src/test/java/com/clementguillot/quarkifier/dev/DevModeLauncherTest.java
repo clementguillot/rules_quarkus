@@ -3,6 +3,7 @@ package com.clementguillot.quarkifier.dev;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.clementguillot.quarkifier.QuarkifierConfig;
+import com.clementguillot.quarkifier.TestQuarkifierConfig;
 import io.quarkus.bootstrap.app.QuarkusBootstrap;
 import io.quarkus.bootstrap.model.ApplicationModel;
 import io.quarkus.bootstrap.model.ApplicationModelBuilder;
@@ -28,7 +29,7 @@ class DevModeLauncherTest {
                 "--mode", "dev",
                 "--app-name", "my-app"));
     args.addAll(List.of(extraArgs));
-    return QuarkifierConfig.parse(args.toArray(String[]::new));
+    return TestQuarkifierConfig.parse(args.toArray(String[]::new));
   }
 
   @Test

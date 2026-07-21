@@ -53,10 +53,6 @@ public final class AugmentationExecutor {
       ClasspathPartition partition = LocalExtensionAppJars.reclassify(partitionClasspath(config));
       ApplicationModel appModel = buildModel(config);
       List<Path> effectiveRuntimeJars = RuntimeJarSelector.select(partition, appModel);
-      if (config.applicationModelSnapshotOutput() != null) {
-        ExplicitApplicationModelBuilder.serialize(
-            appModel, config.applicationModelSnapshotOutput());
-      }
 
       switch (config.mode()) {
           // DEV: delegate to DevModeLauncher which starts IsolatedDevModeMain

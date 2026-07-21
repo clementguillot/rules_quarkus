@@ -638,11 +638,10 @@ Responsibilities:
 - deduplicate by full GACTV, not GA or filename;
 - validate every edge and path;
 - sort canonical output;
-- produce `model.json` and optional `model-diagnostics.json` declared outputs.
+- produce `model.json` as a declared output.
 
-Add `--strict` and `--explain <node-id>` to the assembler binary for tests and
-support. `--explain` should show provenance, parents, edge kinds, selected
-artifact, and why a classpath fact is true.
+Keep model assembly fail-closed. Invalid input must fail with an actionable
+error rather than allowing a non-strict execution mode.
 
 Wire the output into `run_augmentation()` as a new declared input and
 `--application-model=<path>` argument. Keep the old classpath/local-jar inputs

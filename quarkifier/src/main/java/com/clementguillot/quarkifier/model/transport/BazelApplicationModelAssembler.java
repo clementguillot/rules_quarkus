@@ -5,7 +5,6 @@ import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.Class
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.DependencyEdge;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.DependencyRelation;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.DependencyScope;
-import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.Diagnostics;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.Mode;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.Node;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.NodeKind;
@@ -94,48 +93,6 @@ public final class BazelApplicationModelAssembler {
       deploymentClasspathPaths = Set.copyOf(deploymentClasspathPaths);
       modelPrivateTargetIds = Set.copyOf(modelPrivateTargetIds);
     }
-
-    /** Compatibility constructor for callers that do not exercise conditional dependencies. */
-    @SuppressWarnings("PMD.ExcessiveParameterList")
-    public Inputs(
-        Roots roots,
-        List<TargetFragment> targetFragments,
-        RuntimeCatalog runtimeCatalog,
-        DeploymentCatalog deploymentCatalog,
-        PlatformCatalog platformCatalog,
-        Map<String, String> localDeployments,
-        Map<String, String> localRuntimeAliases,
-        Map<String, String> deploymentPaths,
-        Map<String, String> platformPropertyPaths,
-        Set<String> runtimeClasspathPaths,
-        Set<String> deploymentClasspathPaths,
-        Set<String> modelPrivateTargetIds,
-        String quarkusVersion,
-        Mode mode,
-        String applicationName,
-        String applicationVersion,
-        String producerVersion) {
-      this(
-          roots,
-          targetFragments,
-          runtimeCatalog,
-          new ConditionalCatalog("coursier", "", List.of(), List.of(), List.of(), Map.of()),
-          deploymentCatalog,
-          platformCatalog,
-          localDeployments,
-          localRuntimeAliases,
-          Map.of(),
-          deploymentPaths,
-          platformPropertyPaths,
-          runtimeClasspathPaths,
-          deploymentClasspathPaths,
-          modelPrivateTargetIds,
-          quarkusVersion,
-          mode,
-          applicationName,
-          applicationVersion,
-          producerVersion);
-    }
   }
 
   public static BazelApplicationModel assemble(Inputs inputs) throws IOException {
@@ -176,7 +133,6 @@ public final class BazelApplicationModelAssembler {
     private final Map<String, String> extensionDeployments = new LinkedHashMap<>();
     private final Map<String, String> conditionalInjectionParents = new LinkedHashMap<>();
     private final Set<String> runtimeNodeIds = new LinkedHashSet<>();
-    private final Set<String> provenance = new LinkedHashSet<>();
     private TargetFragment testSourceFragment;
 
     private Assembly(Inputs inputs) {
@@ -271,7 +227,6 @@ public final class BazelApplicationModelAssembler {
         TargetFragment fragment = fragments.get(id);
         if (!fragment.workspaceTarget() && runtimeByTarget.containsKey(fragment.targetName())) {
           extra.remove(id);
-          provenance.add("resolver-pruned external target " + id);
         }
       }
       if (!extra.isEmpty()) {
@@ -437,8 +392,6 @@ public final class BazelApplicationModelAssembler {
         }
         TargetEdge aspectEdge = aspectEdges.remove(targetId);
         if (aspectEdge == null) {
-          provenance.add(
-              "Maven resolver restored edge " + source.coordinateKey() + " -> " + dependencyKey);
           result.add(
               new DependencyEdge(
                   targetId, DependencyRelation.DEPS, DependencyScope.COMPILE, false, List.of()));
@@ -451,10 +404,6 @@ public final class BazelApplicationModelAssembler {
                   aspectEdge.optional(),
                   aspectEdge.exclusions()));
         }
-      }
-      for (String ignored : new TreeSet<>(aspectEdges.keySet())) {
-        provenance.add(
-            "Maven resolver pruned Bazel edge " + source.coordinateKey() + " -> " + ignored);
       }
       return result;
     }
@@ -485,8 +434,6 @@ public final class BazelApplicationModelAssembler {
         result.add(
             new DependencyEdge(
                 targetId, relation(edge), edge.scope(), edge.optional(), edge.exclusions()));
-        provenance.add(
-            "retained path-context Bazel edge " + fragment.targetId() + " -> " + targetId);
       }
       return result;
     }
@@ -590,7 +537,6 @@ public final class BazelApplicationModelAssembler {
           continue;
         }
         if (inputs.modelPrivateTargetIds().contains(edge.targetId())) {
-          provenance.add("test infrastructure target excluded from model: " + edge.targetId());
           continue;
         }
         DependencyEdge testDependency =
@@ -609,8 +555,6 @@ public final class BazelApplicationModelAssembler {
       nodes.remove(testRootId);
       nodesByCoordinates.remove(BazelArtifactCoordinates.canonical(testRoot.coordinates));
       runtimeNodeIds.remove(testRootId);
-      provenance.add(
-          "test source target " + testRootId + " attached to application " + applicationId);
     }
 
     private void pruneUnreachableNodes(String applicationId) {
@@ -634,7 +578,6 @@ public final class BazelApplicationModelAssembler {
         MutableNode removed = nodes.remove(id);
         nodesByCoordinates.remove(BazelArtifactCoordinates.canonical(removed.coordinates));
         runtimeNodeIds.remove(id);
-        provenance.add("unreachable test infrastructure node pruned: " + id);
       }
     }
 
@@ -708,7 +651,6 @@ public final class BazelApplicationModelAssembler {
         }
         if (deployment != null) {
           extensionDeployments.put(id, deployment);
-          provenance.add("extension " + node.id + " -> " + deployment);
         }
       }
     }
@@ -749,13 +691,11 @@ public final class BazelApplicationModelAssembler {
             RuntimeFacts inherited = facts.getOrDefault(extensionId, RuntimeFacts.COMPILE);
             if (matchesAny(BazelArtifactCoordinates.parse(candidate), inherited.exclusions())) {
               processed.add(declaration);
-              provenance.add("conditional root excluded by parent: " + canonical);
               continue;
             }
             MutableNode existing = nodesByCoordinates.get(canonical);
             if (existing != null && existing.runtime) {
               processed.add(declaration);
-              provenance.add("conditional root already present: " + canonical);
               continue;
             }
             ExtensionDescriptor candidateDescriptor = descriptorsByRuntime.get(canonical);
@@ -766,28 +706,6 @@ public final class BazelApplicationModelAssembler {
             activateConditionalClosure(extensionId, canonical, inherited);
             processed.add(declaration);
             changed = true;
-          }
-        }
-      }
-      for (String extensionId : extensionDeployments.keySet().stream().sorted().toList()) {
-        MutableNode extensionNode = nodes.get(extensionId);
-        if (extensionNode == null || !extensionNode.runtime) {
-          continue;
-        }
-        ExtensionDescriptor descriptor =
-            descriptorsByRuntime.get(BazelArtifactCoordinates.canonical(extensionNode.coordinates));
-        if (descriptor == null) {
-          continue;
-        }
-        List<String> candidates = new ArrayList<>(descriptor.conditionalDependencies());
-        if (inputs.mode() == Mode.DEV) {
-          candidates.addAll(descriptor.conditionalDevDependencies());
-        }
-        for (String candidate : candidates) {
-          String canonical =
-              BazelArtifactCoordinates.canonical(BazelArtifactCoordinates.parse(candidate));
-          if (!processed.contains(extensionId + "\u0000" + canonical)) {
-            provenance.add("conditional dependency unsatisfied: " + canonical);
           }
         }
       }
@@ -827,7 +745,6 @@ public final class BazelApplicationModelAssembler {
         }
         ArtifactCoordinates coordinates = BazelArtifactCoordinates.parse(catalogNode.coordinate());
         if (matchesAny(coordinates, inherited.exclusions())) {
-          provenance.add("conditional transitive excluded by parent: " + step.coordinates());
           continue;
         }
         MutableNode node = nodesByCoordinates.get(step.coordinates());
@@ -878,9 +795,7 @@ public final class BazelApplicationModelAssembler {
           }
         }
         MutableNode parent = nodes.get(step.parentId());
-        if (reaches(node.id, parent.id)) {
-          provenance.add("conditional resolver pruned back edge " + parent.id + " -> " + node.id);
-        } else {
+        if (!reaches(node.id, parent.id)) {
           parent.addEdge(
               new DependencyEdge(
                   node.id,
@@ -905,7 +820,6 @@ public final class BazelApplicationModelAssembler {
           }
         }
       }
-      provenance.add("conditional dependency activated: " + rootCanonical);
     }
 
     private boolean reaches(String sourceId, String targetId) {
@@ -1144,11 +1058,9 @@ public final class BazelApplicationModelAssembler {
           }
           MutableNode target = nodesByCoordinates.get(targetCanonical);
           String targetId = target == null ? deploymentId(targetCoordinates) : target.id;
-          if (targetId.equals(reinsertionParentId)
-              || reaches(targetId, reinsertionParentId)
-              || reaches(targetId, node.id)) {
-            provenance.add("deployment resolver pruned back edge " + node.id + " -> " + targetId);
-          } else {
+          if (!targetId.equals(reinsertionParentId)
+              && !reaches(targetId, reinsertionParentId)
+              && !reaches(targetId, node.id)) {
             node.addEdge(
                 new DependencyEdge(
                     targetId,
@@ -1187,8 +1099,7 @@ public final class BazelApplicationModelAssembler {
           applicationId,
           materializedNodes,
           workspaces,
-          materializePlatform(),
-          new Diagnostics(List.of(), provenance.stream().sorted().toList()));
+          materializePlatform());
     }
 
     private Platform materializePlatform() throws IOException {
@@ -1206,7 +1117,6 @@ public final class BazelApplicationModelAssembler {
         for (String name : loaded.stringPropertyNames()) {
           collectPlatformProperty(name, loaded.getProperty(name), properties, releases, false);
         }
-        provenance.add("platform-properties:" + repoPath);
       }
       for (Map.Entry<String, String> property : inputs.platformCatalog().properties().entrySet()) {
         collectPlatformProperty(property.getKey(), property.getValue(), properties, releases, true);

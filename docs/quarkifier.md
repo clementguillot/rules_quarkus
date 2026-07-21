@@ -8,7 +8,7 @@ The Quarkifier (`com.clementguillot.quarkifier`) is a standalone Java tool that 
 ## CLI Interface
 
 The top-level command dispatches to `augmentation`, `assemble-model`,
-`compare-models`, `discover-extensions`, and `enrich-extension`:
+`discover-extensions`, and `enrich-extension`:
 
 ```
 java -jar quarkifier_<minor>_deploy.jar [--help] [--version] <command>
@@ -40,7 +40,6 @@ java -jar quarkifier_<minor>_deploy.jar \
   [--local-app-jars <jar:jar:...>] \
   [--local-app-jars-file <path>] \
   --application-model <quarkus-bazel-model-v1.json> \
-  [--application-model-snapshot-output <path>] \
   [-h|--help] \
   [-V|--version]
 ```
@@ -70,7 +69,6 @@ java -jar quarkifier_<minor>_deploy.jar \
 | `--local-app-jars` | No | `[]` | Colon-separated local workspace jars to use as application roots |
 | `--local-app-jars-file` | No | — | File containing local app jars (alternative to `--local-app-jars`) |
 | `--application-model` | Yes | — | Strict `quarkus-bazel-model-v1` input; its mode and Quarkus version must match the invocation and version-specific tool |
-| `--application-model-snapshot-output` | No | — | Writes the curated Quarkus-native model used by conformance diagnostics |
 | `-h`, `--help` | — | — | Show help message and exit |
 | `-V`, `--version` | — | — | Show version info and exit |
 
@@ -129,8 +127,7 @@ com.clementguillot.quarkifier
 │
 ├── model/                          ApplicationModel construction
 │   ├── ExplicitApplicationModelBuilder  Builds from validated v1 facts
-│   ├── transport/                  Strict schema, assembler, validator, writer
-│   └── conformance/                Normalizer, semantic diff, exact allowlists
+│   └── transport/                  Strict schema, assembler, validator, writer
 │
 ├── augmentation/                   Augmentation execution and post-processing
 │   ├── AugmentationExecutor        Orchestrates bootstrap + augmentation
@@ -170,12 +167,9 @@ public record QuarkifierConfig(
     String bazelCommand,
     List<String> bazelBuildArgs,
     List<Path> localAppJars,
-    Path applicationModel,
-    Path applicationModelSnapshotOutput
+    Path applicationModel
 ) { ... }
 ```
-
-The record supports round-trip serialization via `toArgs()` → `parse()`, which is verified by property-based tests (200 iterations).
 
 ## Augmentation Pipeline
 
@@ -187,7 +181,7 @@ graph LR
     end
 
     subgraph Pipeline
-        PARSE[1. QuarkifierConfig.parse]
+        PARSE[1. AugmentationCommand CLI parsing]
         READ[2. Strict reader and validator]
         ADAPT[3. Version-specific ApplicationModel adapter]
         EXEC[4. AugmentationExecutor.execute]
@@ -210,8 +204,7 @@ graph LR
 `QuarkifierCommand` dispatches to `AugmentationCommand`, which parses and
 validates augmentation arguments, resolves `--*-file` fallbacks, and builds an
 immutable `QuarkifierConfig`. Picocli exits with code 2 on invalid input. The
-convenience method `QuarkifierConfig.parse()` delegates to the augmentation
-subcommand for programmatic use.
+record has no independent command-line serialization API.
 
 ### Steps 2–3: Explicit model validation and adaptation
 

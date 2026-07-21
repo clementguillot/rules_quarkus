@@ -44,15 +44,12 @@ def run_augmentation(ctx, output_dir, runtime_classpath, conditional_classpath, 
             application artifact, so order matters.
         model_file: Explicit Bazel model JSON. Required for every Bazel lifecycle.
 
-    Returns:
-        The declared application-model snapshot file produced during augmentation.
     """
 
     if not model_file:
         fail("run_augmentation requires an explicit application model; Bazel actions must not use legacy classpath inference")
 
     app_cp_file = _write_classpath_file(ctx, "_app_classpath.txt", runtime_classpath)
-    model_snapshot = ctx.actions.declare_file(ctx.label.name + ".quarkus-application-model.json")
 
     args = ctx.actions.args()
     args.add("--application-classpath-file", app_cp_file)
@@ -61,7 +58,6 @@ def run_augmentation(ctx, output_dir, runtime_classpath, conditional_classpath, 
         local_jars_file = _write_classpath_file(ctx, "_local_app_jars.txt", local_jars)
         args.add("--local-app-jars-file", local_jars_file)
     args.add("--application-model", model_file)
-    args.add("--application-model-snapshot-output", model_snapshot)
     args.add("--output-dir", output_dir.path)
     if mode:
         args.add("--mode", mode)
@@ -93,8 +89,7 @@ def run_augmentation(ctx, output_dir, runtime_classpath, conditional_classpath, 
             direct = [tool_jar, app_cp_file, model_file] + ([local_jars_file] if local_jars_file else []),
             transitive = [runtime_classpath, conditional_classpath, deployment_classpath, java_runtime.files],
         ),
-        outputs = [output_dir, model_snapshot],
+        outputs = [output_dir],
         mnemonic = mnemonic,
         progress_message = progress_message,
     )
-    return model_snapshot

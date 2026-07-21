@@ -6,7 +6,6 @@ import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.Class
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.DependencyEdge;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.DependencyRelation;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.DependencyScope;
-import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.Diagnostics;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.Mode;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.Node;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.NodeKind;
@@ -59,8 +58,7 @@ public final class BazelApplicationModelReader {
         "applicationId",
         "nodes",
         "workspaceModules",
-        "platform",
-        "diagnostics");
+        "platform");
 
     var model =
         new BazelApplicationModel(
@@ -71,8 +69,7 @@ public final class BazelApplicationModelReader {
             string(root, "applicationId", "$"),
             mapArray(root, "nodes", "$", BazelApplicationModelReader::node),
             mapArray(root, "workspaceModules", "$", BazelApplicationModelReader::workspaceModule),
-            platform(object(root.get("platform"), "$.platform", false)),
-            diagnostics(object(root.get("diagnostics"), "$.diagnostics", false)));
+            platform(object(root.get("platform"), "$.platform", false)));
     BazelApplicationModelValidator.validate(model);
     return model;
   }
@@ -219,13 +216,6 @@ public final class BazelApplicationModelReader {
         string(value, "stream", path),
         string(value, "version", path),
         mapArray(value, "memberBoms", path, BazelApplicationModelReader::coordinates));
-  }
-
-  private static Diagnostics diagnostics(Map<String, Object> value) {
-    String path = "$.diagnostics";
-    fields(value, path, "warnings", "provenance");
-    return new Diagnostics(
-        stringArray(value, "warnings", path), stringArray(value, "provenance", path));
   }
 
   private static <T> T enumeration(

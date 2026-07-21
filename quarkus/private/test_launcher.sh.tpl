@@ -72,17 +72,6 @@ done < "$DIRECT_JARS_FILE"
 MODEL_DIR=$(mktemp -d)
 trap "rm -rf $MODEL_DIR" EXIT
 
-# Optional conformance hook. Kept out of the public quarkus_test API: CI can
-# request the exact post-curation Quarkus-native model without changing BUILD
-# files, matching the Maven/Gradle snapshot fixture convention.
-SNAPSHOT_ARGS=()
-if [ -n "${RULES_QUARKUS_APPLICATION_MODEL_SNAPSHOT:-}" ]; then
-  SNAPSHOT_ARGS=(
-    --application-model-snapshot-output
-    "$RULES_QUARKUS_APPLICATION_MODEL_SNAPSHOT"
-  )
-fi
-
 (cd "$MODEL_EXEC_ROOT" && "$JAVA" \
   -Djava.util.logging.manager=org.jboss.logmanager.LogManager \
   -jar "$TOOL_JAR" \
@@ -91,7 +80,6 @@ fi
   --output-dir "$MODEL_DIR" \
   --mode test \
   --application-model "$MODEL_FILE" \
-  ${SNAPSHOT_ARGS[@]+"${SNAPSHOT_ARGS[@]}"} \
   --local-app-jars-file "$LOCAL_APP_JARS_FILE" \
   --app-name %{app_name})
 

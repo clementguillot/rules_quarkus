@@ -156,14 +156,12 @@ build outputs:
 
 ```bash
 bazel build //:helloworld \
-  --output_groups=quarkus_model,quarkus_application_model
+  --output_groups=quarkus_model
 ```
 
 - `bazel-bin/helloworld.quarkus-bazel-model-v1.json` is the strict Bazel-owned
   input: exact graph edges, scopes, classpath facts, workspace modules,
-  platforms, and provenance.
-- `bazel-bin/helloworld.quarkus-application-model.json` is the curated
-  Quarkus-native snapshot after the version adapter has run.
+  and platforms.
 
 Model assembly fails before Quarkus starts when it finds missing coordinates,
 dangling edges, duplicate identities, ambiguous artifact joins, or a missing

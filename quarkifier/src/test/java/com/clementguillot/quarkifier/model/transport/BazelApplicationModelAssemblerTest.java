@@ -117,47 +117,6 @@ class BazelApplicationModelAssemblerTest {
   }
 
   @Test
-  void resolverCatalogOverridesLossyAspectEdges() throws IOException {
-    var base = inputs(true, DEPLOYMENT);
-    var badCatalog =
-        new RuntimeCatalog(
-            List.of(
-                new RuntimeCatalogNode(
-                    "io.quarkus:example",
-                    "io_quarkus_example",
-                    coords("io.quarkus", "example", "3.33.2"),
-                    List.of()),
-                base.runtimeCatalog().nodes().get(1)),
-            List.of("io.quarkus:example"),
-            Map.of());
-    var badInputs =
-        new BazelApplicationModelAssembler.Inputs(
-            base.roots(),
-            base.targetFragments(),
-            badCatalog,
-            base.deploymentCatalog(),
-            base.platformCatalog(),
-            Map.of(),
-            Map.of(),
-            base.deploymentPaths(),
-            base.platformPropertyPaths(),
-            base.runtimeClasspathPaths(),
-            base.deploymentClasspathPaths(),
-            base.modelPrivateTargetIds(),
-            base.quarkusVersion(),
-            base.mode(),
-            base.applicationName(),
-            base.applicationVersion(),
-            base.producerVersion());
-
-    BazelApplicationModel model = BazelApplicationModelAssembler.assemble(badInputs);
-
-    assertTrue(
-        model.diagnostics().provenance().stream()
-            .anyMatch(message -> message.contains("Maven resolver pruned Bazel edge")));
-  }
-
-  @Test
   void retainsAspectRelationshipWhenBothEndpointsSurviveResolverReachability() throws IOException {
     var base = inputs(true, DEPLOYMENT);
     var fragments = new java.util.ArrayList<>(base.targetFragments());
@@ -196,8 +155,10 @@ class BazelApplicationModelAssemblerTest {
             base.roots(),
             fragments,
             prunedCatalog,
+            emptyConditionalCatalog(),
             base.deploymentCatalog(),
             base.platformCatalog(),
+            Map.of(),
             Map.of(),
             Map.of(),
             base.deploymentPaths(),
@@ -214,9 +175,6 @@ class BazelApplicationModelAssemblerTest {
     BazelApplicationModel model = BazelApplicationModelAssembler.assemble(contextInputs);
 
     assertEquals(List.of(COMMON), targets(node(model, EXT)));
-    assertTrue(
-        model.diagnostics().provenance().stream()
-            .anyMatch(message -> message.contains("retained path-context Bazel edge")));
   }
 
   @Test
@@ -251,10 +209,12 @@ class BazelApplicationModelAssemblerTest {
             new Roots("@@//:quarkus", List.of(APP)),
             fragments,
             new RuntimeCatalog(List.of(), List.of(), Map.of()),
+            emptyConditionalCatalog(),
             new DeploymentCatalog("coursier", "0.1.0", List.of(), List.of(), List.of(), Map.of()),
             new PlatformCatalog(List.of(), List.of(), Map.of()),
             Map.of("com.example:greeting-extension-deployment:1.0.0", LOCAL_DEPLOYMENT),
             Map.of(RAW_LOCAL_RUNTIME, LOCAL_EXTENSION),
+            Map.of(),
             Map.of(),
             Map.of(),
             Set.of(appJar.toString(), runtimeJar.toString()),
@@ -328,10 +288,12 @@ class BazelApplicationModelAssemblerTest {
             base.roots(),
             base.targetFragments(),
             base.runtimeCatalog(),
+            emptyConditionalCatalog(),
             base.deploymentCatalog(),
             platformCatalog,
             base.localDeployments(),
             base.localRuntimeAliases(),
+            Map.of(),
             base.deploymentPaths(),
             Map.of("model/platform-properties/quarkus.properties", propertiesFile.toString()),
             base.runtimeClasspathPaths(),
@@ -382,10 +344,12 @@ class BazelApplicationModelAssemblerTest {
             base.roots(),
             fragments,
             base.runtimeCatalog(),
+            emptyConditionalCatalog(),
             base.deploymentCatalog(),
             base.platformCatalog(),
             base.localDeployments(),
             base.localRuntimeAliases(),
+            Map.of(),
             base.deploymentPaths(),
             base.platformPropertyPaths(),
             runtimePaths,
@@ -468,10 +432,12 @@ class BazelApplicationModelAssemblerTest {
             new Roots("@@//:test", List.of(additionalRoot, testRoot)),
             fragments,
             runtimeCatalog,
+            emptyConditionalCatalog(),
             base.deploymentCatalog(),
             base.platformCatalog(),
             base.localDeployments(),
             base.localRuntimeAliases(),
+            Map.of(),
             base.deploymentPaths(),
             base.platformPropertyPaths(),
             runtimePaths,
@@ -495,9 +461,6 @@ class BazelApplicationModelAssemblerTest {
             .scope());
     assertFalse(model.nodes().stream().anyMatch(node -> testRoot.equals(node.id())));
     assertFalse(model.nodes().stream().anyMatch(node -> TEST_PRIVATE.equals(node.id())));
-    assertTrue(
-        model.diagnostics().provenance().stream()
-            .anyMatch(message -> message.contains("test infrastructure target excluded")));
     assertEquals("app", node(model, APP).coordinates().artifactId());
     assertEquals(
         DependencyScope.TEST,
@@ -580,12 +543,6 @@ class BazelApplicationModelAssemblerTest {
         targets(node(normal, featureA))
             .contains("deployment:io.quarkus:feature-b-deployment::jar:3.33.2"));
     assertFalse(node(normal, featureA).classpath().topLevelRuntimeExtension());
-    assertTrue(
-        normal.diagnostics().provenance().stream()
-            .anyMatch(
-                message ->
-                    message.contains("conditional dependency unsatisfied")
-                        && message.contains("blocked")));
 
     BazelApplicationModel dev =
         BazelApplicationModelAssembler.assemble(conditionalInputs(Mode.DEV));
@@ -818,8 +775,10 @@ class BazelApplicationModelAssemblerTest {
         new Roots("@@//:quarkus", List.of(APP)),
         fragments,
         runtime,
+        emptyConditionalCatalog(),
         deployment,
         new PlatformCatalog(List.of(), List.of(), Map.of()),
+        Map.of(),
         Map.of(),
         Map.of(),
         paths,
@@ -832,6 +791,10 @@ class BazelApplicationModelAssemblerTest {
         "demo",
         "1.2.3",
         "test");
+  }
+
+  private static ConditionalCatalog emptyConditionalCatalog() {
+    return new ConditionalCatalog("coursier", "", List.of(), List.of(), List.of(), Map.of());
   }
 
   private Path jar(String name, String deploymentArtifact) throws IOException {

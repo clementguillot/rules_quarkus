@@ -73,9 +73,6 @@ sh_test(
     srcs = ["dev_e2big_test.sh"],
     args = ["$(rlocationpath :app_dev)"],
     data = [":app_dev"],
-    # The test synthesizes a merged runfiles tree. On macOS, its hermetic JDK symlink points outside
-    # the sandbox profile even though it is a declared launcher runfile.
-    tags = ["no-sandbox"],
 )
 
 # Regression test for issue #132: exec_root resolution without convenience symlinks.

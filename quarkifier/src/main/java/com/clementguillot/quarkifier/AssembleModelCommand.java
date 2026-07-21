@@ -25,7 +25,7 @@ import picocli.CommandLine.Option;
     name = "assemble-model",
     description = "Assemble and validate the explicit Bazel application model.",
     mixinStandardHelpOptions = true)
-@SuppressWarnings({"PMD.ExcessiveImports", "PMD.SystemPrintln", "PMD.TooManyFields"})
+@SuppressWarnings({"PMD.ExcessiveImports", "PMD.TooManyFields"})
 public final class AssembleModelCommand implements Callable<Integer> {
 
   @Option(names = "--roots", required = true, description = "Application roots JSON file.")
@@ -126,27 +126,11 @@ public final class AssembleModelCommand implements Callable<Integer> {
   @Option(names = "--producer-version", required = true)
   private String producerVersion;
 
-  @Option(
-      names = "--strict",
-      arity = "1",
-      defaultValue = "true",
-      description = "Fail closed on every missing or ambiguous model fact (required for v1).")
-  private boolean strict;
-
-  @Option(
-      names = "--explain",
-      description = "Print deterministic provenance and classpath reasoning for one node ID.")
-  private String explain;
-
   @Option(names = "--output", required = true)
   private Path output;
 
   @Override
   public Integer call() throws IOException {
-    if (!strict) {
-      throw new BazelApplicationModelException(
-          "quarkus-bazel-model-v1 is fail-closed; --no-strict is not supported");
-    }
     BazelApplicationModel.Mode parsedMode;
     try {
       parsedMode = BazelApplicationModel.Mode.valueOf(mode.toUpperCase(Locale.ROOT));
@@ -181,57 +165,7 @@ public final class AssembleModelCommand implements Callable<Integer> {
                 applicationVersion,
                 producerVersion));
     BazelApplicationModelWriter.write(model, output);
-    if (explain != null) {
-      printExplanation(model, explain);
-    }
     return 0;
-  }
-
-  private static void printExplanation(BazelApplicationModel model, String nodeId) {
-    var node =
-        model.nodes().stream()
-            .filter(candidate -> nodeId.equals(candidate.id()))
-            .findFirst()
-            .orElseThrow(
-                () ->
-                    new BazelApplicationModelException(
-                        "Cannot explain unknown node '" + nodeId + "'"));
-    var parents = new ArrayList<String>();
-    for (var parent : model.nodes()) {
-      for (var edge : parent.dependencies()) {
-        if (nodeId.equals(edge.targetId())) {
-          parents.add(
-              parent.id()
-                  + " --"
-                  + edge.relation().name().toLowerCase(Locale.ROOT)
-                  + ","
-                  + edge.scope().name().toLowerCase(Locale.ROOT)
-                  + (edge.optional() ? ",optional" : "")
-                  + "--> "
-                  + nodeId);
-        }
-      }
-    }
-    parents.sort(String::compareTo);
-    System.out.println("node: " + node.id());
-    System.out.println("coordinates: " + canonical(node.coordinates()));
-    System.out.println("bazel-label: " + node.bazelLabel());
-    System.out.println("paths: " + node.paths());
-    System.out.println("parents: " + parents);
-    System.out.println("classpath: " + node.classpath());
-    System.out.println("provenance: " + model.diagnostics().provenance());
-  }
-
-  private static String canonical(BazelApplicationModel.ArtifactCoordinates coordinates) {
-    return coordinates.groupId()
-        + ":"
-        + coordinates.artifactId()
-        + ":"
-        + coordinates.classifier()
-        + ":"
-        + coordinates.type()
-        + ":"
-        + coordinates.version();
   }
 
   private static Map<String, String> readDeploymentPaths(Path path) throws IOException {

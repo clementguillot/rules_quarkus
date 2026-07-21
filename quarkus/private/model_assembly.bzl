@@ -87,7 +87,7 @@ def _write_local_runtime_aliases(ctx, aliases):
     ctx.actions.write(output = output, content = "\n".join(lines) + ("\n" if lines else ""))
     return output
 
-def run_model_assembly(ctx, roots, fragments, model_artifacts, deployment_fragments, deployment_model_artifacts, local_deployments, local_runtime_aliases, runtime_classpath, conditional_classpath, deployment_classpath, mode, application_name = None):
+def _run_model_assembly(ctx, roots, fragments, model_artifacts, deployment_fragments, deployment_model_artifacts, local_deployments, local_runtime_aliases, runtime_classpath, conditional_classpath, deployment_classpath, mode, application_name = None):
     """Assembles a canonical model without changing the public rule API.
 
     Args:
@@ -133,7 +133,6 @@ def run_model_assembly(ctx, roots, fragments, model_artifacts, deployment_fragme
     args.add("-jar")
     args.add(ctx.file.quarkifier_tool)
     args.add("assemble-model")
-    args.add("--strict=true")
     args.add("--roots", roots)
     args.add("--target-fragments-file", fragment_manifest)
     args.add("--runtime-catalog", ctx.file.runtime_catalog)
@@ -199,11 +198,11 @@ def assemble_application_model(ctx, deps, runtime_classpath, conditional_classpa
         application_name: Optional application artifact name; defaults to the target name.
 
     Returns:
-        A struct containing the model file, collected fragments, and roots file.
+        The declared canonical application-model JSON file.
     """
     roots = write_model_roots_file(ctx, deps)
     fragments = collect_model_fragments(deps)
-    model = run_model_assembly(
+    return _run_model_assembly(
         ctx,
         roots,
         fragments,
@@ -217,9 +216,4 @@ def assemble_application_model(ctx, deps, runtime_classpath, conditional_classpa
         deployment_classpath,
         mode,
         application_name,
-    )
-    return struct(
-        file = model,
-        fragments = fragments,
-        roots = roots,
     )

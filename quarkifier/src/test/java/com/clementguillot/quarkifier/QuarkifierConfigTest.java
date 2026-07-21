@@ -12,9 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
 
-/**
- * Unit tests for CLI parsing via {@link QuarkifierCommand} and {@link QuarkifierConfig} round-trip.
- */
+/** Unit tests for CLI parsing via {@link QuarkifierCommand} and {@link QuarkifierConfig}. */
 class QuarkifierConfigTest {
 
   /** Parses args via picocli and returns the config, or throws on usage error. */
@@ -24,7 +22,7 @@ class QuarkifierConfigTest {
       arguments.add("--application-model");
       arguments.add("model.json");
     }
-    return QuarkifierConfig.parse(arguments.toArray(String[]::new));
+    return TestQuarkifierConfig.parse(arguments.toArray(String[]::new));
   }
 
   @Test
@@ -50,7 +48,8 @@ class QuarkifierConfigTest {
         assertThrows(
             CommandLine.MissingParameterException.class,
             () ->
-                QuarkifierConfig.parse("--application-classpath", "a.jar", "--output-dir", "/out"));
+                TestQuarkifierConfig.parse(
+                    "--application-classpath", "a.jar", "--output-dir", "/out"));
     assertTrue(ex.getMessage().contains("--application-model"));
   }
 
@@ -202,43 +201,6 @@ class QuarkifierConfigTest {
             "--application-classpath", "a.jar",
             "--output-dir", "/out");
     assertNull(config.workspaceDir());
-  }
-
-  // ---- toArgs() round-trip ----
-
-  @Test
-  void roundTrip_minimalConfig() {
-    var original =
-        parse(
-            "--application-classpath", "a.jar",
-            "--output-dir", "/out");
-
-    assertEquals(original, parse(original.toArgs()));
-  }
-
-  @Test
-  void roundTrip_fullConfig() {
-    var original =
-        parse(
-            "--application-classpath", "a.jar:b.jar",
-            "--core-deployment-classpath", "core.jar",
-            "--output-dir", "/out",
-            "--resources", "src/main/resources,extra/resources",
-            "--mode", "dev",
-            "--app-name", "my-app",
-            "--main-class", "com.example.Main",
-            "--native-builder-image", "quay.io/quarkus/builder:jdk-25",
-            "--source-dirs", "src/main/java,lib/src/main/java",
-            "--classes-dir", "/tmp/classes",
-            "--bazel-targets", "//pkg:lib,//pkg:other",
-            "--classes-output-dirs", "bazel-bin/pkg/lib",
-            "--workspace-dir", "/home/user/project",
-            "--bazel-build-timeout-seconds", "120",
-            "--bazel-command", "/usr/local/bin/bazelisk",
-            "--bazel-build-args", "--config=dev,-c,opt",
-            "--local-app-jars", "a.jar");
-
-    assertEquals(original, parse(original.toArgs()));
   }
 
   // ---- classpath file flags ----

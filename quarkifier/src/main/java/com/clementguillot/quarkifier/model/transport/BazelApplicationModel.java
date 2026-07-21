@@ -17,8 +17,7 @@ public record BazelApplicationModel(
     String applicationId,
     List<Node> nodes,
     List<WorkspaceModule> workspaceModules,
-    Platform platform,
-    Diagnostics diagnostics) {
+    Platform platform) {
 
   public static final String SCHEMA_VERSION = "quarkus-bazel-model-v1";
 
@@ -155,14 +154,6 @@ public record BazelApplicationModel(
 
     public PlatformRelease {
       memberBoms = List.copyOf(memberBoms);
-    }
-  }
-
-  public record Diagnostics(List<String> warnings, List<String> provenance) {
-
-    public Diagnostics {
-      warnings = List.copyOf(warnings);
-      provenance = List.copyOf(provenance);
     }
   }
 }

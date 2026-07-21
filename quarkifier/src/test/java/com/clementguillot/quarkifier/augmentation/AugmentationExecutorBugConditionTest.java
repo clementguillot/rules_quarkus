@@ -6,6 +6,7 @@ import com.clementguillot.quarkifier.AugmentationException;
 import com.clementguillot.quarkifier.AugmentationMode;
 import com.clementguillot.quarkifier.QuarkifierConfig;
 import com.clementguillot.quarkifier.QuarkifierVersionProvider;
+import com.clementguillot.quarkifier.TestQuarkifierConfig;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel;
 import io.quarkus.bootstrap.model.ApplicationModelBuilder;
 import io.quarkus.maven.dependency.ResolvedDependencyBuilder;
@@ -294,8 +295,7 @@ class AugmentationExecutorBugConditionTest {
         "app",
         List.of(),
         List.of(),
-        new BazelApplicationModel.Platform(List.of(), Map.of(), List.of()),
-        new BazelApplicationModel.Diagnostics(List.of(), List.of()));
+        new BazelApplicationModel.Platform(List.of(), Map.of(), List.of()));
   }
 
   private static QuarkifierConfig configWith(
@@ -311,7 +311,7 @@ class AugmentationExecutorBugConditionTest {
       args.add("--local-app-jars");
       args.add(joinPaths(localAppJars));
     }
-    return QuarkifierConfig.parse(args.toArray(String[]::new));
+    return TestQuarkifierConfig.parse(args.toArray(String[]::new));
   }
 
   private static String joinPaths(List<Path> paths) {

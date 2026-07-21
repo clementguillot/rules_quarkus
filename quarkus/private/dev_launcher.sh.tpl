@@ -163,10 +163,6 @@ _JAVA_ARGFILE=$(mktemp "${OUTPUT_DIR}/quarkus_dev_args_XXXXXX")
   _q "$ABS_LOCAL_APP_JARS_FILE"
   echo "--application-model"
   _q "$MODEL_FILE"
-  if [ -n "${RULES_QUARKUS_APPLICATION_MODEL_SNAPSHOT:-}" ]; then
-    echo "--application-model-snapshot-output"
-    _q "$RULES_QUARKUS_APPLICATION_MODEL_SNAPSHOT"
-  fi
   echo "--core-deployment-classpath-file"
   _q "$ABS_CORE_DEPLOY_CP_FILE"
   echo "--output-dir"

@@ -23,7 +23,6 @@ import picocli.CommandLine.Command;
     subcommands = {
       AugmentationCommand.class,
       AssembleModelCommand.class,
-      CompareModelsCommand.class,
       DiscoverExtensionsCommand.class,
       EnrichExtensionCommand.class
     })

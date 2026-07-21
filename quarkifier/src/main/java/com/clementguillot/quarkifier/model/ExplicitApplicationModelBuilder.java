@@ -58,15 +58,6 @@ public final class ExplicitApplicationModelBuilder {
     return adapter.build();
   }
 
-  /** Serializes a model using the supported Quarkus line's native wire format. */
-  public static void serialize(ApplicationModel model, Path output) throws IOException {
-    QuarkusModelVersionAdapter.serialize(model, output);
-  }
-
-  static ApplicationModel deserialize(Path input) throws IOException {
-    return QuarkusModelVersionAdapter.deserialize(input);
-  }
-
   private static final class Adapter {
     private final BazelApplicationModel source;
     private final ApplicationModelBuilder builder = new ApplicationModelBuilder();

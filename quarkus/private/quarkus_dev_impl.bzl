@@ -102,7 +102,7 @@ def _quarkus_dev_impl(ctx):
 
     tool_jar = ctx.file.quarkifier_tool
     java_runtime = ctx.attr._java_runtime[java_common.JavaRuntimeInfo]
-    launcher = _write_dev_launcher(ctx, tool_jar, files, model.file, java_runtime)
+    launcher = _write_dev_launcher(ctx, tool_jar, files, model, java_runtime)
 
     runfiles = ctx.runfiles(
         files = [
@@ -114,14 +114,14 @@ def _quarkus_dev_impl(ctx):
             files.resource_dirs,
             files.bazel_targets,
             files.classes_output_dirs,
-            model.file,
+            model,
         ],
         transitive_files = depset(transitive = [runtime_classpath, conditional_classpath, deployment_classpath, core_deployment_classpath, java_runtime.files]),
     )
 
     return [
         DefaultInfo(executable = launcher, runfiles = runfiles),
-        OutputGroupInfo(quarkus_model = depset([model.file])),
+        OutputGroupInfo(quarkus_model = depset([model])),
     ]
 
 def _join_dev_build_args(args):

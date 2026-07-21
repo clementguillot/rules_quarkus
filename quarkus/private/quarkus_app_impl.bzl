@@ -45,14 +45,14 @@ def _quarkus_app_impl(ctx):
     model = assemble_application_model(ctx, ctx.attr.deps, runtime_classpath, conditional_classpath, deployment_classpath, "normal")
 
     output_dir = ctx.actions.declare_directory(ctx.label.name + "-quarkus-app")
-    model_snapshot = run_augmentation(
+    run_augmentation(
         ctx,
         output_dir,
         runtime_classpath,
         conditional_classpath,
         deployment_classpath,
         local_jars = local_jars,
-        model_file = model.file,
+        model_file = model,
     )
 
     # The launcher runs the app with the target-config Java runtime from
@@ -71,9 +71,7 @@ def _quarkus_app_impl(ctx):
         ),
         OutputGroupInfo(
             quarkus_app = depset([output_dir]),
-            quarkus_model = depset([model.file]),
-            quarkus_application_model = depset([model_snapshot]),
-            quarkus_model_fragments = depset([model.roots], transitive = [model.fragments]),
+            quarkus_model = depset([model]),
         ),
         QuarkusAppInfo(
             fast_jar_dir = output_dir,

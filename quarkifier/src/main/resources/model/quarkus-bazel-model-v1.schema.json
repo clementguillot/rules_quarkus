@@ -4,7 +4,7 @@
   "title": "rules_quarkus explicit application model v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "producer", "quarkusVersion", "mode", "applicationId", "nodes", "workspaceModules", "platform", "diagnostics"],
+  "required": ["schemaVersion", "producer", "quarkusVersion", "mode", "applicationId", "nodes", "workspaceModules", "platform"],
   "properties": {
     "schemaVersion": {"const": "quarkus-bazel-model-v1"},
     "producer": {
@@ -21,16 +21,7 @@
     "applicationId": {"type": "string", "minLength": 1},
     "nodes": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/node"}},
     "workspaceModules": {"type": "array", "items": {"$ref": "#/$defs/workspaceModule"}},
-    "platform": {"$ref": "#/$defs/platform"},
-    "diagnostics": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["warnings", "provenance"],
-      "properties": {
-        "warnings": {"type": "array", "items": {"type": "string", "minLength": 1}},
-        "provenance": {"type": "array", "items": {"type": "string", "minLength": 1}}
-      }
-    }
+    "platform": {"$ref": "#/$defs/platform"}
   },
   "$defs": {
     "coordinates": {

@@ -42,6 +42,5 @@
     "additionalTestClasspathElements": [],
     "parentId": null
   }],
-  "platform": {"imports": [], "properties": {}, "releases": []},
-  "diagnostics": {"warnings": [], "provenance": ["schema example"]}
+  "platform": {"imports": [], "properties": {}, "releases": []}
 }

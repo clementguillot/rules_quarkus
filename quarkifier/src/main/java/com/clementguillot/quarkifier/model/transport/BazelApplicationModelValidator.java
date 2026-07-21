@@ -64,7 +64,6 @@ public final class BazelApplicationModelValidator {
     validateReachability(application, nodes);
     validateAcyclic(nodes);
     validatePlatform(model);
-    validateDiagnostics(model);
   }
 
   private static Map<String, Node> indexNodes(List<Node> values) {
@@ -348,14 +347,6 @@ public final class BazelApplicationModelValidator {
         }
       }
     }
-  }
-
-  private static void validateDiagnostics(BazelApplicationModel model) {
-    if (model.diagnostics() == null) {
-      throw problem("$.diagnostics", "must not be null");
-    }
-    requireUniqueNonBlank(model.diagnostics().warnings(), "$.diagnostics.warnings", true);
-    requireUniqueNonBlank(model.diagnostics().provenance(), "$.diagnostics.provenance", true);
   }
 
   private static void validateCoordinates(ArtifactCoordinates value, String path) {

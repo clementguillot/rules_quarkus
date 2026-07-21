@@ -77,12 +77,6 @@ public final class AugmentationCommand implements Callable<Integer> {
       description = "Validated quarkus-bazel-model-v1 JSON.")
   private Path applicationModel;
 
-  @Option(
-      names = "--application-model-snapshot-output",
-      description =
-          "Write the Quarkus-native curated ApplicationModel JSON for conformance diagnostics.")
-  private Path applicationModelSnapshotOutput;
-
   // ---- Output ----
 
   @Option(
@@ -189,7 +183,7 @@ public final class AugmentationCommand implements Callable<Integer> {
    *
    * @throws CommandLine.ParameterException on invalid values
    */
-  public QuarkifierConfig toConfig() {
+  QuarkifierConfig toConfig() {
     List<Path> resolvedAppCp = resolveClasspath(applicationClasspath, applicationClasspathFile);
     List<Path> resolvedCoreCp =
         resolveClasspath(coreDeploymentClasspath, coreDeploymentClasspathFile);
@@ -227,8 +221,7 @@ public final class AugmentationCommand implements Callable<Integer> {
         bazelCommand,
         orEmpty(bazelBuildArgs),
         resolvedLocalJars,
-        applicationModel,
-        applicationModelSnapshotOutput);
+        applicationModel);
   }
 
   // ---- internal helpers ----

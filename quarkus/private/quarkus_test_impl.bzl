@@ -61,7 +61,7 @@ def _quarkus_test_impl(ctx):
             "%{direct_jars_file}": direct_jars_file.short_path,
             "%{java_home}": java_runtime.java_home_runfiles_path,
             "%{jvm_flags}": " ".join([shell.quote(f) for f in ctx.attr.jvm_flags]),
-            "%{model_file}": model.file.short_path,
+            "%{model_file}": model.short_path,
             "%{test_args}": _build_test_args(ctx.attr.test_packages, ctx.attr.test_classes, ctx.attr.fail_if_no_tests),
             "%{fail_if_no_tests}": "true" if ctx.attr.fail_if_no_tests else "false",
             "%{tool_jar}": tool_jar.short_path,
@@ -71,7 +71,7 @@ def _quarkus_test_impl(ctx):
     )
 
     runfiles = ctx.runfiles(
-        files = [cp_file, direct_jars_file, model.file, tool_jar],
+        files = [cp_file, direct_jars_file, model, tool_jar],
         transitive_files = depset(
             transitive = [runtime_classpath, conditional_classpath, deploy_classpath, java_runtime.files],
         ),
@@ -79,7 +79,7 @@ def _quarkus_test_impl(ctx):
 
     return [
         DefaultInfo(executable = launcher, runfiles = runfiles),
-        OutputGroupInfo(quarkus_model = depset([model.file])),
+        OutputGroupInfo(quarkus_model = depset([model])),
     ]
 
 quarkus_test = rule(
