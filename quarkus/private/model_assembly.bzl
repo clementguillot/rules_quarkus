@@ -16,64 +16,44 @@ def _write_path_lines(ctx, suffix, files):
     ctx.actions.write(output = output, content = args)
     return output
 
-def _write_deployment_paths(ctx, deployment_classpath):
-    output = ctx.actions.declare_file(ctx.label.name + ".quarkus-deployment-paths-v1.txt")
-    lines = []
+def _write_marker_paths(ctx, files, marker, suffix, label, require_marker = False):
+    """Writes a sorted tab-separated path manifest for files matching a marker prefix.
+
+    Args:
+        ctx: Rule context.
+        files: Iterable of File objects to scan.
+        marker: Path substring that marks relevant files (e.g. "deployment/jars/").
+        suffix: Output file name suffix (e.g. ".quarkus-deployment-paths-v1.txt").
+        label: Human-readable label for error messages.
+        require_marker: When True, files missing the marker cause a fail() instead of being skipped.
+
+    Returns:
+        The declared output file.
+    """
+    output = ctx.actions.declare_file(ctx.label.name + suffix)
     seen = {}
-    for file in deployment_classpath.to_list():
-        marker_index = file.path.find(_DEPLOYMENT_PATH_MARKER)
+    for file in files:
+        marker_index = file.path.find(marker)
         if marker_index < 0:
+            if require_marker:
+                fail("{} input '{}' is outside the generated model repository".format(label, file.path))
             continue
         repo_path = file.path[marker_index:]
         if repo_path in seen and seen[repo_path] != file.path:
-            fail("deployment catalog path '{}' maps to both '{}' and '{}'".format(
-                repo_path,
-                seen[repo_path],
-                file.path,
-            ))
+            fail("{} path '{}' maps to both '{}' and '{}'".format(label, repo_path, seen[repo_path], file.path))
         seen[repo_path] = file.path
-    for repo_path in sorted(seen):
-        lines.append(repo_path + "\t" + seen[repo_path])
+    lines = [repo_path + "\t" + seen[repo_path] for repo_path in sorted(seen)]
     ctx.actions.write(output = output, content = "\n".join(lines) + ("\n" if lines else ""))
     return output
+
+def _write_deployment_paths(ctx, deployment_classpath):
+    return _write_marker_paths(ctx, deployment_classpath.to_list(), _DEPLOYMENT_PATH_MARKER, ".quarkus-deployment-paths-v1.txt", "deployment catalog")
 
 def _write_conditional_paths(ctx, conditional_classpath):
-    output = ctx.actions.declare_file(ctx.label.name + ".quarkus-conditional-paths-v1.txt")
-    lines = []
-    seen = {}
-    for file in conditional_classpath.to_list():
-        marker_index = file.path.find(_CONDITIONAL_PATH_MARKER)
-        if marker_index < 0:
-            continue
-        repo_path = file.path[marker_index:]
-        if repo_path in seen and seen[repo_path] != file.path:
-            fail("conditional catalog path '{}' maps to both '{}' and '{}'".format(repo_path, seen[repo_path], file.path))
-        seen[repo_path] = file.path
-    for repo_path in sorted(seen):
-        lines.append(repo_path + "\t" + seen[repo_path])
-    ctx.actions.write(output = output, content = "\n".join(lines) + ("\n" if lines else ""))
-    return output
+    return _write_marker_paths(ctx, conditional_classpath.to_list(), _CONDITIONAL_PATH_MARKER, ".quarkus-conditional-paths-v1.txt", "conditional catalog")
 
 def _write_platform_property_paths(ctx):
-    output = ctx.actions.declare_file(ctx.label.name + ".quarkus-platform-property-paths-v1.txt")
-    lines = []
-    seen = {}
-    for file in ctx.files.platform_properties:
-        marker_index = file.path.find(_PLATFORM_PROPERTY_PATH_MARKER)
-        if marker_index < 0:
-            fail("platform properties input '{}' is outside the generated model repository".format(file.path))
-        repo_path = file.path[marker_index:]
-        if repo_path in seen and seen[repo_path] != file.path:
-            fail("platform properties path '{}' maps to both '{}' and '{}'".format(
-                repo_path,
-                seen[repo_path],
-                file.path,
-            ))
-        seen[repo_path] = file.path
-    for repo_path in sorted(seen):
-        lines.append(repo_path + "\t" + seen[repo_path])
-    ctx.actions.write(output = output, content = "\n".join(lines) + ("\n" if lines else ""))
-    return output
+    return _write_marker_paths(ctx, ctx.files.platform_properties, _PLATFORM_PROPERTY_PATH_MARKER, ".quarkus-platform-property-paths-v1.txt", "platform properties", require_marker = True)
 
 def _write_local_deployments(ctx, local_deployments):
     output = ctx.actions.declare_file(ctx.label.name + ".quarkus-local-deployments-v1.txt")

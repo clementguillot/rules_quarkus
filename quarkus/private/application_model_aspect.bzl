@@ -131,6 +131,82 @@ def _standard_child_graphs(ctx):
         edges.extend(_edge_records(attr_graphs, attr_name, scope))
     return graphs, edges
 
+def _extension_target_facts(ctx, target):
+    """Computes model graph facts for a local Quarkus extension target.
+
+    Returns a struct with: direct_fragments, direct_artifacts, root_edges,
+    root_ids, extra_transitive_fragments, extra_transitive_artifacts,
+    extra_deployment_fragments, extra_deployment_artifacts,
+    local_deployments, local_runtime_aliases.
+    """
+    runtime_graphs = _graphs_for_attr(ctx, "runtime")
+    deploy_graphs = _graphs_for_attr(ctx, "deployment")
+    if len(runtime_graphs) != 1 or len(deploy_graphs) != 1:
+        fail("local Quarkus extension '{}' requires one runtime and one deployment graph".format(target.label))
+    runtime_graph = runtime_graphs[0]
+    deploy_graph = deploy_graphs[0]
+    extension = target[QuarkusExtensionInfo]
+    root_edges = runtime_graph.root_edges
+    runtime_outputs = target[JavaInfo].runtime_output_jars
+    workspace_outputs = _extract_workspace_outputs(ctx, target, runtime_outputs)
+    direct_fragments = [_target_fragment(
+        ctx,
+        target,
+        root_edges,
+        coordinates = _coordinates(extension.group_id, extension.artifact_id, extension.version),
+        output_directories = workspace_outputs,
+    )]
+    direct_artifacts = list(runtime_outputs) + list(workspace_outputs)
+
+    packaged_deployment_id = "local-deployment:" + str(target.label)
+    dep_fragment = _target_fragment(
+        ctx,
+        target,
+        deploy_graph.root_edges,
+        coordinates = _coordinates(extension.group_id, extension.artifact_id + "-deployment", extension.version),
+        output_jars = [extension.deployment_jar],
+        suffix = ".deployment",
+    )
+    extra_deployment_fragments = depset(
+        direct = [dep_fragment],
+        transitive = [deploy_graph.fragments, deploy_graph.deployment_fragments],
+    )
+    extra_deployment_artifacts = depset(
+        direct = [extension.deployment_jar],
+        transitive = [deploy_graph.transitive_artifacts, deploy_graph.deployment_artifacts],
+    )
+
+    local_deployments = list(deploy_graph.local_deployments)
+    local_runtime_aliases = list(deploy_graph.local_runtime_aliases)
+
+    raw_runtime_ids = runtime_graph.root_ids.to_list()
+    if len(raw_runtime_ids) != 1:
+        fail("local Quarkus extension '{}' runtime must have one graph root".format(target.label))
+    local_runtime_aliases.append({"rawTargetId": raw_runtime_ids[0], "targetId": str(target.label)})
+
+    raw_deployment_ids = deploy_graph.root_ids.to_list()
+    if len(raw_deployment_ids) != 1:
+        fail("local Quarkus extension '{}' deployment must have one graph root".format(target.label))
+    local_runtime_aliases.append({"rawTargetId": raw_deployment_ids[0], "targetId": packaged_deployment_id})
+
+    local_deployments.append({
+        "coordinate": extension.group_id + ":" + extension.artifact_id + "-deployment::jar:" + extension.version,
+        "targetId": packaged_deployment_id,
+    })
+
+    return struct(
+        direct_artifacts = direct_artifacts,
+        direct_fragments = direct_fragments,
+        extra_deployment_artifacts = extra_deployment_artifacts,
+        extra_deployment_fragments = extra_deployment_fragments,
+        extra_transitive_artifacts = runtime_graph.artifacts,
+        extra_transitive_fragments = runtime_graph.fragments,
+        local_deployments = local_deployments,
+        local_runtime_aliases = local_runtime_aliases,
+        root_edges = root_edges,
+        root_ids = [str(target.label)],
+    )
+
 def _application_model_aspect_impl(target, ctx):
     child_graphs, edges = _standard_child_graphs(ctx)
     transitive_fragments = [graph.fragments for graph in child_graphs]
@@ -148,71 +224,21 @@ def _application_model_aspect_impl(target, ctx):
     root_ids = []
     root_edges = []
     if JavaInfo in target and QuarkusExtensionInfo in target:
-        runtime_graphs = _graphs_for_attr(ctx, "runtime")
-        deploy_graphs = _graphs_for_attr(ctx, "deployment")
-        if len(runtime_graphs) != 1 or len(deploy_graphs) != 1:
-            fail("local Quarkus extension '{}' requires one runtime and one deployment graph".format(target.label))
-        runtime_graph = runtime_graphs[0]
-        deploy_graph = deploy_graphs[0]
-        extension = target[QuarkusExtensionInfo]
-        root_edges = runtime_graph.root_edges
-        runtime_outputs = target[JavaInfo].runtime_output_jars
-        workspace_outputs = _extract_workspace_outputs(ctx, target, runtime_outputs)
-        direct_fragments.append(_target_fragment(
-            ctx,
-            target,
-            root_edges,
-            coordinates = _coordinates(extension.group_id, extension.artifact_id, extension.version),
-            output_directories = workspace_outputs,
-        ))
-        direct_artifacts.extend(runtime_outputs)
-        direct_artifacts.extend(workspace_outputs)
+        facts = _extension_target_facts(ctx, target)
+        direct_fragments.extend(facts.direct_fragments)
+        direct_artifacts.extend(facts.direct_artifacts)
+        root_edges = facts.root_edges
+        root_ids.extend(facts.root_ids)
 
         # Keep the raw runtime root fragment as workspace/source provenance.
         # The Java assembler joins it to the packaged extension via
         # local_runtime_aliases without materializing a phantom dependency.
-        transitive_fragments.append(runtime_graph.fragments)
-        transitive_artifacts.append(runtime_graph.artifacts)
-
-        packaged_deployment_id = "local-deployment:" + str(target.label)
-        deployment_fragments.append(depset(
-            direct = [_target_fragment(
-                ctx,
-                target,
-                deploy_graph.root_edges,
-                coordinates = _coordinates(extension.group_id, extension.artifact_id + "-deployment", extension.version),
-                output_jars = [extension.deployment_jar],
-                suffix = ".deployment",
-            )],
-            # Retain the raw deployment root as source/workspace provenance. The
-            # packaged node remains the graph identity and aliases this raw root.
-            transitive = [deploy_graph.fragments, deploy_graph.deployment_fragments],
-        ))
-        deployment_artifacts.append(depset(
-            direct = [extension.deployment_jar],
-            transitive = [deploy_graph.transitive_artifacts, deploy_graph.deployment_artifacts],
-        ))
-        local_deployments.extend(deploy_graph.local_deployments)
-        local_runtime_aliases.extend(deploy_graph.local_runtime_aliases)
-        raw_runtime_ids = runtime_graph.root_ids.to_list()
-        if len(raw_runtime_ids) != 1:
-            fail("local Quarkus extension '{}' runtime must have one graph root".format(target.label))
-        local_runtime_aliases.append({
-            "rawTargetId": raw_runtime_ids[0],
-            "targetId": str(target.label),
-        })
-        raw_deployment_ids = deploy_graph.root_ids.to_list()
-        if len(raw_deployment_ids) != 1:
-            fail("local Quarkus extension '{}' deployment must have one graph root".format(target.label))
-        local_runtime_aliases.append({
-            "rawTargetId": raw_deployment_ids[0],
-            "targetId": packaged_deployment_id,
-        })
-        local_deployments.append({
-            "coordinate": extension.group_id + ":" + extension.artifact_id + "-deployment::jar:" + extension.version,
-            "targetId": packaged_deployment_id,
-        })
-        root_ids.append(str(target.label))
+        transitive_fragments.append(facts.extra_transitive_fragments)
+        transitive_artifacts.append(facts.extra_transitive_artifacts)
+        deployment_fragments.append(facts.extra_deployment_fragments)
+        deployment_artifacts.append(facts.extra_deployment_artifacts)
+        local_deployments.extend(facts.local_deployments)
+        local_runtime_aliases.extend(facts.local_runtime_aliases)
     elif JavaInfo in target:
         root_edges = edges
         runtime_outputs = target[JavaInfo].runtime_output_jars
@@ -280,53 +306,41 @@ def collect_deployment_model_artifacts(deps):
     """Collects artifacts referenced by local deployment fragments."""
     return _collect_graph_depset(deps, "deployment_artifacts")
 
-def collect_local_deployments(deps):
-    """Collects descriptor coordinate to local deployment root joins.
+def _collect_unique_mappings(deps, field, key_field, value_field, label):
+    """Deduplicates mappings from a graph provider field across deps.
 
     Args:
         deps: Direct dependencies carrying application-model graph providers.
+        field: Attribute name on QuarkusBazelTargetGraphInfo to iterate.
+        key_field: Dict key used for deduplication.
+        value_field: Dict key whose value is checked for conflicts.
+        label: Human-readable label for error messages.
 
     Returns:
-        A list of unique local deployment coordinate-to-target mappings.
+        A list of unique mapping dicts.
     """
     result = []
     seen = {}
     for dep in deps:
         if QuarkusBazelTargetGraphInfo not in dep:
             continue
-        for deployment in dep[QuarkusBazelTargetGraphInfo].local_deployments:
-            coordinate = deployment["coordinate"]
-            target_id = deployment["targetId"]
-            if coordinate in seen and seen[coordinate] != target_id:
-                fail("local deployment coordinate '{}' maps to multiple targets".format(coordinate))
-            if coordinate not in seen:
-                seen[coordinate] = target_id
-                result.append(deployment)
+        for item in getattr(dep[QuarkusBazelTargetGraphInfo], field):
+            key = item[key_field]
+            value = item[value_field]
+            if key in seen and seen[key] != value:
+                fail("{} '{}' maps to multiple targets".format(label, key))
+            if key not in seen:
+                seen[key] = value
+                result.append(item)
     return result
+
+def collect_local_deployments(deps):
+    """Collects descriptor coordinate to local deployment root joins."""
+    return _collect_unique_mappings(deps, "local_deployments", "coordinate", "targetId", "local deployment coordinate")
 
 def collect_local_runtime_aliases(deps):
-    """Collects raw local runtime to packaged extension target aliases.
-
-    Args:
-        deps: Direct dependencies carrying application-model graph providers.
-
-    Returns:
-        A list of unique raw-to-packaged local runtime target mappings.
-    """
-    result = []
-    seen = {}
-    for dep in deps:
-        if QuarkusBazelTargetGraphInfo not in dep:
-            continue
-        for alias in dep[QuarkusBazelTargetGraphInfo].local_runtime_aliases:
-            raw_id = alias["rawTargetId"]
-            target_id = alias["targetId"]
-            if raw_id in seen and seen[raw_id] != target_id:
-                fail("local runtime target '{}' maps to multiple packaged targets".format(raw_id))
-            if raw_id not in seen:
-                seen[raw_id] = target_id
-                result.append(alias)
-    return result
+    """Collects raw local runtime to packaged extension target aliases."""
+    return _collect_unique_mappings(deps, "local_runtime_aliases", "rawTargetId", "targetId", "local runtime target")
 
 def write_model_roots_file(ctx, deps):
     """Writes direct dependency ids, preserving the public deps order.

@@ -186,7 +186,7 @@ def _runtime_catalog(lock_data, resolver_report = None):
         "schemaVersion": "quarkus-bazel-runtime-catalog-v1",
     }
 
-def _write_runtime_catalog(rctx, java):
+def _write_runtime_catalog(rctx, java, lock_data = None, lock_catalog = None):
     if not rctx.attr.lock_file:
         catalog = {
             "conflictResolution": {},
@@ -195,8 +195,10 @@ def _write_runtime_catalog(rctx, java):
             "schemaVersion": "quarkus-bazel-runtime-catalog-v1",
         }
     else:
-        lock_data = json.decode(rctx.read(rctx.attr.lock_file))
-        lock_catalog = _runtime_catalog(lock_data)
+        if lock_data == None:
+            lock_data = json.decode(rctx.read(rctx.attr.lock_file))
+        if lock_catalog == None:
+            lock_catalog = _runtime_catalog(lock_data)
         nodes_by_key = {node["coordinateKey"]: node for node in lock_catalog["nodes"]}
         direct_keys = {key: True for key in lock_catalog["directArtifacts"]}
         redundant_direct_keys = {}
@@ -206,11 +208,16 @@ def _write_runtime_catalog(rctx, java):
             # Starlark deliberately has no unbounded loops. At most N passes
             # are needed to close a graph with N nodes, including cycles.
             for _ in lock_catalog["nodes"]:
+                changed = False
                 for dependency_key in sorted(reachable.keys()):
                     dependency_node = nodes_by_key.get(dependency_key)
                     if dependency_node:
                         for transitive_key in dependency_node["dependencies"]:
-                            reachable[transitive_key] = True
+                            if transitive_key not in reachable:
+                                reachable[transitive_key] = True
+                                changed = True
+                if not changed:
+                    break
             for dependency_key in reachable:
                 if dependency_key in direct_keys and dependency_key != root_key:
                     redundant_direct_keys[dependency_key] = True
@@ -221,8 +228,7 @@ def _write_runtime_catalog(rctx, java):
             if key not in redundant_direct_keys
         ]
         roots = []
-        forced_versions = []
-        forced_modules = {}
+        forced_versions = _forced_versions_from_catalog(lock_catalog)
         for coordinate_key in resolution_root_keys:
             node = nodes_by_key[coordinate_key]
             fields = node["coordinates"]
@@ -233,15 +239,6 @@ def _write_runtime_catalog(rctx, java):
                 fields["type"],
                 fields["version"],
             )).fetch)
-        for node in lock_catalog["nodes"]:
-            fields = node["coordinates"]
-            module = fields["groupId"] + ":" + fields["artifactId"]
-            forced = module + ":" + fields["version"]
-            if module in forced_modules and forced_modules[module] != forced:
-                fail("Runtime lock selects multiple versions for module '{}'".format(module))
-            if module not in forced_modules:
-                forced_modules[module] = forced
-                forced_versions.append(forced)
         if roots:
             rctx.report_progress("Resolving Maven-faithful runtime dependency graph")
             result = _coursier_fetch(
@@ -682,10 +679,15 @@ def _conditional_roots(descriptors):
             roots[_coursier_artifact(coordinate).report] = coordinate
     return roots
 
-def _runtime_forced_versions(rctx):
-    if not rctx.attr.lock_file:
-        return []
-    catalog = _runtime_catalog(json.decode(rctx.read(rctx.attr.lock_file)))
+def _forced_versions_from_catalog(catalog):
+    """Extracts sorted G:A:V forced-version pins from a runtime catalog.
+
+    Args:
+        catalog: A runtime catalog dict with a "nodes" list.
+
+    Returns:
+        A sorted list of "groupId:artifactId:version" strings, one per module.
+    """
     forced = {}
     for node in catalog["nodes"]:
         fields = node["coordinates"]
@@ -728,45 +730,46 @@ def _scan_resolved_extensions(rctx, java, report, pass_index):
         fail("Failed to discover nested conditional extension descriptors:\n" + result.stderr)
     return json.decode(rctx.read(descriptors_file))
 
-def _resolve_conditional_runtime(rctx, java, initial_catalog):
+def _resolve_conditional_runtime(rctx, java, initial_catalog, forced_versions):
     """Resolves the complete normal+dev candidate universe to a stable descriptor graph."""
     descriptors = _descriptor_map(initial_catalog)
-    forced_versions = _runtime_forced_versions(rctx)
     resolved_roots = {}
     final_report = None
     final_result = None
-    active = True
+    converged = False
     max_passes = 32
     for pass_index in range(max_passes):
-        if active:
-            roots = _conditional_roots(descriptors)
-            if not roots:
-                active = False
-            else:
-                report_path = "conditional/conditional-resolution-{}.json".format(pass_index)
-                rctx.file(report_path, "")
-                result = _coursier_fetch(
-                    rctx,
-                    java,
-                    [_coursier_artifact(roots[key]).fetch for key in sorted(roots)],
-                    report_path,
-                    forced_versions = forced_versions,
-                )
-                if result.return_code != 0:
-                    fail("Failed to resolve descriptor-declared conditional dependencies:\n" + result.stderr)
-                report = json.decode(rctx.read(report_path))
-                discovered = _descriptor_map(_scan_resolved_extensions(rctx, java, report, pass_index))
-                for runtime in discovered:
-                    previous = descriptors.get(runtime)
-                    if previous != None and previous != discovered[runtime]:
-                        fail("Runtime artifact '{}' has conflicting extension descriptors".format(runtime))
-                    descriptors[runtime] = discovered[runtime]
-                final_report = report
-                final_result = result
-                next_roots = _conditional_roots(descriptors)
-                active = sorted(next_roots.keys()) != sorted(roots.keys())
-                resolved_roots = next_roots
-    if active:
+        roots = _conditional_roots(descriptors)
+        if not roots:
+            converged = True
+            break
+        report_path = "conditional/conditional-resolution-{}.json".format(pass_index)
+        rctx.file(report_path, "")
+        result = _coursier_fetch(
+            rctx,
+            java,
+            [_coursier_artifact(roots[key]).fetch for key in sorted(roots)],
+            report_path,
+            forced_versions = forced_versions,
+        )
+        if result.return_code != 0:
+            fail("Failed to resolve descriptor-declared conditional dependencies:\n" + result.stderr)
+        report = json.decode(rctx.read(report_path))
+        discovered = _descriptor_map(_scan_resolved_extensions(rctx, java, report, pass_index))
+        for runtime in discovered:
+            previous = descriptors.get(runtime)
+            if previous != None and previous != discovered[runtime]:
+                fail("Runtime artifact '{}' has conflicting extension descriptors".format(runtime))
+            descriptors[runtime] = discovered[runtime]
+        final_report = report
+        final_result = result
+        next_roots = _conditional_roots(descriptors)
+        if sorted(next_roots.keys()) == sorted(roots.keys()):
+            resolved_roots = next_roots
+            converged = True
+            break
+        resolved_roots = next_roots
+    if not converged:
         fail("Conditional dependency descriptor discovery did not converge after {} passes".format(max_passes))
     return struct(
         descriptors = [descriptors[key] for key in sorted(descriptors)],
@@ -885,12 +888,18 @@ def _copy_jars_into_repo(rctx, copies):
         if result.return_code != 0:
             fail("Failed to copy deployment jar {} to {}: {}".format(src, dest, result.stderr))
 
-def _write_deployment_build(rctx, all_jars, core_jar_set):
-    """Copies resolved jars into the repo and writes the deployment/ BUILD file.
+def _write_jar_build(rctx, subdir, all_jars, core_jar_set = None):
+    """Copies resolved jars into subdir/ and writes a BUILD file with java_import targets.
 
-    Generates one java_import per jar plus two aggregate java_library targets:
-    "core" (quarkus-core-deployment closure) and "all" (every deployment jar).
-    Import names are internal — consumers depend on :core / :all.
+    Args:
+        rctx: Repository context.
+        subdir: Destination subdirectory (e.g. "deployment", "conditional").
+        all_jars: Iterable of absolute jar paths to materialize.
+        core_jar_set: Optional dict of jar paths that form the "core" subset.
+            When provided an extra java_library(name = "core") is emitted.
+
+    Returns:
+        Dict mapping original jar path → repo-relative path.
     """
     imports = []
     all_targets = []
@@ -903,16 +912,14 @@ def _write_deployment_build(rctx, all_jars, core_jar_set):
         target_name = _jar_target_name(relative_jar_path)
         jar_repo_path = "jars/" + relative_jar_path
 
-        # Residual collisions (same file name in the non-maven2 fallback, or
-        # the same GAV path from two sources) are disambiguated instead of
-        # dropped: every resolved jar must stay on the deployment classpath.
         if target_name in seen:
             seen[target_name] += 1
             n = seen[target_name]
 
             # buildifier: disable=print
-            print(("WARNING: rules_quarkus: deployment jars collide on target name '{}' " +
+            print(("WARNING: rules_quarkus: {} jars collide on target name '{}' " +
                    "({}); keeping both, this one as '{}_dup{}'.").format(
+                subdir,
                 target_name,
                 jar_path,
                 target_name,
@@ -923,69 +930,102 @@ def _write_deployment_build(rctx, all_jars, core_jar_set):
         else:
             seen[target_name] = 1
 
-        copies.append((jar_path, "deployment/" + jar_repo_path))
-        repo_paths[jar_path] = "deployment/" + jar_repo_path
+        copies.append((jar_path, subdir + "/" + jar_repo_path))
+        repo_paths[jar_path] = subdir + "/" + jar_repo_path
 
         imports.append(
             'java_import(name = "{n}", jars = ["{j}"], visibility = ["//visibility:public"])'.format(n = target_name, j = jar_repo_path),
         )
         all_targets.append('":{}"'.format(target_name))
-        if jar_path in core_jar_set:
+        if core_jar_set and jar_path in core_jar_set:
             core_targets.append('":{}"'.format(target_name))
 
     _copy_jars_into_repo(rctx, copies)
 
-    rctx.file("deployment/BUILD.bazel", content = """\
+    libraries = ['java_library(name = "all", exports = [{}])'.format(", ".join(all_targets))]
+    if core_jar_set != None:
+        libraries.insert(0, 'java_library(name = "core", exports = [{}])'.format(", ".join(core_targets)))
+
+    rctx.file(subdir + "/BUILD.bazel", content = """\
 load("@rules_java//java:java_import.bzl", "java_import")
 load("@rules_java//java:java_library.bzl", "java_library")
 package(default_visibility = ["//visibility:public"])
 {imports}
-java_library(name = "core", exports = [{core_exports}])
-java_library(name = "all", exports = [{all_exports}])
+{libraries}
 """.format(
         imports = "\n".join(imports),
-        core_exports = ", ".join(core_targets),
-        all_exports = ", ".join(all_targets),
+        libraries = "\n".join(libraries),
     ))
     return repo_paths
+
+def _write_deployment_build(rctx, all_jars, core_jar_set):
+    """Copies resolved jars into deployment/ and writes its BUILD file."""
+    return _write_jar_build(rctx, "deployment", all_jars, core_jar_set)
 
 def _write_conditional_build(rctx, all_jars):
     """Materializes conditional candidates without placing them on the public runtime graph."""
-    imports = []
-    targets = []
-    copies = []
-    repo_paths = {}
-    seen = {}
-    for jar_path in all_jars:
-        relative_jar_path = _maven_relative_path(jar_path)
-        target_name = _jar_target_name(relative_jar_path)
-        jar_repo_path = "jars/" + relative_jar_path
-        if target_name in seen:
-            seen[target_name] += 1
-            n = seen[target_name]
-            target_name = "{}_dup{}".format(target_name, n)
-            jar_repo_path = "jars/dup{}/{}".format(n, relative_jar_path)
-        else:
-            seen[target_name] = 1
-        copies.append((jar_path, "conditional/" + jar_repo_path))
-        repo_paths[jar_path] = "conditional/" + jar_repo_path
-        imports.append(
-            'java_import(name = "{n}", jars = ["{j}"], visibility = ["//visibility:public"])'.format(n = target_name, j = jar_repo_path),
-        )
-        targets.append('":{}"'.format(target_name))
+    return _write_jar_build(rctx, "conditional", all_jars)
 
-    _copy_jars_into_repo(rctx, copies)
-    rctx.file("conditional/BUILD.bazel", content = """\
-load("@rules_java//java:java_import.bzl", "java_import")
-load("@rules_java//java:java_library.bzl", "java_library")
-package(default_visibility = ["//visibility:public"])
-{imports}
-java_library(name = "all", exports = [{exports}])
-""".format(
-        imports = "\n".join(imports),
-        exports = ", ".join(targets),
-    ))
-    return repo_paths
+def _normalize_catalog(report, repo_paths, label, remap_coordinates = False):
+    """Merges and deduplicates a Coursier dependency report into canonical nodes.
+
+    Args:
+        report: Parsed Coursier JSON report dict.
+        repo_paths: Dict mapping absolute jar path → repo-relative path.
+        label: Human-readable label for error messages (e.g. "deployment", "conditional").
+        remap_coordinates: When True, applies _coursier_report_coordinate() to
+            each coordinate and dependency (needed for conditional catalogs whose
+            Coursier report uses G:A:T:C:V ordering).
+
+    Returns:
+        Tuple of (nodes list, conflicts dict).
+    """
+    raw_nodes = report.get("dependencies", [])
+    if type(raw_nodes) != "list":
+        fail("Invalid {} Coursier report: 'dependencies' must be an array".format(label))
+
+    merged = {}
+    for raw_node in raw_nodes:
+        if type(raw_node) != "dict":
+            fail("Invalid {} Coursier report: dependency entries must be objects".format(label))
+        coordinate = raw_node.get("coord", "")
+        file = raw_node.get("file", "")
+        if not coordinate or not file:
+            fail("Invalid {} Coursier report: 'coord' and 'file' are required".format(label))
+        if remap_coordinates:
+            coordinate = _coursier_report_coordinate(coordinate)
+        repo_path = repo_paths.get(file)
+        if not repo_path:
+            fail("{} report path '{}' was not copied into the generated repository".format(label.capitalize(), file))
+
+        node = merged.get(coordinate)
+        if not node:
+            node = {"dependencies": {}, "exclusions": {}, "repoPath": repo_path}
+            merged[coordinate] = node
+        elif node["repoPath"] != repo_path:
+            fail("{} coordinate '{}' resolved to multiple files".format(label.capitalize(), coordinate))
+
+        for dependency in raw_node.get("directDependencies", []):
+            dep_key = _coursier_report_coordinate(dependency) if remap_coordinates else dependency
+            node["dependencies"][dep_key] = True
+        for exclusion in raw_node.get("exclusions", []):
+            node["exclusions"][exclusion] = True
+
+    nodes = []
+    for coordinate in sorted(merged):
+        node = merged[coordinate]
+        nodes.append({
+            "coordinate": coordinate,
+            "dependencies": sorted(node["dependencies"]),
+            "exclusions": sorted(node["exclusions"]),
+            "repoPath": node["repoPath"],
+        })
+
+    conflicts = report.get("conflict_resolution", {})
+    if type(conflicts) != "dict":
+        fail("Invalid {} Coursier report: 'conflict_resolution' must be an object".format(label))
+    sorted_conflicts = {key: conflicts[key] for key in sorted(conflicts)}
+    return nodes, sorted_conflicts
 
 def _conditional_catalog(resolution, repo_paths):
     report = resolution.report
@@ -999,38 +1039,9 @@ def _conditional_catalog(resolution, repo_paths):
             "roots": [],
             "schemaVersion": "quarkus-bazel-conditional-catalog-v1",
         }
-    nodes = []
-    merged = {}
-    for raw_node in report.get("dependencies", []):
-        coordinate = raw_node.get("coord", "")
-        file = raw_node.get("file", "")
-        if not coordinate or not file:
-            fail("Invalid conditional Coursier report: coord and file are required")
-        coordinate = _coursier_report_coordinate(coordinate)
-        repo_path = repo_paths.get(file)
-        if not repo_path:
-            fail("Conditional report path '{}' was not copied into the generated repository".format(file))
-        node = merged.get(coordinate)
-        if not node:
-            node = {"dependencies": {}, "exclusions": {}, "repoPath": repo_path}
-            merged[coordinate] = node
-        elif node["repoPath"] != repo_path:
-            fail("Conditional coordinate '{}' resolved to multiple files".format(coordinate))
-        for dependency in raw_node.get("directDependencies", []):
-            node["dependencies"][_coursier_report_coordinate(dependency)] = True
-        for exclusion in raw_node.get("exclusions", []):
-            node["exclusions"][exclusion] = True
-    for coordinate in sorted(merged):
-        node = merged[coordinate]
-        nodes.append({
-            "coordinate": coordinate,
-            "dependencies": sorted(node["dependencies"]),
-            "exclusions": sorted(node["exclusions"]),
-            "repoPath": node["repoPath"],
-        })
-    conflicts = report.get("conflict_resolution", {})
+    nodes, conflicts = _normalize_catalog(report, repo_paths, "conditional", remap_coordinates = True)
     return {
-        "conflictResolution": {key: conflicts[key] for key in sorted(conflicts)},
+        "conflictResolution": conflicts,
         "extensions": resolution.descriptors,
         "nodes": nodes,
         "resolver": "coursier",
@@ -1047,53 +1058,9 @@ coursier_report_coordinate_for_test = _coursier_report_coordinate
 
 def _deployment_catalog(report, roots, dropped_roots, repo_paths):
     """Normalizes a Coursier report and removes machine-global cache paths."""
-    raw_nodes = report.get("dependencies", [])
-    if type(raw_nodes) != "list":
-        fail("Invalid Coursier report: 'dependencies' must be an array")
-
-    merged = {}
-    for raw_node in raw_nodes:
-        if type(raw_node) != "dict":
-            fail("Invalid Coursier report: dependency entries must be objects")
-        coordinate = raw_node.get("coord", "")
-        file = raw_node.get("file", "")
-        if not coordinate or not file:
-            fail("Invalid Coursier report dependency: 'coord' and 'file' are required")
-        repo_path = repo_paths.get(file)
-        if not repo_path:
-            fail("Coursier report path '{}' was not copied into the generated repository".format(file))
-
-        node = merged.get(coordinate)
-        if not node:
-            node = {
-                "dependencies": {},
-                "exclusions": {},
-                "repoPath": repo_path,
-            }
-            merged[coordinate] = node
-        elif node["repoPath"] != repo_path:
-            fail("Coursier coordinate '{}' resolved to multiple files".format(coordinate))
-
-        for dependency in raw_node.get("directDependencies", []):
-            node["dependencies"][dependency] = True
-        for exclusion in raw_node.get("exclusions", []):
-            node["exclusions"][exclusion] = True
-
-    nodes = []
-    for coordinate in sorted(merged):
-        node = merged[coordinate]
-        nodes.append({
-            "coordinate": coordinate,
-            "dependencies": sorted(node["dependencies"]),
-            "exclusions": sorted(node["exclusions"]),
-            "repoPath": node["repoPath"],
-        })
-
-    conflicts = report.get("conflict_resolution", {})
-    if type(conflicts) != "dict":
-        fail("Invalid Coursier report: 'conflict_resolution' must be an object")
+    nodes, conflicts = _normalize_catalog(report, repo_paths, "deployment")
     return {
-        "conflictResolution": {key: conflicts[key] for key in sorted(conflicts)},
+        "conflictResolution": conflicts,
         "droppedRoots": sorted(dropped_roots),
         "nodes": nodes,
         "resolver": "coursier",
@@ -1347,7 +1314,17 @@ def _rules_quarkus_repo_impl(rctx):
     java = _find_java(rctx)
     runtime_discovery = _fetch_runtime_jars_for_discovery(rctx, java)
     deployment_artifacts = _discover_deployment_artifacts(rctx, java, runtime_discovery.artifacts)
-    conditional_resolution = _resolve_conditional_runtime(rctx, java, deployment_artifacts.descriptors)
+
+    if rctx.attr.lock_file:
+        lock_data = json.decode(rctx.read(rctx.attr.lock_file))
+        lock_catalog = _runtime_catalog(lock_data)
+        forced_versions = _forced_versions_from_catalog(lock_catalog)
+    else:
+        lock_data = None
+        lock_catalog = None
+        forced_versions = []
+
+    conditional_resolution = _resolve_conditional_runtime(rctx, java, deployment_artifacts.descriptors, forced_versions)
     deployment_fetch_roots = list(deployment_artifacts.fetch_roots)
     deployment_report_roots = list(deployment_artifacts.report_roots)
     seen_deployments = {coordinate: True for coordinate in deployment_report_roots}
@@ -1368,7 +1345,7 @@ def _rules_quarkus_repo_impl(rctx):
     conditional_jars = [] if conditional_resolution.resolution == None else _jar_paths_from_fetch_output(conditional_resolution.resolution.stdout, {})
     conditional_repo_paths = _write_conditional_build(rctx, conditional_jars)
     repo_paths = _write_deployment_build(rctx, deployment_resolution.jars, {p: True for p in core_jar_paths})
-    _write_runtime_catalog(rctx, java)
+    _write_runtime_catalog(rctx, java, lock_data = lock_data, lock_catalog = lock_catalog)
     _write_deployment_catalog(rctx, deployment_resolution, repo_paths)
     _write_conditional_catalog(rctx, conditional_resolution, conditional_repo_paths)
     _write_platform_catalog(rctx)
