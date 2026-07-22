@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -73,32 +74,32 @@ public final class DevModeLauncher {
       // Populate the mutable classes directory before Quarkus performs its initial scan. Starting
       // the child first creates a race where the application can boot without any user classes.
       BazelFileWatcher watcher = startWatcherIfConfigured(config);
-      Process process;
+      Process process = null;
       try {
         process = startDevProcess(config, serializedModel, devJar);
-      } catch (Exception exception) {
+
+        final Process devProcess = process;
+        Runtime.getRuntime()
+            .addShutdownHook(
+                new Thread(
+                    () -> {
+                      devProcess.destroyForcibly();
+                      if (watcher != null) {
+                        watcher.close();
+                      }
+                    }));
+        int exitCode = process.waitFor();
+
+        if (exitCode != 0) {
+          throw new AugmentationException("Dev mode process exited with code " + exitCode);
+        }
+      } finally {
+        if (process != null && process.isAlive()) {
+          process.destroyForcibly();
+        }
         if (watcher != null) {
           watcher.close();
         }
-        throw exception;
-      }
-
-      Runtime.getRuntime()
-          .addShutdownHook(
-              new Thread(
-                  () -> {
-                    process.destroyForcibly();
-                    if (watcher != null) {
-                      watcher.close();
-                    }
-                  }));
-      int exitCode = process.waitFor();
-
-      if (watcher != null) {
-        watcher.close();
-      }
-      if (exitCode != 0) {
-        throw new AugmentationException("Dev mode process exited with code " + exitCode);
       }
 
     } catch (AugmentationException e) {
@@ -227,19 +228,19 @@ public final class DevModeLauncher {
       coreArtifactIds.add(MavenCoordinateParser.parse(jar).artifactId());
     }
 
-    List<Path> parentFirstJars = new ArrayList<>();
+    var parentFirstJars = new LinkedHashSet<Path>();
     for (ResolvedDependency dependency : appModel.getDependencies()) {
       if (!dependency.isClassLoaderParentFirst()
           || coreArtifactIds.contains(dependency.getArtifactId())) {
         continue;
       }
       for (Path path : dependency.getResolvedPaths()) {
-        if (path.toString().endsWith(".jar") && !parentFirstJars.contains(path)) {
+        if (path.toString().endsWith(".jar")) {
           parentFirstJars.add(path);
         }
       }
     }
-    return parentFirstJars;
+    return new ArrayList<>(parentFirstJars);
   }
 
   /** Builds a {@link DevModeContext} configured for Bazel-managed dev mode. */

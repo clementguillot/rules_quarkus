@@ -38,7 +38,7 @@ _realpath_entries() {
     for entry in "${ENTRIES[@]}"; do
       if [ "$first" = false ]; then printf ':' >> "$dest"; fi
       local resolved
-      resolved=$(realpath "$entry")
+      resolved=$(realpath "$entry") || { echo "ERROR: realpath failed for '$entry'" >&2; return 1; }
       printf '%s' "$resolved" >> "$dest"
       first=false
     done
@@ -49,7 +49,7 @@ _realpath_entries() {
 APP_CP_FILE=$(mktemp)
 _prefix_entries ":" "${WORKSPACE_DIR}/%{classpath_file}" "$APP_CP_FILE"
 MODEL_APP_CP_FILE=$(mktemp)
-_realpath_entries "$APP_CP_FILE" "$MODEL_APP_CP_FILE"
+_realpath_entries "$APP_CP_FILE" "$MODEL_APP_CP_FILE" || exit 1
 
 # Direct dep jars: comma-separated in source, prefix each entry.
 # Produces two files: comma-separated (for OUTPUT_SOURCES_DIR / test discovery)
@@ -62,7 +62,7 @@ while IFS=, read -ra JAR_ENTRIES; do
   first=true
   for jar_path in "${JAR_ENTRIES[@]}"; do
     if [ "$first" = false ]; then printf ':' >> "$LOCAL_APP_JARS_FILE"; fi
-    resolved_jar=$(realpath "$jar_path")
+    resolved_jar=$(realpath "$jar_path") || { echo "ERROR: realpath failed for '$jar_path'" >&2; exit 1; }
     printf '%s' "$resolved_jar" >> "$LOCAL_APP_JARS_FILE"
     first=false
   done

@@ -65,6 +65,7 @@ public final class ExplicitApplicationModelBuilder {
         new HashMap<>();
     private final Map<String, WorkspaceModule> workspaceInputs = new HashMap<>();
     private final Set<String> runtimeExtensions = new java.util.HashSet<>();
+    private final Map<String, Properties> extensionDescriptors = new HashMap<>();
 
     private Adapter(BazelApplicationModel source) {
       this.source = source;
@@ -129,7 +130,8 @@ public final class ExplicitApplicationModelBuilder {
       }
       for (String extensionId : runtimeExtensions) {
         Node extension = nodes.get(extensionId);
-        String deployment = descriptor(extension).orElseThrow().getProperty("deployment-artifact");
+        String deployment =
+            extensionDescriptors.get(extensionId).getProperty("deployment-artifact");
         ArtifactCoordinates coordinates = BazelArtifactCoordinates.parse(deployment);
         String expected =
             ArtifactCoords.of(
@@ -525,14 +527,16 @@ public final class ExplicitApplicationModelBuilder {
         if (descriptor.isEmpty()) {
           continue;
         }
+        Properties props = descriptor.orElseThrow();
         ResolvedDependencyBuilder dependency = dependencies.get(node.id());
         runtimeExtensions.add(node.id());
+        extensionDescriptors.put(node.id(), props);
         dependency.setRuntimeExtensionArtifact();
         if (node.classpath().topLevelRuntimeExtension()) {
           dependency.setFlags(DependencyFlags.TOP_LEVEL_RUNTIME_EXTENSION_ARTIFACT);
         }
-        builder.handleExtensionProperties(descriptor.orElseThrow(), dependency.getKey());
-        registerCapabilities(descriptor.orElseThrow(), dependency);
+        builder.handleExtensionProperties(props, dependency.getKey());
+        registerCapabilities(props, dependency);
       }
     }
 

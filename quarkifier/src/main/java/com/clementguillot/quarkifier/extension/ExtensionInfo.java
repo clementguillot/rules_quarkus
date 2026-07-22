@@ -31,9 +31,13 @@ public record ExtensionInfo(
     List<String> conditionalDevDependencies,
     List<String> dependencyConditions) {
 
+  @SuppressWarnings("PMD.UnusedAssignment")
   public ExtensionInfo {
-    conditionalDependencies = List.copyOf(conditionalDependencies);
-    conditionalDevDependencies = List.copyOf(conditionalDevDependencies);
-    dependencyConditions = List.copyOf(dependencyConditions);
+    conditionalDependencies =
+        conditionalDependencies == null ? List.of() : List.copyOf(conditionalDependencies);
+    conditionalDevDependencies =
+        conditionalDevDependencies == null ? List.of() : List.copyOf(conditionalDevDependencies);
+    dependencyConditions =
+        dependencyConditions == null ? List.of() : List.copyOf(dependencyConditions);
   }
 }

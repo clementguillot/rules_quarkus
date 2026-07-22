@@ -804,6 +804,7 @@ public final class BazelApplicationModelAssembler {
       existing.runtime = true;
       existing.deployment = true;
       existing.compileOnly = false;
+      runtimeNodeIds.add(existing.id);
       return existing;
     }
 
@@ -925,6 +926,10 @@ public final class BazelApplicationModelAssembler {
 
       private static ArtifactCondition parse(String value) {
         String[] parts = value.split(":", -1);
+        if (parts.length < 2) {
+          throw new BazelApplicationModelException(
+              "Invalid dependency condition artifact key: '" + value + "'");
+        }
         return new ArtifactCondition(
             parts[0],
             parts[1],
