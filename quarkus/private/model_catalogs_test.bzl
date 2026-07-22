@@ -14,6 +14,7 @@ def _runtime_catalog_v3_test_impl(ctx):
         "artifacts": {
             "a.group:a-artifact:jar:tests": {"shasums": {"tests": "a"}, "version": "1.2.3"},
             "c.group:classified": {"shasums": {"classes": "c"}, "version": "3.0"},
+            "m.group:multi": {"shasums": {"jar": "m", "runtime": "mr"}, "version": "4.0"},
             "z.group:z-artifact": {"shasums": {"jar": "z"}, "version": "9.8.7"},
         },
         "conflict_resolution": {
@@ -22,6 +23,8 @@ def _runtime_catalog_v3_test_impl(ctx):
         "dependencies": {
             "a.group:a-artifact:jar:tests": ["z.group:z-artifact"],
             "c.group:classified:jar:classes": [],
+            "m.group:multi": [],
+            "m.group:multi:jar:runtime": [],
             "z.group:z-artifact": [],
         },
         "version": "3",
@@ -38,6 +41,9 @@ def _runtime_catalog_v3_test_impl(ctx):
     asserts.equals(env, ["z.group:z-artifact"], catalog["nodes"][0]["dependencies"])
     asserts.equals(env, "c.group:classified:jar:classes", catalog["nodes"][1]["coordinateKey"])
     asserts.equals(env, "classes", catalog["nodes"][1]["coordinates"]["classifier"])
+    asserts.equals(env, "m.group:multi", catalog["nodes"][2]["coordinateKey"])
+    asserts.equals(env, "m.group:multi:jar:runtime", catalog["nodes"][3]["coordinateKey"])
+    asserts.equals(env, "m_group_multi_runtime", catalog["nodes"][3]["targetName"])
 
     resolved = runtime_catalog_for_test(lock, {
         "conflict_resolution": {},
@@ -52,6 +58,8 @@ def _runtime_catalog_v3_test_impl(ctx):
             {
                 "coord": "c.group:classified:jar:classes:3.0",
                 "directDependencies": [],
+                "exclusions": ["excluded.group:excluded"],
+                "optional": True,
             },
             {
                 "coord": "z.group:z-artifact:9.8.7",
@@ -69,6 +77,8 @@ def _runtime_catalog_v3_test_impl(ctx):
         ["c.group:classified:jar:classes"],
         resolved["nodes"][0]["dependencies"],
     )
+    asserts.equals(env, ["excluded.group:excluded"], resolved["nodes"][1]["exclusions"])
+    asserts.true(env, resolved["nodes"][1]["optional"])
     return unittest.end(env)
 
 runtime_catalog_v3_test = unittest.make(_runtime_catalog_v3_test_impl)
@@ -79,11 +89,15 @@ def _runtime_discovery_artifacts_test_impl(ctx):
         "artifacts": {
             "a.group:a-artifact:jar:tests": {"shasums": {"tests": "a"}, "version": "1.2.3"},
             "c.group:classified": {"shasums": {"classes": "c"}, "version": "3.0"},
+            "m.group:multi": {"shasums": {"jar": "m", "runtime": "mr", "sources": "ms"}, "version": "4.0"},
             "z.group:z-artifact": {"shasums": {"jar": "z"}, "version": "9.8.7"},
         },
         "dependencies": {
             "a.group:a-artifact:jar:tests": [],
             "c.group:classified:jar:classes": [],
+            "m.group:multi": [],
+            "m.group:multi:jar:runtime": [],
+            "m.group:multi:jar:sources": [],
             "z.group:z-artifact": [],
         },
         "version": "3",
@@ -94,6 +108,8 @@ def _runtime_discovery_artifacts_test_impl(ctx):
         [
             "a.group:a-artifact:1.2.3,classifier=tests",
             "c.group:classified:3.0,classifier=classes",
+            "m.group:multi:4.0",
+            "m.group:multi:4.0,classifier=runtime",
             "z.group:z-artifact:9.8.7",
         ],
         runtime_discovery_artifacts_for_test(lock),

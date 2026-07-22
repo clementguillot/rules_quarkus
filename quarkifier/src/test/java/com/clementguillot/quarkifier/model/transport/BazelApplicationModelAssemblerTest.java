@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.clementguillot.quarkifier.model.ExplicitApplicationModelBuilder;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.ArtifactCoordinates;
+import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.ArtifactKey;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.DependencyScope;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.Mode;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.Node;
@@ -63,6 +64,13 @@ class BazelApplicationModelAssemblerTest {
     assertEquals(List.of(COMMON), targets(runtimeExtension));
     assertTrue(targets(deployment).contains(EXT));
     assertTrue(targets(deployment).contains("deployment:io.quarkus:helper::jar:3.33.2"));
+    assertEquals(
+        List.of(new ArtifactKey("bad.group", "excluded")),
+        deployment.dependencies().stream()
+            .filter(edge -> edge.targetId().equals("deployment:io.quarkus:helper::jar:3.33.2"))
+            .findFirst()
+            .orElseThrow()
+            .exclusions());
     assertTrue(runtimeExtension.classpath().directFromApplication());
     assertTrue(runtimeExtension.classpath().runtimeClasspath());
     assertTrue(runtimeExtension.classpath().deploymentClasspath());
@@ -175,6 +183,41 @@ class BazelApplicationModelAssemblerTest {
     BazelApplicationModel model = BazelApplicationModelAssembler.assemble(contextInputs);
 
     assertEquals(List.of(COMMON), targets(node(model, EXT)));
+  }
+
+  @Test
+  void transportsMavenOptionalityAndExclusions() throws IOException {
+    var base = inputs(true, DEPLOYMENT);
+    RuntimeCatalogNode common = base.runtimeCatalog().nodes().get(1);
+    var runtime =
+        new RuntimeCatalog(
+            List.of(
+                base.runtimeCatalog().nodes().get(0),
+                new RuntimeCatalogNode(
+                    common.coordinateKey(),
+                    common.targetName(),
+                    common.coordinates(),
+                    common.dependencies(),
+                    true,
+                    List.of("excluded.group:excluded"))),
+            base.runtimeCatalog().directArtifacts(),
+            base.runtimeCatalog().conflictResolution());
+
+    BazelApplicationModel model =
+        BazelApplicationModelAssembler.assemble(withRuntimeCatalog(base, runtime));
+
+    var edge = node(model, EXT).dependencies().get(0);
+    assertTrue(edge.optional());
+    assertEquals(List.of(new ArtifactKey("excluded.group", "excluded")), edge.exclusions());
+    assertTrue(node(model, COMMON).classpath().optional());
+
+    var quarkusModel = ExplicitApplicationModelBuilder.build(model);
+    var quarkusCommon =
+        quarkusModel.getDependencies().stream()
+            .filter(dependency -> "common".equals(dependency.getArtifactId()))
+            .findFirst()
+            .orElseThrow();
+    assertTrue(quarkusCommon.isFlagSet(DependencyFlags.OPTIONAL));
   }
 
   @Test
@@ -539,6 +582,13 @@ class BazelApplicationModelAssemblerTest {
         targets(node(normal, EXT))
             .contains("deployment:io.quarkus:feature-a-deployment::jar:3.33.2"));
     assertTrue(targets(node(normal, featureA)).contains(featureB));
+    assertEquals(
+        List.of(new ArtifactKey("excluded.group", "excluded")),
+        node(normal, featureA).dependencies().stream()
+            .filter(edge -> edge.targetId().equals(featureB))
+            .findFirst()
+            .orElseThrow()
+            .exclusions());
     assertTrue(
         targets(node(normal, featureA))
             .contains("deployment:io.quarkus:feature-b-deployment::jar:3.33.2"));
@@ -579,7 +629,7 @@ class BazelApplicationModelAssemblerTest {
                 conditionalNode("blocked"),
                 conditionalNode("dev-helper"),
                 conditionalNode("feature-a", List.of("io.quarkus:example:3.33.2")),
-                conditionalNode("feature-b"),
+                conditionalNode("feature-b", List.of(), List.of("excluded.group:excluded")),
                 conditionalNode("example")),
             List.of(
                 new ExtensionDescriptor(
@@ -687,11 +737,16 @@ class BazelApplicationModelAssemblerTest {
 
   private static ConditionalCatalogNode conditionalNode(
       String artifactId, List<String> dependencies) {
+    return conditionalNode(artifactId, dependencies, List.of());
+  }
+
+  private static ConditionalCatalogNode conditionalNode(
+      String artifactId, List<String> dependencies, List<String> exclusions) {
     return new ConditionalCatalogNode(
         "io.quarkus:" + artifactId + ":3.33.2",
         "conditional/jars/io/quarkus/" + artifactId + "/3.33.2/" + artifactId + ".jar",
         dependencies,
-        List.of());
+        exclusions);
   }
 
   private BazelApplicationModelAssembler.Inputs inputs(
@@ -749,7 +804,7 @@ class BazelApplicationModelAssemblerTest {
                         "io.quarkus:helper:3.33.2",
                         "deployment/jars/io/quarkus/helper/3.33.2/helper.jar",
                         List.of(),
-                        List.of()))
+                        List.of("bad.group:excluded")))
                 : List.of(),
             Map.of());
     Map<String, String> paths =
@@ -795,6 +850,30 @@ class BazelApplicationModelAssemblerTest {
 
   private static ConditionalCatalog emptyConditionalCatalog() {
     return new ConditionalCatalog("coursier", "", List.of(), List.of(), List.of(), Map.of());
+  }
+
+  private static BazelApplicationModelAssembler.Inputs withRuntimeCatalog(
+      BazelApplicationModelAssembler.Inputs base, RuntimeCatalog runtime) {
+    return new BazelApplicationModelAssembler.Inputs(
+        base.roots(),
+        base.targetFragments(),
+        runtime,
+        base.conditionalCatalog(),
+        base.deploymentCatalog(),
+        base.platformCatalog(),
+        base.localDeployments(),
+        base.localRuntimeAliases(),
+        base.conditionalPaths(),
+        base.deploymentPaths(),
+        base.platformPropertyPaths(),
+        base.runtimeClasspathPaths(),
+        base.deploymentClasspathPaths(),
+        base.modelPrivateTargetIds(),
+        base.quarkusVersion(),
+        base.mode(),
+        base.applicationName(),
+        base.applicationVersion(),
+        base.producerVersion());
   }
 
   private Path jar(String name, String deploymentArtifact) throws IOException {

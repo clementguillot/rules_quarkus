@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.DependencyScope;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class BazelModelInputReaderTest {
@@ -55,6 +56,8 @@ class BazelModelInputReaderTest {
     assertEquals(2, catalog.nodes().size());
     assertEquals("tests", catalog.nodes().get(0).coordinates().classifier());
     assertEquals("z.group:z-artifact", catalog.nodes().get(0).dependencies().get(0));
+    assertTrue(catalog.nodes().get(0).optional());
+    assertEquals(List.of("excluded.group:excluded"), catalog.nodes().get(0).exclusions());
     assertEquals(
         "z.group:z-artifact:2.0", catalog.conflictResolution().get("z.group:z-artifact:1.0"));
   }
@@ -205,7 +208,9 @@ class BazelModelInputReaderTest {
                 "groupId":"a.group","artifactId":"a-artifact","classifier":"tests",\
                 "type":"jar","version":"1.0"
               },
-              "dependencies":["z.group:z-artifact"]
+              "dependencies":["z.group:z-artifact"],
+              "optional":true,
+              "exclusions":["excluded.group:excluded"]
             },
             {
               "coordinateKey":"z.group:z-artifact",
@@ -214,7 +219,9 @@ class BazelModelInputReaderTest {
                 "groupId":"z.group","artifactId":"z-artifact","classifier":"",\
                 "type":"jar","version":"2.0"
               },
-              "dependencies":[]
+              "dependencies":[],
+              "optional":false,
+              "exclusions":[]
             }
           ],
           "directArtifacts":["a.group:a-artifact:jar:tests"],

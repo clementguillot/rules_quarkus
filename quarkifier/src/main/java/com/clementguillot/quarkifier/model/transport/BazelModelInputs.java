@@ -85,10 +85,21 @@ public final class BazelModelInputs {
       String coordinateKey,
       String targetName,
       ArtifactCoordinates coordinates,
-      List<String> dependencies) {
+      List<String> dependencies,
+      boolean optional,
+      List<String> exclusions) {
 
     public RuntimeCatalogNode {
       dependencies = List.copyOf(dependencies);
+      exclusions = List.copyOf(exclusions);
+    }
+
+    public RuntimeCatalogNode(
+        String coordinateKey,
+        String targetName,
+        ArtifactCoordinates coordinates,
+        List<String> dependencies) {
+      this(coordinateKey, targetName, coordinates, dependencies, false, List.of());
     }
   }
 

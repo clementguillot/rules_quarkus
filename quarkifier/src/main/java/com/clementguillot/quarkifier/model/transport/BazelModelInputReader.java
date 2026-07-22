@@ -239,14 +239,24 @@ public final class BazelModelInputReader {
   }
 
   private static RuntimeCatalogNode runtimeNode(Map<String, Object> value, String path) {
-    fields(value, path, "coordinateKey", "targetName", "coordinates", "dependencies");
+    fields(
+        value,
+        path,
+        "coordinateKey",
+        "targetName",
+        "coordinates",
+        "dependencies",
+        "optional",
+        "exclusions");
     return new RuntimeCatalogNode(
         string(value, "coordinateKey", path),
         string(value, "targetName", path),
         coordinates(
             objectMap(required(value, "coordinates", path), path + ".coordinates"),
             path + ".coordinates"),
-        stringArray(value, "dependencies", path));
+        stringArray(value, "dependencies", path),
+        bool(value, "optional", path),
+        stringArray(value, "exclusions", path));
   }
 
   static ArtifactCoordinates coordinates(Map<String, Object> value, String path) {
@@ -364,6 +374,7 @@ public final class BazelModelInputReader {
         throw problem(path + ".targetName", "duplicate runtime target name");
       }
       uniqueNonBlank(node.dependencies(), path + ".dependencies", true);
+      uniqueNonBlank(node.exclusions(), path + ".exclusions", true);
     }
     for (RuntimeCatalogNode node : value.nodes()) {
       for (String dependency : node.dependencies()) {

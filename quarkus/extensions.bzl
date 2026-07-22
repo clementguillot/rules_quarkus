@@ -75,20 +75,31 @@ def _coordinate_fields(coordinate_key, version):
         "version": version,
     }
 
-def _resolved_coordinate_key(artifact_key, artifact, dependencies):
-    """Returns the concrete lock key, including a non-default classifier.
+def _resolved_coordinate_keys(artifact_key, artifact, dependencies):
+    """Returns every concrete lock key represented by an artifact entry.
 
-    rules_jvm_external v3 keys the `artifacts` entry by G:A even when its only
-    resolved file has a classifier (Guice's `classes` artifact is the canonical
-    example). The dependency graph and generated target use G:A:jar:classifier.
+    rules_jvm_external v3 keys `artifacts` by G:A even when the same artifact
+    resolves more than one file (for example default and `runtime` classifier
+    JARs). The dependency graph retains the concrete identities, so it is
+    authoritative whenever it contains matching entries.
     """
-    if artifact_key in dependencies or len(artifact_key.split(":")) > 2:
-        return artifact_key
+    if len(artifact_key.split(":")) > 2:
+        return [artifact_key]
+
+    prefix = artifact_key + ":"
+    graph_keys = [
+        key
+        for key in dependencies
+        if key == artifact_key or key.startswith(prefix)
+    ]
+    if graph_keys:
+        return sorted(graph_keys)
+
     shasums = artifact.get("shasums", {})
     if type(shasums) != "dict" or len(shasums) != 1:
-        fail("Artifact '{}' must have exactly one resolved file in the v3 lock".format(artifact_key))
+        fail("Artifact '{}' has ambiguous resolved files but no concrete v3 dependency keys".format(artifact_key))
     file_kind = shasums.keys()[0]
-    return artifact_key if file_kind == "jar" else artifact_key + ":jar:" + file_kind
+    return [artifact_key if file_kind == "jar" else artifact_key + ":jar:" + file_kind]
 
 def _runtime_catalog(lock_data, resolver_report = None):
     """Normalizes lock identities plus an optional Coursier-resolved Maven graph."""
@@ -101,20 +112,26 @@ def _runtime_catalog(lock_data, resolver_report = None):
     if type(artifacts) != "dict" or type(dependencies) != "dict":
         fail("Invalid rules_jvm_external v3 lock: 'artifacts' and 'dependencies' must be objects")
 
-    nodes = []
+    nodes_by_key = {}
     base_to_resolved = {}
     for artifact_key in sorted(artifacts):
         artifact = artifacts[artifact_key]
         if type(artifact) != "dict" or not artifact.get("version"):
             fail("Invalid artifact entry '{}' in maven lock file".format(artifact_key))
-        coordinate_key = _resolved_coordinate_key(artifact_key, artifact, dependencies)
-        base_to_resolved[artifact_key] = coordinate_key
-        nodes.append({
-            "coordinateKey": coordinate_key,
-            "coordinates": _coordinate_fields(coordinate_key, artifact["version"]),
-            "dependencies": [],
-            "targetName": _maven_target_name(coordinate_key),
-        })
+        coordinate_keys = _resolved_coordinate_keys(artifact_key, artifact, dependencies)
+        base_to_resolved[artifact_key] = artifact_key if artifact_key in coordinate_keys else coordinate_keys[0]
+        for coordinate_key in coordinate_keys:
+            base_to_resolved[coordinate_key] = coordinate_key
+            nodes_by_key[coordinate_key] = {
+                "coordinateKey": coordinate_key,
+                "coordinates": _coordinate_fields(coordinate_key, artifact["version"]),
+                "dependencies": [],
+                "exclusions": [],
+                "optional": False,
+                "targetName": _maven_target_name(coordinate_key),
+            }
+
+    nodes = [nodes_by_key[key] for key in sorted(nodes_by_key)]
 
     for node in nodes:
         direct_dependencies = dependencies.get(node["coordinateKey"], [])
@@ -133,6 +150,8 @@ def _runtime_catalog(lock_data, resolver_report = None):
             # resolver report is present: nodes absent from the report were
             # pruned by Maven optionality/exclusions and must stay edge-less.
             node["dependencies"] = []
+            node["exclusions"] = []
+            node["optional"] = False
             fields = node["coordinates"]
             canonical = "{}:{}:{}:{}:{}".format(
                 fields["groupId"],
@@ -160,6 +179,14 @@ def _runtime_catalog(lock_data, resolver_report = None):
                 continue
             if coordinate_key not in resolved_edges:
                 resolved_edges[coordinate_key] = {}
+            node = nodes_by_key[coordinate_key]
+            exclusions = raw_node.get("exclusions", [])
+            if type(exclusions) != "list":
+                fail("Invalid Coursier runtime report: 'exclusions' must be an array")
+            node["exclusions"] = sorted(exclusions)
+            node["optional"] = raw_node.get("optional", False)
+            if type(node["optional"]) != "bool":
+                fail("Invalid Coursier runtime report: 'optional' must be a boolean")
             for dependency in raw_node.get("directDependencies", []):
                 dependency_key = report_to_key.get(dependency)
                 if dependency_key:
@@ -353,14 +380,14 @@ def _runtime_discovery_artifacts(lock_data):
         artifact = artifacts[artifact_key]
         if type(artifact) != "dict" or not artifact.get("version"):
             fail("Invalid artifact entry '{}' in maven lock file".format(artifact_key))
-        coordinate_key = _resolved_coordinate_key(artifact_key, artifact, dependencies)
-        fields = _coordinate_fields(coordinate_key, artifact["version"])
-        if fields["type"] != "jar":
-            continue
-        coordinate = "{}:{}:{}".format(fields["groupId"], fields["artifactId"], fields["version"])
-        if fields["classifier"]:
-            coordinate += ",classifier=" + fields["classifier"]
-        result.append(coordinate)
+        for coordinate_key in _resolved_coordinate_keys(artifact_key, artifact, dependencies):
+            fields = _coordinate_fields(coordinate_key, artifact["version"])
+            if fields["type"] != "jar" or fields["classifier"] in ["sources", "javadoc"]:
+                continue
+            coordinate = "{}:{}:{}".format(fields["groupId"], fields["artifactId"], fields["version"])
+            if fields["classifier"]:
+                coordinate += ",classifier=" + fields["classifier"]
+            result.append(coordinate)
     return result
 
 coursier_artifact_for_test = _coursier_artifact

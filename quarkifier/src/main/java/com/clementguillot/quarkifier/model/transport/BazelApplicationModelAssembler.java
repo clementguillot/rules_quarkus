@@ -1,6 +1,7 @@
 package com.clementguillot.quarkifier.model.transport;
 
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.ArtifactCoordinates;
+import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.ArtifactKey;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.ClasspathFacts;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.DependencyEdge;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.DependencyRelation;
@@ -148,6 +149,7 @@ public final class BazelApplicationModelAssembler {
       markDirectDependencies(applicationId);
       scanExtensionDescriptors();
       activateConditionalDependencies(applicationId);
+      markRuntimeOptionality(applicationId);
       markReloadableWorkspaceDependencies(applicationId);
       injectDeploymentGraphs(applicationId);
       if (inputs.mode() == Mode.TEST) {
@@ -392,15 +394,19 @@ public final class BazelApplicationModelAssembler {
         if (aspectEdge == null) {
           result.add(
               new DependencyEdge(
-                  targetId, DependencyRelation.DEPS, DependencyScope.COMPILE, false, List.of()));
+                  targetId,
+                  DependencyRelation.DEPS,
+                  DependencyScope.COMPILE,
+                  targetCatalog.optional(),
+                  artifactKeys(targetCatalog.exclusions())));
         } else {
           result.add(
               new DependencyEdge(
                   targetId,
                   relation(aspectEdge),
                   aspectEdge.scope(),
-                  aspectEdge.optional(),
-                  aspectEdge.exclusions()));
+                  targetCatalog.optional(),
+                  artifactKeys(targetCatalog.exclusions())));
         }
       }
       return result;
@@ -429,11 +435,37 @@ public final class BazelApplicationModelAssembler {
         if (!retainedTargets.contains(targetId) || !resolvedTargetIds.add(targetId)) {
           continue;
         }
-        result.add(
-            new DependencyEdge(
-                targetId, relation(edge), edge.scope(), edge.optional(), edge.exclusions()));
+        result.add(resolvedAspectOnlyMavenEdge(targetId, edge));
       }
       return result;
+    }
+
+    private DependencyEdge resolvedAspectOnlyMavenEdge(String targetId, TargetEdge edge) {
+      TargetFragment target = fragments.get(targetId);
+      RuntimeCatalogNode catalog =
+          target == null || target.workspaceTarget()
+              ? null
+              : runtimeByTarget.get(target.targetName());
+      return new DependencyEdge(
+          targetId,
+          relation(edge),
+          edge.scope(),
+          catalog == null ? edge.optional() : catalog.optional(),
+          catalog == null ? edge.exclusions() : artifactKeys(catalog.exclusions()));
+    }
+
+    private List<ArtifactKey> artifactKeys(List<String> exclusions) {
+      return exclusions.stream()
+          .map(
+              exclusion -> {
+                String[] parts = exclusion.split(":", -1);
+                if (parts.length != 2 || isBlank(parts[0]) || isBlank(parts[1])) {
+                  fail("invalid Maven exclusion '" + exclusion + "'; expected groupId:artifactId");
+                }
+                return new ArtifactKey(parts[0], parts[1]);
+              })
+          .distinct()
+          .toList();
     }
 
     private String promoteApplication() {
@@ -594,6 +626,24 @@ public final class BazelApplicationModelAssembler {
             node.runtime
                 || node.paths.stream().anyMatch(inputs.deploymentClasspathPaths()::contains);
         node.compileOnly = !node.runtime && !node.deployment;
+      }
+    }
+
+    private void markRuntimeOptionality(String applicationId) {
+      Map<String, Boolean> optionalByNode = new HashMap<>();
+      for (MutableNode source : nodes.values()) {
+        for (DependencyEdge edge : source.edges.values()) {
+          MutableNode target = nodes.get(edge.targetId());
+          if (target != null
+              && target.runtime
+              && edge.relation() != DependencyRelation.DEPLOYMENT) {
+            optionalByNode.merge(target.id, edge.optional(), (left, right) -> left && right);
+          }
+        }
+      }
+      for (String id : runtimeNodeIds) {
+        nodes.get(id).optional =
+            !applicationId.equals(id) && optionalByNode.getOrDefault(id, false);
       }
     }
 
@@ -760,8 +810,10 @@ public final class BazelApplicationModelAssembler {
         MutableNode node = nodesByCoordinates.get(step.coordinates());
         boolean existingRuntime = node != null && node.runtime;
         node = materializeConditionalNode(node, catalogNode, coordinates, step.coordinates());
+        node.optional =
+            existingRuntime ? node.optional && inherited.optional() : inherited.optional();
         registerConditionalExtension(node, step, existingRuntime);
-        linkConditionalParent(node, step, inherited);
+        linkConditionalParent(node, catalogNode, step, inherited);
         if (existingRuntime || !expanded.add(step.coordinates())) {
           continue;
         }
@@ -824,16 +876,21 @@ public final class BazelApplicationModelAssembler {
     }
 
     private void linkConditionalParent(
-        MutableNode node, ConditionalStep step, RuntimeFacts inherited) {
+        MutableNode node,
+        ConditionalCatalogNode catalogNode,
+        ConditionalStep step,
+        RuntimeFacts inherited) {
       MutableNode parent = nodes.get(step.parentId());
       if (!reaches(node.id, parent.id)) {
+        Set<ArtifactKey> exclusions = new LinkedHashSet<>(inherited.exclusions());
+        exclusions.addAll(artifactKeys(catalogNode.exclusions()));
         parent.addEdge(
             new DependencyEdge(
                 node.id,
                 DependencyRelation.DEPS,
                 inherited.scope(),
                 inherited.optional(),
-                inherited.exclusions()));
+                List.copyOf(exclusions)));
       }
     }
 
@@ -886,18 +943,57 @@ public final class BazelApplicationModelAssembler {
         RuntimeFacts parentFacts = result.get(parentId);
         for (DependencyEdge edge : parent.edges.values()) {
           MutableNode child = nodes.get(edge.targetId());
-          if (child == null || !child.runtime || result.containsKey(child.id)) {
+          if (child == null || !child.runtime) {
             continue;
           }
-          var exclusions =
-              new ArrayList<BazelApplicationModel.ArtifactKey>(parentFacts.exclusions());
+          Set<ArtifactKey> exclusions = new LinkedHashSet<>(parentFacts.exclusions());
           exclusions.addAll(edge.exclusions());
-          result.put(
-              child.id, new RuntimeFacts(edge.scope(), edge.optional(), List.copyOf(exclusions)));
-          pending.addLast(child.id);
+          RuntimeFacts candidate =
+              new RuntimeFacts(
+                  inheritedScope(parentFacts.scope(), edge.scope()),
+                  edge.optional(),
+                  List.copyOf(exclusions));
+          RuntimeFacts previous = result.get(child.id);
+          RuntimeFacts merged =
+              previous == null ? candidate : mergeRuntimeFacts(previous, candidate);
+          if (!merged.equals(previous)) {
+            result.put(child.id, merged);
+            pending.addLast(child.id);
+          }
         }
       }
       return result;
+    }
+
+    private static RuntimeFacts mergeRuntimeFacts(RuntimeFacts left, RuntimeFacts right) {
+      Set<ArtifactKey> sharedExclusions = new LinkedHashSet<>(left.exclusions());
+      sharedExclusions.retainAll(right.exclusions());
+      return new RuntimeFacts(
+          scopeRank(left.scope()) <= scopeRank(right.scope()) ? left.scope() : right.scope(),
+          left.optional() && right.optional(),
+          List.copyOf(sharedExclusions));
+    }
+
+    private static DependencyScope inheritedScope(DependencyScope parent, DependencyScope edge) {
+      if (parent == DependencyScope.TEST || edge == DependencyScope.TEST) {
+        return DependencyScope.TEST;
+      }
+      if (parent == DependencyScope.PROVIDED || edge == DependencyScope.PROVIDED) {
+        return DependencyScope.PROVIDED;
+      }
+      if (parent == DependencyScope.RUNTIME || edge == DependencyScope.RUNTIME) {
+        return DependencyScope.RUNTIME;
+      }
+      return DependencyScope.COMPILE;
+    }
+
+    private static int scopeRank(DependencyScope scope) {
+      return switch (scope) {
+        case COMPILE -> 0;
+        case PROVIDED -> 1;
+        case RUNTIME -> 2;
+        case TEST -> 3;
+      };
     }
 
     private static boolean matchesAny(
@@ -1104,7 +1200,7 @@ public final class BazelApplicationModelAssembler {
                     DependencyRelation.DEPLOYMENT,
                     DependencyScope.COMPILE,
                     false,
-                    List.of()));
+                    artifactKeys(targetCatalog.exclusions())));
           }
           pending.addLast(targetCanonical);
         }
@@ -1334,6 +1430,7 @@ public final class BazelApplicationModelAssembler {
     private boolean runtime;
     private boolean deployment;
     private boolean compileOnly;
+    private boolean optional;
     private boolean reloadable;
     private boolean topLevelRuntimeExtension;
 
@@ -1401,7 +1498,7 @@ public final class BazelApplicationModelAssembler {
               runtime,
               deployment,
               compileOnly,
-              false,
+              optional,
               reloadable,
               topLevelRuntimeExtension),
           workspaceId,
