@@ -14,7 +14,9 @@ that jar paths in the ApplicationModel match the actual runfiles locations.
 load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
+load("//quarkus/private:application_model_aspect.bzl", "quarkus_application_model_aspect")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_extension_runtime_jars", "collect_local_app_jars", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
+load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
 
 def _build_test_args(test_packages, test_classes, fail_if_no_tests):
     """Builds JUnit ConsoleLauncher CLI arguments."""
@@ -32,16 +34,17 @@ def _quarkus_test_impl(ctx):
     if not ctx.attr.deps:
         fail("quarkus_test rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
 
-    runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
+    runtime_classpath = collect_runtime_classpath(ctx.attr.deps + ctx.attr.model_private_deps)
+    conditional_classpath = collect_runtime_classpath([ctx.attr.conditional_deps])
     deploy_classpath = collect_deployment_classpath(ctx.attr.deployment_deps, ctx.attr.deps)
+    model = assemble_application_model(ctx, ctx.attr.deps, runtime_classpath, conditional_classpath, deploy_classpath, "test")
 
-    # Runtime classpath (for both JUnit -cp and quarkifier --application-classpath),
-    # deployment classpath (for quarkifier only, NOT on JUnit -cp), and the
-    # user-built jars Quarkus must scan (comma-separated, for OUTPUT_SOURCES_DIR).
+    # Runtime classpath (for both JUnit -cp and quarkifier --application-classpath)
+    # and the user-built jars Quarkus must scan (comma-separated, for
+    # OUTPUT_SOURCES_DIR).
     # Extension runtime jars are excluded from direct_jars: leaving them as app
     # roots exposes their @ConfigRoot classes to both classloaders (SRCFG00027).
     cp_file = write_runfiles_paths_file(ctx, "_cp.txt", runtime_classpath, ":")
-    deploy_cp_file = write_runfiles_paths_file(ctx, "_deploy_cp.txt", deploy_classpath, ":")
     ext_rt_jars = collect_extension_runtime_jars(ctx.attr.deps)
     direct_jars_file = write_runfiles_paths_file(ctx, "_direct_jars.txt", collect_local_app_jars(ctx.attr.deps, runtime_classpath, ext_rt_jars), ",")
 
@@ -55,11 +58,10 @@ def _quarkus_test_impl(ctx):
         substitutions = {
             "%{app_name}": ctx.label.name,
             "%{classpath_file}": cp_file.short_path,
-            "%{deploy_cp_file}": deploy_cp_file.short_path,
             "%{direct_jars_file}": direct_jars_file.short_path,
             "%{java_home}": java_runtime.java_home_runfiles_path,
             "%{jvm_flags}": " ".join([shell.quote(f) for f in ctx.attr.jvm_flags]),
-            "%{quarkus_version}": ctx.attr.quarkus_version,
+            "%{model_file}": model.short_path,
             "%{test_args}": _build_test_args(ctx.attr.test_packages, ctx.attr.test_classes, ctx.attr.fail_if_no_tests),
             "%{fail_if_no_tests}": "true" if ctx.attr.fail_if_no_tests else "false",
             "%{tool_jar}": tool_jar.short_path,
@@ -69,22 +71,44 @@ def _quarkus_test_impl(ctx):
     )
 
     runfiles = ctx.runfiles(
-        files = [cp_file, deploy_cp_file, direct_jars_file, tool_jar],
+        files = [cp_file, direct_jars_file, model, tool_jar],
         transitive_files = depset(
-            transitive = [runtime_classpath, deploy_classpath, java_runtime.files],
+            transitive = [runtime_classpath, conditional_classpath, deploy_classpath, java_runtime.files],
         ),
     )
 
-    return [DefaultInfo(executable = launcher, runfiles = runfiles)]
+    return [
+        DefaultInfo(executable = launcher, runfiles = runfiles),
+        OutputGroupInfo(quarkus_model = depset([model])),
+    ]
 
 quarkus_test = rule(
     implementation = _quarkus_test_impl,
     test = True,
     attrs = {
+        "conditional_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
+        "conditional_deps": attr.label(mandatory = True, providers = [JavaInfo]),
         "deployment_deps": attr.label(doc = "Resolved Quarkus deployment closure (set by macro)."),
+        "deployment_catalog": attr.label(
+            allow_single_file = [".json"],
+            mandatory = True,
+            doc = "Internal deployment resolver graph catalog (set by macro).",
+        ),
+        "platform_catalog": attr.label(
+            allow_single_file = [".json"],
+            mandatory = True,
+            doc = "Internal Quarkus platform metadata catalog (set by macro).",
+        ),
+        "platform_properties": attr.label(
+            mandatory = True,
+            doc = "Internal Quarkus platform property files (set by macro).",
+        ),
         "deps": attr.label_list(
             mandatory = True,
-            aspects = [quarkus_extension_deployment_classpath_aspect],
+            aspects = [
+                quarkus_extension_deployment_classpath_aspect,
+                quarkus_application_model_aspect,
+            ],
             providers = [JavaInfo],
             doc = "Test java_library targets. Transitive deps (app code, quarkus-junit, etc.) are included automatically.",
         ),
@@ -95,9 +119,18 @@ quarkus_test = rule(
         "jvm_flags": attr.string_list(
             doc = "JVM flags passed to the java command when running tests.",
         ),
+        "model_private_deps": attr.label_list(
+            providers = [JavaInfo],
+            doc = "Internal test compile/launcher dependencies omitted from ApplicationModel semantics.",
+        ),
         "quarkifier_tool": attr.label(
             allow_single_file = [".jar"],
             doc = "Quarkifier deploy jar (fat jar with all tool deps bundled).",
+        ),
+        "runtime_catalog": attr.label(
+            allow_single_file = [".json"],
+            mandatory = True,
+            doc = "Internal runtime resolver graph catalog (set by macro).",
         ),
         "quarkus_version": attr.string(doc = "Quarkus version (set by macro)."),
         "test_classes": attr.string_list(

@@ -19,10 +19,19 @@ public final class QuarkifierVersionProvider implements CommandLine.IVersionProv
   public String[] getVersion() {
     Properties props = loadProperties();
     String quarkifierVersion = props.getProperty("quarkifier.version", "dev");
-    String quarkusVersion = props.getProperty("quarkus.version", "unknown");
+    String quarkusVersion = targetedQuarkusVersion(props);
     return new String[] {
       "quarkifier " + quarkifierVersion, "quarkus " + quarkusVersion,
     };
+  }
+
+  /** Returns the Quarkus line this quarkifier artifact was compiled and packaged against. */
+  public static String targetedQuarkusVersion() {
+    return targetedQuarkusVersion(loadProperties());
+  }
+
+  private static String targetedQuarkusVersion(Properties properties) {
+    return properties.getProperty("quarkus.version", "unknown");
   }
 
   @SuppressWarnings("PMD.UseProperClassLoader") // fallback when context CL is null (bootstrap)

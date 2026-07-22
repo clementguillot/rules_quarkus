@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "quarkus-bazel-model-v1",
+  "producer": {"name": "rules_quarkus", "version": "example"},
+  "quarkusVersion": "3.33.2",
+  "mode": "normal",
+  "applicationId": "@@//:app",
+  "nodes": [{
+    "id": "@@//:app",
+    "kind": "application",
+    "coordinates": {"groupId": "bazel.workspace", "artifactId": "app", "classifier": "", "type": "jar", "version": "1"},
+    "paths": ["bazel-bin/app.jar"],
+    "dependencies": [],
+    "classpath": {
+      "directFromApplication": false,
+      "runtimeClasspath": true,
+      "deploymentClasspath": true,
+      "compileOnly": false,
+      "optional": false,
+      "reloadable": false,
+      "topLevelRuntimeExtension": false
+    },
+    "workspaceModuleId": "@@//:app",
+    "bazelLabel": "@@//:app"
+  }],
+  "workspaceModules": [{
+    "id": "@@//:app",
+    "bazelLabel": "@@//:app",
+    "moduleDir": ".",
+    "buildDir": "bazel-bin",
+    "buildFile": "BUILD.bazel",
+    "sourceSets": [{
+      "classifier": "",
+      "sourceDirectories": ["src/main/java"],
+      "resourceDirectories": ["src/main/resources"],
+      "outputDirectories": [],
+      "generatedSourceDirectories": [],
+      "generatedResourceDirectories": []
+    }],
+    "directDependencyIds": [],
+    "dependencyConstraints": [],
+    "testClasspathExclusions": [],
+    "additionalTestClasspathElements": [],
+    "parentId": null
+  }],
+  "platform": {"imports": [], "properties": {}, "releases": []}
+}

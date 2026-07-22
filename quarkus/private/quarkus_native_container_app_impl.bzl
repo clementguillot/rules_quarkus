@@ -11,8 +11,10 @@ quarkus_app macro when native_container_build=True, creating a <name>_native tar
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusNativeInfo")
+load("//quarkus/private:application_model_aspect.bzl", "quarkus_application_model_aspect")
 load("//quarkus/private:augmentation.bzl", "run_augmentation")
-load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect")
+load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_local_app_jars", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect")
+load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
 load("//quarkus/private:versions.bzl", "DEFAULT_NATIVE_BUILDER_IMAGE")
 
 # Container runtime auto-detection is backported from Quarkus
@@ -120,10 +122,29 @@ def _quarkus_native_container_app_impl(ctx):
         fail("quarkus_native_container_app_rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
 
     runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
+    conditional_classpath = collect_runtime_classpath([ctx.attr.conditional_deps])
     deployment_classpath = collect_deployment_classpath(ctx.attr.deployment_deps, ctx.attr.deps)
+    model = assemble_application_model(
+        ctx,
+        ctx.attr.deps,
+        runtime_classpath,
+        conditional_classpath,
+        deployment_classpath,
+        "native",
+        ctx.label.name.removesuffix("_native"),
+    )
 
     output_dir = ctx.actions.declare_directory(ctx.label.name + "-native-sources")
-    run_augmentation(ctx, output_dir, runtime_classpath, deployment_classpath, mode = "native")
+    run_augmentation(
+        ctx,
+        output_dir,
+        runtime_classpath,
+        conditional_classpath,
+        deployment_classpath,
+        mode = "native",
+        local_jars = collect_local_app_jars(ctx.attr.deps, runtime_classpath),
+        model_file = model,
+    )
 
     binary = ctx.actions.declare_file(ctx.label.name)
     ctx.actions.run_shell(
@@ -159,12 +180,17 @@ def _quarkus_native_container_app_impl(ctx):
             application_classpath = runtime_classpath,
             quarkus_version = ctx.attr.quarkus_version,
         ),
+        OutputGroupInfo(
+            quarkus_model = depset([model]),
+        ),
     ]
 
 quarkus_native_container_app_rule = rule(
     implementation = _quarkus_native_container_app_impl,
     executable = True,
     attrs = {
+        "conditional_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
+        "conditional_deps": attr.label(mandatory = True, providers = [JavaInfo]),
         "builder_image": attr.string(
             default = DEFAULT_NATIVE_BUILDER_IMAGE,
             doc = """\
@@ -180,9 +206,26 @@ including entries in a shared remote cache.
             doc = "Container runtime to use. 'auto' detects Docker or Podman.",
         ),
         "deployment_deps": attr.label(doc = "Resolved Quarkus deployment closure (set by macro)."),
+        "deployment_catalog": attr.label(
+            allow_single_file = [".json"],
+            mandatory = True,
+            doc = "Internal deployment resolver graph catalog (set by macro).",
+        ),
+        "platform_catalog": attr.label(
+            allow_single_file = [".json"],
+            mandatory = True,
+            doc = "Internal Quarkus platform metadata catalog (set by macro).",
+        ),
+        "platform_properties": attr.label(
+            mandatory = True,
+            doc = "Internal Quarkus platform property files (set by macro).",
+        ),
         "deps": attr.label_list(
             mandatory = True,
-            aspects = [quarkus_extension_deployment_classpath_aspect],
+            aspects = [
+                quarkus_extension_deployment_classpath_aspect,
+                quarkus_application_model_aspect,
+            ],
             providers = [JavaInfo],
             doc = "java_library and Maven artifact targets.",
         ),
@@ -205,6 +248,11 @@ Set automatically by the quarkus_app macro via select() on the host CPU.
         "quarkifier_tool": attr.label(
             allow_single_file = [".jar"],
             doc = "Quarkifier deploy jar (fat jar with all tool deps bundled).",
+        ),
+        "runtime_catalog": attr.label(
+            allow_single_file = [".json"],
+            mandatory = True,
+            doc = "Internal runtime resolver graph catalog (set by macro).",
         ),
         "quarkus_version": attr.string(doc = "Quarkus version (set by macro)."),
         "version": attr.string(

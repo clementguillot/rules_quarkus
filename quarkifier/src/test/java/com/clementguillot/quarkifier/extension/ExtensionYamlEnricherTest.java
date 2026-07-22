@@ -24,7 +24,7 @@ class ExtensionYamlEnricherTest {
 
   @Test
   void enrichMetadata_nullInput_generatesNameAndMetadata() throws IOException {
-    String result = ExtensionYamlEnricher.enrichMetadata(null, "my-ext", "3.33.2", List.of());
+    String result = enrichMetadata(null, "my-ext", "3.33.2", List.of());
 
     assertTrue(result.contains("name: \"my-ext\""));
     assertTrue(result.contains("built-with-quarkus-core: \"3.33.2\""));
@@ -33,7 +33,7 @@ class ExtensionYamlEnricherTest {
 
   @Test
   void enrichMetadata_blankInput_generatesNameAndMetadata() throws IOException {
-    String result = ExtensionYamlEnricher.enrichMetadata("  ", "my-ext", "3.33.2", List.of());
+    String result = enrichMetadata("  ", "my-ext", "3.33.2", List.of());
 
     assertTrue(result.contains("name: \"my-ext\""));
     assertTrue(result.contains("built-with-quarkus-core: \"3.33.2\""));
@@ -43,9 +43,7 @@ class ExtensionYamlEnricherTest {
   void enrichMetadata_existingYaml_appendsToMetadata() throws IOException {
     String input =
         "name: \"hello\"\ndescription: \"A greeting extension\"\nmetadata:\n  status: stable\n";
-    String result =
-        ExtensionYamlEnricher.enrichMetadata(
-            input, "hello", "3.27.4", List.of("io.quarkus:quarkus-arc"));
+    String result = enrichMetadata(input, "hello", "3.27.4", List.of("io.quarkus:quarkus-arc"));
 
     assertTrue(result.contains("name: \"hello\""));
     assertTrue(result.contains("status: stable"));
@@ -56,7 +54,7 @@ class ExtensionYamlEnricherTest {
   @Test
   void enrichMetadata_noMetadataBlock_addsOne() throws IOException {
     String input = "name: \"no-meta\"\ndescription: \"No metadata block\"\n";
-    String result = ExtensionYamlEnricher.enrichMetadata(input, "no-meta", "3.33.2", List.of());
+    String result = enrichMetadata(input, "no-meta", "3.33.2", List.of());
 
     assertTrue(result.contains("metadata:"));
     assertTrue(result.contains("built-with-quarkus-core: \"3.33.2\""));
@@ -71,8 +69,7 @@ class ExtensionYamlEnricherTest {
             + "  extension-dependencies:\n"
             + "    - \"old:dep\"\n"
             + "  status: preview\n";
-    String result =
-        ExtensionYamlEnricher.enrichMetadata(input, "re-enrich", "3.33.2", List.of("new:dep"));
+    String result = enrichMetadata(input, "re-enrich", "3.33.2", List.of("new:dep"));
 
     // Old values replaced
     assertFalse(result.contains("3.27.0"));
@@ -96,8 +93,7 @@ class ExtensionYamlEnricherTest {
             + "  - \"old:indentless\"\n"
             + "  status: preview\n";
 
-    String result =
-        ExtensionYamlEnricher.enrichMetadata(input, "re-enrich", "3.33.2", List.of("new:dep"));
+    String result = enrichMetadata(input, "re-enrich", "3.33.2", List.of("new:dep"));
 
     assertFalse(result.contains("generated dependency"));
     assertFalse(result.contains("old:deeply-indented"));
@@ -109,8 +105,7 @@ class ExtensionYamlEnricherTest {
   @Test
   void enrichMetadata_multipleDeps_allPresent() throws IOException {
     String result =
-        ExtensionYamlEnricher.enrichMetadata(
-            null, "multi", "3.33.2", List.of("b:b-lib", "a:a-lib", "c:c-lib"));
+        enrichMetadata(null, "multi", "3.33.2", List.of("b:b-lib", "a:a-lib", "c:c-lib"));
 
     assertTrue(result.contains("    - \"a:a-lib\""));
     assertTrue(result.contains("    - \"b:b-lib\""));
@@ -119,10 +114,79 @@ class ExtensionYamlEnricherTest {
 
   @Test
   void enrichMetadata_specialCharsInVersion_areEscaped() throws IOException {
-    String result = ExtensionYamlEnricher.enrichMetadata(null, "esc\"test", "3.33\\2", List.of());
+    String result = enrichMetadata(null, "esc\"test", "3.33\\2", List.of());
 
     assertTrue(result.contains("esc\\\"test"));
     assertTrue(result.contains("3.33\\\\2"));
+  }
+
+  @Test
+  void enrichMetadata_missingArtifact_addsCanonicalProjectCoordinates() throws IOException {
+    String result =
+        ExtensionYamlEnricher.enrichMetadata(
+            "name: local-extension\nmetadata:\n", project("local-extension"), "3.33.2", List.of());
+
+    assertTrue(result.contains("artifact: \"org.acme:local-extension::jar:1.0.0\""));
+  }
+
+  @Test
+  void enrichMetadata_completeArtifact_preservesUserCoordinates() throws IOException {
+    String result =
+        ExtensionYamlEnricher.enrichMetadata(
+            "name: local-extension\nartifact: custom.group:custom-artifact:2.0\nmetadata:\n",
+            project("local-extension"),
+            "3.33.2",
+            List.of());
+
+    assertTrue(result.contains("artifact: custom.group:custom-artifact:2.0"));
+    assertFalse(result.contains("org.acme:local-extension::jar:1.0.0"));
+  }
+
+  @Test
+  void enrichMetadata_incompleteArtifact_completesWithProjectVersion() throws IOException {
+    String result =
+        ExtensionYamlEnricher.enrichMetadata(
+            "name: local-extension\nartifact: custom.group:custom-artifact\nmetadata:\n",
+            project("local-extension"),
+            "3.33.2",
+            List.of());
+
+    assertTrue(result.contains("artifact: \"custom.group:custom-artifact::jar:1.0.0\""));
+  }
+
+  @Test
+  void enrichMetadata_legacyCoordinateFields_areUsedAsFallbacks() throws IOException {
+    String result =
+        ExtensionYamlEnricher.enrichMetadata(
+            "name: local-extension\n"
+                + "groupId: custom.group\n"
+                + "artifactId: custom-artifact\n"
+                + "version: 2.0\n",
+            project("local-extension"),
+            "3.33.2",
+            List.of());
+
+    assertTrue(result.contains("artifact: \"custom.group:custom-artifact::jar:2.0\""));
+  }
+
+  @Test
+  void enrichMetadata_projectPlaceholders_areResolved() throws IOException {
+    String result =
+        ExtensionYamlEnricher.enrichMetadata(
+            "name: local-extension\n"
+                + "artifact: ${project.groupId}:${project.artifactId}:${project.version}\n",
+            project("local-extension"),
+            "3.33.2",
+            List.of());
+
+    assertTrue(result.contains("artifact: \"org.acme:local-extension::jar:1.0.0\""));
+  }
+
+  @Test
+  void extensionProjectInfo_blankProjectCoordinate_failsClosed() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> new ExtensionProjectInfo("local-extension", "org.acme", "local-extension", " "));
   }
 
   // ---- discoverExtensionDependencies ----
@@ -215,7 +279,7 @@ class ExtensionYamlEnricherTest {
     Files.writeString(cpFile, depJar.toString());
     Path output = tempDir.resolve("enriched.yaml");
 
-    ExtensionYamlEnricher.enrich(runtimeJar, output, "3.33.2", cpFile, "test-ext");
+    ExtensionYamlEnricher.enrich(runtimeJar, output, "3.33.2", cpFile, project("test-ext"));
 
     String result = Files.readString(output);
     assertTrue(result.contains("name: \"test-ext\""));
@@ -234,10 +298,21 @@ class ExtensionYamlEnricherTest {
         IOException.class,
         () ->
             ExtensionYamlEnricher.enrich(
-                Path.of("/nonexistent.jar"), output, "3.33.2", cpFile, "x"));
+                Path.of("/nonexistent.jar"), output, "3.33.2", cpFile, project("x")));
   }
 
   // ---- helpers ----
+
+  private static String enrichMetadata(
+      String inputYaml, String extensionName, String quarkusVersion, List<String> dependencies)
+      throws IOException {
+    return ExtensionYamlEnricher.enrichMetadata(
+        inputYaml, project(extensionName), quarkusVersion, dependencies);
+  }
+
+  private static ExtensionProjectInfo project(String extensionName) {
+    return new ExtensionProjectInfo(extensionName, "org.acme", extensionName, "1.0.0");
+  }
 
   private Path createJarWithPom(
       Path dir, String fileName, String groupId, String artifactId, boolean isExtension)

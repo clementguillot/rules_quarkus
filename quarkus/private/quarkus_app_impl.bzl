@@ -8,8 +8,10 @@ output, and generating a launcher script for `bazel run`.
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusAppInfo")
+load("//quarkus/private:application_model_aspect.bzl", "quarkus_application_model_aspect")
 load("//quarkus/private:augmentation.bzl", "run_augmentation")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_local_app_jars", "collect_runtime_classpath", "collect_source_jars", "quarkus_extension_deployment_classpath_aspect")
+load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
 
 def _shell_quote(s):
     """Shell-quotes a string so it survives word splitting."""
@@ -37,11 +39,21 @@ def _quarkus_app_impl(ctx):
         fail("quarkus_app rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
 
     runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
+    conditional_classpath = collect_runtime_classpath([ctx.attr.conditional_deps])
     deployment_classpath = collect_deployment_classpath(ctx.attr.deployment_deps, ctx.attr.deps)
     local_jars = collect_local_app_jars(ctx.attr.deps, runtime_classpath)
+    model = assemble_application_model(ctx, ctx.attr.deps, runtime_classpath, conditional_classpath, deployment_classpath, "normal")
 
     output_dir = ctx.actions.declare_directory(ctx.label.name + "-quarkus-app")
-    run_augmentation(ctx, output_dir, runtime_classpath, deployment_classpath, local_jars = local_jars)
+    run_augmentation(
+        ctx,
+        output_dir,
+        runtime_classpath,
+        conditional_classpath,
+        deployment_classpath,
+        local_jars = local_jars,
+        model_file = model,
+    )
 
     # The launcher runs the app with the target-config Java runtime from
     # runfiles instead of whatever `java` happens to be on PATH.
@@ -59,6 +71,7 @@ def _quarkus_app_impl(ctx):
         ),
         OutputGroupInfo(
             quarkus_app = depset([output_dir]),
+            quarkus_model = depset([model]),
         ),
         QuarkusAppInfo(
             fast_jar_dir = output_dir,
@@ -72,10 +85,23 @@ quarkus_app_rule = rule(
     implementation = _quarkus_app_impl,
     executable = True,
     attrs = {
+        "conditional_catalog": attr.label(
+            allow_single_file = [".json"],
+            mandatory = True,
+            doc = "Internal conditional dependency graph catalog (set by macro).",
+        ),
+        "conditional_deps": attr.label(
+            mandatory = True,
+            providers = [JavaInfo],
+            doc = "Internal conditional candidate closure (set by macro).",
+        ),
         "deployment_deps": attr.label(doc = "Resolved Quarkus deployment closure (set by macro)."),
         "deps": attr.label_list(
             mandatory = True,
-            aspects = [quarkus_extension_deployment_classpath_aspect],
+            aspects = [
+                quarkus_extension_deployment_classpath_aspect,
+                quarkus_application_model_aspect,
+            ],
             providers = [JavaInfo],
             doc = "java_library and Maven artifact targets.",
         ),
@@ -85,9 +111,28 @@ quarkus_app_rule = rule(
         "main_class": attr.string(
             doc = "Override main class. Defaults to the Quarkus runner.",
         ),
+        "deployment_catalog": attr.label(
+            allow_single_file = [".json"],
+            mandatory = True,
+            doc = "Internal deployment resolver graph catalog (set by macro).",
+        ),
+        "platform_catalog": attr.label(
+            allow_single_file = [".json"],
+            mandatory = True,
+            doc = "Internal Quarkus platform metadata catalog (set by macro).",
+        ),
+        "platform_properties": attr.label(
+            mandatory = True,
+            doc = "Internal Quarkus platform property files (set by macro).",
+        ),
         "quarkifier_tool": attr.label(
             allow_single_file = [".jar"],
             doc = "Quarkifier deploy jar (fat jar with all tool deps bundled).",
+        ),
+        "runtime_catalog": attr.label(
+            allow_single_file = [".json"],
+            mandatory = True,
+            doc = "Internal runtime resolver graph catalog (set by macro).",
         ),
         "quarkus_version": attr.string(doc = "Quarkus version (set by macro)."),
         "version": attr.string(

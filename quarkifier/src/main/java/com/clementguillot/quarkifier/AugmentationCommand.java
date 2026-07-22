@@ -1,9 +1,8 @@
 package com.clementguillot.quarkifier;
 
 import com.clementguillot.quarkifier.augmentation.AugmentationExecutor;
-import com.clementguillot.quarkifier.extension.ExtensionScanner;
-import com.clementguillot.quarkifier.extension.VersionChecker;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -25,7 +24,7 @@ import picocli.CommandLine.Spec;
     name = "augmentation",
     description = "Run Quarkus build-time augmentation to produce a Fast_Jar.",
     mixinStandardHelpOptions = true)
-@SuppressWarnings({"PMD.TooManyFields", "PMD.TooManyMethods"})
+@SuppressWarnings({"PMD.AvoidPrintStackTrace", "PMD.TooManyFields", "PMD.TooManyMethods"})
 // picocli pattern — one field per CLI option; not worth splitting
 public final class AugmentationCommand implements Callable<Integer> {
 
@@ -45,19 +44,6 @@ public final class AugmentationCommand implements Callable<Integer> {
       description =
           "File containing the application classpath (alternative to --application-classpath).")
   private Path applicationClasspathFile;
-
-  @Option(
-      names = "--deployment-classpath",
-      description = "Colon-separated list of deployment jars.",
-      split = ":",
-      defaultValue = "")
-  private List<Path> deploymentClasspath;
-
-  @Option(
-      names = "--deployment-classpath-file",
-      description =
-          "File containing the deployment classpath (alternative to --deployment-classpath).")
-  private Path deploymentClasspathFile;
 
   @Option(
       names = "--core-deployment-classpath",
@@ -85,6 +71,12 @@ public final class AugmentationCommand implements Callable<Integer> {
       description = "File containing local app jars (alternative to --local-app-jars).")
   private Path localAppJarsFile;
 
+  @Option(
+      names = "--application-model",
+      required = true,
+      description = "Validated quarkus-bazel-model-v1 JSON.")
+  private Path applicationModel;
+
   // ---- Output ----
 
   @Option(
@@ -104,16 +96,8 @@ public final class AugmentationCommand implements Callable<Integer> {
       defaultValue = "normal")
   private String mode;
 
-  @Option(
-      names = "--expected-quarkus-version",
-      description = "Expected Quarkus version for mismatch warnings.")
-  private String expectedQuarkusVersion;
-
   @Option(names = "--app-name", description = "Application name for Quarkus startup banner.")
   private String appName;
-
-  @Option(names = "--app-version", description = "Application version for Quarkus startup banner.")
-  private String appVersion;
 
   @Option(
       names = "--main-class",
@@ -177,17 +161,21 @@ public final class AugmentationCommand implements Callable<Integer> {
   public Integer call() {
     QuarkifierConfig config = toConfig();
     try {
-      var extensions = ExtensionScanner.scan(config.applicationClasspath());
-      VersionChecker.check(extensions, config.expectedQuarkusVersion());
       AugmentationExecutor.execute(config);
     } catch (AugmentationException e) {
       logger().error("Augmentation failed", e);
-      return 1;
-    } catch (IOException e) {
-      logger().errorf("Error scanning extensions: %s", e.getMessage());
+      reportFailure("Augmentation failed", e);
       return 1;
     }
     return 0;
+  }
+
+  @SuppressWarnings("PMD.CloseResource")
+  private void reportFailure(String message, Exception exception) {
+    PrintWriter error = commandSpec.commandLine().getErr();
+    error.println(message + ": " + exception.getMessage());
+    exception.printStackTrace(error);
+    error.flush();
   }
 
   /**
@@ -195,9 +183,8 @@ public final class AugmentationCommand implements Callable<Integer> {
    *
    * @throws CommandLine.ParameterException on invalid values
    */
-  public QuarkifierConfig toConfig() {
+  QuarkifierConfig toConfig() {
     List<Path> resolvedAppCp = resolveClasspath(applicationClasspath, applicationClasspathFile);
-    List<Path> resolvedDeployCp = resolveClasspath(deploymentClasspath, deploymentClasspathFile);
     List<Path> resolvedCoreCp =
         resolveClasspath(coreDeploymentClasspath, coreDeploymentClasspathFile);
     List<Path> resolvedLocalJars = resolveClasspath(localAppJars, localAppJarsFile);
@@ -205,10 +192,6 @@ public final class AugmentationCommand implements Callable<Integer> {
     if (resolvedAppCp.isEmpty()) {
       throw parameterException(
           "Either --application-classpath or --application-classpath-file must be provided");
-    }
-    if (resolvedDeployCp.isEmpty()) {
-      throw parameterException(
-          "Either --deployment-classpath or --deployment-classpath-file must be provided");
     }
     validateNonEmpty(mainClass, "--main-class");
     validateNonEmpty(nativeBuilderImage, "--native-builder-image");
@@ -222,14 +205,11 @@ public final class AugmentationCommand implements Callable<Integer> {
 
     return new QuarkifierConfig(
         resolvedAppCp,
-        resolvedDeployCp,
         resolvedCoreCp,
         outputDir,
         orEmpty(resources),
         parseMode(mode),
-        expectedQuarkusVersion,
         appName,
-        appVersion,
         mainClass,
         nativeBuilderImage,
         orEmpty(sourceDirs),
@@ -240,7 +220,8 @@ public final class AugmentationCommand implements Callable<Integer> {
         bazelBuildTimeoutSeconds,
         bazelCommand,
         orEmpty(bazelBuildArgs),
-        resolvedLocalJars);
+        resolvedLocalJars,
+        applicationModel);
   }
 
   // ---- internal helpers ----

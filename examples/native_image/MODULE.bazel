@@ -18,13 +18,12 @@ bazel_dep(name = "rules_jvm_external", version = "6.10")
 # GraalVM native-image toolchain (via rules_graalvm)
 bazel_dep(name = "rules_graalvm", version = "0.11.1")
 
-# we need to override `rules_graalvm` until this PR is getting merged
-# https://github.com/sgammon/rules_graalvm/pull/573
+# temporary override until 0.12.0 is released
 # otherwise, we won't have Java 25 support
 git_override(
     module_name = "rules_graalvm",
-    commit = "f3683e086fea4a8ca59ecdc6e0cff6f3d61b796e",
-    remote = "https://github.com/jesses-canva/rules_graalvm.git",
+    commit = "0241d7a902171ce6d5647fa45f7f4789626edb4f",
+    remote = "https://github.com/sgammon/rules_graalvm.git",
 )
 
 gvm = use_extension("@rules_graalvm//:extensions.bzl", "graalvm")

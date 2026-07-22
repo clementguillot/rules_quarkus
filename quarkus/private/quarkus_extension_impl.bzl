@@ -92,6 +92,9 @@ def _enrich_extension_yaml(ctx, runtime_jar):
     args.add(ctx.attr.quarkus_version)
     args.add(classpath_file)
     args.add(ctx.label.name)
+    args.add(ctx.attr.group_id)
+    args.add(ctx.attr.artifact_id)
+    args.add(ctx.attr.version)
 
     ctx.actions.run(
         executable = java_runtime.java_executable_exec_path,
@@ -199,7 +202,11 @@ def _quarkus_extension_runtime_impl(ctx):
         java_info,
         OutputGroupInfo(deployment_jar = depset([merged_deploy_jar])),
         QuarkusExtensionInfo(
+            artifact_id = ctx.attr.artifact_id,
+            deployment_jar = merged_deploy_jar,
             deployment_classpath = _build_deployment_classpath(ctx, merged_deploy_jar),
+            group_id = ctx.attr.group_id,
+            version = ctx.attr.version,
         ),
     ]
 

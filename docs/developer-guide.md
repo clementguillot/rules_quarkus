@@ -24,13 +24,11 @@ rules_quarkus/
 │       ├── main/java/com/clementguillot/quarkifier/
 │       │   ├── QuarkifierLauncher.java
 │       │   ├── QuarkifierConfig.java
-│       │   ├── AugmentationExecutor.java
-│       │   ├── DevModeLauncher.java
-│       │   ├── AppModelSerializerStrategy.java
-│       │   ├── ExtensionScanner.java
-│       │   ├── DeploymentArtifactResolver.java
-│       │   ├── MavenCoordinateParser.java
-│       │   ├── VersionChecker.java
+│       │   ├── augmentation/AugmentationExecutor.java
+│       │   ├── dev/DevModeLauncher.java
+│       │   ├── extension/ExtensionScanner.java
+│       │   ├── model/ExplicitApplicationModelBuilder.java
+│       │   ├── model/transport/       # Strict v1 model and assembler
 │       │   └── ...
 │       ├── main/java_3_27/   # Version-specific: AppModelSerializerImpl (JOS format)
 │       ├── main/java_3_33/   # Version-specific: AppModelSerializerImpl (JSON format)
@@ -121,52 +119,16 @@ quarkus.toolchain(
 
 Dev mode uses the same version-specific deploy jar as production mode, for example `quarkifier_3_27_deploy.jar` or `quarkifier_3_33_deploy.jar`. Classloader isolation is handled at runtime by `DevModeLauncher.createDevJar()`, which filters the manifest classpath to exclude runtime extension JARs (ArC, REST, etc.) and SmallRye Config JARs. Since dev mode spawns a separate child JVM process, the parent process having these JARs on its classpath is irrelevant. See [dev-mode.md](dev-mode.md) for the full explanation.
 
-## Property-Based Testing
-
-The project uses property-based testing (PBT) to verify universal correctness properties across randomly generated inputs.
-
-### TestDataGenerator
-
-`TestDataGenerator` produces randomized inputs for property tests:
-- Uses a **seeded `Random(42)`** for reproducibility
-- Generates **200 iterations** per property (`TRIES = 200`)
-- Produces random `QuarkifierConfig` instances with valid structure
-
-```java
-static Stream<QuarkifierConfig> randomValidConfigs() {
-    return IntStream.range(0, TRIES).mapToObj(i -> randomConfig());
-}
-```
-
-### Writing a Property Test
-
-Property tests use JUnit Jupiter parameterized tests with `@MethodSource`:
-
-```java
-@ParameterizedTest
-@MethodSource("com.clementguillot.quarkifier.TestDataGenerator#randomValidConfigs")
-void roundTrip(QuarkifierConfig original) throws Exception {
-    // Feature: rules-quarkus, Property 4: CLI argument parsing round-trip
-    String[] args = original.toArgs();
-    QuarkifierConfig parsed = QuarkifierConfig.parse(args);
-    assertEquals(original, parsed);
-}
-```
-
-Each property test is tagged with a comment: `Feature: rules-quarkus, Property {number}: {property_text}`
-
-### Existing Tests
+## Existing Tests
 
 | Test Class | Type | What It Verifies |
 |---|---|---|
-| `QuarkifierConfigPropertyTest` | PBT | `toArgs()` → `parse()` round-trip (200 iterations) |
-| `DeploymentArtifactResolverTest` | PBT | `artifactId + "-deployment"` naming convention |
-| `ExtensionScannerTest` | PBT | Correct GAV extraction from extension properties |
-| `MavenCoordinateParserTest` | PBT | Same artifactId+version from different path formats |
-| `VersionCheckerTest` | PBT | Reports exactly the mismatched extensions |
+| `ExtensionScannerTest` | Unit | Correct extension metadata extraction |
+| `MavenCoordinateParserTest` | Unit | Maven coordinate extraction from artifact paths |
 | `QuarkifierConfigTest` | Unit | CLI parsing error paths: missing args, unknown flags, invalid mode |
+| `BazelApplicationModelAssemblerTest` | Unit | Exact graph, flags, conditionals, platforms, and workspace assembly |
+| `BazelApplicationModelReaderTest` | Unit | Strict schema and semantic validation |
 | `AugmentationModeTest` | Unit | Mode parsing, case insensitivity, invalid values |
-| `MissingDeploymentArtifactExceptionTest` | Unit | Exception message contains both artifact IDs |
 | `DevModeLauncherTest` | Unit | `buildDevModeContext()` field correctness |
 
 ## Key Constants

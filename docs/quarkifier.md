@@ -7,7 +7,8 @@ The Quarkifier (`com.clementguillot.quarkifier`) is a standalone Java tool that 
 
 ## CLI Interface
 
-The top-level command dispatches to `augmentation` and `enrich-extension`:
+The top-level command dispatches to `augmentation`, `assemble-model`,
+`discover-extensions`, and `enrich-extension`:
 
 ```
 java -jar quarkifier_<minor>_deploy.jar [--help] [--version] <command>
@@ -19,17 +20,13 @@ java -jar quarkifier_<minor>_deploy.jar [--help] [--version] <command>
 java -jar quarkifier_<minor>_deploy.jar \
   augmentation \
   --application-classpath <jar:jar:...> \
-  --deployment-classpath <jar:jar:...> \
   [--application-classpath-file <path>] \
-  [--deployment-classpath-file <path>] \
   [--core-deployment-classpath <jar:jar:...>] \
   [--core-deployment-classpath-file <path>] \
   --output-dir <path> \
   [--resources <path,path,...>] \
   [--mode normal|test|dev|native] \
-  [--expected-quarkus-version <version>] \
   [--app-name <name>] \
-  [--app-version <version>] \
   [--main-class <class>] \
   [--native-builder-image <image>] \
   [--source-dirs <dir,dir,...>] \
@@ -42,6 +39,7 @@ java -jar quarkifier_<minor>_deploy.jar \
   [--bazel-build-args <flag,flag,...>] \
   [--local-app-jars <jar:jar:...>] \
   [--local-app-jars-file <path>] \
+  --application-model <quarkus-bazel-model-v1.json> \
   [-h|--help] \
   [-V|--version]
 ```
@@ -52,16 +50,12 @@ java -jar quarkifier_<minor>_deploy.jar \
 |---|---|---|---|
 | `--application-classpath` | Yes* | — | Colon-separated list of runtime jars |
 | `--application-classpath-file` | No | — | File containing the application classpath (alternative to `--application-classpath`) |
-| `--deployment-classpath` | Yes* | — | Colon-separated list of runtime + deployment jars |
-| `--deployment-classpath-file` | No | — | File containing the deployment classpath (alternative to `--deployment-classpath`) |
 | `--core-deployment-classpath` | No | `[]` | Colon-separated list of core deployment jars (dev mode only) |
 | `--core-deployment-classpath-file` | No | — | File containing the core deployment classpath |
 | `--output-dir` | Yes | — | Directory where Fast_Jar output is written |
 | `--resources` | No | `[]` | Comma-separated list of resource file paths |
 | `--mode` | No | `normal` | Augmentation mode: `normal`, `test`, `dev`, or `native` |
-| `--expected-quarkus-version` | No | `null` | Expected Quarkus version for mismatch warnings |
 | `--app-name` | No | `null` | Application name for Quarkus startup banner |
-| `--app-version` | No | `null` | Application version for Quarkus startup banner |
 | `--main-class` | No | `null` | Fully-qualified custom main class annotated with `@QuarkusMain` |
 | `--native-builder-image` | No | `null` | Native builder image for `platform.quarkus.native.builder-image` |
 | `--source-dirs` | No | `[]` | Comma-separated source directories for dev mode hot-reload |
@@ -74,6 +68,7 @@ java -jar quarkifier_<minor>_deploy.jar \
 | `--bazel-build-args` | No | `[]` | Comma-separated extra flags for the hot-reload bazel build |
 | `--local-app-jars` | No | `[]` | Colon-separated local workspace jars to use as application roots |
 | `--local-app-jars-file` | No | — | File containing local app jars (alternative to `--local-app-jars`) |
+| `--application-model` | Yes | — | Strict `quarkus-bazel-model-v1` input; its mode and Quarkus version must match the invocation and version-specific tool |
 | `-h`, `--help` | — | — | Show help message and exit |
 | `-V`, `--version` | — | — | Show version info and exit |
 
@@ -88,12 +83,17 @@ java -jar quarkifier_<minor>_deploy.jar \
   <output.yaml> \
   <quarkus-version> \
   <classpath-file> \
-  <extension-name>
+  <extension-name> \
+  <group-id> \
+  <artifact-id> \
+  <extension-version>
 ```
 
 This command reads `META-INF/quarkus-extension.yaml` from the runtime jar, adds
-the Quarkus core version and extension dependencies discovered from the compile
-classpath, then writes the enriched YAML to the requested output path.
+canonical artifact coordinates when the descriptor omits or incompletely
+declares them, adds the Quarkus core version and extension dependencies
+discovered from the compile classpath, then writes the enriched YAML. A complete
+user-supplied `artifact` is preserved, matching the Quarkus Maven/Gradle plugins.
 
 ### Exit Codes
 
@@ -121,15 +121,13 @@ com.clementguillot.quarkifier
 │   ├── ExtensionInfo               Record: groupId, artifactId, version, sourceJar
 │   ├── ExtensionScanner            Scans jars for quarkus-extension.properties
 │   ├── ExtensionYamlEnricher       Enriches quarkus-extension.yaml build metadata
-│   ├── DeploymentArtifactResolver  Maps extensions to their -deployment jars
-│   ├── MissingDeploymentArtifactException
-│   └── VersionChecker              Compares extension versions against expected
 │
 ├── maven/                          Maven coordinate parsing
 │   └── MavenCoordinateParser       Extracts GAV from jar file paths
 │
 ├── model/                          ApplicationModel construction
-│   └── QuarkusAppModelBuilder      Builds ApplicationModel from classpath jars
+│   ├── ExplicitApplicationModelBuilder  Builds from validated v1 facts
+│   └── transport/                  Strict schema, assembler, validator, writer
 │
 ├── augmentation/                   Augmentation execution and post-processing
 │   ├── AugmentationExecutor        Orchestrates bootstrap + augmentation
@@ -153,14 +151,11 @@ then forwarded to an immutable `QuarkifierConfig` record:
 ```java
 public record QuarkifierConfig(
     List<Path> applicationClasspath,
-    List<Path> deploymentClasspath,
     List<Path> coreDeploymentClasspath,
     Path outputDir,
     List<Path> resources,
     AugmentationMode mode,
-    String expectedQuarkusVersion,
     String appName,
-    String appVersion,
     String mainClass,
     String nativeBuilderImage,
     List<Path> sourceDirs,
@@ -171,28 +166,25 @@ public record QuarkifierConfig(
     long bazelBuildTimeoutSeconds,
     String bazelCommand,
     List<String> bazelBuildArgs,
-    List<Path> localAppJars
+    List<Path> localAppJars,
+    Path applicationModel
 ) { ... }
 ```
-
-The record supports round-trip serialization via `toArgs()` → `parse()`, which is verified by property-based tests (200 iterations).
 
 ## Augmentation Pipeline
 
 ```mermaid
 graph LR
     subgraph Inputs
-        AC[Application Classpath]
-        DC[Deployment Classpath]
-        VER[Expected Quarkus Version]
+        MODEL[quarkus-bazel-model-v1]
+        AC[Application Classpath and Model-Referenced Artifacts]
     end
 
     subgraph Pipeline
-        PARSE[1. QuarkifierConfig.parse]
-        SCAN[2. ExtensionScanner.scan]
-        RESOLVE[3. DeploymentArtifactResolver.resolveAll]
-        VCHECK[4. VersionChecker.check]
-        EXEC[5. AugmentationExecutor.execute]
+        PARSE[1. AugmentationCommand CLI parsing]
+        READ[2. Strict reader and validator]
+        ADAPT[3. Version-specific ApplicationModel adapter]
+        EXEC[4. AugmentationExecutor.execute]
     end
 
     subgraph Output
@@ -200,12 +192,10 @@ graph LR
     end
 
     AC --> PARSE
-    DC --> PARSE
-    VER --> PARSE
-    PARSE --> SCAN
-    SCAN --> RESOLVE
-    RESOLVE --> VCHECK
-    VCHECK --> EXEC
+    MODEL --> PARSE
+    PARSE --> READ
+    READ --> ADAPT
+    ADAPT --> EXEC
     EXEC --> FJ
 ```
 
@@ -214,46 +204,34 @@ graph LR
 `QuarkifierCommand` dispatches to `AugmentationCommand`, which parses and
 validates augmentation arguments, resolves `--*-file` fallbacks, and builds an
 immutable `QuarkifierConfig`. Picocli exits with code 2 on invalid input. The
-convenience method `QuarkifierConfig.parse()` delegates to the augmentation
-subcommand for programmatic use.
+record has no independent command-line serialization API.
 
-### Step 2: Extension Scanning
+### Steps 2–3: Explicit model validation and adaptation
 
-`ExtensionScanner.scan()` reads `META-INF/quarkus-extension.properties` from each jar on the application classpath. For each extension found, it extracts:
+The reader rejects unknown fields, dangling edges, duplicate identities, or
+missing artifacts before Quarkus starts. The executor rejects lifecycle or
+Quarkus-version mismatches against the invocation and the version embedded in
+the quarkifier JAR. The version adapter then constructs workspace modules, dependencies, exact edges,
+flags, platform imports, capabilities, classloading metadata, and removed
+resources. Runtime/deployment associations come from exact extension descriptor
+coordinates; no `-deployment` name guess or orphan adoption occurs.
 
-| Field | Source | Example |
-|---|---|---|
-| `groupId` | `deployment-artifact` GAV property | `io.quarkus` |
-| `artifactId` | Derived by stripping `-deployment` suffix | `quarkus-resteasy-reactive` |
-| `version` | `deployment-artifact` GAV property | `3.27.4` |
-| `sourceJar` | The jar that contained the metadata | `/path/to/quarkus-rest-3.27.4.jar` |
-
-### Step 3: Deployment Artifact Resolution
-
-`DeploymentArtifactResolver.resolveAll()` matches each extension to its `-deployment` jar on the deployment classpath. The naming convention is `artifactId + "-deployment"`. Missing deployment artifacts produce warnings (not failures).
-
-### Step 4: Version Checking
-
-`VersionChecker.check()` compares each extension's version against `expectedQuarkusVersion`. Mismatches produce warnings to stderr. The build continues regardless.
-
-### Step 5: Augmentation
+### Step 4: Augmentation
 
 `AugmentationExecutor.execute()` orchestrates the build. Its behavior depends on the mode:
 
-- **NORMAL/TEST**: Delegates to `QuarkusAppModelBuilder` to build the `ApplicationModel`, runs `QuarkusBootstrap` augmentation in-process, then delegates to `FastJarAssembler` for post-processing
+- **NORMAL/NATIVE**: Uses `ExplicitApplicationModelBuilder`, runs `QuarkusBootstrap` augmentation in-process, then performs lifecycle-specific assembly
+- **TEST**: Serializes the same explicit model for `QuarkusTestExtension`
 - **DEV**: Delegates to `DevModeLauncher` (see [Dev Mode](dev-mode.md))
 
 ## ApplicationModel Construction
 
-`QuarkusAppModelBuilder.build()` builds the model that Quarkus needs, bypassing Maven/Gradle resolution entirely:
-
-1. **Register extensions** — scans runtime jars for `quarkus-extension.properties`, calls `modelBuilder.handleExtensionProperties()`, and manually registers capabilities (`provides-capabilities`, `requires-capabilities`)
-2. **Set app artifact** — uses `MavenCoordinateParser` to extract coordinates from the app jar path
-3. **Add runtime dependencies** — adds all runtime jars, marking extension jars with `setRuntimeExtensionArtifact()`
-4. **Add deployment dependencies** — adds deployment-only jars, deduplicating by both `ArtifactKey` and `artifactId`. Marks `-dev` jars and `io.quarkus` `-spi` jars as runtime classpath entries
-5. **Mark parent-first artifacts** — marks bootstrap/infrastructure jars as parent-first for the augment classloader
-6. **Fix runner-parent-first flags** — workaround for the GACT key mismatch bug (see [Dev Mode](dev-mode.md#the-gact-key-mismatch-bug))
-7. **Set empty PlatformImports** — required for JSON serialization in Quarkus 3.31+ (`ApplicationModel.asMap()` NPEs without it)
+`ExplicitApplicationModelBuilder` translates validated v1 facts. Bazel aspects
+retain local graph/workspace structure; pinned resolver catalogs retain the
+selected external runtime/deployment graph; the assembler applies lifecycle
+reachability and conditional fixpoints. The Java adapter owns Quarkus API and
+flag semantics. There is no classpath-inference fallback: every augmentation,
+dev, test, and native invocation requires the explicit model.
 
 ## Post-Processing (FastJarAssembler)
 
@@ -295,9 +273,11 @@ Uses stop segments (`external`, `v1`, `https`, `maven`, etc.) to identify where 
 
 | Condition | Behavior | Exit Code |
 |---|---|---|
-| Missing deployment artifact | Warning to stderr (build continues) | 0 |
+| Missing descriptor-declared deployment artifact | Model assembly/validation failure | 1 |
+| Missing explicit model in a Bazel action | Analysis failure | — |
+| Missing explicit model in a direct CLI invocation | Invalid CLI arguments | 2 |
 | Quarkus build API exception | `AugmentationException` with stack trace | 1 |
 | Invalid CLI arguments | Usage message + error to stderr | 2 |
 | Empty application classpath | `AugmentationException` | 1 |
 | Augmentation produces no result | `AugmentationException` | 1 |
-| Version mismatch | Warning to stderr (build continues) | 0 |
+| Model mode or Quarkus-version mismatch | `AugmentationException` before Quarkus starts | 1 |

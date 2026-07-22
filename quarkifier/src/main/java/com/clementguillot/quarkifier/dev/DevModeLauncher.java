@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,6 +40,7 @@ import org.jboss.logging.Logger;
  *
  * @see <a href="../../../../../../docs/dev-mode.md">docs/dev-mode.md</a> for the full architecture
  */
+@SuppressWarnings("PMD.ExceptionAsFlowControl")
 public final class DevModeLauncher {
 
   private static final Logger LOGGER = Logger.getLogger(DevModeLauncher.class);
@@ -69,25 +71,35 @@ public final class DevModeLauncher {
 
       // Dev jar mirrors Maven's DevMojo / DevModeCommandLineBuilder.
       Path devJar = createDevJar(context, config, appModel);
-      Process process = startDevProcess(config, serializedModel, devJar);
+      // Populate the mutable classes directory before Quarkus performs its initial scan. Starting
+      // the child first creates a race where the application can boot without any user classes.
       BazelFileWatcher watcher = startWatcherIfConfigured(config);
+      Process process = null;
+      try {
+        process = startDevProcess(config, serializedModel, devJar);
 
-      Runtime.getRuntime()
-          .addShutdownHook(
-              new Thread(
-                  () -> {
-                    process.destroyForcibly();
-                    if (watcher != null) {
-                      watcher.close();
-                    }
-                  }));
-      int exitCode = process.waitFor();
+        final Process devProcess = process;
+        Runtime.getRuntime()
+            .addShutdownHook(
+                new Thread(
+                    () -> {
+                      devProcess.destroyForcibly();
+                      if (watcher != null) {
+                        watcher.close();
+                      }
+                    }));
+        int exitCode = process.waitFor();
 
-      if (watcher != null) {
-        watcher.close();
-      }
-      if (exitCode != 0) {
-        throw new AugmentationException("Dev mode process exited with code " + exitCode);
+        if (exitCode != 0) {
+          throw new AugmentationException("Dev mode process exited with code " + exitCode);
+        }
+      } finally {
+        if (process != null && process.isAlive()) {
+          process.destroyForcibly();
+        }
+        if (watcher != null) {
+          watcher.close();
+        }
       }
 
     } catch (AugmentationException e) {
@@ -167,8 +179,8 @@ public final class DevModeLauncher {
   }
 
   /**
-   * Builds the dev jar's {@code Class-Path}: core deployment infrastructure jars (deduplicated by
-   * artifactId) followed by parent-first runtime artifacts not already covered by the core set.
+   * Builds the dev jar's {@code Class-Path}: dev process infrastructure jars (deduplicated by
+   * artifactId) followed by parent-first runtime artifacts not already covered by that set.
    *
    * <p>For jars that also exist on the application classpath, the application classpath version is
    * preferred — the ApplicationModel references that jar file, and the system classloader must use
@@ -211,30 +223,24 @@ public final class DevModeLauncher {
   // Visible for testing
   static List<Path> collectParentFirstRuntimeJars(
       QuarkifierConfig config, ApplicationModel appModel) {
-    // Use GA strings for lookup — ArtifactKey.ga() creates GACT with type=null
-    // which never equals the type="jar" keys from dep.getKey(). Same workaround as
-    // QuarkusAppModelBuilder.applyParentFirstFromMetadata.
-    Set<String> parentFirstGAs = new HashSet<>();
-    for (ResolvedDependency dep : appModel.getDependencies()) {
-      if (dep.isClassLoaderParentFirst()) {
-        parentFirstGAs.add(dep.getGroupId() + ":" + dep.getArtifactId());
-      }
-    }
-
     Set<String> coreArtifactIds = new HashSet<>();
     for (Path jar : config.coreDeploymentClasspath()) {
       coreArtifactIds.add(MavenCoordinateParser.parse(jar).artifactId());
     }
 
-    List<Path> parentFirstJars = new ArrayList<>();
-    for (Path jar : config.applicationClasspath()) {
-      var coords = MavenCoordinateParser.parse(jar);
-      String ga = coords.groupId() + ":" + coords.artifactId();
-      if (parentFirstGAs.contains(ga) && !coreArtifactIds.contains(coords.artifactId())) {
-        parentFirstJars.add(jar);
+    var parentFirstJars = new LinkedHashSet<Path>();
+    for (ResolvedDependency dependency : appModel.getDependencies()) {
+      if (!dependency.isClassLoaderParentFirst()
+          || coreArtifactIds.contains(dependency.getArtifactId())) {
+        continue;
+      }
+      for (Path path : dependency.getResolvedPaths()) {
+        if (path.toString().endsWith(".jar")) {
+          parentFirstJars.add(path);
+        }
       }
     }
-    return parentFirstJars;
+    return new ArrayList<>(parentFirstJars);
   }
 
   /** Builds a {@link DevModeContext} configured for Bazel-managed dev mode. */

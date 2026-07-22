@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rules-quarkus.dev/schema/quarkus-bazel-model-v1.schema.json",
+  "title": "rules_quarkus explicit application model v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "producer", "quarkusVersion", "mode", "applicationId", "nodes", "workspaceModules", "platform"],
+  "properties": {
+    "schemaVersion": {"const": "quarkus-bazel-model-v1"},
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1}
+      }
+    },
+    "quarkusVersion": {"type": "string", "minLength": 1},
+    "mode": {"enum": ["normal", "test", "dev", "native"]},
+    "applicationId": {"type": "string", "minLength": 1},
+    "nodes": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/node"}},
+    "workspaceModules": {"type": "array", "items": {"$ref": "#/$defs/workspaceModule"}},
+    "platform": {"$ref": "#/$defs/platform"}
+  },
+  "$defs": {
+    "coordinates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["groupId", "artifactId", "classifier", "type", "version"],
+      "properties": {
+        "groupId": {"type": "string", "minLength": 1},
+        "artifactId": {"type": "string", "minLength": 1},
+        "classifier": {"type": "string"},
+        "type": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1}
+      }
+    },
+    "artifactKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["groupId", "artifactId"],
+      "properties": {
+        "groupId": {"type": "string", "minLength": 1},
+        "artifactId": {"type": "string", "minLength": 1}
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targetId", "relation", "scope", "optional", "exclusions"],
+      "properties": {
+        "targetId": {"type": "string", "minLength": 1},
+        "relation": {"enum": ["deps", "exports", "runtime_deps", "deployment"]},
+        "scope": {"enum": ["compile", "runtime", "provided", "test"]},
+        "optional": {"type": "boolean"},
+        "exclusions": {"type": "array", "items": {"$ref": "#/$defs/artifactKey"}}
+      }
+    },
+    "classpath": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["directFromApplication", "runtimeClasspath", "deploymentClasspath", "compileOnly", "optional", "reloadable", "topLevelRuntimeExtension"],
+      "properties": {
+        "directFromApplication": {"type": "boolean"},
+        "runtimeClasspath": {"type": "boolean"},
+        "deploymentClasspath": {"type": "boolean"},
+        "compileOnly": {"type": "boolean"},
+        "optional": {"type": "boolean"},
+        "reloadable": {"type": "boolean"},
+        "topLevelRuntimeExtension": {"type": "boolean"}
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "coordinates", "paths", "dependencies", "classpath", "workspaceModuleId", "bazelLabel"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["application", "workspace", "maven", "deployment"]},
+        "coordinates": {"$ref": "#/$defs/coordinates"},
+        "paths": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "dependencies": {"type": "array", "items": {"$ref": "#/$defs/edge"}},
+        "classpath": {"$ref": "#/$defs/classpath"},
+        "workspaceModuleId": {"type": ["string", "null"]},
+        "bazelLabel": {"type": ["string", "null"]}
+      }
+    },
+    "sourceSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["classifier", "sourceDirectories", "resourceDirectories", "outputDirectories", "generatedSourceDirectories", "generatedResourceDirectories"],
+      "properties": {
+        "classifier": {"type": "string"},
+        "sourceDirectories": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "resourceDirectories": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "outputDirectories": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "generatedSourceDirectories": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "generatedResourceDirectories": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "workspaceModule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "bazelLabel", "moduleDir", "buildDir", "buildFile", "sourceSets", "directDependencyIds", "dependencyConstraints", "testClasspathExclusions", "additionalTestClasspathElements", "parentId"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "bazelLabel": {"type": "string", "minLength": 1},
+        "moduleDir": {"type": "string", "minLength": 1},
+        "buildDir": {"type": "string", "minLength": 1},
+        "buildFile": {"type": "string", "minLength": 1},
+        "sourceSets": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/sourceSet"}},
+        "directDependencyIds": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "dependencyConstraints": {"type": "array", "items": {"$ref": "#/$defs/artifactKey"}},
+        "testClasspathExclusions": {"type": "array", "items": {"$ref": "#/$defs/artifactKey"}},
+        "additionalTestClasspathElements": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "parentId": {"type": ["string", "null"]}
+      }
+    },
+    "platformRelease": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["platformKey", "stream", "version", "memberBoms"],
+      "properties": {
+        "platformKey": {"type": "string", "minLength": 1},
+        "stream": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "memberBoms": {"type": "array", "items": {"$ref": "#/$defs/coordinates"}}
+      }
+    },
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["imports", "properties", "releases"],
+      "properties": {
+        "imports": {"type": "array", "items": {"$ref": "#/$defs/coordinates"}},
+        "properties": {"type": "object", "additionalProperties": {"type": "string"}},
+        "releases": {"type": "array", "items": {"$ref": "#/$defs/platformRelease"}}
+      }
+    }
+  }
+}

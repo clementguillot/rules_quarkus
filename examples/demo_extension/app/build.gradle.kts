@@ -14,6 +14,6 @@ dependencies {
     implementation("io.quarkus:quarkus-arc")
     implementation(project(":greeting-extension:runtime"))
 
-    testImplementation("io.quarkus:quarkus-junit5")
+    testImplementation("io.quarkus:quarkus-junit")
     testImplementation("io.rest-assured:rest-assured")
 }

@@ -3,6 +3,7 @@ package com.clementguillot.quarkifier.dev;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.clementguillot.quarkifier.QuarkifierConfig;
+import com.clementguillot.quarkifier.TestQuarkifierConfig;
 import io.quarkus.bootstrap.app.QuarkusBootstrap;
 import io.quarkus.bootstrap.model.ApplicationModel;
 import io.quarkus.bootstrap.model.ApplicationModelBuilder;
@@ -23,14 +24,12 @@ class DevModeLauncherTest {
         new ArrayList<>(
             List.of(
                 "--application-classpath", "app.jar",
-                "--deployment-classpath", "deploy.jar",
+                "--application-model", "model.json",
                 "--output-dir", "/tmp/output",
                 "--mode", "dev",
-                "--expected-quarkus-version", "3.27.4",
-                "--app-name", "my-app",
-                "--app-version", "1.0.0"));
+                "--app-name", "my-app"));
     args.addAll(List.of(extraArgs));
-    return QuarkifierConfig.parse(args.toArray(String[]::new));
+    return TestQuarkifierConfig.parse(args.toArray(String[]::new));
   }
 
   @Test
@@ -164,7 +163,7 @@ class DevModeLauncherTest {
     var config =
         devConfig(
             "--application-classpath",
-            parentFirstJar + ":" + regularJar,
+            regularJar.toString(),
             "--core-deployment-classpath",
             coreJar.toString());
 
@@ -184,6 +183,7 @@ class DevModeLauncherTest {
             .setArtifactId("parent-first-lib")
             .setVersion("1.0")
             .setType("jar")
+            .setResolvedPath(parentFirstJar)
             .setFlags(DependencyFlags.CLASSLOADER_PARENT_FIRST)
             .setRuntimeCp()
             .setDeploymentCp();
@@ -195,6 +195,7 @@ class DevModeLauncherTest {
             .setArtifactId("regular-lib")
             .setVersion("2.0")
             .setType("jar")
+            .setResolvedPath(regularJar)
             .setRuntimeCp()
             .setDeploymentCp());
     ApplicationModel model = modelBuilder.build();

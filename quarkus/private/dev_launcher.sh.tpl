@@ -5,7 +5,7 @@ set -euo pipefail
 cleanup() {
     rm -rf "${OUTPUT_DIR:-}"
     rm -rf "${CLASSES_DIR:-}"
-    rm -f "${ABS_APP_CP_FILE:-}" "${ABS_DEPLOY_CP_FILE:-}" "${ABS_CORE_DEPLOY_CP_FILE:-}"
+    rm -f "${ABS_APP_CP_FILE:-}" "${ABS_CORE_DEPLOY_CP_FILE:-}" "${ABS_LOCAL_APP_JARS_FILE:-}"
 }
 trap cleanup EXIT ERR TERM INT QUIT ABRT
 
@@ -15,8 +15,9 @@ RUNFILES_DIR="${BASH_SOURCE[0]}.runfiles"
 JAVA="${RUNFILES_DIR}/%{workspace}/%{java_home}/bin/java"
 TOOL_JAR="${RUNFILES_DIR}/%{workspace}/%{tool_jar}"
 APP_CP_FILE="${RUNFILES_DIR}/%{workspace}/%{app_cp_file}"
-DEPLOY_CP_FILE="${RUNFILES_DIR}/%{workspace}/%{deploy_cp_file}"
 CORE_DEPLOY_CP_FILE="${RUNFILES_DIR}/%{workspace}/%{core_deploy_cp_file}"
+LOCAL_APP_JARS_FILE="${RUNFILES_DIR}/%{workspace}/%{local_app_jars_file}"
+MODEL_FILE="${RUNFILES_DIR}/%{workspace}/%{model_file}"
 
 # Build absolute-path classpath files for quarkifier (avoids E2BIG on Linux).
 # Each entry in the source files is prefixed with the runfiles directory.
@@ -31,12 +32,12 @@ _prefix_cp_to_file() {
 }
 
 ABS_APP_CP_FILE=$(mktemp)
-ABS_DEPLOY_CP_FILE=$(mktemp)
 ABS_CORE_DEPLOY_CP_FILE=$(mktemp)
+ABS_LOCAL_APP_JARS_FILE=$(mktemp)
 
 _prefix_cp_to_file "$APP_CP_FILE" "$ABS_APP_CP_FILE"
-_prefix_cp_to_file "$DEPLOY_CP_FILE" "$ABS_DEPLOY_CP_FILE"
 _prefix_cp_to_file "$CORE_DEPLOY_CP_FILE" "$ABS_CORE_DEPLOY_CP_FILE"
+_prefix_cp_to_file "$LOCAL_APP_JARS_FILE" "$ABS_LOCAL_APP_JARS_FILE"
 
 # Read source directories for hot-reload
 SOURCE_DIRS_FILE="${RUNFILES_DIR}/%{workspace}/%{source_dirs_file}"
@@ -66,7 +67,7 @@ if [ -f "$CLASSES_OUTPUT_DIRS_FILE" ]; then
 fi
 
 # Create temp dirs with unique prefixes for security
-OUTPUT_DIR=$(mktemp -d "quarkus_dev_output_XXXXXX")
+OUTPUT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/quarkus_dev_output_XXXXXX")
 CLASSES_DIR=""
 
 # Resolve absolute paths for hot-reload if source dirs are available
@@ -78,6 +79,14 @@ BAZEL_BIN=$(command -v bazel || command -v bazelisk || echo bazel)
 # Run `bazel info` from the real workspace so it attaches to the user's
 # existing Bazel server instead of spawning a throwaway one from runfiles cwd.
 BAZEL_EXEC_ROOT=$(cd "$WORKSPACE_ROOT" && "$BAZEL_BIN" info execution_root 2>/dev/null || printf '%s' "$WORKSPACE_ROOT")
+# The model contains Bazel exec paths. Resolve the model's runfiles symlink to
+# recover the exact execution root that produced it; this also works when the
+# outer `bazel run` used a non-default --output_base.
+MODEL_REAL=$(realpath "$MODEL_FILE")
+case "$MODEL_REAL" in
+  */bazel-out/*) MODEL_EXEC_ROOT="${MODEL_REAL%%/bazel-out/*}" ;;
+  *) MODEL_EXEC_ROOT="$BAZEL_EXEC_ROOT" ;;
+esac
 HOT_RELOAD_ARGS=()
 RESOURCES_VALUE=""
 
@@ -105,7 +114,7 @@ if [ -n "$RESOURCE_DIRS" ]; then
 fi
 
 if [ -n "$SOURCE_DIRS" ] && [ -n "$BAZEL_TARGETS" ]; then
-    CLASSES_DIR=$(mktemp -d "quarkus_hotreload_classes_XXXXXX")
+    CLASSES_DIR=$(mktemp -d "${TMPDIR:-/tmp}/quarkus_hotreload_classes_XXXXXX")
 
     # Resolve source dirs to absolute paths
     SD_ABS=()
@@ -119,7 +128,7 @@ if [ -n "$SOURCE_DIRS" ] && [ -n "$BAZEL_TARGETS" ]; then
     COD_ABS=()
     IFS=',' read -ra COD_ENTRIES <<< "$CLASSES_OUTPUT_DIRS"
     for cod in "${COD_ENTRIES[@]}"; do
-        COD_ABS+=("${BAZEL_EXEC_ROOT}/${cod}")
+        COD_ABS+=("${MODEL_EXEC_ROOT}/${cod}")
     done
     ABS_CLASSES_OUTPUT_DIRS=$(_join_comma "${COD_ABS[@]}")
 
@@ -150,22 +159,18 @@ _JAVA_ARGFILE=$(mktemp "${OUTPUT_DIR}/quarkus_dev_args_XXXXXX")
   echo "augmentation"
   echo "--application-classpath-file"
   _q "$ABS_APP_CP_FILE"
-  echo "--deployment-classpath-file"
-  _q "$ABS_DEPLOY_CP_FILE"
+  echo "--local-app-jars-file"
+  _q "$ABS_LOCAL_APP_JARS_FILE"
+  echo "--application-model"
+  _q "$MODEL_FILE"
   echo "--core-deployment-classpath-file"
   _q "$ABS_CORE_DEPLOY_CP_FILE"
   echo "--output-dir"
   _q "$OUTPUT_DIR"
   echo "--mode"
   echo "dev"
-  echo "--expected-quarkus-version"
-  echo "%{quarkus_version}"
   echo "--app-name"
   echo "%{app_name}"
-  if [ -n "%{app_version}" ]; then
-    echo "--app-version"
-    _q "%{app_version}"
-  fi
   echo "--workspace-dir"
   _q "$WORKSPACE_ROOT"
   echo "--bazel-command"
@@ -183,4 +188,5 @@ _JAVA_ARGFILE=$(mktemp "${OUTPUT_DIR}/quarkus_dev_args_XXXXXX")
   done
 } > "$_JAVA_ARGFILE"
 
+cd "$MODEL_EXEC_ROOT"
 "$JAVA" "@$_JAVA_ARGFILE" "$@" || exit $?

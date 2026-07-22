@@ -1,6 +1,7 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@rules_java//java:java_library.bzl", "java_library")
 load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_test")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load(":expect_test_failure.bzl", "expect_test_failure_test")
 
 java_library(
@@ -58,6 +59,52 @@ build_test(
     targets = [
         ":app",
     ],
+)
+
+# Real production-mode conditional-dependency regression. quarkus-rest declares
+# quarkus-rest-kotlin as conditional on quarkus-kotlin. The candidate must be selected by the
+# ApplicationModel without becoming an explicit user dependency.
+java_library(
+    name = "conditional_lib",
+    srcs = ["src/conditional/java/smoke/ConditionalMarker.java"],
+    deps = [
+        ":lib",
+        "@maven//:io_quarkus_quarkus_kotlin",
+    ],
+)
+
+quarkus_app(
+    name = "conditional_app",
+    version = "1.0.0-SNAPSHOT",
+    deps = [":conditional_lib"],
+)
+
+build_test(
+    name = "conditional_app_build_test",
+    targets = [":conditional_app"],
+)
+
+filegroup(
+    name = "conditional_app_model",
+    srcs = [":conditional_app"],
+    output_group = "quarkus_model",
+)
+
+sh_test(
+    name = "conditional_dependency_model_test",
+    srcs = ["conditional_dependency_model_test.sh"],
+    args = ["$(rlocationpath :conditional_app_model)"],
+    data = [":conditional_app_model"],
+)
+
+sh_test(
+    name = "dev_ui_application_model_test",
+    size = "large",
+    srcs = ["dev_ui_application_model_test.sh"],
+    args = ["$(rlocationpath :app_dev)"],
+    data = [":app_dev"],
+    # The test copies the launcher and points it at this test's merged runfiles tree.
+    tags = ["no-sandbox"],
 )
 
 # --- fail_if_no_tests smoke tests (issue #125) ---

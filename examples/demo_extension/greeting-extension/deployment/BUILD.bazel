@@ -22,7 +22,10 @@ java_plugin(
 
 java_library(
     name = "deployment",
-    srcs = glob(["src/main/java/**/*.java"]),
+    srcs = glob(
+        ["src/main/java/**/*.java"],
+        exclude = ["**/ApplicationModelSnapshotProcessor.java"],
+    ),
     plugins = [":quarkus_processor"],
     resources = glob(["src/main/resources/**/*"]),
     # quarkus-core is a compile-only dep here (the generated $$accessor references

@@ -4,8 +4,8 @@
 #   - macOS: total argv+env limit ARG_MAX = 1 MiB (no per-argument limit)
 #   - Linux: additionally caps any single argument at MAX_ARG_STRLEN = 128 KiB
 #
-# PR #103 fixed this for the augmentation action's --application-classpath /
-# --deployment-classpath by moving them into files, but several other spots
+# PR #103 fixed this for the augmentation action's --application-classpath by
+# moving it into a file, but several other spots
 # still join the whole classpath into a single argv string. To reproduce on
 # macOS (the larger limit), we synthesize a dependency set whose classpath
 # strings exceed 1 MiB: 6000 empty jars with ~180-char names.
@@ -102,9 +102,15 @@ quarkus_test(
 # does not forward tags to the native target.
 quarkus_native_app_rule(
     name = "app_native",
+    conditional_catalog = "@rules_quarkus//model:conditional-catalog-v1.json",
+    conditional_deps = "@rules_quarkus//conditional:all",
+    deployment_catalog = "@rules_quarkus//model:deployment-catalog-v1.json",
     deployment_deps = "@rules_quarkus//deployment:all",
+    platform_catalog = "@rules_quarkus//model:platform-catalog-v1.json",
+    platform_properties = "@rules_quarkus//model:platform_properties",
     quarkifier_tool = "@rules_quarkus//quarkifier:tool.jar",
     quarkus_version = "3.33.2",
+    runtime_catalog = "@rules_quarkus//model:runtime-catalog-v1.json",
     tags = ["manual"],
     deps = _BIG_DEPS,
 )

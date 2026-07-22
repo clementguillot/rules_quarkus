@@ -3,6 +3,7 @@ package com.clementguillot.quarkifier.watcher;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.clementguillot.quarkifier.QuarkifierConfig;
+import com.clementguillot.quarkifier.TestQuarkifierConfig;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,12 +24,10 @@ class BazelFileWatcherTest {
         new java.util.ArrayList<>(
             List.of(
                 "--application-classpath", "app.jar",
-                "--deployment-classpath", "deploy.jar",
+                "--application-model", "model.json",
                 "--output-dir", outputDir.toString(),
                 "--mode", "dev",
-                "--expected-quarkus-version", "3.27.4",
                 "--app-name", "test-app",
-                "--app-version", "1.0.0",
                 "--classes-dir", tempDir.resolve("classes").toString(),
                 "--bazel-targets", "//pkg:lib",
                 "--workspace-dir", tempDir.toString(),
@@ -40,7 +39,7 @@ class BazelFileWatcherTest {
               .map(Path::toString)
               .collect(java.util.stream.Collectors.joining(",")));
     }
-    return QuarkifierConfig.parse(args.toArray(String[]::new));
+    return TestQuarkifierConfig.parse(args.toArray(String[]::new));
   }
 
   @Test

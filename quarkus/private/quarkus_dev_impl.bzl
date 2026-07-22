@@ -11,7 +11,9 @@ mutable directory for Quarkus hot-reload.
 
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
-load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_resource_dir_paths", "collect_runtime_classpath", "collect_source_dir_paths", "is_local_artifact", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
+load("//quarkus/private:application_model_aspect.bzl", "quarkus_application_model_aspect")
+load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_local_app_jars", "collect_resource_dir_paths", "collect_runtime_classpath", "collect_source_dir_paths", "is_local_artifact", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
+load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
 
 def _collect_bazel_targets(deps):
     """Collects local workspace target labels for the file watcher's `bazel build`.
@@ -73,14 +75,24 @@ def _quarkus_dev_impl(ctx):
         fail("quarkus_dev rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
 
     runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
+    conditional_classpath = collect_runtime_classpath([ctx.attr.conditional_deps])
     deployment_classpath = collect_deployment_classpath(ctx.attr.deployment_deps, ctx.attr.deps)
     core_deployment_classpath = collect_runtime_classpath([ctx.attr.core_deployment_deps]) if ctx.attr.core_deployment_deps else depset()
+    model = assemble_application_model(
+        ctx,
+        ctx.attr.deps,
+        runtime_classpath,
+        conditional_classpath,
+        deployment_classpath,
+        "dev",
+        ctx.label.name.removesuffix("_dev"),
+    )
 
     # Classpath and hot-reload metadata files, read by the launcher at runtime
     # and resolved against the runfiles tree.
     files = struct(
         app_cp = write_runfiles_paths_file(ctx, "_app_cp.txt", runtime_classpath, ":"),
-        deploy_cp = write_runfiles_paths_file(ctx, "_deploy_cp.txt", depset(transitive = [runtime_classpath, deployment_classpath]), ":"),
+        local_app_jars = write_runfiles_paths_file(ctx, "_local_app_jars.txt", depset(collect_local_app_jars(ctx.attr.deps, runtime_classpath)), ":"),
         core_deploy_cp = write_runfiles_paths_file(ctx, "_core_deploy_cp.txt", core_deployment_classpath, ":"),
         source_dirs = _write_csv_file(ctx, "_source_dirs.txt", collect_source_dir_paths(ctx.attr.deps, runtime_classpath)),
         resource_dirs = _write_csv_file(ctx, "_resource_dirs.txt", collect_resource_dir_paths(ctx.attr.deps, runtime_classpath)),
@@ -90,23 +102,27 @@ def _quarkus_dev_impl(ctx):
 
     tool_jar = ctx.file.quarkifier_tool
     java_runtime = ctx.attr._java_runtime[java_common.JavaRuntimeInfo]
-    launcher = _write_dev_launcher(ctx, tool_jar, files, java_runtime)
+    launcher = _write_dev_launcher(ctx, tool_jar, files, model, java_runtime)
 
     runfiles = ctx.runfiles(
         files = [
             tool_jar,
             files.app_cp,
-            files.deploy_cp,
+            files.local_app_jars,
             files.core_deploy_cp,
             files.source_dirs,
             files.resource_dirs,
             files.bazel_targets,
             files.classes_output_dirs,
+            model,
         ],
-        transitive_files = depset(transitive = [runtime_classpath, deployment_classpath, core_deployment_classpath, java_runtime.files]),
+        transitive_files = depset(transitive = [runtime_classpath, conditional_classpath, deployment_classpath, core_deployment_classpath, java_runtime.files]),
     )
 
-    return [DefaultInfo(executable = launcher, runfiles = runfiles)]
+    return [
+        DefaultInfo(executable = launcher, runfiles = runfiles),
+        OutputGroupInfo(quarkus_model = depset([model])),
+    ]
 
 def _join_dev_build_args(args):
     """Validates and comma-joins dev_build_args; fails if any entry contains a comma."""
@@ -115,7 +131,7 @@ def _join_dev_build_args(args):
             fail("dev_build_args: commas are not supported (used as delimiter); got '{}'".format(arg))
     return ",".join(args)
 
-def _write_dev_launcher(ctx, tool_jar, files, java_runtime):
+def _write_dev_launcher(ctx, tool_jar, files, model_file, java_runtime):
     """Expands the dev launcher template with the metadata file locations."""
     launcher = ctx.actions.declare_file(ctx.label.name + "_dev.sh")
     ctx.actions.expand_template(
@@ -124,14 +140,13 @@ def _write_dev_launcher(ctx, tool_jar, files, java_runtime):
         substitutions = {
             "%{app_cp_file}": files.app_cp.short_path,
             "%{app_name}": ctx.label.name.removesuffix("_dev"),
-            "%{app_version}": ctx.attr.version,
             "%{bazel_targets_file}": files.bazel_targets.short_path,
             "%{dev_build_args}": _join_dev_build_args(ctx.attr.dev_build_args),
             "%{classes_output_dirs_file}": files.classes_output_dirs.short_path,
             "%{core_deploy_cp_file}": files.core_deploy_cp.short_path,
-            "%{deploy_cp_file}": files.deploy_cp.short_path,
             "%{java_home}": java_runtime.java_home_runfiles_path,
-            "%{quarkus_version}": ctx.attr.quarkus_version,
+            "%{local_app_jars_file}": files.local_app_jars.short_path,
+            "%{model_file}": model_file.short_path,
             "%{resource_dirs_file}": files.resource_dirs.short_path,
             "%{source_dirs_file}": files.source_dirs.short_path,
             "%{tool_jar}": tool_jar.short_path,
@@ -145,11 +160,30 @@ quarkus_dev_rule = rule(
     implementation = _quarkus_dev_impl,
     executable = True,
     attrs = {
-        "core_deployment_deps": attr.label(doc = "Core deployment deps only — quarkus-core-deployment transitive closure (set by macro)."),
+        "conditional_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
+        "conditional_deps": attr.label(mandatory = True, providers = [JavaInfo]),
+        "core_deployment_deps": attr.label(doc = "Dev process infrastructure — bootstrap resolvers plus quarkus-core-deployment (set by macro)."),
         "deployment_deps": attr.label(doc = "Resolved Quarkus deployment closure (set by macro)."),
+        "deployment_catalog": attr.label(
+            allow_single_file = [".json"],
+            mandatory = True,
+            doc = "Internal deployment resolver graph catalog (set by macro).",
+        ),
+        "platform_catalog": attr.label(
+            allow_single_file = [".json"],
+            mandatory = True,
+            doc = "Internal Quarkus platform metadata catalog (set by macro).",
+        ),
+        "platform_properties": attr.label(
+            mandatory = True,
+            doc = "Internal Quarkus platform property files (set by macro).",
+        ),
         "deps": attr.label_list(
             mandatory = True,
-            aspects = [quarkus_extension_deployment_classpath_aspect],
+            aspects = [
+                quarkus_extension_deployment_classpath_aspect,
+                quarkus_application_model_aspect,
+            ],
             providers = [JavaInfo],
             doc = "java_library and Maven artifact targets.",
         ),
@@ -164,6 +198,11 @@ stale files. Flags containing commas are not supported.
         "quarkifier_tool": attr.label(
             allow_single_file = [".jar"],
             doc = "Quarkifier deploy jar.",
+        ),
+        "runtime_catalog": attr.label(
+            allow_single_file = [".json"],
+            mandatory = True,
+            doc = "Internal runtime resolver graph catalog (set by macro).",
         ),
         "quarkus_version": attr.string(doc = "Quarkus version (set by macro)."),
         "version": attr.string(

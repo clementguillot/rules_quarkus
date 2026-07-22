@@ -34,10 +34,14 @@ class EnrichExtensionCommandTest {
                 output.toString(),
                 "3.33.2",
                 cpFile.toString(),
-                "cli-ext");
+                "cli-ext",
+                "org.acme",
+                "cli-ext",
+                "1.0.0");
 
     assertEquals(0, exitCode);
     String result = Files.readString(output);
+    assertTrue(result.contains("artifact: \"org.acme:cli-ext::jar:1.0.0\""));
     assertTrue(result.contains("built-with-quarkus-core: \"3.33.2\""));
     assertTrue(result.contains("    - \"io.quarkus:quarkus-arc\""));
   }
@@ -70,7 +74,10 @@ class EnrichExtensionCommandTest {
                 output.toString(),
                 "3.33.2",
                 cpFile.toString(),
-                "broken");
+                "broken",
+                "org.acme",
+                "broken",
+                "1.0.0");
 
     assertEquals(1, exitCode);
   }
@@ -95,11 +102,15 @@ class EnrichExtensionCommandTest {
                 output.toString(),
                 "3.33.2",
                 cpFile.toString(),
-                "fallback-name");
+                "fallback-name",
+                "org.acme",
+                "fallback-name",
+                "1.0.0");
 
     assertEquals(0, exitCode);
     String result = Files.readString(output);
     assertTrue(result.contains("name: \"fallback-name\""));
+    assertTrue(result.contains("artifact: \"org.acme:fallback-name::jar:1.0.0\""));
     assertTrue(result.contains("built-with-quarkus-core: \"3.33.2\""));
   }
 

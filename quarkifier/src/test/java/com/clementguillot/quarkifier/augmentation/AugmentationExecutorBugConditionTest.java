@@ -3,7 +3,13 @@ package com.clementguillot.quarkifier.augmentation;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.clementguillot.quarkifier.AugmentationException;
+import com.clementguillot.quarkifier.AugmentationMode;
 import com.clementguillot.quarkifier.QuarkifierConfig;
+import com.clementguillot.quarkifier.QuarkifierVersionProvider;
+import com.clementguillot.quarkifier.TestQuarkifierConfig;
+import com.clementguillot.quarkifier.model.transport.BazelApplicationModel;
+import io.quarkus.bootstrap.model.ApplicationModelBuilder;
+import io.quarkus.maven.dependency.ResolvedDependencyBuilder;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -25,6 +31,45 @@ import org.junit.jupiter.api.io.TempDir;
  * <p><b>Validates: Requirements 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4</b>
  */
 class AugmentationExecutorBugConditionTest {
+
+  @Test
+  void validateModelCompatibility_acceptsMatchingModeAndToolVersion() {
+    assertDoesNotThrow(
+        () ->
+            AugmentationExecutor.validateModelCompatibility(
+                AugmentationMode.NORMAL,
+                compatibilityModel(
+                    BazelApplicationModel.Mode.NORMAL,
+                    QuarkifierVersionProvider.targetedQuarkusVersion())));
+  }
+
+  @Test
+  void validateModelCompatibility_rejectsModeMismatch() {
+    AugmentationException exception =
+        assertThrows(
+            AugmentationException.class,
+            () ->
+                AugmentationExecutor.validateModelCompatibility(
+                    AugmentationMode.DEV,
+                    compatibilityModel(
+                        BazelApplicationModel.Mode.NORMAL,
+                        QuarkifierVersionProvider.targetedQuarkusVersion())));
+
+    assertTrue(exception.getMessage().contains("does not match augmentation mode DEV"));
+  }
+
+  @Test
+  void validateModelCompatibility_rejectsQuarkusVersionMismatch() {
+    AugmentationException exception =
+        assertThrows(
+            AugmentationException.class,
+            () ->
+                AugmentationExecutor.validateModelCompatibility(
+                    AugmentationMode.NORMAL,
+                    compatibilityModel(BazelApplicationModel.Mode.NORMAL, "0.0.0-mismatch")));
+
+    assertTrue(exception.getMessage().contains("does not match quarkifier target version"));
+  }
 
   /**
    * When --local-app-jars identifies local jars and a Maven jar is first in the classpath, the
@@ -169,6 +214,65 @@ class AugmentationExecutorBugConditionTest {
     assertEquals(input.runtimeJars(), result.runtimeJars());
   }
 
+  /**
+   * Activated conditional dependencies are model-selected action inputs, not members of Bazel's
+   * public Java classpath. Production packaging must therefore add their resolved runtime jars from
+   * the explicit ApplicationModel.
+   */
+  @Test
+  void effectiveRuntimeJars_addsModelSelectedConditionalJar() {
+    Path ordinaryRuntimeJar = Path.of("external/maven/org/example/ordinary/1.0/ordinary-1.0.jar");
+    Path conditionalRuntimeJar =
+        Path.of("conditional/jars/org/example/conditional/1.0/conditional-1.0.jar");
+    Path deploymentOnlyJar =
+        Path.of(
+            "conditional/jars/org/example/conditional-deployment/1.0/conditional-deployment-1.0.jar");
+
+    var modelBuilder = new ApplicationModelBuilder();
+    modelBuilder.setAppArtifact(
+        ResolvedDependencyBuilder.newInstance()
+            .setGroupId("com.example")
+            .setArtifactId("app")
+            .setVersion("1.0")
+            .setType("jar")
+            .setRuntimeCp()
+            .setDeploymentCp());
+    modelBuilder.addDependency(
+        ResolvedDependencyBuilder.newInstance()
+            .setGroupId("org.example")
+            .setArtifactId("ordinary")
+            .setVersion("1.0")
+            .setType("jar")
+            .setResolvedPath(ordinaryRuntimeJar)
+            .setRuntimeCp()
+            .setDeploymentCp());
+    modelBuilder.addDependency(
+        ResolvedDependencyBuilder.newInstance()
+            .setGroupId("org.example")
+            .setArtifactId("conditional")
+            .setVersion("1.0")
+            .setType("jar")
+            .setResolvedPath(conditionalRuntimeJar)
+            .setRuntimeCp()
+            .setDeploymentCp());
+    modelBuilder.addDependency(
+        ResolvedDependencyBuilder.newInstance()
+            .setGroupId("org.example")
+            .setArtifactId("conditional-deployment")
+            .setVersion("1.0")
+            .setType("jar")
+            .setResolvedPath(deploymentOnlyJar)
+            .setDeploymentCp());
+
+    var partition =
+        new AugmentationExecutor.ClasspathPartition(
+            List.of(Path.of("app.jar")), List.of(ordinaryRuntimeJar));
+
+    assertEquals(
+        List.of(ordinaryRuntimeJar, conditionalRuntimeJar),
+        RuntimeJarSelector.select(partition, modelBuilder.build()));
+  }
+
   // ---- Helper ----
 
   private static void writeJar(Path jar, Map<String, String> entries) throws IOException {
@@ -181,21 +285,33 @@ class AugmentationExecutorBugConditionTest {
     }
   }
 
+  private static BazelApplicationModel compatibilityModel(
+      BazelApplicationModel.Mode mode, String quarkusVersion) {
+    return new BazelApplicationModel(
+        BazelApplicationModel.SCHEMA_VERSION,
+        new BazelApplicationModel.Producer("test", "1"),
+        quarkusVersion,
+        mode,
+        "app",
+        List.of(),
+        List.of(),
+        new BazelApplicationModel.Platform(List.of(), Map.of(), List.of()));
+  }
+
   private static QuarkifierConfig configWith(
       List<Path> applicationClasspath, List<Path> localAppJars) {
     var args =
         new java.util.ArrayList<>(
             List.of(
                 "--application-classpath", joinPaths(applicationClasspath),
-                "--deployment-classpath", "deploy.jar",
+                "--application-model", "model.json",
                 "--output-dir", "/tmp/output",
-                "--app-name", "test-app",
-                "--app-version", "1.0"));
+                "--app-name", "test-app"));
     if (!localAppJars.isEmpty()) {
       args.add("--local-app-jars");
       args.add(joinPaths(localAppJars));
     }
-    return QuarkifierConfig.parse(args.toArray(String[]::new));
+    return TestQuarkifierConfig.parse(args.toArray(String[]::new));
   }
 
   private static String joinPaths(List<Path> paths) {

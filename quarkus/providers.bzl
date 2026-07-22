@@ -23,6 +23,10 @@ QuarkusNativeInfo = provider(
 QuarkusExtensionInfo = provider(
     doc = "Information about a locally-built Quarkus extension",
     fields = {
+        "artifact_id": "Maven artifactId of the runtime extension.",
+        "deployment_jar": "Merged local deployment artifact File.",
         "deployment_classpath": "Depset of jars required on the Quarkus deployment classpath",
+        "group_id": "Maven groupId of the local extension.",
+        "version": "Maven version of the local extension.",
     },
 )
