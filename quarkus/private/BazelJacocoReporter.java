@@ -26,8 +26,7 @@ public final class BazelJacocoReporter {
           "Coverage output has no parent directory: " + parsed.output);
     }
     Files.createDirectories(outputDirectory);
-    Path temporaryOutput =
-        Files.createTempFile(outputDirectory, absoluteOutput.getFileName().toString(), ".tmp");
+    Path temporaryOutput = Files.createTempFile(outputDirectory, "coverage-", ".tmp");
 
     try {
       try (InputStream executionData = Files.newInputStream(parsed.executionData)) {

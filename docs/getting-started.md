@@ -175,16 +175,16 @@ BUILD declaration:
 
 ```bash
 bazel test //:test
-bazel coverage //:test
+bazel coverage //:test --combined_report=lcov
 ```
 
-Bazel prints the per-test LCOV path when coverage finishes. Bazel 9 also emits
-the combined report at `bazel-out/_coverage/_coverage_report.dat`. Use
-`--instrumentation_filter` normally to restrict the sources in the final
-report:
+Bazel prints the per-test LCOV path when coverage finishes. The
+`--combined_report=lcov` flag also emits the combined report at
+`bazel-out/_coverage/_coverage_report.dat`. Use `--instrumentation_filter`
+normally to restrict the sources in the final report:
 
 ```bash
-bazel coverage //:test --instrumentation_filter='//app/...'
+bazel coverage //:test --combined_report=lcov --instrumentation_filter='//app/...'
 ```
 
 The `io.quarkus:quarkus-jacoco` extension is optional for Bazel coverage. When

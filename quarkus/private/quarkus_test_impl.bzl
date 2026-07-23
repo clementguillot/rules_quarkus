@@ -173,8 +173,8 @@ quarkus_test = rule(
             allow_single_file = True,
         ),
         "_lcov_merger": attr.label(
-            default = "@bazel_tools//tools/test:lcov_merger",
-            cfg = "exec",
+            default = configuration_field(fragment = "coverage", name = "output_generator"),
+            cfg = config.exec(exec_group = "test"),
             executable = True,
         ),
     },
