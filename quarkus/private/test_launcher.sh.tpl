@@ -125,22 +125,68 @@ if ! echo "$TEST_ARGS" | grep -q '\-\-select-\|--scan-'; then
   done < "$DIRECT_JARS_FILE"
 fi
 
-REPORTS_DIR=$(mktemp -d)
+REPORTS_DIR=$(mktemp -d "${TEST_TMPDIR:-/tmp}/junit-console-reports.XXXXXX")
+
+# ConsoleLauncher writes one JUnit XML document per test engine. Bazel expects
+# one XML_OUTPUT_FILE, so wrap those trusted documents in a testsuites root.
+# This report is diagnostic output only; its contents never determine the test
+# exit code.
+_write_bazel_test_xml() {
+  local output="$1"
+  local reports_dir="$2"
+  local report_list
+  local tmp_output="${output}.tmp.$$"
+  local merge_failed=0
+
+  report_list=$(mktemp "${TEST_TMPDIR:-/tmp}/junit-report-list.XXXXXX")
+  if ! find "$reports_dir" -maxdepth 1 -type f -name 'TEST-*.xml' -print |
+      LC_ALL=C sort > "$report_list"; then
+    rm -f "$report_list"
+    return 1
+  fi
+  if [ ! -s "$report_list" ]; then
+    rm -f "$report_list"
+    return 1
+  fi
+
+  mkdir -p "$(dirname "$output")"
+  {
+    printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'
+    printf '%s\n' '<testsuites>'
+    while IFS= read -r report; do
+      # JUnit emits a single XML declaration on the first line of every file.
+      if ! tail -n +2 "$report"; then
+        merge_failed=1
+        break
+      fi
+    done < "$report_list"
+    printf '%s\n' '</testsuites>'
+  } > "$tmp_output"
+  rm -f "$report_list"
+
+  if [ "$merge_failed" -ne 0 ]; then
+    rm -f "$tmp_output"
+    return 1
+  fi
+  mv "$tmp_output" "$output"
+}
 
 # Bazel instruments local jars before the test starts. Its runner jar is used
 # only for the matching offline JaCoCo runtime; ConsoleLauncher remains main.
-JACOCO_JVM_ARGS=()
+TEST_JVM_ARGS=(
+  "-Djava.util.logging.manager=org.jboss.logmanager.LogManager"
+)
 COVERAGE_EXEC_FILE=""
 if [ "$COVERAGE_ENABLED" = "true" ]; then
   COVERAGE_EXEC_FILE=$(mktemp "${TEST_TMPDIR:-/tmp}/quarkus-jacoco.XXXXXX")
-  JACOCO_JVM_ARGS+=(
+  TEST_JVM_ARGS+=(
     "-Djacoco-agent.output=file"
     "-Djacoco-agent.append=false"
     "-Djacoco-agent.dumponexit=true"
     "-Djacoco-agent.destfile=${COVERAGE_EXEC_FILE}"
   )
   if [ "$QUARKUS_JACOCO_PRESENT" = "true" ]; then
-    JACOCO_JVM_ARGS+=("-Dquarkus.jacoco.enabled=false")
+    TEST_JVM_ARGS+=("-Dquarkus.jacoco.enabled=false")
   fi
 elif [ "$QUARKUS_JACOCO_PRESENT" = "true" ]; then
   if [ -z "${TEST_UNDECLARED_OUTPUTS_DIR:-}" ]; then
@@ -148,7 +194,7 @@ elif [ "$QUARKUS_JACOCO_PRESENT" = "true" ]; then
     exit 1
   fi
   mkdir -p "$TEST_UNDECLARED_OUTPUTS_DIR"
-  JACOCO_JVM_ARGS+=(
+  TEST_JVM_ARGS+=(
     "-Dquarkus.jacoco.data-file=${TEST_UNDECLARED_OUTPUTS_DIR}/jacoco-quarkus.exec"
     "-Dquarkus.jacoco.report-location=${TEST_UNDECLARED_OUTPUTS_DIR}/jacoco-report"
   )
@@ -177,36 +223,25 @@ JAVA_ARGS_FILE=$(mktemp)
 "$JAVA" "@$JAVA_ARGS_FILE" \
   --add-opens=java.base/java.lang=ALL-UNNAMED \
   --add-opens=java.base/java.lang.invoke=ALL-UNNAMED \
-  -Djava.util.logging.manager=org.jboss.logmanager.LogManager \
   -Dquarkus-internal-test.serialized-app-model.path="$MODEL_DIR/test-app-model.dat" \
   -Dplatform.quarkus.native.builder-image=quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25@sha256:4dda6a3d677b57614849557d0d18aac7326c4f30175142b0f1bb91bdcfc5c29a \
   -Dquarkus.package.jar.type=fast-jar \
-  "${JACOCO_JVM_ARGS[@]}" \
+  "${TEST_JVM_ARGS[@]}" \
   %{jvm_flags} \
   org.junit.platform.console.ConsoleLauncher \
   $TEST_ARGS \
   --reports-dir="$REPORTS_DIR"
-JUNIT_EXIT=$?
+FINAL_EXIT=$?
 
 rm -f "$JAVA_ARGS_FILE" "$APP_CP_FILE"
 
-# Determine final exit code.
-# ConsoleLauncher exits non-zero on Quarkus session-shutdown exceptions
-# (ClassCastException in ConfigLauncherSession) even when all tests
-# pass. The XML report is the source of truth for pass/fail, with one guard:
-# if zero tests actually executed, that's a failure (misconfigured test_packages,
-# no @Test methods, etc.) regardless of what the exit code says.
-FINAL_EXIT=$JUNIT_EXIT
-if ls "$REPORTS_DIR"/TEST-*.xml >/dev/null 2>&1; then
-  if grep -q 'failures="[1-9]' "$REPORTS_DIR"/TEST-*.xml 2>/dev/null || \
-     grep -q 'errors="[1-9]' "$REPORTS_DIR"/TEST-*.xml 2>/dev/null; then
+# Publish JUnit's real test suites to Bazel. A reporting failure can fail an
+# otherwise successful test, but never replaces or hides a JUnit failure.
+if [ -n "${XML_OUTPUT_FILE:-}" ] &&
+    ! _write_bazel_test_xml "$XML_OUTPUT_FILE" "$REPORTS_DIR"; then
+  echo "ERROR: Failed to write Bazel JUnit XML report" >&2
+  if [ "$FINAL_EXIT" -eq 0 ]; then
     FINAL_EXIT=1
-  elif [ "%{fail_if_no_tests}" = "true" ] && \
-       ! grep -q 'tests="[1-9]' "$REPORTS_DIR"/TEST-*.xml 2>/dev/null; then
-    echo "ERROR: Zero tests executed (check test_packages / test_classes configuration)" >&2
-    FINAL_EXIT=1
-  else
-    FINAL_EXIT=0
   fi
 fi
 

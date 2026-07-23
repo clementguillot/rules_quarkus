@@ -79,7 +79,6 @@ def _quarkus_test_impl(ctx):
             "%{jacoco_runner}": jacoco_runner_path,
             "%{quarkus_jacoco_present}": "true" if has_quarkus_jacoco(ctx.attr.deps) else "false",
             "%{test_args}": _build_test_args(ctx.attr.test_packages, ctx.attr.test_classes, ctx.attr.fail_if_no_tests),
-            "%{fail_if_no_tests}": "true" if ctx.attr.fail_if_no_tests else "false",
             "%{tool_jar}": tool_jar.short_path,
             "%{workspace}": ctx.workspace_name,
         },
