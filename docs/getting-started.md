@@ -168,7 +168,36 @@ dangling edges, duplicate identities, ambiguous artifact joins, or a missing
 descriptor-declared deployment artifact. This fail-closed behavior is internal;
 application BUILD declarations do not gain model attributes.
 
-## 6. Dev Mode (Hot-Reload + Dev UI)
+## 6. Test and collect coverage
+
+Run a `quarkus_test` normally or under Bazel coverage without changing its
+BUILD declaration:
+
+```bash
+bazel test //:test
+bazel coverage //:test
+```
+
+Bazel prints the per-test LCOV path when coverage finishes. Bazel 9 also emits
+the combined report at `bazel-out/_coverage/_coverage_report.dat`. Use
+`--instrumentation_filter` normally to restrict the sources in the final
+report:
+
+```bash
+bazel coverage //:test --instrumentation_filter='//app/...'
+```
+
+The `io.quarkus:quarkus-jacoco` extension is optional for Bazel coverage. When
+it is declared:
+
+- ordinary `bazel test` keeps Quarkus JaCoCo enabled and stores its execution
+  data plus HTML, XML, and CSV reports in the test's undeclared outputs;
+- `bazel coverage` disables Quarkus instrumentation for that execution so
+  Bazel alone instruments the classes and produces LCOV.
+
+This routing is automatic; `quarkus_test` gains no coverage attributes.
+
+## 7. Dev Mode (Hot-Reload + Dev UI)
 
 The `quarkus_app` macro automatically creates a `<name>_dev` target for dev mode:
 
@@ -254,6 +283,7 @@ maven.install(
         "io.quarkus:quarkus-arc:3.33.2",
         # Test dependencies
         "io.quarkus:quarkus-junit:3.33.2",
+        "io.quarkus:quarkus-jacoco:3.33.2",
         "io.rest-assured:rest-assured:5.5.6",
         "org.junit.jupiter:junit-jupiter:5.13.4",
         "org.junit.platform:junit-platform-console-standalone:1.13.4",

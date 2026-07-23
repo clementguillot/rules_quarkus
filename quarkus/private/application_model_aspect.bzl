@@ -12,6 +12,7 @@ QuarkusBazelTargetGraphInfo = provider(
         "fragments": "Depset of runtime JSON fragments for this target graph.",
         "local_deployments": "Local deployment root coordinate/id records.",
         "local_runtime_aliases": "Raw runtime target to packaged extension target aliases.",
+        "quarkus_jacoco_present": "Whether this graph contains io.quarkus:quarkus-jacoco.",
         "root_edges": "Direct edge records of this graph root.",
         "root_ids": "Depset of graph node ids represented by this target.",
         "transitive_artifacts": "Runtime artifacts below the root, excluding its outputs.",
@@ -70,6 +71,22 @@ def _coordinates(group_id, artifact_id, version):
         "type": "jar",
         "version": version,
     }
+
+def _has_maven_coordinate(ctx, group_id, artifact_id):
+    coordinates = []
+    if hasattr(ctx.rule.attr, "maven_coordinates"):
+        coordinates.append(ctx.rule.attr.maven_coordinates)
+    if hasattr(ctx.rule.attr, "tags"):
+        coordinates.extend([
+            tag.removeprefix("maven_coordinates=")
+            for tag in ctx.rule.attr.tags
+            if tag.startswith("maven_coordinates=")
+        ])
+    for coordinate in coordinates:
+        parts = coordinate.split(":")
+        if len(parts) >= 2 and parts[0] == group_id and parts[1] == artifact_id:
+            return True
+    return False
 
 def _extract_workspace_outputs(ctx, target, output_jars, suffix = ""):
     if target.label.workspace_name:
@@ -215,9 +232,11 @@ def _application_model_aspect_impl(target, ctx):
     deployment_artifacts = [graph.deployment_artifacts for graph in child_graphs]
     local_deployments = []
     local_runtime_aliases = []
+    quarkus_jacoco_present = False
     for graph in child_graphs:
         local_deployments.extend(graph.local_deployments)
         local_runtime_aliases.extend(graph.local_runtime_aliases)
+        quarkus_jacoco_present = quarkus_jacoco_present or graph.quarkus_jacoco_present
 
     direct_fragments = []
     direct_artifacts = []
@@ -225,6 +244,11 @@ def _application_model_aspect_impl(target, ctx):
     root_edges = []
     if JavaInfo in target and QuarkusExtensionInfo in target:
         facts = _extension_target_facts(ctx, target)
+        extension = target[QuarkusExtensionInfo]
+        quarkus_jacoco_present = quarkus_jacoco_present or (
+            extension.group_id == "io.quarkus" and
+            extension.artifact_id == "quarkus-jacoco"
+        )
         direct_fragments.extend(facts.direct_fragments)
         direct_artifacts.extend(facts.direct_artifacts)
         root_edges = facts.root_edges
@@ -240,6 +264,11 @@ def _application_model_aspect_impl(target, ctx):
         local_deployments.extend(facts.local_deployments)
         local_runtime_aliases.extend(facts.local_runtime_aliases)
     elif JavaInfo in target:
+        quarkus_jacoco_present = quarkus_jacoco_present or _has_maven_coordinate(
+            ctx,
+            "io.quarkus",
+            "quarkus-jacoco",
+        )
         root_edges = edges
         runtime_outputs = target[JavaInfo].runtime_output_jars
         workspace_outputs = _extract_workspace_outputs(ctx, target, runtime_outputs)
@@ -264,6 +293,7 @@ def _application_model_aspect_impl(target, ctx):
             fragments = depset(direct = direct_fragments, transitive = transitive_fragments),
             local_deployments = local_deployments,
             local_runtime_aliases = local_runtime_aliases,
+            quarkus_jacoco_present = quarkus_jacoco_present,
             root_edges = root_edges,
             root_ids = depset(root_ids),
             transitive_artifacts = depset(transitive = transitive_artifacts),
@@ -305,6 +335,14 @@ def collect_deployment_model_fragments(deps):
 def collect_deployment_model_artifacts(deps):
     """Collects artifacts referenced by local deployment fragments."""
     return _collect_graph_depset(deps, "deployment_artifacts")
+
+def has_quarkus_jacoco(deps):
+    """Returns whether the resolved dependency graph contains quarkus-jacoco."""
+    return any([
+        dep[QuarkusBazelTargetGraphInfo].quarkus_jacoco_present
+        for dep in deps
+        if QuarkusBazelTargetGraphInfo in dep
+    ])
 
 def _collect_unique_mappings(deps, field, key_field, value_field, label):
     """Deduplicates mappings from a graph provider field across deps.

@@ -1,5 +1,8 @@
 # Private implementation details for rules_quarkus.
 
+load("@rules_java//java:java_binary.bzl", "java_binary")
+load("@rules_java//java:java_library.bzl", "java_library")
+load("@rules_java//java:java_test.bzl", "java_test")
 load(":model_catalogs_test.bzl", "model_catalogs_test_suite")
 
 exports_files([
@@ -15,5 +18,26 @@ exports_files([
     "classpath_utils.bzl",
     "versions.bzl",
 ])
+
+java_library(
+    name = "bazel_jacoco_reporter_lib",
+    srcs = ["BazelJacocoReporter.java"],
+    visibility = ["//visibility:private"],
+    deps = ["@bazel_tools//tools/jdk:JacocoCoverageRunner"],
+)
+
+java_binary(
+    name = "bazel_jacoco_reporter",
+    main_class = "io.quarkus.bazel.coverage.BazelJacocoReporter",
+    runtime_deps = [":bazel_jacoco_reporter_lib"],
+)
+
+java_test(
+    name = "bazel_jacoco_reporter_failure_test",
+    srcs = ["BazelJacocoReporterFailureTest.java"],
+    main_class = "io.quarkus.bazel.coverage.BazelJacocoReporterFailureTest",
+    use_testrunner = False,
+    deps = [":bazel_jacoco_reporter_lib"],
+)
 
 model_catalogs_test_suite()

@@ -14,7 +14,7 @@ that jar paths in the ApplicationModel match the actual runfiles locations.
 load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
-load("//quarkus/private:application_model_aspect.bzl", "quarkus_application_model_aspect")
+load("//quarkus/private:application_model_aspect.bzl", "has_quarkus_jacoco", "quarkus_application_model_aspect")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_extension_runtime_jars", "collect_local_app_jars", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
 
@@ -50,6 +50,18 @@ def _quarkus_test_impl(ctx):
 
     tool_jar = ctx.file.quarkifier_tool
     java_runtime = ctx.attr._java_runtime[java_common.JavaRuntimeInfo]
+    coverage_enabled = ctx.configuration.coverage_enabled
+    coverage_files = []
+    coverage_runfiles = None
+    coverage_reporter_path = ""
+    jacoco_runner_path = ""
+    if coverage_enabled:
+        coverage_reporter = ctx.attr._coverage_reporter[DefaultInfo]
+        coverage_reporter_path = coverage_reporter.files_to_run.executable.short_path
+        coverage_runfiles = coverage_reporter.default_runfiles
+        jacoco_runner = ctx.attr._jacoco_runner[JavaInfo].runtime_output_jars[0]
+        jacoco_runner_path = jacoco_runner.short_path
+        coverage_files.append(jacoco_runner)
 
     launcher = ctx.actions.declare_file(ctx.label.name + "_test.sh")
     ctx.actions.expand_template(
@@ -58,10 +70,14 @@ def _quarkus_test_impl(ctx):
         substitutions = {
             "%{app_name}": ctx.label.name,
             "%{classpath_file}": cp_file.short_path,
+            "%{coverage_enabled}": "true" if coverage_enabled else "false",
+            "%{coverage_reporter}": coverage_reporter_path,
             "%{direct_jars_file}": direct_jars_file.short_path,
             "%{java_home}": java_runtime.java_home_runfiles_path,
             "%{jvm_flags}": " ".join([shell.quote(f) for f in ctx.attr.jvm_flags]),
             "%{model_file}": model.short_path,
+            "%{jacoco_runner}": jacoco_runner_path,
+            "%{quarkus_jacoco_present}": "true" if has_quarkus_jacoco(ctx.attr.deps) else "false",
             "%{test_args}": _build_test_args(ctx.attr.test_packages, ctx.attr.test_classes, ctx.attr.fail_if_no_tests),
             "%{fail_if_no_tests}": "true" if ctx.attr.fail_if_no_tests else "false",
             "%{tool_jar}": tool_jar.short_path,
@@ -71,11 +87,13 @@ def _quarkus_test_impl(ctx):
     )
 
     runfiles = ctx.runfiles(
-        files = [cp_file, direct_jars_file, model, tool_jar],
+        files = [cp_file, direct_jars_file, model, tool_jar] + coverage_files,
         transitive_files = depset(
             transitive = [runtime_classpath, conditional_classpath, deploy_classpath, java_runtime.files],
         ),
     )
+    if coverage_runfiles:
+        runfiles = runfiles.merge(coverage_runfiles)
 
     return [
         DefaultInfo(executable = launcher, runfiles = runfiles),
@@ -142,9 +160,23 @@ quarkus_test = rule(
         "_java_runtime": attr.label(
             default = "@bazel_tools//tools/jdk:current_java_runtime",
         ),
+        "_coverage_reporter": attr.label(
+            default = Label("//quarkus/private:bazel_jacoco_reporter"),
+            cfg = "exec",
+            executable = True,
+        ),
+        "_jacoco_runner": attr.label(
+            default = "@bazel_tools//tools/jdk:JacocoCoverageRunner",
+            providers = [JavaInfo],
+        ),
         "_launcher_template": attr.label(
             default = Label("//quarkus/private:test_launcher.sh.tpl"),
             allow_single_file = True,
+        ),
+        "_lcov_merger": attr.label(
+            default = "@bazel_tools//tools/test:lcov_merger",
+            cfg = "exec",
+            executable = True,
         ),
     },
     doc = """\

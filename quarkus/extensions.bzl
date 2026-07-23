@@ -75,12 +75,30 @@ def _coordinate_fields(coordinate_key, version):
         "version": version,
     }
 
-def _resolved_coordinate_keys(artifact_key, artifact, dependencies):
+def _lock_coordinate_keys(lock_data, dependencies):
+    """Returns every canonical coordinate identity present in a v3 lock."""
+    coordinate_keys = {}
+    for dependency_key, direct_dependencies in dependencies.items():
+        coordinate_keys[dependency_key] = True
+        if type(direct_dependencies) != "list":
+            fail("Invalid dependency list for '{}' in maven lock file".format(dependency_key))
+        for coordinate_key in direct_dependencies:
+            coordinate_keys[coordinate_key] = True
+    for field in ["__INPUT_ARTIFACTS_HASH", "packages"]:
+        coordinate_map = lock_data.get(field, {})
+        if type(coordinate_map) != "dict":
+            fail("Invalid rules_jvm_external v3 lock: '{}' must be an object".format(field))
+        for coordinate_key in coordinate_map:
+            coordinate_keys[coordinate_key] = True
+    return coordinate_keys
+
+def _resolved_coordinate_keys(artifact_key, artifact, dependency_coordinate_keys):
     """Returns every concrete lock key represented by an artifact entry.
 
     rules_jvm_external v3 keys `artifacts` by G:A even when the same artifact
     resolves more than one file (for example default and `runtime` classifier
-    JARs). The dependency graph retains the concrete identities, so it is
+    JARs). The dependency graph retains the concrete identities, including
+    leaf artifacts which appear only as dependency values, so it is
     authoritative whenever it contains matching entries.
     """
     if len(artifact_key.split(":")) > 2:
@@ -89,7 +107,7 @@ def _resolved_coordinate_keys(artifact_key, artifact, dependencies):
     prefix = artifact_key + ":"
     graph_keys = [
         key
-        for key in dependencies
+        for key in dependency_coordinate_keys
         if key == artifact_key or key.startswith(prefix)
     ]
     if graph_keys:
@@ -111,6 +129,7 @@ def _runtime_catalog(lock_data, resolver_report = None):
     dependencies = lock_data.get("dependencies", {})
     if type(artifacts) != "dict" or type(dependencies) != "dict":
         fail("Invalid rules_jvm_external v3 lock: 'artifacts' and 'dependencies' must be objects")
+    dependency_coordinate_keys = _lock_coordinate_keys(lock_data, dependencies)
 
     nodes_by_key = {}
     base_to_resolved = {}
@@ -118,7 +137,7 @@ def _runtime_catalog(lock_data, resolver_report = None):
         artifact = artifacts[artifact_key]
         if type(artifact) != "dict" or not artifact.get("version"):
             fail("Invalid artifact entry '{}' in maven lock file".format(artifact_key))
-        coordinate_keys = _resolved_coordinate_keys(artifact_key, artifact, dependencies)
+        coordinate_keys = _resolved_coordinate_keys(artifact_key, artifact, dependency_coordinate_keys)
         base_to_resolved[artifact_key] = artifact_key if artifact_key in coordinate_keys else coordinate_keys[0]
         for coordinate_key in coordinate_keys:
             base_to_resolved[coordinate_key] = coordinate_key
@@ -374,13 +393,14 @@ def _runtime_discovery_artifacts(lock_data):
     dependencies = lock_data.get("dependencies", {})
     if type(artifacts) != "dict" or type(dependencies) != "dict":
         fail("Invalid rules_jvm_external v3 lock: 'artifacts' and 'dependencies' must be objects")
+    dependency_coordinate_keys = _lock_coordinate_keys(lock_data, dependencies)
 
     result = []
     for artifact_key in sorted(artifacts):
         artifact = artifacts[artifact_key]
         if type(artifact) != "dict" or not artifact.get("version"):
             fail("Invalid artifact entry '{}' in maven lock file".format(artifact_key))
-        for coordinate_key in _resolved_coordinate_keys(artifact_key, artifact, dependencies):
+        for coordinate_key in _resolved_coordinate_keys(artifact_key, artifact, dependency_coordinate_keys):
             fields = _coordinate_fields(coordinate_key, artifact["version"])
             if fields["type"] != "jar" or fields["classifier"] in ["sources", "javadoc"]:
                 continue
@@ -876,16 +896,24 @@ def _maven_relative_path(jar_path):
 def _jar_target_name(relative_jar_path):
     """Derives the java_import target name from the Maven-relative jar path.
 
-    Uses the group/artifact/version directory — unique per GAV — rather than
-    the bare file name: different groupIds can publish the same
-    artifactId-version.jar, and a name collision must never drop a jar from
-    the deployment classpath.
+    Preserves the historical GAV target name for an ordinary jar and appends
+    the concrete file suffix for classifiers so variants cannot collide.
     """
-    if "/" in relative_jar_path:
-        base = relative_jar_path.rsplit("/", 1)[0]
-    else:
+    parts = relative_jar_path.split("/")
+    if len(parts) < 3:
         base = relative_jar_path.removesuffix(".jar")
+    else:
+        base = "/".join(parts[:-1])
+        artifact_id = parts[-3]
+        version = parts[-2]
+        file_stem = parts[-1].removesuffix(".jar")
+        default_stem = artifact_id + "-" + version
+        if file_stem != default_stem:
+            suffix = file_stem.removeprefix(default_stem + "-")
+            base += "/" + suffix
     return base.replace("/", "_").replace(".", "_").replace("-", "_")
+
+jar_target_name_for_test = _jar_target_name
 
 def _copy_jars_into_repo(rctx, copies):
     """Copies resolved jars into the repository directory.

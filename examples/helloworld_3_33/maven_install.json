@@ -7,6 +7,7 @@
     "com.google.guava:guava": 1943808618,
     "com.google.j2objc:j2objc-annotations": 2003271689,
     "io.quarkus:quarkus-arc": -406974566,
+    "io.quarkus:quarkus-jacoco": -108740001,
     "io.quarkus:quarkus-junit": -607105226,
     "io.quarkus:quarkus-rest": -2129969500,
     "io.rest-assured:rest-assured": -564555206,
@@ -74,6 +75,7 @@
     "io.quarkus:quarkus-fs-util": -1554263633,
     "io.quarkus:quarkus-hibernate-validator-spi": 877894256,
     "io.quarkus:quarkus-ide-launcher": -1795725963,
+    "io.quarkus:quarkus-jacoco": 1586179826,
     "io.quarkus:quarkus-jsonp": 415257726,
     "io.quarkus:quarkus-junit": -2083339591,
     "io.quarkus:quarkus-junit-common": 1334894697,
@@ -211,6 +213,10 @@
     "org.graalvm.sdk:nativeimage": -1830909194,
     "org.graalvm.sdk:word": 921752333,
     "org.hamcrest:hamcrest": -820511133,
+    "org.jacoco:org.jacoco.agent": 253068575,
+    "org.jacoco:org.jacoco.agent:jar:runtime": -1188529840,
+    "org.jacoco:org.jacoco.core": -1495664227,
+    "org.jacoco:org.jacoco.report": 1086299078,
     "org.jboss.logging:commons-logging-jboss-logging": 322828481,
     "org.jboss.logging:jboss-logging": -509243987,
     "org.jboss.logmanager:jboss-logmanager": -1566036956,
@@ -590,6 +596,12 @@
     "io.quarkus:quarkus-ide-launcher": {
       "shasums": {
         "jar": "a405cb488fbd4b87e16c98fd124f6a55f63fdcbd9c513588e242236e2cf31a5e"
+      },
+      "version": "3.33.2"
+    },
+    "io.quarkus:quarkus-jacoco": {
+      "shasums": {
+        "jar": "c733668498f8d8393aec197ed39a259244c41d3f6c0e5fc8abb521ef6ac99387"
       },
       "version": "3.33.2"
     },
@@ -1415,6 +1427,25 @@
       },
       "version": "2.2"
     },
+    "org.jacoco:org.jacoco.agent": {
+      "shasums": {
+        "jar": "20be9853385bdfc65a5929643412d09243d14514304b89ba23a265158cc8792b",
+        "runtime": "3fb76eea65f81bd9415202bab34b6571728841dff1ab8e6bbe81adc2e299face"
+      },
+      "version": "0.8.14"
+    },
+    "org.jacoco:org.jacoco.core": {
+      "shasums": {
+        "jar": "28abbf0eea5a08e4f24097f2fbac663ca17c341c25c3a04d90d6cd325943c995"
+      },
+      "version": "0.8.14"
+    },
+    "org.jacoco:org.jacoco.report": {
+      "shasums": {
+        "jar": "a3e2026060ab8b8d5c650706406234bb4c033dfd5376afeb8b1666e8ed27c453"
+      },
+      "version": "0.8.14"
+    },
     "org.jboss.logging:commons-logging-jboss-logging": {
       "shasums": {
         "jar": "ce4088809c7512228cb34b54686223dec45532b97366a36830f82926b58a4c6c"
@@ -1827,6 +1858,15 @@
     "io.quarkus:quarkus-hibernate-validator-spi": [
       "io.quarkus:quarkus-builder",
       "io.smallrye:jandex"
+    ],
+    "io.quarkus:quarkus-jacoco": [
+      "io.quarkus:quarkus-arc",
+      "io.quarkus:quarkus-core",
+      "org.jacoco:org.jacoco.agent",
+      "org.jacoco:org.jacoco.agent:jar:runtime",
+      "org.jacoco:org.jacoco.core",
+      "org.jacoco:org.jacoco.report",
+      "org.ow2.asm:asm-commons"
     ],
     "io.quarkus:quarkus-jsonp": [
       "io.quarkus:quarkus-core",
@@ -2374,6 +2414,14 @@
     ],
     "org.graalvm.sdk:nativeimage": [
       "org.graalvm.sdk:word"
+    ],
+    "org.jacoco:org.jacoco.core": [
+      "org.ow2.asm:asm",
+      "org.ow2.asm:asm-commons",
+      "org.ow2.asm:asm-tree"
+    ],
+    "org.jacoco:org.jacoco.report": [
+      "org.jacoco:org.jacoco.core"
     ],
     "org.jboss.logging:commons-logging-jboss-logging": [
       "org.jboss.logging:jboss-logging"
@@ -3026,6 +3074,9 @@
     ],
     "io.quarkus:quarkus-ide-launcher": [
       "io.quarkus.launcher"
+    ],
+    "io.quarkus:quarkus-jacoco": [
+      "io.quarkus.jacoco.runtime"
     ],
     "io.quarkus:quarkus-jsonp": [
       "io.quarkus.jsonp"
@@ -4267,6 +4318,58 @@
       "org.hamcrest.text",
       "org.hamcrest.xml"
     ],
+    "org.jacoco:org.jacoco.agent": [
+      "org.jacoco.agent"
+    ],
+    "org.jacoco:org.jacoco.agent:jar:runtime": [
+      "com.vladium.emma.rt",
+      "org.jacoco.agent.rt",
+      "org.jacoco.agent.rt.internal_29a6edd",
+      "org.jacoco.agent.rt.internal_29a6edd.asm",
+      "org.jacoco.agent.rt.internal_29a6edd.asm.commons",
+      "org.jacoco.agent.rt.internal_29a6edd.asm.tree",
+      "org.jacoco.agent.rt.internal_29a6edd.core",
+      "org.jacoco.agent.rt.internal_29a6edd.core.analysis",
+      "org.jacoco.agent.rt.internal_29a6edd.core.data",
+      "org.jacoco.agent.rt.internal_29a6edd.core.instr",
+      "org.jacoco.agent.rt.internal_29a6edd.core.internal",
+      "org.jacoco.agent.rt.internal_29a6edd.core.internal.analysis",
+      "org.jacoco.agent.rt.internal_29a6edd.core.internal.analysis.filter",
+      "org.jacoco.agent.rt.internal_29a6edd.core.internal.data",
+      "org.jacoco.agent.rt.internal_29a6edd.core.internal.flow",
+      "org.jacoco.agent.rt.internal_29a6edd.core.internal.instr",
+      "org.jacoco.agent.rt.internal_29a6edd.core.runtime",
+      "org.jacoco.agent.rt.internal_29a6edd.core.tools",
+      "org.jacoco.agent.rt.internal_29a6edd.output"
+    ],
+    "org.jacoco:org.jacoco.core": [
+      "org.jacoco.core",
+      "org.jacoco.core.analysis",
+      "org.jacoco.core.data",
+      "org.jacoco.core.instr",
+      "org.jacoco.core.internal",
+      "org.jacoco.core.internal.analysis",
+      "org.jacoco.core.internal.analysis.filter",
+      "org.jacoco.core.internal.data",
+      "org.jacoco.core.internal.flow",
+      "org.jacoco.core.internal.instr",
+      "org.jacoco.core.runtime",
+      "org.jacoco.core.tools"
+    ],
+    "org.jacoco:org.jacoco.report": [
+      "org.jacoco.report",
+      "org.jacoco.report.check",
+      "org.jacoco.report.csv",
+      "org.jacoco.report.html",
+      "org.jacoco.report.internal",
+      "org.jacoco.report.internal.html",
+      "org.jacoco.report.internal.html.index",
+      "org.jacoco.report.internal.html.page",
+      "org.jacoco.report.internal.html.resources",
+      "org.jacoco.report.internal.html.table",
+      "org.jacoco.report.internal.xml",
+      "org.jacoco.report.xml"
+    ],
     "org.jboss.logging:commons-logging-jboss-logging": [
       "org.apache.commons.logging",
       "org.apache.commons.logging.impl"
@@ -4595,6 +4698,7 @@
       "io.quarkus:quarkus-fs-util",
       "io.quarkus:quarkus-hibernate-validator-spi",
       "io.quarkus:quarkus-ide-launcher",
+      "io.quarkus:quarkus-jacoco",
       "io.quarkus:quarkus-jsonp",
       "io.quarkus:quarkus-junit",
       "io.quarkus:quarkus-junit-common",
@@ -4732,6 +4836,10 @@
       "org.graalvm.sdk:nativeimage",
       "org.graalvm.sdk:word",
       "org.hamcrest:hamcrest",
+      "org.jacoco:org.jacoco.agent",
+      "org.jacoco:org.jacoco.agent:jar:runtime",
+      "org.jacoco:org.jacoco.core",
+      "org.jacoco:org.jacoco.report",
       "org.jboss.logging:commons-logging-jboss-logging",
       "org.jboss.logging:jboss-logging",
       "org.jboss.logmanager:jboss-logmanager",
@@ -4823,6 +4931,11 @@
       ],
       "io.smallrye.config.SmallRyeConfigBuilderCustomizer": [
         "io.quarkus.deployment.configuration.BuildTimeConfigBuilderCustomizer"
+      ]
+    },
+    "io.quarkus:quarkus-jacoco": {
+      "io.quarkus.test.component.QuarkusComponentTestCallbacks": [
+        "io.quarkus.jacoco.runtime.JacocoQuarkusComponentTestCallbacks"
       ]
     },
     "io.quarkus:quarkus-junit": {

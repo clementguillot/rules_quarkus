@@ -1,12 +1,13 @@
 "Unit tests for external model-catalog normalization."
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//quarkus:extensions.bzl", "conditional_catalog_for_test", "coursier_artifact_for_test", "coursier_report_coordinate_for_test", "deployment_catalog_for_test", "dev_mode_artifacts_for_test", "maven_target_name_for_test", "runtime_catalog_for_test", "runtime_discovery_artifacts_for_test")
+load("//quarkus:extensions.bzl", "conditional_catalog_for_test", "coursier_artifact_for_test", "coursier_report_coordinate_for_test", "deployment_catalog_for_test", "dev_mode_artifacts_for_test", "jar_target_name_for_test", "maven_target_name_for_test", "runtime_catalog_for_test", "runtime_discovery_artifacts_for_test")
 
 def _runtime_catalog_v3_test_impl(ctx):
     env = unittest.begin(ctx)
     lock = {
         "__INPUT_ARTIFACTS_HASH": {
+            "m.group:multi:jar:runtime": 4,
             "platform:quarkus-bom": 3,
             "repositories": 1,
             "z.group:z-artifact": 2,
@@ -23,9 +24,14 @@ def _runtime_catalog_v3_test_impl(ctx):
         "dependencies": {
             "a.group:a-artifact:jar:tests": ["z.group:z-artifact"],
             "c.group:classified:jar:classes": [],
-            "m.group:multi": [],
-            "m.group:multi:jar:runtime": [],
+            "parent.group:parent": [
+                "m.group:multi",
+            ],
             "z.group:z-artifact": [],
+        },
+        "packages": {
+            "m.group:multi": ["m.group:multi"],
+            "m.group:multi:jar:runtime": ["m.group:multi:jar:runtime"],
         },
         "version": "3",
     }
@@ -33,7 +39,11 @@ def _runtime_catalog_v3_test_impl(ctx):
     catalog = runtime_catalog_for_test(lock)
 
     asserts.equals(env, "quarkus-bazel-runtime-catalog-v1", catalog["schemaVersion"])
-    asserts.equals(env, ["z.group:z-artifact"], catalog["directArtifacts"])
+    asserts.equals(
+        env,
+        ["m.group:multi:jar:runtime", "z.group:z-artifact"],
+        catalog["directArtifacts"],
+    )
     asserts.equals(env, "a.group:a-artifact:jar:tests", catalog["nodes"][0]["coordinateKey"])
     asserts.equals(env, "a_group_a_artifact_tests", catalog["nodes"][0]["targetName"])
     asserts.equals(env, "tests", catalog["nodes"][0]["coordinates"]["classifier"])
@@ -95,9 +105,11 @@ def _runtime_discovery_artifacts_test_impl(ctx):
         "dependencies": {
             "a.group:a-artifact:jar:tests": [],
             "c.group:classified:jar:classes": [],
-            "m.group:multi": [],
-            "m.group:multi:jar:runtime": [],
-            "m.group:multi:jar:sources": [],
+            "parent.group:parent": [
+                "m.group:multi",
+                "m.group:multi:jar:runtime",
+                "m.group:multi:jar:sources",
+            ],
             "z.group:z-artifact": [],
         },
         "version": "3",
@@ -158,6 +170,20 @@ def _maven_target_name_test_impl(ctx):
         maven_target_name_for_test("com.example:my-artifact:jar:tests"),
     )
     asserts.equals(env, "g_a_special", maven_target_name_for_test("g:a$special"))
+    asserts.equals(
+        env,
+        "org_jacoco_org_jacoco_agent_0_8_14",
+        jar_target_name_for_test(
+            "org/jacoco/org.jacoco.agent/0.8.14/org.jacoco.agent-0.8.14.jar",
+        ),
+    )
+    asserts.equals(
+        env,
+        "org_jacoco_org_jacoco_agent_0_8_14_runtime",
+        jar_target_name_for_test(
+            "org/jacoco/org.jacoco.agent/0.8.14/org.jacoco.agent-0.8.14-runtime.jar",
+        ),
+    )
     return unittest.end(env)
 
 maven_target_name_test = unittest.make(_maven_target_name_test_impl)
