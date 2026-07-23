@@ -14,6 +14,10 @@ WORKSPACE_DIR="${RUNFILES_DIR}/%{workspace}"
 TOOL_JAR="${WORKSPACE_DIR}/%{tool_jar}"
 JAVA="${WORKSPACE_DIR}/%{java_home}/bin/java"
 MODEL_FILE="${WORKSPACE_DIR}/%{model_file}"
+COVERAGE_ENABLED="%{coverage_enabled}"
+QUARKUS_JACOCO_PRESENT="%{quarkus_jacoco_present}"
+JACOCO_RUNNER="${WORKSPACE_DIR}/%{jacoco_runner}"
+COVERAGE_REPORTER="${WORKSPACE_DIR}/%{coverage_reporter}"
 MODEL_REAL=$(realpath "$MODEL_FILE")
 case "$MODEL_REAL" in
   */bazel-out/*) MODEL_EXEC_ROOT="${MODEL_REAL%%/bazel-out/*}" ;;
@@ -121,7 +125,80 @@ if ! echo "$TEST_ARGS" | grep -q '\-\-select-\|--scan-'; then
   done < "$DIRECT_JARS_FILE"
 fi
 
-REPORTS_DIR=$(mktemp -d)
+REPORTS_DIR=$(mktemp -d "${TEST_TMPDIR:-/tmp}/junit-console-reports.XXXXXX")
+
+# ConsoleLauncher writes one JUnit XML document per test engine. Bazel expects
+# one XML_OUTPUT_FILE, so wrap those trusted documents in a testsuites root.
+# This report is diagnostic output only; its contents never determine the test
+# exit code.
+_write_bazel_test_xml() {
+  local output="$1"
+  local reports_dir="$2"
+  local report_list
+  local tmp_output="${output}.tmp.$$"
+  local merge_failed=0
+
+  report_list=$(mktemp "${TEST_TMPDIR:-/tmp}/junit-report-list.XXXXXX")
+  if ! find "$reports_dir" -maxdepth 1 -type f -name 'TEST-*.xml' -print |
+      LC_ALL=C sort > "$report_list"; then
+    rm -f "$report_list"
+    return 1
+  fi
+  if [ ! -s "$report_list" ]; then
+    rm -f "$report_list"
+    return 1
+  fi
+
+  mkdir -p "$(dirname "$output")"
+  {
+    printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'
+    printf '%s\n' '<testsuites>'
+    while IFS= read -r report; do
+      # JUnit emits a single XML declaration on the first line of every file.
+      if ! tail -n +2 "$report"; then
+        merge_failed=1
+        break
+      fi
+    done < "$report_list"
+    printf '%s\n' '</testsuites>'
+  } > "$tmp_output"
+  rm -f "$report_list"
+
+  if [ "$merge_failed" -ne 0 ]; then
+    rm -f "$tmp_output"
+    return 1
+  fi
+  mv "$tmp_output" "$output"
+}
+
+# Bazel instruments local jars before the test starts. Its runner jar is used
+# only for the matching offline JaCoCo runtime; ConsoleLauncher remains main.
+TEST_JVM_ARGS=(
+  "-Djava.util.logging.manager=org.jboss.logmanager.LogManager"
+)
+COVERAGE_EXEC_FILE=""
+if [ "$COVERAGE_ENABLED" = "true" ]; then
+  COVERAGE_EXEC_FILE=$(mktemp "${TEST_TMPDIR:-/tmp}/quarkus-jacoco.XXXXXX")
+  TEST_JVM_ARGS+=(
+    "-Djacoco-agent.output=file"
+    "-Djacoco-agent.append=false"
+    "-Djacoco-agent.dumponexit=true"
+    "-Djacoco-agent.destfile=${COVERAGE_EXEC_FILE}"
+  )
+  if [ "$QUARKUS_JACOCO_PRESENT" = "true" ]; then
+    TEST_JVM_ARGS+=("-Dquarkus.jacoco.enabled=false")
+  fi
+elif [ "$QUARKUS_JACOCO_PRESENT" = "true" ]; then
+  if [ -z "${TEST_UNDECLARED_OUTPUTS_DIR:-}" ]; then
+    echo "ERROR: TEST_UNDECLARED_OUTPUTS_DIR is required for Quarkus JaCoCo reports" >&2
+    exit 1
+  fi
+  mkdir -p "$TEST_UNDECLARED_OUTPUTS_DIR"
+  TEST_JVM_ARGS+=(
+    "-Dquarkus.jacoco.data-file=${TEST_UNDECLARED_OUTPUTS_DIR}/jacoco-quarkus.exec"
+    "-Dquarkus.jacoco.report-location=${TEST_UNDECLARED_OUTPUTS_DIR}/jacoco-report"
+  )
+fi
 
 # Use a JDK @argfile to avoid E2BIG on the -cp and -DOUTPUT_SOURCES_DIR args.
 # Values are double-quoted per JDK argfile syntax to handle paths with spaces;
@@ -132,6 +209,9 @@ JAVA_ARGS_FILE=$(mktemp)
 {
   printf '%s\n' "-cp"
   printf '"'
+  if [ "$COVERAGE_ENABLED" = "true" ]; then
+    printf '%s:' "$JACOCO_RUNNER" | _argfile_escape
+  fi
   _argfile_escape < "$APP_CP_FILE"
   printf '"\n'
   printf '"'
@@ -140,44 +220,49 @@ JAVA_ARGS_FILE=$(mktemp)
   printf '"\n'
 } > "$JAVA_ARGS_FILE"
 
-rm -f "$DIRECT_JARS_FILE"
-
 "$JAVA" "@$JAVA_ARGS_FILE" \
   --add-opens=java.base/java.lang=ALL-UNNAMED \
   --add-opens=java.base/java.lang.invoke=ALL-UNNAMED \
-  -Djava.util.logging.manager=org.jboss.logmanager.LogManager \
   -Dquarkus-internal-test.serialized-app-model.path="$MODEL_DIR/test-app-model.dat" \
   -Dplatform.quarkus.native.builder-image=quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25@sha256:4dda6a3d677b57614849557d0d18aac7326c4f30175142b0f1bb91bdcfc5c29a \
   -Dquarkus.package.jar.type=fast-jar \
+  "${TEST_JVM_ARGS[@]}" \
   %{jvm_flags} \
   org.junit.platform.console.ConsoleLauncher \
   $TEST_ARGS \
   --reports-dir="$REPORTS_DIR"
-JUNIT_EXIT=$?
+FINAL_EXIT=$?
 
 rm -f "$JAVA_ARGS_FILE" "$APP_CP_FILE"
 
-# Determine final exit code.
-# ConsoleLauncher exits non-zero on Quarkus session-shutdown exceptions
-# (ClassCastException in ConfigLauncherSession) even when all tests
-# pass. The XML report is the source of truth for pass/fail, with one guard:
-# if zero tests actually executed, that's a failure (misconfigured test_packages,
-# no @Test methods, etc.) regardless of what the exit code says.
-if ls "$REPORTS_DIR"/TEST-*.xml >/dev/null 2>&1; then
-  if grep -q 'failures="[1-9]' "$REPORTS_DIR"/TEST-*.xml 2>/dev/null || \
-     grep -q 'errors="[1-9]' "$REPORTS_DIR"/TEST-*.xml 2>/dev/null; then
-    rm -rf "$REPORTS_DIR"
-    exit 1
+# Publish JUnit's real test suites to Bazel. A reporting failure can fail an
+# otherwise successful test, but never replaces or hides a JUnit failure.
+if [ -n "${XML_OUTPUT_FILE:-}" ] &&
+    ! _write_bazel_test_xml "$XML_OUTPUT_FILE" "$REPORTS_DIR"; then
+  echo "ERROR: Failed to write Bazel JUnit XML report" >&2
+  if [ "$FINAL_EXIT" -eq 0 ]; then
+    FINAL_EXIT=1
   fi
-  if [ "%{fail_if_no_tests}" = "true" ] && \
-     ! grep -q 'tests="[1-9]' "$REPORTS_DIR"/TEST-*.xml 2>/dev/null; then
-    rm -rf "$REPORTS_DIR"
-    echo "ERROR: Zero tests executed (check test_packages / test_classes configuration)" >&2
-    exit 1
+fi
+
+# Format only successful test executions. Reporter failure turns an otherwise
+# successful coverage test into a failure and never hides a failed test.
+if [ "$FINAL_EXIT" -eq 0 ] && [ "$COVERAGE_ENABLED" = "true" ]; then
+  if [ -z "${JAVA_COVERAGE_FILE:-}" ]; then
+    echo "ERROR: JAVA_COVERAGE_FILE is not set during Bazel coverage" >&2
+    FINAL_EXIT=1
+  elif ! "$COVERAGE_REPORTER" \
+      --execution-data "$COVERAGE_EXEC_FILE" \
+      --output "$JAVA_COVERAGE_FILE" \
+      --class-jars-file "$DIRECT_JARS_FILE"; then
+    echo "ERROR: Bazel JaCoCo LCOV reporting failed" >&2
+    FINAL_EXIT=1
   fi
-  rm -rf "$REPORTS_DIR"
-  exit 0
 fi
 
 rm -rf "$REPORTS_DIR"
-exit $JUNIT_EXIT
+rm -f "$DIRECT_JARS_FILE"
+if [ -n "$COVERAGE_EXEC_FILE" ]; then
+  rm -f "$COVERAGE_EXEC_FILE"
+fi
+exit "$FINAL_EXIT"

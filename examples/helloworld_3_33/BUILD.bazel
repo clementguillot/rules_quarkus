@@ -23,6 +23,7 @@ quarkus_test(
     srcs = glob(["src/test/java/**/*.java"]),
     deps = [
         ":lib",
+        "@maven//:io_quarkus_quarkus_jacoco",
         "@maven//:io_quarkus_quarkus_junit",
         "@maven//:io_rest_assured_rest_assured",
         "@maven//:org_hamcrest_hamcrest",
