@@ -15,8 +15,8 @@ public final class BazelJacocoReporter {
 
   public static void main(String[] args) throws Exception {
     Arguments parsed = Arguments.parse(args);
-    validateInputFile(parsed.executionData, "execution data");
-    validateInputFile(parsed.classJarsFile, "class-jars list");
+    validateInputFile(parsed.executionData, "execution data", true);
+    validateInputFile(parsed.classJarsFile, "class-jars list", false);
     File[] classJars = readClassJars(parsed.classJarsFile);
 
     Path absoluteOutput = parsed.output.toAbsolutePath();
@@ -29,11 +29,10 @@ public final class BazelJacocoReporter {
     Path temporaryOutput = Files.createTempFile(outputDirectory, "coverage-", ".tmp");
 
     try {
-      try (InputStream executionData = Files.newInputStream(parsed.executionData)) {
-        new JacocoCoverageRunner(executionData, temporaryOutput.toString(), classJars).create();
-      }
-      if (Files.size(temporaryOutput) == 0) {
-        throw new IOException("Bazel JaCoCo formatter produced an empty LCOV report");
+      if (Files.size(parsed.executionData) > 0) {
+        try (InputStream executionData = Files.newInputStream(parsed.executionData)) {
+          new JacocoCoverageRunner(executionData, temporaryOutput.toString(), classJars).create();
+        }
       }
       replaceAtomically(temporaryOutput, absoluteOutput);
     } finally {
@@ -41,11 +40,12 @@ public final class BazelJacocoReporter {
     }
   }
 
-  private static void validateInputFile(Path path, String description) throws IOException {
+  private static void validateInputFile(Path path, String description, boolean allowEmpty)
+      throws IOException {
     if (!Files.isRegularFile(path)) {
       throw new IOException("Missing " + description + " file: " + path);
     }
-    if (Files.size(path) == 0) {
+    if (!allowEmpty && Files.size(path) == 0) {
       throw new IOException("Empty " + description + " file: " + path);
     }
   }

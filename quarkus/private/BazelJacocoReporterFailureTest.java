@@ -3,7 +3,7 @@ package io.quarkus.bazel.coverage;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Standalone failure-path checks for {@link BazelJacocoReporter}. */
+/** Standalone success and failure-path checks for {@link BazelJacocoReporter}. */
 public final class BazelJacocoReporterFailureTest {
   private BazelJacocoReporterFailureTest() {}
 
@@ -11,19 +11,25 @@ public final class BazelJacocoReporterFailureTest {
     Path directory = Files.createTempDirectory("bazel-jacoco-reporter-test");
     Path executionData = directory.resolve("execution.exec");
     Path classJars = directory.resolve("class-jars.txt");
+    Path classJar = directory.resolve("classes.jar");
     Path output = directory.resolve("coverage.dat");
 
-    Files.writeString(executionData, "not-jacoco-data");
-    Files.writeString(classJars, directory.resolve("missing.jar").toString());
+    Files.write(classJar, new byte[0]);
+    Files.writeString(classJars, classJar.toString());
 
     expectFailure(
         "a missing execution-data file",
         () -> runReporter(directory.resolve("missing.exec"), output, classJars));
 
     Files.write(executionData, new byte[0]);
-    expectFailure("empty execution data", () -> runReporter(executionData, output, classJars));
+    Files.writeString(output, "stale coverage");
+    runReporter(executionData, output, classJars);
+    if (!Files.isRegularFile(output) || Files.size(output) != 0) {
+      throw new AssertionError("Reporter did not publish an empty LCOV report");
+    }
 
     Files.writeString(executionData, "not-jacoco-data");
+    Files.writeString(classJars, directory.resolve("missing.jar").toString());
     expectFailure("a missing class jar", () -> runReporter(executionData, output, classJars));
 
     Files.writeString(classJars, ",");
