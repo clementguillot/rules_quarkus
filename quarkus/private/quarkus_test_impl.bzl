@@ -161,7 +161,7 @@ quarkus_test = rule(
         ),
         "_coverage_reporter": attr.label(
             default = Label("//quarkus/private:bazel_jacoco_reporter"),
-            cfg = "exec",
+            cfg = config.exec(exec_group = "test"),
             executable = True,
         ),
         "_jacoco_runner": attr.label(
