@@ -32,6 +32,8 @@ jobs:
       bazel_versions: |
         ["7.x", "8.x", "9.x"]
       bazel_test_command: bazel test //... --lockfile_mode=off
+      # The reusable workflow also runs e2e/smoke/test.sh, which executes
+      # bazel coverage and validates the per-target and combined LCOV reports.
   pre-commit:
     runs-on: ubuntu-latest
     steps:
