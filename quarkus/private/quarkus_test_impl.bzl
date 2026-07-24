@@ -14,7 +14,7 @@ that jar paths in the ApplicationModel match the actual runfiles locations.
 load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
-load("//quarkus/private:application_model_aspect.bzl", "has_quarkus_jacoco", "quarkus_application_model_aspect")
+load("//quarkus/private:application_model_aspect.bzl", "has_maven_artifact", "quarkus_application_model_aspect")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_extension_runtime_jars", "collect_local_app_jars", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
 
@@ -77,7 +77,7 @@ def _quarkus_test_impl(ctx):
             "%{jvm_flags}": " ".join([shell.quote(f) for f in ctx.attr.jvm_flags]),
             "%{model_file}": model.short_path,
             "%{jacoco_runner}": jacoco_runner_path,
-            "%{quarkus_jacoco_present}": "true" if has_quarkus_jacoco(ctx.attr.deps) else "false",
+            "%{quarkus_jacoco_present}": "true" if has_maven_artifact(ctx.attr.deps, "io.quarkus", "quarkus-jacoco") else "false",
             "%{test_args}": _build_test_args(ctx.attr.test_packages, ctx.attr.test_classes, ctx.attr.fail_if_no_tests),
             "%{tool_jar}": tool_jar.short_path,
             "%{workspace}": ctx.workspace_name,

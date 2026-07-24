@@ -3,6 +3,7 @@
 load("@rules_java//java:java_binary.bzl", "java_binary")
 load("@rules_java//java:java_library.bzl", "java_library")
 load("@rules_java//java:java_test.bzl", "java_test")
+load(":application_model_aspect_test.bzl", "application_model_aspect_test_suite")
 load(":model_catalogs_test.bzl", "model_catalogs_test_suite")
 
 exports_files([
@@ -41,3 +42,5 @@ java_test(
 )
 
 model_catalogs_test_suite()
+
+application_model_aspect_test_suite()
