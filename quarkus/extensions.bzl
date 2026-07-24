@@ -76,7 +76,7 @@ def _coordinate_fields(coordinate_key, version):
     }
 
 def _lock_coordinate_keys(lock_data, dependencies):
-    """Returns every canonical coordinate identity present in a v3 lock."""
+    """Returns every resolved coordinate identity present in a v3 lock."""
     coordinate_keys = {}
     for dependency_key, direct_dependencies in dependencies.items():
         coordinate_keys[dependency_key] = True
@@ -84,12 +84,11 @@ def _lock_coordinate_keys(lock_data, dependencies):
             fail("Invalid dependency list for '{}' in maven lock file".format(dependency_key))
         for coordinate_key in direct_dependencies:
             coordinate_keys[coordinate_key] = True
-    for field in ["__INPUT_ARTIFACTS_HASH", "packages"]:
-        coordinate_map = lock_data.get(field, {})
-        if type(coordinate_map) != "dict":
-            fail("Invalid rules_jvm_external v3 lock: '{}' must be an object".format(field))
-        for coordinate_key in coordinate_map:
-            coordinate_keys[coordinate_key] = True
+    packages = lock_data.get("packages", {})
+    if type(packages) != "dict":
+        fail("Invalid rules_jvm_external v3 lock: 'packages' must be an object")
+    for coordinate_key in packages:
+        coordinate_keys[coordinate_key] = True
     return coordinate_keys
 
 def _resolved_coordinate_keys(artifact_key, artifact, dependency_coordinate_keys):
@@ -129,6 +128,9 @@ def _runtime_catalog(lock_data, resolver_report = None):
     dependencies = lock_data.get("dependencies", {})
     if type(artifacts) != "dict" or type(dependencies) != "dict":
         fail("Invalid rules_jvm_external v3 lock: 'artifacts' and 'dependencies' must be objects")
+    input_artifacts = lock_data.get("__INPUT_ARTIFACTS_HASH", {})
+    if type(input_artifacts) != "dict":
+        fail("Invalid rules_jvm_external v3 lock: '__INPUT_ARTIFACTS_HASH' must be an object")
     dependency_coordinate_keys = _lock_coordinate_keys(lock_data, dependencies)
 
     nodes_by_key = {}
@@ -219,7 +221,7 @@ def _runtime_catalog(lock_data, resolver_report = None):
     ordered_conflicts = {key: conflicts[key] for key in sorted(conflicts)}
     direct_artifacts = [
         base_to_resolved[key]
-        for key in sorted(lock_data.get("__INPUT_ARTIFACTS_HASH", {}))
+        for key in sorted(input_artifacts)
         # The input signature also contains repositories and BOMs. Neither is
         # a resolved runtime artifact; resolved artifacts always have an entry
         # in the v3 lock's `artifacts` object.

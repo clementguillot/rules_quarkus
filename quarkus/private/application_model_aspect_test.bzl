@@ -65,7 +65,7 @@ _coordinate_graph_test = rule(
     },
 )
 
-def application_model_aspect_test_suite(name):
+def application_model_aspect_test_suite(name = "application_model_aspect_tests"):
     """Analysis tests for quarkus_application_model_aspect.
 
     Args:

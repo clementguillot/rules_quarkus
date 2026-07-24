@@ -93,6 +93,32 @@ def _runtime_catalog_v3_test_impl(ctx):
 
 runtime_catalog_v3_test = unittest.make(_runtime_catalog_v3_test_impl)
 
+def _runtime_catalog_ignores_non_artifact_inputs_test_impl(ctx):
+    env = unittest.begin(ctx)
+    lock = {
+        "__INPUT_ARTIFACTS_HASH": {
+            "collision.group:same-ga:pom:import": 1,
+            "repositories": 2,
+        },
+        "artifacts": {
+            "collision.group:same-ga": {"shasums": {"jar": "runtime"}, "version": "1.0"},
+        },
+        "dependencies": {},
+        "packages": {
+            "collision.group:same-ga": ["collision.group:same-ga"],
+        },
+        "version": "3",
+    }
+
+    catalog = runtime_catalog_for_test(lock)
+
+    asserts.equals(env, [], catalog["directArtifacts"])
+    asserts.equals(env, 1, len(catalog["nodes"]))
+    asserts.equals(env, "collision.group:same-ga", catalog["nodes"][0]["coordinateKey"])
+    return unittest.end(env)
+
+runtime_catalog_ignores_non_artifact_inputs_test = unittest.make(_runtime_catalog_ignores_non_artifact_inputs_test_impl)
+
 def _runtime_discovery_artifacts_test_impl(ctx):
     env = unittest.begin(ctx)
     lock = {
@@ -267,6 +293,7 @@ def model_catalogs_test_suite():
     unittest.suite(
         "model_catalogs_tests",
         runtime_catalog_v3_test,
+        runtime_catalog_ignores_non_artifact_inputs_test,
         runtime_discovery_artifacts_test,
         coursier_artifact_test,
         dev_mode_artifacts_test,
