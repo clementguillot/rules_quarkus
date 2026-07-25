@@ -180,12 +180,17 @@ bazel coverage //:test --combined_report=lcov
 
 Bazel prints the per-test LCOV path when coverage finishes. The
 `--combined_report=lcov` flag also emits the combined report at
-`bazel-out/_coverage/_coverage_report.dat`. Use `--instrumentation_filter`
-normally to restrict the sources in the final report:
+`bazel-out/_coverage/_coverage_report.dat`. `--instrumentation_filter` selects
+Bazel target labels whose compiled classes are instrumented; it does not filter
+source paths directly. For example, instrument only the `//app:lib` application
+library:
 
 ```bash
-bazel coverage //:test --combined_report=lcov --instrumentation_filter='//app/...'
+bazel coverage //:test --combined_report=lcov --instrumentation_filter='//app:lib$'
 ```
+
+A package-wide filter such as `//app/...` also includes test-library targets
+declared under that package hierarchy.
 
 The `io.quarkus:quarkus-jacoco` extension is optional for Bazel coverage. When
 it is declared:
