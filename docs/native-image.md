@@ -81,6 +81,31 @@ bazel run //:my_app_native
 bazel run //:my_app
 ```
 
+## Test the Native Executable
+
+Point `quarkus_integration_test` at the generated native target to run
+`@QuarkusIntegrationTest` against the executable:
+
+```starlark
+load("@rules_quarkus//quarkus:defs.bzl", "quarkus_integration_test")
+
+quarkus_integration_test(
+    name = "native_integration_test",
+    app = ":my_app_native",
+    deps = [":test_lib"],
+)
+```
+
+```bash
+bazel test //:native_integration_test
+```
+
+The test dependency closure must include the application library. Native
+integration tests are typically tagged `manual` because compiling the
+executable is expensive. A binary produced with
+`native_container_build=True` is Linux-only, so its integration test must run
+on a compatible Linux test host.
+
 ## How It Works
 
 ### Action 1: QuarkusNativeAugmentation

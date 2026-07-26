@@ -5,6 +5,7 @@ load("@rules_java//java:java_library.bzl", "java_library")
 load("@rules_java//java:java_test.bzl", "java_test")
 load(":application_model_aspect_test.bzl", "application_model_aspect_test_suite")
 load(":model_catalogs_test.bzl", "model_catalogs_test_suite")
+load(":quarkus_test_impl_test.bzl", "quarkus_test_impl_test_suite")
 
 exports_files([
     "application_model_aspect.bzl",
@@ -17,6 +18,7 @@ exports_files([
     "quarkus_dev_impl.bzl",
     "quarkus_test_impl.bzl",
     "classpath_utils.bzl",
+    "coverage_transition.bzl",
     "versions.bzl",
 ])
 
@@ -44,3 +46,5 @@ java_test(
 model_catalogs_test_suite()
 
 application_model_aspect_test_suite()
+
+quarkus_test_impl_test_suite()

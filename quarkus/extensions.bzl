@@ -6,7 +6,7 @@ The quarkifier deploy jar is downloaded from GitHub releases or overridden
 with a local build.
 
 Produces a single generated repository (@rules_quarkus) containing:
-  - quarkus/defs.bzl: public API macros (quarkus_app, quarkus_test)
+  - quarkus/defs.bzl: public API macros (quarkus_app, quarkus_test, quarkus_integration_test)
   - quarkifier/: the quarkifier tool jar
   - deployment/: deployment jars resolved via Coursier
 """
@@ -1170,9 +1170,15 @@ deployment_catalog_for_test = _deployment_catalog
 # ---- Generated @rules_quarkus//quarkus:defs.bzl ----
 
 _DEFS_BZL_TEMPLATE = """\
-\"\"\"Public API — load quarkus_app, quarkus_test and quarkus_extension_runtime from here.
+\"\"\"Public API — load Quarkus application, test, and extension macros from here.
 
-    load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_test", "quarkus_extension_runtime")
+    load(
+        "@rules_quarkus//quarkus:defs.bzl",
+        "quarkus_app",
+        "quarkus_extension_runtime",
+        "quarkus_integration_test",
+        "quarkus_test",
+    )
 
 quarkus_app() automatically creates a <name>_dev target for Quarkus dev mode
 with hot-reload support. Use dev=False to opt out.
@@ -1187,7 +1193,7 @@ load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_dev_impl.bzl", 
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_extension_impl.bzl", "quarkus_extension_runtime_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_native_app_impl.bzl", "quarkus_native_app_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_native_container_app_impl.bzl", "quarkus_native_container_app_rule")
-load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_test_impl.bzl", _quarkus_test = "quarkus_test")
+load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_test_impl.bzl", _quarkus_integration_test = "quarkus_integration_test", _quarkus_test = "quarkus_test")
 load("@com_clementguillot_rules_quarkus//quarkus/private:versions.bzl", "DEFAULT_NATIVE_BUILDER_IMAGE")
 load("@rules_java//java:java_library.bzl", "java_library")
 
@@ -1296,13 +1302,7 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
             **common
         )
 
-def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_classes = None, jvm_flags = None, **kwargs):
-    \"\"\"Runs @QuarkusTest-annotated JUnit 5 tests with full Quarkus augmentation.
-
-    If srcs is provided, a java_library is created internally to compile the
-    test sources. If srcs is omitted, deps must include a pre-compiled
-    java_library containing the test classes.
-    \"\"\"
+def _prepare_test_target(name, srcs, deps, test_packages, test_classes, jvm_flags, kwargs):
     test_deps = deps or []
     if srcs:
         compile_deps = []
@@ -1328,6 +1328,28 @@ def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_clas
         test_kwargs["jvm_flags"] = jvm_flags
     test_kwargs.update(kwargs)
 
+    return struct(
+        deps = test_deps,
+        kwargs = test_kwargs,
+    )
+
+def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_classes = None, jvm_flags = None, **kwargs):
+    \"\"\"Runs @QuarkusTest-annotated JUnit 5 tests with full Quarkus augmentation.
+
+    If srcs is provided, a java_library is created internally to compile the
+    test sources. If srcs is omitted, deps must include a pre-compiled
+    java_library containing the test classes.
+    \"\"\"
+    prepared = _prepare_test_target(
+        name,
+        srcs,
+        deps,
+        test_packages,
+        test_classes,
+        jvm_flags,
+        kwargs,
+    )
+
     _quarkus_test(
         name = name,
         quarkus_version = _QUARKUS_VERSION,
@@ -1336,12 +1358,52 @@ def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_clas
         conditional_deps = _CONDITIONAL_DEPS,
         conditional_catalog = _CONDITIONAL_CATALOG,
         deployment_catalog = _DEPLOYMENT_CATALOG,
-        deps = test_deps,
+        deps = prepared.deps,
         model_private_deps = _TEST_INFRASTRUCTURE_DEPS,
         platform_catalog = _PLATFORM_CATALOG,
         platform_properties = _PLATFORM_PROPERTIES,
         runtime_catalog = _RUNTIME_CATALOG,
-        **test_kwargs
+        **prepared.kwargs
+    )
+
+def quarkus_integration_test(name, app, srcs = None, deps = None, test_packages = None,
+                             test_classes = None, jvm_flags = None, **kwargs):
+    \"\"\"Runs @QuarkusIntegrationTest tests against a packaged application.
+
+    The app must be a quarkus_app target or its <name>_native target. Test deps
+    must include the application library directly or transitively so Quarkus
+    can construct the TEST-mode ApplicationModel used by test resources and
+    Dev Services.
+
+    If srcs is provided, a java_library is created internally to compile the
+    test sources. If srcs is omitted, deps must include a pre-compiled
+    java_library containing the integration-test classes.
+    \"\"\"
+    prepared = _prepare_test_target(
+        name,
+        srcs,
+        deps,
+        test_packages,
+        test_classes,
+        jvm_flags,
+        kwargs,
+    )
+
+    _quarkus_integration_test(
+        name = name,
+        app = app,
+        quarkus_version = _QUARKUS_VERSION,
+        quarkifier_tool = _QUARKIFIER_TOOL,
+        deployment_deps = _DEPLOYMENT_DEPS,
+        conditional_deps = _CONDITIONAL_DEPS,
+        conditional_catalog = _CONDITIONAL_CATALOG,
+        deployment_catalog = _DEPLOYMENT_CATALOG,
+        deps = prepared.deps,
+        model_private_deps = _TEST_INFRASTRUCTURE_DEPS,
+        platform_catalog = _PLATFORM_CATALOG,
+        platform_properties = _PLATFORM_PROPERTIES,
+        runtime_catalog = _RUNTIME_CATALOG,
+        **prepared.kwargs
     )
 
 def quarkus_extension_runtime(name, group_id, version, runtime_target, deployment_target,

@@ -64,7 +64,11 @@ The `lock_file` identifies the exact runtime jars to scan. For every jar carryin
 exact `deployment-artifact` coordinate; it does not infer names from groupIds or
 an `-deployment` suffix.
 
-The configured `quarkus_version` applies to every `quarkus_app`, generated `<name>_dev` target, and `quarkus_test` target in the workspace. For projects that need to validate both supported versions, use separate workspaces, separate example directories, or separate CI jobs with different `MODULE.bazel` configurations.
+The configured `quarkus_version` applies to every `quarkus_app`, generated
+`<name>_dev` target, `quarkus_test`, and `quarkus_integration_test` target in
+the workspace. For projects that need to validate both supported versions, use
+separate workspaces, separate example directories, or separate CI jobs with
+different `MODULE.bazel` configurations.
 
 ### Toolchain Options
 
@@ -201,6 +205,46 @@ it is declared:
   Bazel alone instruments the classes and produces LCOV.
 
 This routing is automatic; `quarkus_test` gains no coverage attributes.
+
+### Packaged integration tests
+
+Use `quarkus_integration_test` for classes annotated with
+`@QuarkusIntegrationTest`. The rule launches the selected packaged application
+in a separate process while JUnit runs in the Bazel test process:
+
+```starlark
+load(
+    "@rules_quarkus//quarkus:defs.bzl",
+    "quarkus_integration_test",
+)
+
+quarkus_integration_test(
+    name = "integration_test",
+    app = ":helloworld",
+    deps = [":test_lib"],
+)
+```
+
+The test dependency closure must include the application library directly or
+transitively. By default, package and automatic discovery select classes ending
+in `IT`; `test_classes` can explicitly select a differently named annotated
+class. Integration HTTP and HTTPS ports are dynamically allocated so Bazel can
+run targets concurrently. Override them with `jvm_flags` when a fixed port is
+required:
+
+```starlark
+jvm_flags = ["-Dquarkus.http.test-port=8081"]
+```
+
+Run the packaged test with:
+
+```bash
+bazel test //:integration_test
+```
+
+When included in a `bazel coverage` command, integration tests still run but
+the separately launched application is not instrumented. Their execution does
+not contribute LCOV records; use `quarkus_test` for application coverage.
 
 ## 7. Dev Mode (Hot-Reload + Dev UI)
 

@@ -76,7 +76,8 @@ cd e2e/smoke
 bazel test //...
 ```
 
-This exercises `quarkus_app`, `quarkus_test`, and the module extension end-to-end.
+This exercises `quarkus_app`, `quarkus_test`, `quarkus_integration_test`, and
+the module extension end-to-end.
 
 ## Testing with the Examples Workspace
 

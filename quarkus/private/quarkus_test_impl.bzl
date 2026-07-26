@@ -1,11 +1,11 @@
-"""Implementation of the quarkus_test rule.
+"""Implementation of the quarkus_test and quarkus_integration_test rules.
 
-Runs @QuarkusTest-annotated JUnit 5 tests under Bazel by:
+Runs Quarkus JUnit 5 tests under Bazel by:
 1. Assembling the runtime and deployment classpaths
 2. At test time, invoking the quarkifier in test mode to serialize an
    ApplicationModel from the actual runfiles jar paths
-3. Launching JUnit ConsoleLauncher with the serialized model path and
-   Quarkus-required system properties
+3. Launching JUnit ConsoleLauncher either with @QuarkusTest's in-process
+   bootstrap or with metadata for an @QuarkusIntegrationTest artifact
 
 The two-phase approach (model generation at test time, not build time) ensures
 that jar paths in the ApplicationModel match the actual runfiles locations.
@@ -14,11 +14,16 @@ that jar paths in the ApplicationModel match the actual runfiles locations.
 load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
+load("//quarkus:providers.bzl", "QuarkusAppInfo", "QuarkusNativeInfo")
 load("//quarkus/private:application_model_aspect.bzl", "has_maven_artifact", "quarkus_application_model_aspect")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_extension_runtime_jars", "collect_local_app_jars", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
+load("//quarkus/private:coverage_transition.bzl", "disable_coverage_transition", "single_transitioned_target")
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
 
-def _build_test_args(test_packages, test_classes, fail_if_no_tests):
+def _regex_escape_class_name(class_name):
+    return class_name.replace("\\", "\\\\").replace(".", "\\.").replace("$", "\\$")
+
+def _build_test_args(test_packages, test_classes, fail_if_no_tests, integration = False):
     """Builds JUnit ConsoleLauncher CLI arguments."""
     args = ["execute"]
     if fail_if_no_tests:
@@ -27,16 +32,63 @@ def _build_test_args(test_packages, test_classes, fail_if_no_tests):
         args.append("--select-package=" + pkg)
     for cls in test_classes:
         args.append("--select-class=" + cls)
-    args.append("--exclude-classname=.*IT$")
+    if integration:
+        include_patterns = [".*IT$"] + ["^" + _regex_escape_class_name(cls) + "$" for cls in test_classes]
+        args.append("--include-classname=(" + "|".join(include_patterns) + ")")
+    else:
+        args.append("--exclude-classname=.*IT$")
     return " ".join(args)
 
-def _quarkus_test_impl(ctx):
+def _integration_version_error(rule_name, test_version, app_label, app_version):
+    if test_version == app_version:
+        return ""
+    return "quarkus_integration_test rule '{}' uses Quarkus {}, but app '{}' was built with Quarkus {}".format(
+        rule_name,
+        test_version,
+        app_label,
+        app_version,
+    )
+
+def _integration_artifact(ctx):
+    app = single_transitioned_target(ctx.attr.app)
+    if QuarkusAppInfo in app:
+        info = app[QuarkusAppInfo]
+        artifact_type = "jar"
+        artifact = info.fast_jar_dir
+        artifact_path = artifact.short_path + "/quarkus-app/quarkus-run.jar"
+        quarkus_version = info.quarkus_version
+    elif QuarkusNativeInfo in app:
+        info = app[QuarkusNativeInfo]
+        artifact_type = "native"
+        artifact = info.binary
+        artifact_path = artifact.short_path
+        quarkus_version = info.quarkus_version
+    else:
+        fail("quarkus_integration_test rule '{}' requires 'app' to provide QuarkusAppInfo or QuarkusNativeInfo".format(ctx.label.name))
+
+    version_error = _integration_version_error(
+        ctx.label.name,
+        ctx.attr.quarkus_version,
+        app.label,
+        quarkus_version,
+    )
+    if version_error:
+        fail(version_error)
+
+    return struct(
+        artifact = artifact,
+        artifact_path = artifact_path,
+        artifact_type = artifact_type,
+    )
+
+def _test_impl(ctx, integration):
     if not ctx.attr.deps:
-        fail("quarkus_test rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
+        rule_name = "quarkus_integration_test" if integration else "quarkus_test"
+        fail("{} rule '{}' requires at least one dependency in 'deps'".format(rule_name, ctx.label.name))
 
     runtime_classpath = collect_runtime_classpath(ctx.attr.deps + ctx.attr.model_private_deps)
-    conditional_classpath = collect_runtime_classpath([ctx.attr.conditional_deps])
-    deploy_classpath = collect_deployment_classpath(ctx.attr.deployment_deps, ctx.attr.deps)
+    conditional_classpath = collect_runtime_classpath([single_transitioned_target(ctx.attr.conditional_deps)])
+    deploy_classpath = collect_deployment_classpath(single_transitioned_target(ctx.attr.deployment_deps), ctx.attr.deps)
     model = assemble_application_model(ctx, ctx.attr.deps, runtime_classpath, conditional_classpath, deploy_classpath, "test")
 
     # Runtime classpath (for both JUnit -cp and quarkifier --application-classpath)
@@ -47,16 +99,17 @@ def _quarkus_test_impl(ctx):
     cp_file = write_runfiles_paths_file(ctx, "_cp.txt", runtime_classpath, ":")
     ext_rt_jars = collect_extension_runtime_jars(ctx.attr.deps)
     direct_jars_file = write_runfiles_paths_file(ctx, "_direct_jars.txt", collect_local_app_jars(ctx.attr.deps, runtime_classpath, ext_rt_jars), ",")
-    coverage_jars_file = write_runfiles_paths_file(ctx, "_coverage_jars.txt", collect_local_app_jars(ctx.attr.deps, runtime_classpath), ",")
 
     tool_jar = ctx.file.quarkifier_tool
     java_runtime = ctx.attr._java_runtime[java_common.JavaRuntimeInfo]
-    coverage_enabled = ctx.configuration.coverage_enabled
+    coverage_enabled = ctx.configuration.coverage_enabled and not integration
+    coverage_jars_file = None
     coverage_files = []
     coverage_runfiles = None
     coverage_reporter_path = ""
     jacoco_runner_path = ""
     if coverage_enabled:
+        coverage_jars_file = write_runfiles_paths_file(ctx, "_coverage_jars.txt", collect_local_app_jars(ctx.attr.deps, runtime_classpath), ",")
         coverage_reporter = ctx.attr._coverage_reporter[DefaultInfo]
         coverage_reporter_path = coverage_reporter.files_to_run.executable.short_path
         coverage_runfiles = coverage_reporter.default_runfiles
@@ -64,31 +117,40 @@ def _quarkus_test_impl(ctx):
         jacoco_runner_path = jacoco_runner.short_path
         coverage_files.append(jacoco_runner)
 
+    integration_artifact = _integration_artifact(ctx) if integration else None
     launcher = ctx.actions.declare_file(ctx.label.name + "_test.sh")
     ctx.actions.expand_template(
         template = ctx.file._launcher_template,
         output = launcher,
         substitutions = {
             "%{app_name}": ctx.label.name,
+            "%{artifact_path}": integration_artifact.artifact_path if integration else "",
+            "%{artifact_type}": integration_artifact.artifact_type if integration else "",
             "%{classpath_file}": cp_file.short_path,
             "%{coverage_enabled}": "true" if coverage_enabled else "false",
-            "%{coverage_jars_file}": coverage_jars_file.short_path,
+            "%{coverage_jars_file}": coverage_jars_file.short_path if coverage_jars_file else "",
             "%{coverage_reporter}": coverage_reporter_path,
             "%{direct_jars_file}": direct_jars_file.short_path,
             "%{java_home}": java_runtime.java_home_runfiles_path,
             "%{jvm_flags}": " ".join([shell.quote(f) for f in ctx.attr.jvm_flags]),
             "%{model_file}": model.short_path,
             "%{jacoco_runner}": jacoco_runner_path,
-            "%{quarkus_jacoco_present}": "true" if has_maven_artifact(ctx.attr.deps, "io.quarkus", "quarkus-jacoco") else "false",
-            "%{test_args}": _build_test_args(ctx.attr.test_packages, ctx.attr.test_classes, ctx.attr.fail_if_no_tests),
+            "%{quarkus_jacoco_present}": "true" if coverage_enabled and has_maven_artifact(ctx.attr.deps, "io.quarkus", "quarkus-jacoco") else "false",
+            "%{test_args}": _build_test_args(ctx.attr.test_packages, ctx.attr.test_classes, ctx.attr.fail_if_no_tests, integration),
+            "%{test_kind}": "integration" if integration else "quarkus",
             "%{tool_jar}": tool_jar.short_path,
             "%{workspace}": ctx.workspace_name,
         },
         is_executable = True,
     )
 
+    direct_runfiles = [cp_file, direct_jars_file, model, tool_jar] + coverage_files
+    if coverage_jars_file:
+        direct_runfiles.append(coverage_jars_file)
+    if integration:
+        direct_runfiles.append(integration_artifact.artifact)
     runfiles = ctx.runfiles(
-        files = [cp_file, coverage_jars_file, direct_jars_file, model, tool_jar] + coverage_files,
+        files = direct_runfiles,
         transitive_files = depset(
             transitive = [runtime_classpath, conditional_classpath, deploy_classpath, java_runtime.files],
         ),
@@ -101,13 +163,25 @@ def _quarkus_test_impl(ctx):
         OutputGroupInfo(quarkus_model = depset([model])),
     ]
 
-quarkus_test = rule(
-    implementation = _quarkus_test_impl,
-    test = True,
+def _quarkus_test_impl(ctx):
+    return _test_impl(ctx, False)
+
+def _quarkus_integration_test_impl(ctx):
+    return _test_impl(ctx, True)
+
+def _test_attrs(integration = False):
+    dependency_cfg = disable_coverage_transition if integration else "target"
     attrs = {
         "conditional_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
-        "conditional_deps": attr.label(mandatory = True, providers = [JavaInfo]),
-        "deployment_deps": attr.label(doc = "Resolved Quarkus deployment closure (set by macro)."),
+        "conditional_deps": attr.label(
+            mandatory = True,
+            providers = [JavaInfo],
+            cfg = dependency_cfg,
+        ),
+        "deployment_deps": attr.label(
+            doc = "Resolved Quarkus deployment closure (set by macro).",
+            cfg = dependency_cfg,
+        ),
         "deployment_catalog": attr.label(
             allow_single_file = [".json"],
             mandatory = True,
@@ -124,6 +198,7 @@ quarkus_test = rule(
         ),
         "deps": attr.label_list(
             mandatory = True,
+            cfg = dependency_cfg,
             aspects = [
                 quarkus_extension_deployment_classpath_aspect,
                 quarkus_application_model_aspect,
@@ -140,6 +215,7 @@ quarkus_test = rule(
         ),
         "model_private_deps": attr.label_list(
             providers = [JavaInfo],
+            cfg = dependency_cfg,
             doc = "Internal test compile/launcher dependencies omitted from ApplicationModel semantics.",
         ),
         "quarkifier_tool": attr.label(
@@ -161,25 +237,44 @@ quarkus_test = rule(
         "_java_runtime": attr.label(
             default = "@bazel_tools//tools/jdk:current_java_runtime",
         ),
-        "_coverage_reporter": attr.label(
-            default = Label("//quarkus/private:bazel_jacoco_reporter"),
-            cfg = config.exec(exec_group = "test"),
-            executable = True,
-        ),
-        "_jacoco_runner": attr.label(
-            default = "@bazel_tools//tools/jdk:JacocoCoverageRunner",
-            providers = [JavaInfo],
-        ),
         "_launcher_template": attr.label(
             default = Label("//quarkus/private:test_launcher.sh.tpl"),
             allow_single_file = True,
         ),
-        "_lcov_merger": attr.label(
-            default = configuration_field(fragment = "coverage", name = "output_generator"),
-            cfg = config.exec(exec_group = "test"),
-            executable = True,
-        ),
-    },
+    }
+    if integration:
+        attrs["app"] = attr.label(
+            mandatory = True,
+            cfg = dependency_cfg,
+            providers = [[QuarkusAppInfo], [QuarkusNativeInfo]],
+            doc = "Packaged quarkus_app or quarkus_app(native=True) target to launch.",
+        )
+        attrs["_allowlist_function_transition"] = attr.label(
+            default = "@bazel_tools//tools/allowlists/function_transition_allowlist",
+        )
+    else:
+        attrs.update({
+            "_coverage_reporter": attr.label(
+                default = Label("//quarkus/private:bazel_jacoco_reporter"),
+                cfg = config.exec(exec_group = "test"),
+                executable = True,
+            ),
+            "_jacoco_runner": attr.label(
+                default = "@bazel_tools//tools/jdk:JacocoCoverageRunner",
+                providers = [JavaInfo],
+            ),
+            "_lcov_merger": attr.label(
+                default = configuration_field(fragment = "coverage", name = "output_generator"),
+                cfg = config.exec(exec_group = "test"),
+                executable = True,
+            ),
+        })
+    return attrs
+
+quarkus_test = rule(
+    implementation = _quarkus_test_impl,
+    test = True,
+    attrs = _test_attrs(),
     doc = """\
 Internal rule — use quarkus_test() macro from @rules_quarkus//quarkus:defs.bzl instead.
 
@@ -189,3 +284,19 @@ runfiles jar paths, then QuarkusTestExtension uses it to bootstrap the
 application in Mode.TEST.
 """,
 )
+
+quarkus_integration_test = rule(
+    implementation = _quarkus_integration_test_impl,
+    test = True,
+    attrs = _test_attrs(integration = True),
+    doc = """\
+Internal rule — use quarkus_integration_test() from @rules_quarkus//quarkus:defs.bzl.
+
+Runs @QuarkusIntegrationTest-annotated JUnit 5 tests against a packaged Fast
+JAR or native executable while retaining Quarkus test resources and Dev
+Services through the serialized TEST-mode ApplicationModel.
+""",
+)
+
+build_test_args_for_test = _build_test_args
+integration_version_error_for_test = _integration_version_error
