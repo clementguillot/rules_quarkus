@@ -234,6 +234,72 @@ def _runtime_catalog(lock_data, resolver_report = None):
         "schemaVersion": "quarkus-bazel-runtime-catalog-v1",
     }
 
+def _runtime_resolution_roots(lock_data, lock_catalog):
+    """Returns the minimal Coursier roots, including relocated direct inputs."""
+    nodes_by_key = {node["coordinateKey"]: node for node in lock_catalog["nodes"]}
+    direct_keys = {key: True for key in lock_catalog["directArtifacts"]}
+    redundant_direct_keys = {}
+    for root_key in lock_catalog["directArtifacts"]:
+        reachable = {key: True for key in nodes_by_key[root_key]["dependencies"]}
+
+        # Starlark deliberately has no unbounded loops. At most N passes
+        # are needed to close a graph with N nodes, including cycles.
+        for _ in lock_catalog["nodes"]:
+            changed = False
+            for dependency_key in sorted(reachable.keys()):
+                dependency_node = nodes_by_key.get(dependency_key)
+                if dependency_node:
+                    for transitive_key in dependency_node["dependencies"]:
+                        if transitive_key not in reachable:
+                            reachable[transitive_key] = True
+                            changed = True
+            if not changed:
+                break
+        for dependency_key in reachable:
+            if dependency_key in direct_keys and dependency_key != root_key:
+                redundant_direct_keys[dependency_key] = True
+
+    roots = []
+    seen_roots = {}
+    for coordinate_key in lock_catalog["directArtifacts"]:
+        if coordinate_key in redundant_direct_keys:
+            continue
+        fields = nodes_by_key[coordinate_key]["coordinates"]
+        root = _coursier_artifact("{}:{}:{}:{}:{}".format(
+            fields["groupId"],
+            fields["artifactId"],
+            fields["classifier"],
+            fields["type"],
+            fields["version"],
+        )).fetch
+        if root not in seen_roots:
+            seen_roots[root] = True
+            roots.append(root)
+
+    # rules_jvm_external records an input artifact under its requested coordinates,
+    # but a Maven relocation stores only the destination artifact in `artifacts`.
+    # Such an input cannot appear in `directArtifacts`; its selected version is
+    # nevertheless retained in `conflict_resolution` and must remain a Coursier root
+    # so that Coursier can follow the relocation.
+    input_artifacts = lock_data.get("__INPUT_ARTIFACTS_HASH", {})
+    conflicts = lock_data.get("conflict_resolution", {})
+    if type(input_artifacts) != "dict" or type(conflicts) != "dict":
+        fail("Invalid rules_jvm_external v3 lock: input artifacts and conflict resolution must be objects")
+    for input_key in sorted(input_artifacts):
+        if input_key in direct_keys or input_key in nodes_by_key:
+            continue
+        selected = conflicts.get(input_key)
+        if not selected:
+            # Repositories and imported BOMs are also part of the input signature,
+            # but are not runtime artifacts and have no selected artifact coordinate.
+            continue
+        root = _coursier_artifact(selected).fetch
+        if root not in seen_roots:
+            seen_roots[root] = True
+            roots.append(root)
+
+    return roots
+
 def _write_runtime_catalog(rctx, java, lock_data = None, lock_catalog = None):
     if not rctx.attr.lock_file:
         catalog = {
@@ -247,46 +313,8 @@ def _write_runtime_catalog(rctx, java, lock_data = None, lock_catalog = None):
             lock_data = json.decode(rctx.read(rctx.attr.lock_file))
         if lock_catalog == None:
             lock_catalog = _runtime_catalog(lock_data)
-        nodes_by_key = {node["coordinateKey"]: node for node in lock_catalog["nodes"]}
-        direct_keys = {key: True for key in lock_catalog["directArtifacts"]}
-        redundant_direct_keys = {}
-        for root_key in lock_catalog["directArtifacts"]:
-            reachable = {key: True for key in nodes_by_key[root_key]["dependencies"]}
-
-            # Starlark deliberately has no unbounded loops. At most N passes
-            # are needed to close a graph with N nodes, including cycles.
-            for _ in lock_catalog["nodes"]:
-                changed = False
-                for dependency_key in sorted(reachable.keys()):
-                    dependency_node = nodes_by_key.get(dependency_key)
-                    if dependency_node:
-                        for transitive_key in dependency_node["dependencies"]:
-                            if transitive_key not in reachable:
-                                reachable[transitive_key] = True
-                                changed = True
-                if not changed:
-                    break
-            for dependency_key in reachable:
-                if dependency_key in direct_keys and dependency_key != root_key:
-                    redundant_direct_keys[dependency_key] = True
-
-        resolution_root_keys = [
-            key
-            for key in lock_catalog["directArtifacts"]
-            if key not in redundant_direct_keys
-        ]
-        roots = []
+        roots = _runtime_resolution_roots(lock_data, lock_catalog)
         forced_versions = _forced_versions_from_catalog(lock_catalog)
-        for coordinate_key in resolution_root_keys:
-            node = nodes_by_key[coordinate_key]
-            fields = node["coordinates"]
-            roots.append(_coursier_artifact("{}:{}:{}:{}:{}".format(
-                fields["groupId"],
-                fields["artifactId"],
-                fields["classifier"],
-                fields["type"],
-                fields["version"],
-            )).fetch)
         if roots:
             rctx.report_progress("Resolving Maven-faithful runtime dependency graph")
             result = _coursier_fetch(
@@ -349,6 +377,7 @@ def _write_platform_catalog(rctx):
 # Pure helpers exported only for Starlark unit tests. Production consumers use
 # the generated catalog file targets, never these implementation functions.
 runtime_catalog_for_test = _runtime_catalog
+runtime_resolution_roots_for_test = _runtime_resolution_roots
 maven_target_name_for_test = _maven_target_name
 
 def _coursier_artifact(coordinate):

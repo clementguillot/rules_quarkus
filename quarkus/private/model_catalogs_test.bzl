@@ -1,7 +1,7 @@
 "Unit tests for external model-catalog normalization."
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//quarkus:extensions.bzl", "conditional_catalog_for_test", "coursier_artifact_for_test", "coursier_report_coordinate_for_test", "deployment_catalog_for_test", "dev_mode_artifacts_for_test", "jar_target_name_for_test", "maven_target_name_for_test", "runtime_catalog_for_test", "runtime_discovery_artifacts_for_test")
+load("//quarkus:extensions.bzl", "conditional_catalog_for_test", "coursier_artifact_for_test", "coursier_report_coordinate_for_test", "deployment_catalog_for_test", "dev_mode_artifacts_for_test", "jar_target_name_for_test", "maven_target_name_for_test", "runtime_catalog_for_test", "runtime_discovery_artifacts_for_test", "runtime_resolution_roots_for_test")
 
 def _runtime_catalog_v3_test_impl(ctx):
     env = unittest.begin(ctx)
@@ -118,6 +118,108 @@ def _runtime_catalog_ignores_non_artifact_inputs_test_impl(ctx):
     return unittest.end(env)
 
 runtime_catalog_ignores_non_artifact_inputs_test = unittest.make(_runtime_catalog_ignores_non_artifact_inputs_test_impl)
+
+def _relocated_runtime_root_test_impl(ctx):
+    env = unittest.begin(ctx)
+    lock = {
+        "__INPUT_ARTIFACTS_HASH": {
+            "io.quarkus.platform:quarkus-bom": 1,
+            "io.quarkus:quarkus-junit5": 2,
+            "repositories": 3,
+        },
+        "artifacts": {
+            "io.quarkus:quarkus-junit": {"shasums": {"jar": "junit"}, "version": "3.33.2"},
+            "io.quarkus:quarkus-test-common": {"shasums": {"jar": "test-common"}, "version": "3.33.2"},
+            "io.smallrye:jandex": {"shasums": {"jar": "jandex"}, "version": "3.5.3"},
+        },
+        "conflict_resolution": {
+            "io.quarkus:quarkus-junit5": "io.quarkus:quarkus-junit5:3.33.2",
+        },
+        "dependencies": {
+            "io.quarkus:quarkus-junit": ["io.quarkus:quarkus-test-common"],
+            "io.quarkus:quarkus-test-common": ["io.smallrye:jandex"],
+            "io.smallrye:jandex": [],
+        },
+        "packages": {
+            "io.quarkus:quarkus-junit": ["io.quarkus.test.junit"],
+            "io.quarkus:quarkus-test-common": ["io.quarkus.test.common"],
+            "io.smallrye:jandex": ["org.jboss.jandex"],
+        },
+        "version": "3",
+    }
+
+    catalog = runtime_catalog_for_test(lock)
+
+    # The requested relocation source has no artifact entry, so it cannot be a
+    # catalog identity. It must still be sent to Coursier as a resolution root.
+    asserts.equals(env, [], catalog["directArtifacts"])
+    asserts.equals(
+        env,
+        ["io.quarkus:quarkus-junit5:3.33.2"],
+        runtime_resolution_roots_for_test(lock, catalog),
+    )
+    return unittest.end(env)
+
+relocated_runtime_root_test = unittest.make(_relocated_runtime_root_test_impl)
+
+def _relocated_runtime_dependency_closure_test_impl(ctx):
+    env = unittest.begin(ctx)
+    lock = {
+        "__INPUT_ARTIFACTS_HASH": {
+            "io.quarkus:quarkus-junit5": 1,
+        },
+        "artifacts": {
+            "io.quarkus:quarkus-junit": {"shasums": {"jar": "junit"}, "version": "3.33.2"},
+            "io.quarkus:quarkus-test-common": {"shasums": {"jar": "test-common"}, "version": "3.33.2"},
+            "io.smallrye:jandex": {"shasums": {"jar": "jandex"}, "version": "3.5.3"},
+        },
+        "conflict_resolution": {
+            "io.quarkus:quarkus-junit5": "io.quarkus:quarkus-junit5:3.33.2",
+        },
+        "dependencies": {
+            "io.quarkus:quarkus-junit": ["io.quarkus:quarkus-test-common"],
+            "io.quarkus:quarkus-test-common": ["io.smallrye:jandex"],
+            "io.smallrye:jandex": [],
+        },
+        "packages": {},
+        "version": "3",
+    }
+    resolver_report = {
+        "conflict_resolution": {},
+        "dependencies": [
+            {
+                "coord": "io.quarkus:quarkus-junit:3.33.2",
+                "directDependencies": ["io.quarkus:quarkus-test-common:3.33.2"],
+            },
+            {
+                "coord": "io.quarkus:quarkus-test-common:3.33.2",
+                "directDependencies": ["io.smallrye:jandex:3.5.3"],
+            },
+            {
+                "coord": "io.smallrye:jandex:3.5.3",
+                "directDependencies": [],
+            },
+        ],
+        "version": "0.1.0",
+    }
+
+    nodes = {
+        node["coordinateKey"]: node
+        for node in runtime_catalog_for_test(lock, resolver_report)["nodes"]
+    }
+    asserts.equals(
+        env,
+        ["io.quarkus:quarkus-test-common"],
+        nodes["io.quarkus:quarkus-junit"]["dependencies"],
+    )
+    asserts.equals(
+        env,
+        ["io.smallrye:jandex"],
+        nodes["io.quarkus:quarkus-test-common"]["dependencies"],
+    )
+    return unittest.end(env)
+
+relocated_runtime_dependency_closure_test = unittest.make(_relocated_runtime_dependency_closure_test_impl)
 
 def _runtime_discovery_artifacts_test_impl(ctx):
     env = unittest.begin(ctx)
@@ -294,6 +396,8 @@ def model_catalogs_test_suite():
         "model_catalogs_tests",
         runtime_catalog_v3_test,
         runtime_catalog_ignores_non_artifact_inputs_test,
+        relocated_runtime_root_test,
+        relocated_runtime_dependency_closure_test,
         runtime_discovery_artifacts_test,
         coursier_artifact_test,
         dev_mode_artifacts_test,
