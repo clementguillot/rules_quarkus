@@ -1,5 +1,5 @@
 load("@rules_java//java:java_library.bzl", "java_library")
-load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_test")
+load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_integration_test", "quarkus_test")
 
 java_library(
     name = "lib",
@@ -21,6 +21,23 @@ quarkus_app(
 quarkus_test(
     name = "test",
     srcs = glob(["src/test/java/**/*.java"]),
+    deps = [
+        ":lib",
+        "@maven//:io_quarkus_quarkus_jacoco",
+        "@maven//:io_quarkus_quarkus_junit",
+        "@maven//:io_rest_assured_rest_assured",
+        "@maven//:org_hamcrest_hamcrest",
+        "@maven//:org_junit_jupiter_junit_jupiter",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+        "@maven//:org_junit_platform_junit_platform_console_standalone",
+        "@maven//:org_junit_platform_junit_platform_launcher",
+    ],
+)
+
+quarkus_integration_test(
+    name = "integration_test",
+    srcs = glob(["src/test/java/**/*.java"]),
+    app = ":helloworld",
     deps = [
         ":lib",
         "@maven//:io_quarkus_quarkus_jacoco",

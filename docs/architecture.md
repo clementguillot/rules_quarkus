@@ -76,7 +76,9 @@ Current limitation: the extension consumes the first `quarkus.toolchain()` tag a
 
 A single generated repository containing everything needed to build Quarkus applications:
 
-- **`quarkus/defs.bzl`** — public API macros (`quarkus_app`, `quarkus_test`) with toolchain-specific defaults injected (quarkus version, quarkifier tool path, deployment deps)
+- **`quarkus/defs.bzl`** — public API macros (`quarkus_app`, `quarkus_test`,
+  `quarkus_integration_test`) with toolchain-specific defaults injected
+  (Quarkus version, quarkifier tool path, deployment deps)
 - **`quarkifier/tool.jar`** — the quarkifier deploy jar, resolved in priority order:
   1. **Local source build** — user provides `quarkifier_source_dir`, the extension builds and symlinks the deploy jar
   2. **GitHub release download** — fetches from `https://github.com/clementguillot/rules_quarkus/releases/`
@@ -196,7 +198,7 @@ rules_quarkus/
 │   └── private/
 │       ├── quarkus_app_impl.bzl    # quarkus_app rule implementation
 │       ├── quarkus_dev_impl.bzl    # quarkus_dev rule implementation
-│       ├── quarkus_test_impl.bzl   # quarkus_test rule implementation
+│       ├── quarkus_test_impl.bzl   # unit and integration test rule implementation
 │       ├── classpath_utils.bzl     # collect_runtime_classpath, collect_source_dirs
 │       ├── launcher.sh.tpl         # Production launcher script template
 │       ├── dev_launcher.sh.tpl     # Dev mode launcher script template

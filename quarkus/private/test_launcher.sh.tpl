@@ -19,6 +19,9 @@ QUARKUS_JACOCO_PRESENT="%{quarkus_jacoco_present}"
 JACOCO_RUNNER="${WORKSPACE_DIR}/%{jacoco_runner}"
 COVERAGE_REPORTER="${WORKSPACE_DIR}/%{coverage_reporter}"
 COVERAGE_JARS_SOURCE="${WORKSPACE_DIR}/%{coverage_jars_file}"
+TEST_KIND="%{test_kind}"
+ARTIFACT_TYPE="%{artifact_type}"
+ARTIFACT_PATH="${WORKSPACE_DIR}/%{artifact_path}"
 MODEL_REAL=$(realpath "$MODEL_FILE")
 case "$MODEL_REAL" in
   */bazel-out/*) MODEL_EXEC_ROOT="${MODEL_REAL%%/bazel-out/*}" ;;
@@ -80,7 +83,14 @@ done < "$DIRECT_JARS_FILE"
 
 # Phase 1: Generate serialized ApplicationModel at test time.
 MODEL_DIR=$(mktemp -d)
-trap "rm -rf $MODEL_DIR" EXIT
+ARTIFACT_METADATA_DIR=""
+_cleanup_test_dirs() {
+  rm -rf "$MODEL_DIR"
+  if [ -n "$ARTIFACT_METADATA_DIR" ]; then
+    rm -rf "$ARTIFACT_METADATA_DIR"
+  fi
+}
+trap _cleanup_test_dirs EXIT
 
 (cd "$MODEL_EXEC_ROOT" && "$JAVA" \
   -Djava.util.logging.manager=org.jboss.logmanager.LogManager \
@@ -111,8 +121,9 @@ fi
 # Phase 2: Run JUnit with the serialized model.
 # OUTPUT_SOURCES_DIR tells AppMakerHelper to add the user's jars to the
 # application root so Quarkus scans them for @Path endpoints and CDI beans.
-# Auto-discover test classes from user jars if no explicit selectors given.
-# Scan direct dep jars for .class files matching JUnit's default test pattern.
+# Auto-discover test classes from user jars if no explicit selectors were given.
+# Unit tests follow JUnit's default naming pattern while integration tests
+# follow the Maven Failsafe-compatible *IT convention.
 TEST_ARGS="%{test_args}"
 JAR_CMD="${WORKSPACE_DIR}/%{java_home}/bin/jar"
 if ! echo "$TEST_ARGS" | grep -q '\-\-select-\|--scan-'; then
@@ -122,7 +133,11 @@ if ! echo "$TEST_ARGS" | grep -q '\-\-select-\|--scan-'; then
         while IFS= read -r cls; do
           cls="${cls%.class}"
           cls="${cls//\//.}"
-          if echo "$cls" | grep -qE '(^Test|[.$]Test|Tests?$)' && ! echo "$cls" | grep -qE 'IT$'; then
+          if [ "$TEST_KIND" = "integration" ] && echo "$cls" | grep -qE 'IT$'; then
+            TEST_ARGS="${TEST_ARGS} --select-class=${cls}"
+          elif [ "$TEST_KIND" != "integration" ] &&
+              echo "$cls" | grep -qE '(^Test|[.$]Test|Tests?$)' &&
+              ! echo "$cls" | grep -qE 'IT$'; then
             TEST_ARGS="${TEST_ARGS} --select-class=${cls}"
           fi
         done < <("$JAR_CMD" tf "$jar_path" 2>/dev/null | grep '\.class$' | grep -v '\$')
@@ -182,6 +197,37 @@ _write_bazel_test_xml() {
 TEST_JVM_ARGS=(
   "-Djava.util.logging.manager=org.jboss.logmanager.LogManager"
 )
+if [ "$TEST_KIND" = "integration" ]; then
+  if [ "$ARTIFACT_TYPE" = "native" ]; then
+    if [ ! -x "$ARTIFACT_PATH" ]; then
+      echo "ERROR: Quarkus native integration-test artifact is missing or not executable: $ARTIFACT_PATH" >&2
+      exit 1
+    fi
+  elif [ "$ARTIFACT_TYPE" = "jar" ]; then
+    if [ ! -f "$ARTIFACT_PATH" ]; then
+      echo "ERROR: Quarkus Fast JAR runner is missing: $ARTIFACT_PATH" >&2
+      exit 1
+    fi
+  else
+    echo "ERROR: Unsupported Quarkus integration-test artifact type: $ARTIFACT_TYPE" >&2
+    exit 1
+  fi
+
+  ARTIFACT_METADATA_DIR=$(mktemp -d)
+  {
+    printf 'type=%s\n' "$ARTIFACT_TYPE"
+    printf 'path=%s\n' "$ARTIFACT_PATH"
+  } > "$ARTIFACT_METADATA_DIR/quarkus-artifact.properties"
+
+  TEST_JVM_ARGS+=(
+    "-Dbuild.output.directory=${ARTIFACT_METADATA_DIR}"
+    "-Dquarkus.http.test-port=0"
+    "-Dquarkus.http.test-ssl-port=0"
+  )
+  if [ "$ARTIFACT_TYPE" = "native" ]; then
+    TEST_JVM_ARGS+=("-Dnative.image.path=${ARTIFACT_PATH}")
+  fi
+fi
 COVERAGE_EXEC_FILE=""
 if [ "$COVERAGE_ENABLED" = "true" ]; then
   COVERAGE_EXEC_FILE=$(mktemp "${TEST_TMPDIR:-/tmp}/quarkus-jacoco.XXXXXX")

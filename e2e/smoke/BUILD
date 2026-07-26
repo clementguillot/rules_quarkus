@@ -1,6 +1,6 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@rules_java//java:java_library.bzl", "java_library")
-load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_test")
+load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_integration_test", "quarkus_test")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load(":assert_junit_xml.bzl", "assert_junit_xml_test")
 load(":expect_test_failure.bzl", "expect_test_failure_test")
@@ -55,12 +55,26 @@ quarkus_test(
     ],
 )
 
+quarkus_integration_test(
+    name = "integration_test",
+    app = ":app",
+    deps = [":test_lib"],
+)
+
 assert_junit_xml_test(
     name = "junit_xml_report_test",
     expected_class = "smoke.GreetingResourceTest",
     expected_test = "testHelloEndpoint()",
     tags = ["exclusive"],
     target = ":test",
+)
+
+assert_junit_xml_test(
+    name = "integration_junit_xml_report_test",
+    expected_class = "smoke.GreetingResourceIT",
+    expected_test = "testHelloEndpoint()",
+    tags = ["exclusive"],
+    target = ":integration_test",
 )
 
 build_test(

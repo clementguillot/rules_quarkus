@@ -3,7 +3,7 @@
 [![CI](https://github.com/clementguillot/rules_quarkus/actions/workflows/ci.yaml/badge.svg?branch=main&event=push)](https://github.com/clementguillot/rules_quarkus/actions/workflows/ci.yaml)
 [![Release](https://img.shields.io/github/v/release/clementguillot/rules_quarkus?label=Release)](https://github.com/clementguillot/rules_quarkus/releases/latest)
 
-Bazel rules for building and running [Quarkus](https://quarkus.io/) applications. Supports `quarkus_app` (production Fast-Jar), dev mode with hot-reload, `quarkus_test` (@QuarkusTest execution), and `quarkus_extension_runtime` (building, using, and publishing custom Quarkus extensions — see [Building Quarkus Extensions](docs/extensions.md) and [`examples/demo_extension`](examples/demo_extension)).
+Bazel rules for building and running [Quarkus](https://quarkus.io/) applications. Supports `quarkus_app` (production Fast-Jar and native executables), dev mode with hot-reload, `quarkus_test` (`@QuarkusTest`), `quarkus_integration_test` (`@QuarkusIntegrationTest`), and `quarkus_extension_runtime` (building, using, and publishing custom Quarkus extensions — see [Building Quarkus Extensions](docs/extensions.md) and [`examples/demo_extension`](examples/demo_extension)).
 
 ## Installation
 
@@ -18,7 +18,12 @@ bazel_dep(name = "com_clementguillot_rules_quarkus", version = "<VERSION>")
 ## Usage
 
 ```starlark
-load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_test")
+load(
+    "@rules_quarkus//quarkus:defs.bzl",
+    "quarkus_app",
+    "quarkus_integration_test",
+    "quarkus_test",
+)
 
 quarkus_app(
     name = "app",
@@ -30,12 +35,19 @@ quarkus_test(
     name = "test",
     deps = [":test_lib"],
 )
+
+quarkus_integration_test(
+    name = "integration_test",
+    app = ":app",
+    deps = [":test_lib"],
+)
 ```
 
 ```bash
 bazel run //:app       # Production mode
 bazel run //:app_dev   # Dev mode (hot-reload + Dev UI)
 bazel test //:test     # @QuarkusTest
+bazel test //:integration_test # @QuarkusIntegrationTest against the Fast JAR
 bazel coverage //:test # Bazel LCOV coverage
 ```
 
