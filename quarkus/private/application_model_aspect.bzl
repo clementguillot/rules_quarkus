@@ -7,6 +7,7 @@ QuarkusBazelTargetGraphInfo = provider(
     doc = "Internal dependency-graph fragments produced by the Quarkus model aspect.",
     fields = {
         "artifacts": "Depset of runtime artifact Files described by this target graph.",
+        "coordinate_keys": "Depset of groupId:artifactId keys in this target graph.",
         "deployment_artifacts": "Depset of artifact Files in local deployment graphs.",
         "deployment_fragments": "Depset of fragments in local deployment graphs.",
         "fragments": "Depset of runtime JSON fragments for this target graph.",
@@ -70,6 +71,26 @@ def _coordinates(group_id, artifact_id, version):
         "type": "jar",
         "version": version,
     }
+
+def _coordinate_key(group_id, artifact_id):
+    return group_id + ":" + artifact_id
+
+def _maven_coordinate_keys(ctx):
+    coordinates = []
+    if hasattr(ctx.rule.attr, "maven_coordinates"):
+        coordinates.append(ctx.rule.attr.maven_coordinates)
+    if hasattr(ctx.rule.attr, "tags"):
+        coordinates.extend([
+            tag.removeprefix("maven_coordinates=")
+            for tag in ctx.rule.attr.tags
+            if tag.startswith("maven_coordinates=")
+        ])
+    keys = []
+    for coordinate in coordinates:
+        parts = coordinate.split(":")
+        if len(parts) >= 2:
+            keys.append(_coordinate_key(parts[0], parts[1]))
+    return keys
 
 def _extract_workspace_outputs(ctx, target, output_jars, suffix = ""):
     if target.label.workspace_name:
@@ -136,7 +157,8 @@ def _extension_target_facts(ctx, target):
 
     Returns a struct with: direct_fragments, direct_artifacts, root_edges,
     root_ids, extra_transitive_fragments, extra_transitive_artifacts,
-    extra_deployment_fragments, extra_deployment_artifacts,
+    extra_transitive_coordinate_keys, extra_deployment_fragments,
+    extra_deployment_artifacts,
     local_deployments, local_runtime_aliases.
     """
     runtime_graphs = _graphs_for_attr(ctx, "runtime")
@@ -200,6 +222,7 @@ def _extension_target_facts(ctx, target):
         extra_deployment_artifacts = extra_deployment_artifacts,
         extra_deployment_fragments = extra_deployment_fragments,
         extra_transitive_artifacts = runtime_graph.artifacts,
+        extra_transitive_coordinate_keys = runtime_graph.coordinate_keys,
         extra_transitive_fragments = runtime_graph.fragments,
         local_deployments = local_deployments,
         local_runtime_aliases = local_runtime_aliases,
@@ -211,6 +234,7 @@ def _application_model_aspect_impl(target, ctx):
     child_graphs, edges = _standard_child_graphs(ctx)
     transitive_fragments = [graph.fragments for graph in child_graphs]
     transitive_artifacts = [graph.artifacts for graph in child_graphs]
+    transitive_coordinate_keys = [graph.coordinate_keys for graph in child_graphs]
     deployment_fragments = [graph.deployment_fragments for graph in child_graphs]
     deployment_artifacts = [graph.deployment_artifacts for graph in child_graphs]
     local_deployments = []
@@ -221,10 +245,13 @@ def _application_model_aspect_impl(target, ctx):
 
     direct_fragments = []
     direct_artifacts = []
+    direct_coordinate_keys = []
     root_ids = []
     root_edges = []
     if JavaInfo in target and QuarkusExtensionInfo in target:
         facts = _extension_target_facts(ctx, target)
+        extension = target[QuarkusExtensionInfo]
+        direct_coordinate_keys.append(_coordinate_key(extension.group_id, extension.artifact_id))
         direct_fragments.extend(facts.direct_fragments)
         direct_artifacts.extend(facts.direct_artifacts)
         root_edges = facts.root_edges
@@ -235,11 +262,13 @@ def _application_model_aspect_impl(target, ctx):
         # local_runtime_aliases without materializing a phantom dependency.
         transitive_fragments.append(facts.extra_transitive_fragments)
         transitive_artifacts.append(facts.extra_transitive_artifacts)
+        transitive_coordinate_keys.append(facts.extra_transitive_coordinate_keys)
         deployment_fragments.append(facts.extra_deployment_fragments)
         deployment_artifacts.append(facts.extra_deployment_artifacts)
         local_deployments.extend(facts.local_deployments)
         local_runtime_aliases.extend(facts.local_runtime_aliases)
     elif JavaInfo in target:
+        direct_coordinate_keys.extend(_maven_coordinate_keys(ctx))
         root_edges = edges
         runtime_outputs = target[JavaInfo].runtime_output_jars
         workspace_outputs = _extract_workspace_outputs(ctx, target, runtime_outputs)
@@ -259,6 +288,7 @@ def _application_model_aspect_impl(target, ctx):
     return [
         QuarkusBazelTargetGraphInfo(
             artifacts = depset(direct = direct_artifacts, transitive = transitive_artifacts),
+            coordinate_keys = depset(direct = direct_coordinate_keys, transitive = transitive_coordinate_keys),
             deployment_artifacts = depset(transitive = deployment_artifacts),
             deployment_fragments = depset(transitive = deployment_fragments),
             fragments = depset(direct = direct_fragments, transitive = transitive_fragments),
@@ -305,6 +335,20 @@ def collect_deployment_model_fragments(deps):
 def collect_deployment_model_artifacts(deps):
     """Collects artifacts referenced by local deployment fragments."""
     return _collect_graph_depset(deps, "deployment_artifacts")
+
+def has_maven_artifact(deps, group_id, artifact_id):
+    """Checks whether the resolved dependency graph contains a Maven artifact.
+
+    Args:
+        deps: Direct dependencies carrying application-model graph providers.
+        group_id: Maven groupId to match.
+        artifact_id: Maven artifactId to match.
+
+    Returns:
+        True when the graph contains the requested groupId:artifactId.
+    """
+    coordinate_key = _coordinate_key(group_id, artifact_id)
+    return coordinate_key in _collect_graph_depset(deps, "coordinate_keys").to_list()
 
 def _collect_unique_mappings(deps, field, key_field, value_field, label):
     """Deduplicates mappings from a graph provider field across deps.

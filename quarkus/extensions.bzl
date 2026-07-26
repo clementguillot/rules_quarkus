@@ -75,12 +75,29 @@ def _coordinate_fields(coordinate_key, version):
         "version": version,
     }
 
-def _resolved_coordinate_keys(artifact_key, artifact, dependencies):
+def _lock_coordinate_keys(lock_data, dependencies):
+    """Returns every resolved coordinate identity present in a v3 lock."""
+    coordinate_keys = {}
+    for dependency_key, direct_dependencies in dependencies.items():
+        coordinate_keys[dependency_key] = True
+        if type(direct_dependencies) != "list":
+            fail("Invalid dependency list for '{}' in maven lock file".format(dependency_key))
+        for coordinate_key in direct_dependencies:
+            coordinate_keys[coordinate_key] = True
+    packages = lock_data.get("packages", {})
+    if type(packages) != "dict":
+        fail("Invalid rules_jvm_external v3 lock: 'packages' must be an object")
+    for coordinate_key in packages:
+        coordinate_keys[coordinate_key] = True
+    return coordinate_keys
+
+def _resolved_coordinate_keys(artifact_key, artifact, dependency_coordinate_keys):
     """Returns every concrete lock key represented by an artifact entry.
 
     rules_jvm_external v3 keys `artifacts` by G:A even when the same artifact
     resolves more than one file (for example default and `runtime` classifier
-    JARs). The dependency graph retains the concrete identities, so it is
+    JARs). The dependency graph retains the concrete identities, including
+    leaf artifacts which appear only as dependency values, so it is
     authoritative whenever it contains matching entries.
     """
     if len(artifact_key.split(":")) > 2:
@@ -89,7 +106,7 @@ def _resolved_coordinate_keys(artifact_key, artifact, dependencies):
     prefix = artifact_key + ":"
     graph_keys = [
         key
-        for key in dependencies
+        for key in dependency_coordinate_keys
         if key == artifact_key or key.startswith(prefix)
     ]
     if graph_keys:
@@ -111,6 +128,10 @@ def _runtime_catalog(lock_data, resolver_report = None):
     dependencies = lock_data.get("dependencies", {})
     if type(artifacts) != "dict" or type(dependencies) != "dict":
         fail("Invalid rules_jvm_external v3 lock: 'artifacts' and 'dependencies' must be objects")
+    input_artifacts = lock_data.get("__INPUT_ARTIFACTS_HASH", {})
+    if type(input_artifacts) != "dict":
+        fail("Invalid rules_jvm_external v3 lock: '__INPUT_ARTIFACTS_HASH' must be an object")
+    dependency_coordinate_keys = _lock_coordinate_keys(lock_data, dependencies)
 
     nodes_by_key = {}
     base_to_resolved = {}
@@ -118,7 +139,7 @@ def _runtime_catalog(lock_data, resolver_report = None):
         artifact = artifacts[artifact_key]
         if type(artifact) != "dict" or not artifact.get("version"):
             fail("Invalid artifact entry '{}' in maven lock file".format(artifact_key))
-        coordinate_keys = _resolved_coordinate_keys(artifact_key, artifact, dependencies)
+        coordinate_keys = _resolved_coordinate_keys(artifact_key, artifact, dependency_coordinate_keys)
         base_to_resolved[artifact_key] = artifact_key if artifact_key in coordinate_keys else coordinate_keys[0]
         for coordinate_key in coordinate_keys:
             base_to_resolved[coordinate_key] = coordinate_key
@@ -200,7 +221,7 @@ def _runtime_catalog(lock_data, resolver_report = None):
     ordered_conflicts = {key: conflicts[key] for key in sorted(conflicts)}
     direct_artifacts = [
         base_to_resolved[key]
-        for key in sorted(lock_data.get("__INPUT_ARTIFACTS_HASH", {}))
+        for key in sorted(input_artifacts)
         # The input signature also contains repositories and BOMs. Neither is
         # a resolved runtime artifact; resolved artifacts always have an entry
         # in the v3 lock's `artifacts` object.
@@ -212,6 +233,72 @@ def _runtime_catalog(lock_data, resolver_report = None):
         "nodes": nodes,
         "schemaVersion": "quarkus-bazel-runtime-catalog-v1",
     }
+
+def _runtime_resolution_roots(lock_data, lock_catalog):
+    """Returns the minimal Coursier roots, including relocated direct inputs."""
+    nodes_by_key = {node["coordinateKey"]: node for node in lock_catalog["nodes"]}
+    direct_keys = {key: True for key in lock_catalog["directArtifacts"]}
+    redundant_direct_keys = {}
+    for root_key in lock_catalog["directArtifacts"]:
+        reachable = {key: True for key in nodes_by_key[root_key]["dependencies"]}
+
+        # Starlark deliberately has no unbounded loops. At most N passes
+        # are needed to close a graph with N nodes, including cycles.
+        for _ in lock_catalog["nodes"]:
+            changed = False
+            for dependency_key in sorted(reachable.keys()):
+                dependency_node = nodes_by_key.get(dependency_key)
+                if dependency_node:
+                    for transitive_key in dependency_node["dependencies"]:
+                        if transitive_key not in reachable:
+                            reachable[transitive_key] = True
+                            changed = True
+            if not changed:
+                break
+        for dependency_key in reachable:
+            if dependency_key in direct_keys and dependency_key != root_key:
+                redundant_direct_keys[dependency_key] = True
+
+    roots = []
+    seen_roots = {}
+    for coordinate_key in lock_catalog["directArtifacts"]:
+        if coordinate_key in redundant_direct_keys:
+            continue
+        fields = nodes_by_key[coordinate_key]["coordinates"]
+        root = _coursier_artifact("{}:{}:{}:{}:{}".format(
+            fields["groupId"],
+            fields["artifactId"],
+            fields["classifier"],
+            fields["type"],
+            fields["version"],
+        )).fetch
+        if root not in seen_roots:
+            seen_roots[root] = True
+            roots.append(root)
+
+    # rules_jvm_external records an input artifact under its requested coordinates,
+    # but a Maven relocation stores only the destination artifact in `artifacts`.
+    # Such an input cannot appear in `directArtifacts`; its selected version is
+    # nevertheless retained in `conflict_resolution` and must remain a Coursier root
+    # so that Coursier can follow the relocation.
+    input_artifacts = lock_data.get("__INPUT_ARTIFACTS_HASH", {})
+    conflicts = lock_data.get("conflict_resolution", {})
+    if type(input_artifacts) != "dict" or type(conflicts) != "dict":
+        fail("Invalid rules_jvm_external v3 lock: input artifacts and conflict resolution must be objects")
+    for input_key in sorted(input_artifacts):
+        if input_key in direct_keys or input_key in nodes_by_key:
+            continue
+        selected = conflicts.get(input_key)
+        if not selected:
+            # Repositories and imported BOMs are also part of the input signature,
+            # but are not runtime artifacts and have no selected artifact coordinate.
+            continue
+        root = _coursier_artifact(selected).fetch
+        if root not in seen_roots:
+            seen_roots[root] = True
+            roots.append(root)
+
+    return roots
 
 def _write_runtime_catalog(rctx, java, lock_data = None, lock_catalog = None):
     if not rctx.attr.lock_file:
@@ -226,46 +313,8 @@ def _write_runtime_catalog(rctx, java, lock_data = None, lock_catalog = None):
             lock_data = json.decode(rctx.read(rctx.attr.lock_file))
         if lock_catalog == None:
             lock_catalog = _runtime_catalog(lock_data)
-        nodes_by_key = {node["coordinateKey"]: node for node in lock_catalog["nodes"]}
-        direct_keys = {key: True for key in lock_catalog["directArtifacts"]}
-        redundant_direct_keys = {}
-        for root_key in lock_catalog["directArtifacts"]:
-            reachable = {key: True for key in nodes_by_key[root_key]["dependencies"]}
-
-            # Starlark deliberately has no unbounded loops. At most N passes
-            # are needed to close a graph with N nodes, including cycles.
-            for _ in lock_catalog["nodes"]:
-                changed = False
-                for dependency_key in sorted(reachable.keys()):
-                    dependency_node = nodes_by_key.get(dependency_key)
-                    if dependency_node:
-                        for transitive_key in dependency_node["dependencies"]:
-                            if transitive_key not in reachable:
-                                reachable[transitive_key] = True
-                                changed = True
-                if not changed:
-                    break
-            for dependency_key in reachable:
-                if dependency_key in direct_keys and dependency_key != root_key:
-                    redundant_direct_keys[dependency_key] = True
-
-        resolution_root_keys = [
-            key
-            for key in lock_catalog["directArtifacts"]
-            if key not in redundant_direct_keys
-        ]
-        roots = []
+        roots = _runtime_resolution_roots(lock_data, lock_catalog)
         forced_versions = _forced_versions_from_catalog(lock_catalog)
-        for coordinate_key in resolution_root_keys:
-            node = nodes_by_key[coordinate_key]
-            fields = node["coordinates"]
-            roots.append(_coursier_artifact("{}:{}:{}:{}:{}".format(
-                fields["groupId"],
-                fields["artifactId"],
-                fields["classifier"],
-                fields["type"],
-                fields["version"],
-            )).fetch)
         if roots:
             rctx.report_progress("Resolving Maven-faithful runtime dependency graph")
             result = _coursier_fetch(
@@ -328,6 +377,7 @@ def _write_platform_catalog(rctx):
 # Pure helpers exported only for Starlark unit tests. Production consumers use
 # the generated catalog file targets, never these implementation functions.
 runtime_catalog_for_test = _runtime_catalog
+runtime_resolution_roots_for_test = _runtime_resolution_roots
 maven_target_name_for_test = _maven_target_name
 
 def _coursier_artifact(coordinate):
@@ -374,13 +424,14 @@ def _runtime_discovery_artifacts(lock_data):
     dependencies = lock_data.get("dependencies", {})
     if type(artifacts) != "dict" or type(dependencies) != "dict":
         fail("Invalid rules_jvm_external v3 lock: 'artifacts' and 'dependencies' must be objects")
+    dependency_coordinate_keys = _lock_coordinate_keys(lock_data, dependencies)
 
     result = []
     for artifact_key in sorted(artifacts):
         artifact = artifacts[artifact_key]
         if type(artifact) != "dict" or not artifact.get("version"):
             fail("Invalid artifact entry '{}' in maven lock file".format(artifact_key))
-        for coordinate_key in _resolved_coordinate_keys(artifact_key, artifact, dependencies):
+        for coordinate_key in _resolved_coordinate_keys(artifact_key, artifact, dependency_coordinate_keys):
             fields = _coordinate_fields(coordinate_key, artifact["version"])
             if fields["type"] != "jar" or fields["classifier"] in ["sources", "javadoc"]:
                 continue
@@ -876,16 +927,24 @@ def _maven_relative_path(jar_path):
 def _jar_target_name(relative_jar_path):
     """Derives the java_import target name from the Maven-relative jar path.
 
-    Uses the group/artifact/version directory — unique per GAV — rather than
-    the bare file name: different groupIds can publish the same
-    artifactId-version.jar, and a name collision must never drop a jar from
-    the deployment classpath.
+    Preserves the historical GAV target name for an ordinary jar and appends
+    the concrete file suffix for classifiers so variants cannot collide.
     """
-    if "/" in relative_jar_path:
-        base = relative_jar_path.rsplit("/", 1)[0]
-    else:
+    parts = relative_jar_path.split("/")
+    if len(parts) < 3:
         base = relative_jar_path.removesuffix(".jar")
+    else:
+        base = "/".join(parts[:-1])
+        artifact_id = parts[-3]
+        version = parts[-2]
+        file_stem = parts[-1].removesuffix(".jar")
+        default_stem = artifact_id + "-" + version
+        if file_stem != default_stem:
+            suffix = file_stem.removeprefix(default_stem + "-")
+            base += "/" + suffix
     return base.replace("/", "_").replace(".", "_").replace("-", "_")
+
+jar_target_name_for_test = _jar_target_name
 
 def _copy_jars_into_repo(rctx, copies):
     """Copies resolved jars into the repository directory.

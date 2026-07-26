@@ -36,6 +36,7 @@ quarkus_test(
 bazel run //:app       # Production mode
 bazel run //:app_dev   # Dev mode (hot-reload + Dev UI)
 bazel test //:test     # @QuarkusTest
+bazel coverage //:test # Bazel LCOV coverage
 ```
 
 See the [Getting Started guide](docs/getting-started.md) for full setup instructions.
