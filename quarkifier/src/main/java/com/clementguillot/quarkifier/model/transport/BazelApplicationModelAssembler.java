@@ -127,6 +127,7 @@ public final class BazelApplicationModelAssembler {
     private final Map<String, ExtensionDescriptor> descriptorsByRuntime = new LinkedHashMap<>();
     private final Map<String, MutableNode> nodes = new LinkedHashMap<>();
     private final Map<String, MutableNode> nodesByCoordinates = new HashMap<>();
+    private final Map<String, MutableNode> runtimeNodesByGACT = new HashMap<>();
     private final Map<String, String> localDeployments = new LinkedHashMap<>();
     private final Map<String, String> localRuntimeAliases = new LinkedHashMap<>();
     private final Map<String, String> extensionDeployments = new LinkedHashMap<>();
@@ -290,6 +291,7 @@ public final class BazelApplicationModelAssembler {
                 fragment.bazelLabel());
         addNode(node);
         runtimeNodeIds.add(id);
+        runtimeNodesByGACT.putIfAbsent(gact(coordinates), node);
       }
     }
 
@@ -1146,6 +1148,7 @@ public final class BazelApplicationModelAssembler {
     private String addDeploymentClosure(String rootCoordinates, String reinsertionParentId) {
       Deque<String> pending = new ArrayDeque<>();
       Set<String> visited = new HashSet<>();
+      String rootId = null;
       pending.add(rootCoordinates);
       while (!pending.isEmpty()) {
         String canonical = pending.removeFirst();
@@ -1160,27 +1163,38 @@ public final class BazelApplicationModelAssembler {
         if (node == null) {
           ArtifactCoordinates coordinates =
               BazelArtifactCoordinates.parse(catalogNode.coordinate());
-          String path = inputs.deploymentPaths().get(catalogNode.repoPath());
-          if (isBlank(path)) {
-            fail(
-                "no action input path was supplied for deployment artifact "
-                    + canonical
-                    + " (catalog path "
-                    + catalogNode.repoPath()
-                    + ")");
+          // The deployment resolver may select a different version than the runtime BOM.
+          // When a runtime node for the same G:A:C:T already exists, reuse it — the runtime
+          // version is authoritative because Bazel's resolver already picked it.
+          node = runtimeNodesByGACT.get(gact(coordinates));
+          if (node == null) {
+            String path = inputs.deploymentPaths().get(catalogNode.repoPath());
+            if (isBlank(path)) {
+              fail(
+                  "no action input path was supplied for deployment artifact "
+                      + canonical
+                      + " (catalog path "
+                      + catalogNode.repoPath()
+                      + ")");
+            }
+            node =
+                new MutableNode(
+                    deploymentId(coordinates),
+                    NodeKind.DEPLOYMENT,
+                    coordinates,
+                    List.of(path),
+                    null,
+                    null);
+            node.deployment = true;
+            addNode(node);
+          } else {
+            node.deployment = true;
           }
-          node =
-              new MutableNode(
-                  deploymentId(coordinates),
-                  NodeKind.DEPLOYMENT,
-                  coordinates,
-                  List.of(path),
-                  null,
-                  null);
-          node.deployment = true;
-          addNode(node);
         } else {
           node.deployment = true;
+        }
+        if (rootId == null) {
+          rootId = node.id;
         }
         for (String dependency : catalogNode.dependencies()) {
           ArtifactCoordinates targetCoordinates = BazelArtifactCoordinates.parse(dependency);
@@ -1190,6 +1204,9 @@ public final class BazelApplicationModelAssembler {
             fail("deployment graph contains an unresolved edge to " + targetCanonical);
           }
           MutableNode target = nodesByCoordinates.get(targetCanonical);
+          if (target == null) {
+            target = runtimeNodesByGACT.get(gact(targetCoordinates));
+          }
           String targetId = target == null ? deploymentId(targetCoordinates) : target.id;
           if (!targetId.equals(reinsertionParentId)
               && !reaches(targetId, reinsertionParentId)
@@ -1205,7 +1222,7 @@ public final class BazelApplicationModelAssembler {
           pending.addLast(targetCanonical);
         }
       }
-      return nodesByCoordinates.get(rootCoordinates).id;
+      return rootId;
     }
 
     private BazelApplicationModel materialize(String applicationId) throws IOException {
@@ -1521,6 +1538,16 @@ public final class BazelApplicationModelAssembler {
 
   private static String deploymentId(ArtifactCoordinates coordinates) {
     return "deployment:" + BazelArtifactCoordinates.canonical(coordinates);
+  }
+
+  private static String gact(ArtifactCoordinates coordinates) {
+    return coordinates.groupId()
+        + ":"
+        + coordinates.artifactId()
+        + ":"
+        + coordinates.classifier()
+        + ":"
+        + coordinates.type();
   }
 
   private static String conditionalId(ArtifactCoordinates coordinates) {
