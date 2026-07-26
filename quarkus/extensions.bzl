@@ -1302,13 +1302,7 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
             **common
         )
 
-def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_classes = None, jvm_flags = None, **kwargs):
-    \"\"\"Runs @QuarkusTest-annotated JUnit 5 tests with full Quarkus augmentation.
-
-    If srcs is provided, a java_library is created internally to compile the
-    test sources. If srcs is omitted, deps must include a pre-compiled
-    java_library containing the test classes.
-    \"\"\"
+def _prepare_test_target(name, srcs, deps, test_packages, test_classes, jvm_flags, kwargs):
     test_deps = deps or []
     if srcs:
         compile_deps = []
@@ -1334,6 +1328,28 @@ def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_clas
         test_kwargs["jvm_flags"] = jvm_flags
     test_kwargs.update(kwargs)
 
+    return struct(
+        deps = test_deps,
+        kwargs = test_kwargs,
+    )
+
+def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_classes = None, jvm_flags = None, **kwargs):
+    \"\"\"Runs @QuarkusTest-annotated JUnit 5 tests with full Quarkus augmentation.
+
+    If srcs is provided, a java_library is created internally to compile the
+    test sources. If srcs is omitted, deps must include a pre-compiled
+    java_library containing the test classes.
+    \"\"\"
+    prepared = _prepare_test_target(
+        name,
+        srcs,
+        deps,
+        test_packages,
+        test_classes,
+        jvm_flags,
+        kwargs,
+    )
+
     _quarkus_test(
         name = name,
         quarkus_version = _QUARKUS_VERSION,
@@ -1342,12 +1358,12 @@ def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_clas
         conditional_deps = _CONDITIONAL_DEPS,
         conditional_catalog = _CONDITIONAL_CATALOG,
         deployment_catalog = _DEPLOYMENT_CATALOG,
-        deps = test_deps,
+        deps = prepared.deps,
         model_private_deps = _TEST_INFRASTRUCTURE_DEPS,
         platform_catalog = _PLATFORM_CATALOG,
         platform_properties = _PLATFORM_PROPERTIES,
         runtime_catalog = _RUNTIME_CATALOG,
-        **test_kwargs
+        **prepared.kwargs
     )
 
 def quarkus_integration_test(name, app, srcs = None, deps = None, test_packages = None,
@@ -1363,30 +1379,15 @@ def quarkus_integration_test(name, app, srcs = None, deps = None, test_packages 
     test sources. If srcs is omitted, deps must include a pre-compiled
     java_library containing the integration-test classes.
     \"\"\"
-    test_deps = deps or []
-    if srcs:
-        compile_deps = []
-        seen_compile_deps = {{}}
-        for dep in test_deps + _TEST_INFRASTRUCTURE_DEPS:
-            if dep not in seen_compile_deps:
-                seen_compile_deps[dep] = True
-                compile_deps.append(dep)
-        java_library(
-            name = name + "_lib",
-            srcs = srcs,
-            deps = compile_deps,
-            testonly = True,
-        )
-        test_deps = [":" + name + "_lib"]
-
-    test_kwargs = {{}}
-    if test_packages:
-        test_kwargs["test_packages"] = test_packages
-    if test_classes:
-        test_kwargs["test_classes"] = test_classes
-    if jvm_flags:
-        test_kwargs["jvm_flags"] = jvm_flags
-    test_kwargs.update(kwargs)
+    prepared = _prepare_test_target(
+        name,
+        srcs,
+        deps,
+        test_packages,
+        test_classes,
+        jvm_flags,
+        kwargs,
+    )
 
     _quarkus_integration_test(
         name = name,
@@ -1397,12 +1398,12 @@ def quarkus_integration_test(name, app, srcs = None, deps = None, test_packages 
         conditional_deps = _CONDITIONAL_DEPS,
         conditional_catalog = _CONDITIONAL_CATALOG,
         deployment_catalog = _DEPLOYMENT_CATALOG,
-        deps = test_deps,
+        deps = prepared.deps,
         model_private_deps = _TEST_INFRASTRUCTURE_DEPS,
         platform_catalog = _PLATFORM_CATALOG,
         platform_properties = _PLATFORM_PROPERTIES,
         runtime_catalog = _RUNTIME_CATALOG,
-        **test_kwargs
+        **prepared.kwargs
     )
 
 def quarkus_extension_runtime(name, group_id, version, runtime_target, deployment_target,

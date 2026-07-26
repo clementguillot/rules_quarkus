@@ -4,6 +4,7 @@ load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_integration_tes
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load(":assert_junit_xml.bzl", "assert_junit_xml_test")
 load(":expect_test_failure.bzl", "expect_test_failure_test")
+load(":native_integration_launcher_test.bzl", "fake_native_app", "native_integration_launcher_test")
 
 java_library(
     name = "lib",
@@ -59,6 +60,25 @@ quarkus_integration_test(
     name = "integration_test",
     app = ":app",
     deps = [":test_lib"],
+)
+
+fake_native_app(
+    name = "fake_native_app",
+    testonly = True,
+    quarkus_version = "3.33.2",
+)
+
+quarkus_integration_test(
+    name = "fake_native_integration_test",
+    app = ":fake_native_app",
+    tags = ["manual"],
+    deps = [":test_lib"],
+)
+
+native_integration_launcher_test(
+    name = "native_integration_launcher_test",
+    app = ":fake_native_app",
+    target = ":fake_native_integration_test",
 )
 
 assert_junit_xml_test(

@@ -11,6 +11,7 @@ load("//quarkus:providers.bzl", "QuarkusAppInfo")
 load("//quarkus/private:application_model_aspect.bzl", "quarkus_application_model_aspect")
 load("//quarkus/private:augmentation.bzl", "run_augmentation")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_local_app_jars", "collect_runtime_classpath", "collect_source_jars", "quarkus_extension_deployment_classpath_aspect")
+load("//quarkus/private:coverage_transition.bzl", "disable_coverage_transition", "single_transitioned_target")
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
 
 def _shell_quote(s):
@@ -39,8 +40,8 @@ def _quarkus_app_impl(ctx):
         fail("quarkus_app rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
 
     runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
-    conditional_classpath = collect_runtime_classpath([ctx.attr.conditional_deps])
-    deployment_classpath = collect_deployment_classpath(ctx.attr.deployment_deps, ctx.attr.deps)
+    conditional_classpath = collect_runtime_classpath([single_transitioned_target(ctx.attr.conditional_deps)])
+    deployment_classpath = collect_deployment_classpath(single_transitioned_target(ctx.attr.deployment_deps), ctx.attr.deps)
     local_jars = collect_local_app_jars(ctx.attr.deps, runtime_classpath)
     model = assemble_application_model(ctx, ctx.attr.deps, runtime_classpath, conditional_classpath, deployment_classpath, "normal")
 
@@ -92,12 +93,17 @@ quarkus_app_rule = rule(
         ),
         "conditional_deps": attr.label(
             mandatory = True,
+            cfg = disable_coverage_transition,
             providers = [JavaInfo],
             doc = "Internal conditional candidate closure (set by macro).",
         ),
-        "deployment_deps": attr.label(doc = "Resolved Quarkus deployment closure (set by macro)."),
+        "deployment_deps": attr.label(
+            cfg = disable_coverage_transition,
+            doc = "Resolved Quarkus deployment closure (set by macro).",
+        ),
         "deps": attr.label_list(
             mandatory = True,
+            cfg = disable_coverage_transition,
             aspects = [
                 quarkus_extension_deployment_classpath_aspect,
                 quarkus_application_model_aspect,
@@ -152,6 +158,9 @@ quarkus_app_rule = rule(
         "_launcher_template": attr.label(
             default = Label("//quarkus/private:launcher.sh.tpl"),
             allow_single_file = True,
+        ),
+        "_allowlist_function_transition": attr.label(
+            default = "@bazel_tools//tools/allowlists/function_transition_allowlist",
         ),
     },
     doc = """\

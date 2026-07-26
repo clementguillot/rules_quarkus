@@ -242,8 +242,9 @@ Run the packaged test with:
 bazel test //:integration_test
 ```
 
-`bazel coverage` for the separately launched application is not yet supported;
-use `quarkus_test` for Bazel LCOV coverage.
+When included in a `bazel coverage` command, integration tests still run but
+the separately launched application is not instrumented. Their execution does
+not contribute LCOV records; use `quarkus_test` for application coverage.
 
 ## 7. Dev Mode (Hot-Reload + Dev UI)
 

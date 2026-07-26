@@ -22,6 +22,25 @@ COVERAGE_JARS_SOURCE="${WORKSPACE_DIR}/%{coverage_jars_file}"
 TEST_KIND="%{test_kind}"
 ARTIFACT_TYPE="%{artifact_type}"
 ARTIFACT_PATH="${WORKSPACE_DIR}/%{artifact_path}"
+
+# Validate packaged integration artifacts before TEST-mode model generation.
+if [ "$TEST_KIND" = "integration" ]; then
+  if [ "$ARTIFACT_TYPE" = "native" ]; then
+    if [ ! -x "$ARTIFACT_PATH" ]; then
+      echo "ERROR: Quarkus native integration-test artifact is missing or not executable: $ARTIFACT_PATH" >&2
+      exit 1
+    fi
+  elif [ "$ARTIFACT_TYPE" = "jar" ]; then
+    if [ ! -f "$ARTIFACT_PATH" ]; then
+      echo "ERROR: Quarkus Fast JAR runner is missing: $ARTIFACT_PATH" >&2
+      exit 1
+    fi
+  else
+    echo "ERROR: Unsupported Quarkus integration-test artifact type: $ARTIFACT_TYPE" >&2
+    exit 1
+  fi
+fi
+
 MODEL_REAL=$(realpath "$MODEL_FILE")
 case "$MODEL_REAL" in
   */bazel-out/*) MODEL_EXEC_ROOT="${MODEL_REAL%%/bazel-out/*}" ;;
@@ -67,8 +86,11 @@ _prefix_entries "," "${WORKSPACE_DIR}/%{direct_jars_file}" "$DIRECT_JARS_FILE"
 
 # Coverage analysis includes every local runtime jar, including Quarkus
 # extension runtimes that must stay excluded from application roots.
-COVERAGE_JARS_FILE=$(mktemp)
-_prefix_entries "," "$COVERAGE_JARS_SOURCE" "$COVERAGE_JARS_FILE"
+COVERAGE_JARS_FILE=""
+if [ "$COVERAGE_ENABLED" = "true" ]; then
+  COVERAGE_JARS_FILE=$(mktemp)
+  _prefix_entries "," "$COVERAGE_JARS_SOURCE" "$COVERAGE_JARS_FILE"
+fi
 
 LOCAL_APP_JARS_FILE=$(mktemp)
 while IFS=, read -ra JAR_ENTRIES; do
@@ -198,21 +220,6 @@ TEST_JVM_ARGS=(
   "-Djava.util.logging.manager=org.jboss.logmanager.LogManager"
 )
 if [ "$TEST_KIND" = "integration" ]; then
-  if [ "$ARTIFACT_TYPE" = "native" ]; then
-    if [ ! -x "$ARTIFACT_PATH" ]; then
-      echo "ERROR: Quarkus native integration-test artifact is missing or not executable: $ARTIFACT_PATH" >&2
-      exit 1
-    fi
-  elif [ "$ARTIFACT_TYPE" = "jar" ]; then
-    if [ ! -f "$ARTIFACT_PATH" ]; then
-      echo "ERROR: Quarkus Fast JAR runner is missing: $ARTIFACT_PATH" >&2
-      exit 1
-    fi
-  else
-    echo "ERROR: Unsupported Quarkus integration-test artifact type: $ARTIFACT_TYPE" >&2
-    exit 1
-  fi
-
   ARTIFACT_METADATA_DIR=$(mktemp -d)
   {
     printf 'type=%s\n' "$ARTIFACT_TYPE"

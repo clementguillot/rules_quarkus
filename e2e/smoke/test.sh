@@ -5,6 +5,7 @@ bzlmod_flag="${BZLMOD_FLAG:---enable_bzlmod=true}"
 
 bazel coverage \
   "$bzlmod_flag" \
+  //:integration_test \
   //:test \
   --combined_report=lcov \
   --instrumentation_filter='//:lib$,//ext/runtime:runtime_lib$' \

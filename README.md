@@ -51,6 +51,10 @@ bazel test //:integration_test # @QuarkusIntegrationTest against the Fast JAR
 bazel coverage //:test # Bazel LCOV coverage
 ```
 
+Integration tests included in a broader `bazel coverage` command run
+uninstrumented and do not prevent supported `quarkus_test` targets from
+producing LCOV.
+
 See the [Getting Started guide](docs/getting-started.md) for full setup instructions.
 
 ## Supported Versions

@@ -18,6 +18,7 @@ exports_files([
     "quarkus_dev_impl.bzl",
     "quarkus_test_impl.bzl",
     "classpath_utils.bzl",
+    "coverage_transition.bzl",
     "versions.bzl",
 ])
 

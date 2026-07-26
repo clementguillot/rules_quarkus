@@ -13,6 +13,7 @@ load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus/private:application_model_aspect.bzl", "quarkus_application_model_aspect")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_local_app_jars", "collect_resource_dir_paths", "collect_runtime_classpath", "collect_source_dir_paths", "is_local_artifact", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
+load("//quarkus/private:coverage_transition.bzl", "disable_coverage_transition", "single_transitioned_target")
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
 
 def _collect_bazel_targets(deps):
@@ -75,9 +76,10 @@ def _quarkus_dev_impl(ctx):
         fail("quarkus_dev rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
 
     runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
-    conditional_classpath = collect_runtime_classpath([ctx.attr.conditional_deps])
-    deployment_classpath = collect_deployment_classpath(ctx.attr.deployment_deps, ctx.attr.deps)
-    core_deployment_classpath = collect_runtime_classpath([ctx.attr.core_deployment_deps]) if ctx.attr.core_deployment_deps else depset()
+    conditional_classpath = collect_runtime_classpath([single_transitioned_target(ctx.attr.conditional_deps)])
+    deployment_classpath = collect_deployment_classpath(single_transitioned_target(ctx.attr.deployment_deps), ctx.attr.deps)
+    core_deployment_dep = single_transitioned_target(ctx.attr.core_deployment_deps)
+    core_deployment_classpath = collect_runtime_classpath([core_deployment_dep]) if core_deployment_dep else depset()
     model = assemble_application_model(
         ctx,
         ctx.attr.deps,
@@ -161,9 +163,19 @@ quarkus_dev_rule = rule(
     executable = True,
     attrs = {
         "conditional_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
-        "conditional_deps": attr.label(mandatory = True, providers = [JavaInfo]),
-        "core_deployment_deps": attr.label(doc = "Dev process infrastructure — bootstrap resolvers plus quarkus-core-deployment (set by macro)."),
-        "deployment_deps": attr.label(doc = "Resolved Quarkus deployment closure (set by macro)."),
+        "conditional_deps": attr.label(
+            mandatory = True,
+            cfg = disable_coverage_transition,
+            providers = [JavaInfo],
+        ),
+        "core_deployment_deps": attr.label(
+            cfg = disable_coverage_transition,
+            doc = "Dev process infrastructure — bootstrap resolvers plus quarkus-core-deployment (set by macro).",
+        ),
+        "deployment_deps": attr.label(
+            cfg = disable_coverage_transition,
+            doc = "Resolved Quarkus deployment closure (set by macro).",
+        ),
         "deployment_catalog": attr.label(
             allow_single_file = [".json"],
             mandatory = True,
@@ -180,6 +192,7 @@ quarkus_dev_rule = rule(
         ),
         "deps": attr.label_list(
             mandatory = True,
+            cfg = disable_coverage_transition,
             aspects = [
                 quarkus_extension_deployment_classpath_aspect,
                 quarkus_application_model_aspect,
@@ -214,6 +227,9 @@ stale files. Flags containing commas are not supported.
         ),
         "_java_runtime": attr.label(
             default = "@bazel_tools//tools/jdk:current_java_runtime",
+        ),
+        "_allowlist_function_transition": attr.label(
+            default = "@bazel_tools//tools/allowlists/function_transition_allowlist",
         ),
     },
 )
