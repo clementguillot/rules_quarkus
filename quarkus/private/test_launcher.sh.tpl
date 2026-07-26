@@ -220,7 +220,7 @@ TEST_JVM_ARGS=(
   "-Djava.util.logging.manager=org.jboss.logmanager.LogManager"
 )
 if [ "$TEST_KIND" = "integration" ]; then
-  ARTIFACT_METADATA_DIR=$(mktemp -d)
+  ARTIFACT_METADATA_DIR=$(mktemp -d "${TEST_TMPDIR:-/tmp}/quarkus-artifact.XXXXXX")
   {
     printf 'type=%s\n' "$ARTIFACT_TYPE"
     printf 'path=%s\n' "$ARTIFACT_PATH"

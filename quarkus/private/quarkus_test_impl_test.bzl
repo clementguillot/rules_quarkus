@@ -22,11 +22,11 @@ def _integration_test_args_test_impl(ctx):
     env = unittest.begin(ctx)
     asserts.equals(
         env,
-        "execute --select-package=smoke --select-class=smoke.ExplicitIntegrationTest --include-classname=(.*IT$|^smoke\\.ExplicitIntegrationTest$)",
+        "execute --fail-if-no-tests --select-package=smoke --select-class=smoke.ExplicitIntegrationTest --include-classname=(.*IT$|^smoke\\.ExplicitIntegrationTest$)",
         build_test_args_for_test(
             ["smoke"],
             ["smoke.ExplicitIntegrationTest"],
-            False,
+            True,
             integration = True,
         ),
     )
