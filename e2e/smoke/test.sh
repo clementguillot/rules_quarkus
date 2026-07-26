@@ -7,7 +7,7 @@ bazel coverage \
   "$bzlmod_flag" \
   //:test \
   --combined_report=lcov \
-  --instrumentation_filter='//:lib$' \
+  --instrumentation_filter='//:lib$,//ext/runtime:runtime_lib$' \
   --lockfile_mode=off \
   --nocache_test_results \
   --test_output=errors
@@ -59,5 +59,6 @@ for report in \
   bazel-testlogs/test/coverage.dat \
   bazel-out/_coverage/_coverage_report.dat; do
   assert_covered_source "$report" "src/main/java/smoke/GreetingResource.java"
+  assert_covered_source "$report" "ext/runtime/src/main/java/smoke/ext/runtime/SmokeService.java"
   assert_source_absent "$report" "src/test/java/smoke/GreetingResourceTest.java"
 done

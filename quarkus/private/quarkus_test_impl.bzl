@@ -47,6 +47,7 @@ def _quarkus_test_impl(ctx):
     cp_file = write_runfiles_paths_file(ctx, "_cp.txt", runtime_classpath, ":")
     ext_rt_jars = collect_extension_runtime_jars(ctx.attr.deps)
     direct_jars_file = write_runfiles_paths_file(ctx, "_direct_jars.txt", collect_local_app_jars(ctx.attr.deps, runtime_classpath, ext_rt_jars), ",")
+    coverage_jars_file = write_runfiles_paths_file(ctx, "_coverage_jars.txt", collect_local_app_jars(ctx.attr.deps, runtime_classpath), ",")
 
     tool_jar = ctx.file.quarkifier_tool
     java_runtime = ctx.attr._java_runtime[java_common.JavaRuntimeInfo]
@@ -71,6 +72,7 @@ def _quarkus_test_impl(ctx):
             "%{app_name}": ctx.label.name,
             "%{classpath_file}": cp_file.short_path,
             "%{coverage_enabled}": "true" if coverage_enabled else "false",
+            "%{coverage_jars_file}": coverage_jars_file.short_path,
             "%{coverage_reporter}": coverage_reporter_path,
             "%{direct_jars_file}": direct_jars_file.short_path,
             "%{java_home}": java_runtime.java_home_runfiles_path,
@@ -86,7 +88,7 @@ def _quarkus_test_impl(ctx):
     )
 
     runfiles = ctx.runfiles(
-        files = [cp_file, direct_jars_file, model, tool_jar] + coverage_files,
+        files = [cp_file, coverage_jars_file, direct_jars_file, model, tool_jar] + coverage_files,
         transitive_files = depset(
             transitive = [runtime_classpath, conditional_classpath, deploy_classpath, java_runtime.files],
         ),

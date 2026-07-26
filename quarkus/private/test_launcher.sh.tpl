@@ -18,6 +18,7 @@ COVERAGE_ENABLED="%{coverage_enabled}"
 QUARKUS_JACOCO_PRESENT="%{quarkus_jacoco_present}"
 JACOCO_RUNNER="${WORKSPACE_DIR}/%{jacoco_runner}"
 COVERAGE_REPORTER="${WORKSPACE_DIR}/%{coverage_reporter}"
+COVERAGE_JARS_SOURCE="${WORKSPACE_DIR}/%{coverage_jars_file}"
 MODEL_REAL=$(realpath "$MODEL_FILE")
 case "$MODEL_REAL" in
   */bazel-out/*) MODEL_EXEC_ROOT="${MODEL_REAL%%/bazel-out/*}" ;;
@@ -61,6 +62,11 @@ _realpath_entries "$APP_CP_FILE" "$MODEL_APP_CP_FILE" || exit 1
 DIRECT_JARS_FILE=$(mktemp)
 _prefix_entries "," "${WORKSPACE_DIR}/%{direct_jars_file}" "$DIRECT_JARS_FILE"
 
+# Coverage analysis includes every local runtime jar, including Quarkus
+# extension runtimes that must stay excluded from application roots.
+COVERAGE_JARS_FILE=$(mktemp)
+_prefix_entries "," "$COVERAGE_JARS_SOURCE" "$COVERAGE_JARS_FILE"
+
 LOCAL_APP_JARS_FILE=$(mktemp)
 while IFS=, read -ra JAR_ENTRIES; do
   first=true
@@ -88,7 +94,7 @@ trap "rm -rf $MODEL_DIR" EXIT
   --app-name %{app_name})
 
 if [ $? -ne 0 ]; then
-  rm -f "$APP_CP_FILE" "$MODEL_APP_CP_FILE" "$LOCAL_APP_JARS_FILE" "$DIRECT_JARS_FILE"
+  rm -f "$APP_CP_FILE" "$MODEL_APP_CP_FILE" "$LOCAL_APP_JARS_FILE" "$DIRECT_JARS_FILE" "$COVERAGE_JARS_FILE"
   echo "ERROR: Quarkifier test model generation failed" >&2
   exit 1
 fi
@@ -97,7 +103,7 @@ fi
 rm -f "$MODEL_APP_CP_FILE" "$LOCAL_APP_JARS_FILE"
 
 if [ ! -f "$MODEL_DIR/test-app-model.dat" ]; then
-  rm -f "$APP_CP_FILE" "$DIRECT_JARS_FILE"
+  rm -f "$APP_CP_FILE" "$DIRECT_JARS_FILE" "$COVERAGE_JARS_FILE"
   echo "ERROR: test-app-model.dat was not generated" >&2
   exit 1
 fi
@@ -254,14 +260,14 @@ if [ "$FINAL_EXIT" -eq 0 ] && [ "$COVERAGE_ENABLED" = "true" ]; then
   elif ! "$COVERAGE_REPORTER" \
       --execution-data "$COVERAGE_EXEC_FILE" \
       --output "$JAVA_COVERAGE_FILE" \
-      --class-jars-file "$DIRECT_JARS_FILE"; then
+      --class-jars-file "$COVERAGE_JARS_FILE"; then
     echo "ERROR: Bazel JaCoCo LCOV reporting failed" >&2
     FINAL_EXIT=1
   fi
 fi
 
 rm -rf "$REPORTS_DIR"
-rm -f "$DIRECT_JARS_FILE"
+rm -f "$DIRECT_JARS_FILE" "$COVERAGE_JARS_FILE"
 if [ -n "$COVERAGE_EXEC_FILE" ]; then
   rm -f "$COVERAGE_EXEC_FILE"
 fi
