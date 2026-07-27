@@ -1,23 +1,46 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@rules_java//java:java_library.bzl", "java_library")
-load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_integration_test", "quarkus_test")
+load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_integration_test", "quarkus_java_library", "quarkus_test")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load(":assert_junit_xml.bzl", "assert_junit_xml_test")
 load(":expect_test_failure.bzl", "expect_test_failure_test")
 load(":native_integration_launcher_test.bzl", "fake_native_app", "native_integration_launcher_test")
 
-java_library(
+quarkus_java_library(
     name = "lib",
     srcs = glob(["src/main/java/**/*.java"]),
+    codegen_build_properties = {"smoke.codegen.prefix": "Hello from "},
+    codegen_srcs = ["src/main/hello/greeting.hello"],
     resources = glob(["src/main/resources/**/*"]),
     # //big reuses the app sources for the E2BIG regression targets.
     visibility = ["//big:__pkg__"],
     deps = [
+        ":grpc_lib",
         # Locally-built custom extension (runtime side); deployment is auto-wired.
         "//ext/runtime",
         "@maven//:io_quarkus_quarkus_arc",
         "@maven//:io_quarkus_quarkus_rest",
         "@maven//:jakarta_inject_jakarta_inject_api",
+        "@maven//:jakarta_ws_rs_jakarta_ws_rs_api",
+    ],
+)
+
+quarkus_java_library(
+    name = "grpc_lib",
+    srcs = ["src/grpc/java/smoke/GrpcGeneratedResource.java"],
+    codegen_srcs = ["src/main/proto/greeting.proto"],
+    deps = [
+        "@maven//:com_google_guava_guava",
+        "@maven//:com_google_protobuf_protobuf_java",
+        "@maven//:io_grpc_grpc_api",
+        "@maven//:io_grpc_grpc_protobuf",
+        "@maven//:io_grpc_grpc_stub",
+        "@maven//:io_quarkus_quarkus_grpc",
+        "@maven//:io_quarkus_quarkus_grpc_api",
+        "@maven//:io_quarkus_quarkus_grpc_stubs",
+        "@maven//:io_quarkus_quarkus_rest",
+        "@maven//:io_smallrye_reactive_mutiny",
+        "@maven//:jakarta_annotation_jakarta_annotation_api",
         "@maven//:jakarta_ws_rs_jakarta_ws_rs_api",
     ],
 )
@@ -28,13 +51,27 @@ quarkus_app(
     deps = [":lib"],
 )
 
-java_library(
+quarkus_app(
+    name = "app_quarkus_codegen",
+    dev_codegen = "quarkus",
+    deps = [":lib"],
+)
+
+build_test(
+    name = "quarkus_codegen_dev_build_test",
+    targets = [":app_quarkus_codegen_dev"],
+)
+
+quarkus_java_library(
     name = "test_lib",
     testonly = True,
     srcs = glob(
         ["src/test/java/**/*.java"],
         exclude = ["src/test/java/smoke/EmptyTest.java"],
     ),
+    codegen_build_properties = {"smoke.codegen.prefix": "Test: "},
+    codegen_mode = "test",
+    codegen_srcs = ["src/test/hello/test.hello"],
     # //big reuses the test sources for the E2BIG regression targets.
     visibility = ["//big:__pkg__"],
     deps = [
@@ -147,6 +184,18 @@ sh_test(
     args = ["$(rlocationpath :app_dev)"],
     data = [":app_dev"],
     # The test copies the launcher and points it at this test's merged runfiles tree.
+    tags = ["no-sandbox"],
+)
+
+sh_test(
+    name = "quarkus_codegen_dev_ui_test",
+    size = "large",
+    srcs = ["dev_ui_application_model_test.sh"],
+    args = [
+        "$(rlocationpath :app_quarkus_codegen_dev)",
+        "bazel.workspace:app_quarkus_codegen:1.0-SNAPSHOT",
+    ],
+    data = [":app_quarkus_codegen_dev"],
     tags = ["no-sandbox"],
 )
 

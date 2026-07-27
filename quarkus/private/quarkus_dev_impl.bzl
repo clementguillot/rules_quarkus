@@ -13,8 +13,9 @@ load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus/private:application_model_aspect.bzl", "quarkus_application_model_aspect")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_local_app_jars", "collect_resource_dir_paths", "collect_runtime_classpath", "collect_source_dir_paths", "is_local_artifact", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
-load("//quarkus/private:coverage_transition.bzl", "disable_coverage_transition", "single_transitioned_target")
+load("//quarkus/private:coverage_transition.bzl", "dev_codegen_transition", "disable_coverage_transition", "single_transitioned_target")
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
+load("//quarkus/private:quarkus_codegen_impl.bzl", "collect_codegen_metadata", "quarkus_codegen_metadata_aspect")
 
 def _collect_bazel_targets(deps):
     """Collects local workspace target labels for the file watcher's `bazel build`.
@@ -71,6 +72,39 @@ def _write_csv_file(ctx, name_suffix, values):
     ctx.actions.write(output = out, content = ",".join(values))
     return out
 
+def _escape_property(value):
+    return value.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t").replace("=", "\\=").replace(":", "\\:")
+
+def _codegen_dev_metadata(ctx):
+    metadata = collect_codegen_metadata(ctx.attr.deps)
+    roots = []
+    seen_roots = {}
+    properties = {}
+    for entry in metadata.entries:
+        if entry.mode != "main":
+            continue
+        for root in entry.source_roots:
+            if root not in seen_roots:
+                seen_roots[root] = True
+                roots.append(root)
+        for key, value in entry.build_properties.items():
+            if key in properties and properties[key] != value:
+                fail("conflicting codegen build property '{}' in dev graph".format(key))
+            properties[key] = value
+    properties_file = ctx.actions.declare_file(ctx.label.name + "_codegen.properties")
+    ctx.actions.write(
+        output = properties_file,
+        content = "\n".join([
+            "{}={}".format(_escape_property(key), _escape_property(properties[key]))
+            for key in sorted(properties)
+        ]) + ("\n" if properties else ""),
+    )
+    return struct(
+        input_files = metadata.input_files,
+        properties = properties_file,
+        roots = roots,
+    )
+
 def _quarkus_dev_impl(ctx):
     if not ctx.attr.deps:
         fail("quarkus_dev rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
@@ -89,6 +123,10 @@ def _quarkus_dev_impl(ctx):
         "dev",
         ctx.label.name.removesuffix("_dev"),
     )
+    codegen = _codegen_dev_metadata(ctx)
+    bazel_targets = _collect_bazel_targets(ctx.attr.deps)
+    if codegen.roots and ctx.attr.dev_codegen == "bazel":
+        bazel_targets = [str(ctx.label).lstrip("@")]
 
     # Classpath and hot-reload metadata files, read by the launcher at runtime
     # and resolved against the runfiles tree.
@@ -98,8 +136,10 @@ def _quarkus_dev_impl(ctx):
         core_deploy_cp = write_runfiles_paths_file(ctx, "_core_deploy_cp.txt", core_deployment_classpath, ":"),
         source_dirs = _write_csv_file(ctx, "_source_dirs.txt", collect_source_dir_paths(ctx.attr.deps, runtime_classpath)),
         resource_dirs = _write_csv_file(ctx, "_resource_dirs.txt", collect_resource_dir_paths(ctx.attr.deps, runtime_classpath)),
-        bazel_targets = _write_csv_file(ctx, "_bazel_targets.txt", _collect_bazel_targets(ctx.attr.deps)),
+        bazel_targets = _write_csv_file(ctx, "_bazel_targets.txt", bazel_targets),
         classes_output_dirs = _write_csv_file(ctx, "_classes_output_dirs.txt", _collect_classes_output_dirs(ctx.attr.deps, runtime_classpath)),
+        codegen_properties = codegen.properties,
+        codegen_source_parents = _write_csv_file(ctx, "_codegen_source_parents.txt", codegen.roots),
     )
 
     tool_jar = ctx.file.quarkifier_tool
@@ -116,6 +156,8 @@ def _quarkus_dev_impl(ctx):
             files.resource_dirs,
             files.bazel_targets,
             files.classes_output_dirs,
+            files.codegen_properties,
+            files.codegen_source_parents,
             model,
         ],
         transitive_files = depset(transitive = [runtime_classpath, conditional_classpath, deployment_classpath, core_deployment_classpath, java_runtime.files]),
@@ -145,8 +187,11 @@ def _write_dev_launcher(ctx, tool_jar, files, model_file, java_runtime):
             "%{bazel_targets_file}": files.bazel_targets.short_path,
             "%{dev_build_args}": _join_dev_build_args(ctx.attr.dev_build_args),
             "%{classes_output_dirs_file}": files.classes_output_dirs.short_path,
+            "%{codegen_properties_file}": files.codegen_properties.short_path,
+            "%{codegen_source_parents_file}": files.codegen_source_parents.short_path,
             "%{core_deploy_cp_file}": files.core_deploy_cp.short_path,
             "%{java_home}": java_runtime.java_home_runfiles_path,
+            "%{dev_codegen}": ctx.attr.dev_codegen,
             "%{local_app_jars_file}": files.local_app_jars.short_path,
             "%{model_file}": model_file.short_path,
             "%{resource_dirs_file}": files.resource_dirs.short_path,
@@ -181,6 +226,7 @@ quarkus_dev_rule = rule(
             mandatory = True,
             doc = "Internal deployment resolver graph catalog (set by macro).",
         ),
+        "deployment_artifacts": attr.label(mandatory = True),
         "platform_catalog": attr.label(
             allow_single_file = [".json"],
             mandatory = True,
@@ -192,10 +238,11 @@ quarkus_dev_rule = rule(
         ),
         "deps": attr.label_list(
             mandatory = True,
-            cfg = disable_coverage_transition,
+            cfg = dev_codegen_transition,
             aspects = [
                 quarkus_extension_deployment_classpath_aspect,
                 quarkus_application_model_aspect,
+                quarkus_codegen_metadata_aspect,
             ],
             providers = [JavaInfo],
             doc = "java_library and Maven artifact targets.",
@@ -207,6 +254,11 @@ match the configuration used to `bazel run` the dev target — otherwise
 rebuilt classes land in a different bazel-out tree and hot-reload syncs
 stale files. Flags containing commas are not supported.
 """,
+        ),
+        "dev_codegen": attr.string(
+            default = "bazel",
+            values = ["bazel", "quarkus", "off"],
+            doc = "Code generation strategy for subsequent dev-mode input changes.",
         ),
         "quarkifier_tool": attr.label(
             allow_single_file = [".jar"],

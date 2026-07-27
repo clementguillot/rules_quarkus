@@ -5,6 +5,7 @@ load("//quarkus/private:application_model_aspect.bzl", "collect_deployment_model
 load("//quarkus/private:versions.bzl", "RULES_VERSION")
 
 _DEPLOYMENT_PATH_MARKER = "deployment/jars/"
+_DEPLOYMENT_ARTIFACT_PATH_MARKER = "deployment/artifacts/"
 _CONDITIONAL_PATH_MARKER = "conditional/jars/"
 _PLATFORM_PROPERTY_PATH_MARKER = "model/platform-properties/"
 
@@ -47,7 +48,24 @@ def _write_marker_paths(ctx, files, marker, suffix, label, require_marker = Fals
     return output
 
 def _write_deployment_paths(ctx, deployment_classpath):
-    return _write_marker_paths(ctx, deployment_classpath.to_list(), _DEPLOYMENT_PATH_MARKER, ".quarkus-deployment-paths-v1.txt", "deployment catalog")
+    files = list(deployment_classpath.to_list())
+    if hasattr(ctx.files, "deployment_artifacts"):
+        files.extend(ctx.files.deployment_artifacts)
+    output = ctx.actions.declare_file(ctx.label.name + ".quarkus-deployment-paths-v1.txt")
+    seen = {}
+    for file in files:
+        marker_index = file.path.find(_DEPLOYMENT_PATH_MARKER)
+        if marker_index < 0:
+            marker_index = file.path.find(_DEPLOYMENT_ARTIFACT_PATH_MARKER)
+        if marker_index < 0:
+            continue
+        repo_path = file.path[marker_index:]
+        if repo_path in seen and seen[repo_path] != file.path:
+            fail("deployment catalog path '{}' maps to both '{}' and '{}'".format(repo_path, seen[repo_path], file.path))
+        seen[repo_path] = file.path
+    lines = [repo_path + "\t" + seen[repo_path] for repo_path in sorted(seen)]
+    ctx.actions.write(output = output, content = "\n".join(lines) + ("\n" if lines else ""))
+    return output
 
 def _write_conditional_paths(ctx, conditional_classpath):
     return _write_marker_paths(ctx, conditional_classpath.to_list(), _CONDITIONAL_PATH_MARKER, ".quarkus-conditional-paths-v1.txt", "conditional catalog")
@@ -157,7 +175,7 @@ def _run_model_assembly(ctx, roots, fragments, model_artifacts, deployment_fragm
                 local_deployments_file,
                 local_runtime_aliases_file,
             ],
-            transitive = [all_fragments, all_model_artifacts, runtime_classpath, conditional_classpath, deployment_classpath, depset(ctx.files.platform_properties), java_runtime.files],
+            transitive = [all_fragments, all_model_artifacts, runtime_classpath, conditional_classpath, deployment_classpath, depset(ctx.files.deployment_artifacts) if hasattr(ctx.files, "deployment_artifacts") else depset(), depset(ctx.files.platform_properties), java_runtime.files],
         ),
         outputs = [output],
         mnemonic = "QuarkusModelAssembly",

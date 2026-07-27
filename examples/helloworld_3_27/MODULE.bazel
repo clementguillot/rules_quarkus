@@ -20,6 +20,7 @@ maven.install(
     artifacts = [
         "io.quarkus:quarkus-rest:3.27.4",
         "io.quarkus:quarkus-arc:3.27.4",
+        "io.quarkus:quarkus-grpc:3.27.4",
         # Test dependencies
         "io.quarkus:quarkus-junit5:3.27.4",
         "io.rest-assured:rest-assured:5.5.6",

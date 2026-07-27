@@ -25,6 +25,9 @@ import java.util.List;
  * @param bazelBuildTimeoutSeconds timeout in seconds for bazel build process (default: 600)
  * @param bazelCommand bazel binary to invoke for hot-reload builds (default: {@code bazel})
  * @param bazelBuildArgs extra flags for the hot-reload {@code bazel build}
+ * @param codegenSourceParents source-parent directories containing CodeGenProvider inputs
+ * @param devCodegen regeneration strategy: bazel, quarkus, or off
+ * @param codegenPropertiesFile build-system properties used by in-process code generation
  * @param localAppJars local workspace jars to use as application roots
  * @param applicationModel explicit validated Bazel model JSON
  */
@@ -45,5 +48,8 @@ public record QuarkifierConfig(
     long bazelBuildTimeoutSeconds,
     String bazelCommand,
     List<String> bazelBuildArgs,
+    List<Path> codegenSourceParents,
+    String devCodegen,
+    Path codegenPropertiesFile,
     List<Path> localAppJars,
     Path applicationModel) {}

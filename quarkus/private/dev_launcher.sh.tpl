@@ -66,6 +66,13 @@ if [ -f "$CLASSES_OUTPUT_DIRS_FILE" ]; then
     CLASSES_OUTPUT_DIRS=$(cat "$CLASSES_OUTPUT_DIRS_FILE")
 fi
 
+CODEGEN_SOURCE_PARENTS_FILE="${RUNFILES_DIR}/%{workspace}/%{codegen_source_parents_file}"
+CODEGEN_SOURCE_PARENTS=""
+if [ -f "$CODEGEN_SOURCE_PARENTS_FILE" ]; then
+    CODEGEN_SOURCE_PARENTS=$(cat "$CODEGEN_SOURCE_PARENTS_FILE")
+fi
+CODEGEN_PROPERTIES_FILE="${RUNFILES_DIR}/%{workspace}/%{codegen_properties_file}"
+
 # Create temp dirs with unique prefixes for security
 OUTPUT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/quarkus_dev_output_XXXXXX")
 CLASSES_DIR=""
@@ -89,6 +96,7 @@ case "$MODEL_REAL" in
 esac
 HOT_RELOAD_ARGS=()
 RESOURCES_VALUE=""
+CODEGEN_SOURCE_PARENTS_VALUE=""
 
 # Prefixing helper: accumulate into an array (O(1) append) and join once.
 # String accumulation in a loop is quadratic in bash and takes minutes on
@@ -111,6 +119,15 @@ if [ -n "$RESOURCE_DIRS" ]; then
     if [ "${#RD_ABS[@]}" -gt 0 ]; then
         RESOURCES_VALUE=$(_join_comma "${RD_ABS[@]}")
     fi
+fi
+
+if [ -n "$CODEGEN_SOURCE_PARENTS" ]; then
+    CG_ABS=()
+    IFS=',' read -ra CG_ENTRIES <<< "$CODEGEN_SOURCE_PARENTS"
+    for cg in "${CG_ENTRIES[@]}"; do
+        CG_ABS+=("${WORKSPACE_ROOT}/${cg}")
+    done
+    CODEGEN_SOURCE_PARENTS_VALUE=$(_join_comma "${CG_ABS[@]}")
 fi
 
 if [ -n "$SOURCE_DIRS" ] && [ -n "$BAZEL_TARGETS" ]; then
@@ -175,6 +192,16 @@ _JAVA_ARGFILE=$(mktemp "${OUTPUT_DIR}/quarkus_dev_args_XXXXXX")
   _q "$WORKSPACE_ROOT"
   echo "--bazel-command"
   _q "$BAZEL_BIN"
+  echo "--dev-codegen"
+  echo "%{dev_codegen}"
+  if [ -n "$CODEGEN_SOURCE_PARENTS_VALUE" ]; then
+    echo "--codegen-source-parents"
+    _q "$CODEGEN_SOURCE_PARENTS_VALUE"
+  fi
+  if [ -f "$CODEGEN_PROPERTIES_FILE" ]; then
+    echo "--codegen-properties-file"
+    _q "$CODEGEN_PROPERTIES_FILE"
+  fi
   if [ -n "%{dev_build_args}" ]; then
     echo "--bazel-build-args"
     _q "%{dev_build_args}"

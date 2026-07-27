@@ -14,6 +14,7 @@ import io.quarkus.maven.dependency.ArtifactKey;
 import io.quarkus.maven.dependency.ResolvedDependency;
 import io.quarkus.paths.PathList;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
@@ -40,7 +42,7 @@ import org.jboss.logging.Logger;
  *
  * @see <a href="../../../../../../docs/dev-mode.md">docs/dev-mode.md</a> for the full architecture
  */
-@SuppressWarnings("PMD.ExceptionAsFlowControl")
+@SuppressWarnings({"PMD.ExceptionAsFlowControl", "PMD.ExcessiveImports"})
 public final class DevModeLauncher {
 
   private static final Logger LOGGER = Logger.getLogger(DevModeLauncher.class);
@@ -265,6 +267,17 @@ public final class DevModeLauncher {
     // Platform properties for SmallRye Config expression resolution
     BuildProperties.defaults(config.mainClass(), null)
         .forEach((k, v) -> context.getBuildSystemProperties().put((String) k, (String) v));
+    if (config.codegenPropertiesFile() != null) {
+      Properties codegenProperties = new Properties();
+      try (var input = Files.newInputStream(config.codegenPropertiesFile())) {
+        codegenProperties.load(input);
+      } catch (IOException e) {
+        throw new IllegalStateException(
+            "Failed to read codegen properties: " + config.codegenPropertiesFile(), e);
+      }
+      codegenProperties.forEach(
+          (key, value) -> context.getBuildSystemProperties().put(key.toString(), value.toString()));
+    }
 
     context.setApplicationRoot(buildAppModuleInfo(config, projectRoot));
     return context;
@@ -285,16 +298,26 @@ public final class DevModeLauncher {
     Path targetDir = projectRoot.resolve("target");
     Path resourcesOutputPath = config.classesDir() != null ? config.classesDir() : targetDir;
 
-    return new DevModeContext.ModuleInfo.Builder()
-        .setArtifactKey(ArtifactKey.ga(coords.groupId(), coords.artifactId()))
-        .setName(config.appName() != null ? config.appName() : coords.artifactId())
-        .setProjectDirectory(projectRoot.toAbsolutePath().toString())
-        .setSourcePaths(PathList.from(config.sourceDirs()))
-        .setClassesPath(classesPath.toAbsolutePath().toString())
-        .setResourcePaths(PathList.from(config.resources()))
-        .setResourcesOutputPath(
-            config.resources().isEmpty() ? null : resourcesOutputPath.toAbsolutePath().toString())
-        .setTargetDir(targetDir.toAbsolutePath().toString())
-        .build();
+    var builder =
+        new DevModeContext.ModuleInfo.Builder()
+            .setArtifactKey(ArtifactKey.ga(coords.groupId(), coords.artifactId()))
+            .setName(config.appName() != null ? config.appName() : coords.artifactId())
+            .setProjectDirectory(projectRoot.toAbsolutePath().toString())
+            .setSourcePaths(PathList.from(config.sourceDirs()))
+            .setClassesPath(classesPath.toAbsolutePath().toString())
+            .setResourcePaths(PathList.from(config.resources()))
+            .setResourcesOutputPath(
+                config.resources().isEmpty()
+                    ? null
+                    : resourcesOutputPath.toAbsolutePath().toString())
+            .setTargetDir(targetDir.toAbsolutePath().toString());
+    if ("quarkus".equals(config.devCodegen()) && !config.codegenSourceParents().isEmpty()) {
+      Path generatedSources = targetDir.resolve("generated-sources");
+      builder
+          .setSourceParents(PathList.from(config.codegenSourceParents()))
+          .setPreBuildOutputDir(generatedSources.toAbsolutePath().toString())
+          .setGeneratedSourcesPath(generatedSources.toAbsolutePath().toString());
+    }
+    return builder.build();
   }
 }

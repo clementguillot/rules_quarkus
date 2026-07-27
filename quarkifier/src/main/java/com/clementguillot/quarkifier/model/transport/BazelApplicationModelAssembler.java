@@ -1200,12 +1200,12 @@ public final class BazelApplicationModelAssembler {
           ArtifactCoordinates targetCoordinates = BazelArtifactCoordinates.parse(dependency);
           String targetCanonical = BazelArtifactCoordinates.canonical(targetCoordinates);
           DeploymentCatalogNode targetCatalog = deploymentByCoordinates.get(targetCanonical);
-          if (targetCatalog == null) {
-            fail("deployment graph contains an unresolved edge to " + targetCanonical);
-          }
           MutableNode target = nodesByCoordinates.get(targetCanonical);
           if (target == null) {
             target = runtimeNodesByGACT.get(gact(targetCoordinates));
+          }
+          if (targetCatalog == null && target == null) {
+            fail("deployment graph contains an unresolved edge to " + targetCanonical);
           }
           String targetId = target == null ? deploymentId(targetCoordinates) : target.id;
           if (!targetId.equals(reinsertionParentId)
@@ -1217,9 +1217,11 @@ public final class BazelApplicationModelAssembler {
                     DependencyRelation.DEPLOYMENT,
                     DependencyScope.COMPILE,
                     false,
-                    artifactKeys(targetCatalog.exclusions())));
+                    targetCatalog == null ? List.of() : artifactKeys(targetCatalog.exclusions())));
           }
-          pending.addLast(targetCanonical);
+          if (targetCatalog != null) {
+            pending.addLast(targetCanonical);
+          }
         }
       }
       return rootId;

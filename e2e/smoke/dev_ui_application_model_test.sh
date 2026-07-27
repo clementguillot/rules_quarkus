@@ -56,7 +56,7 @@ fi
 DATA="${WORK}/devui-data.js"
 curl -fsS "${BASE_URL}/q/dev-ui/devui-data.js" -o "${DATA}"
 
-APP='bazel.workspace:app:1.0.0-SNAPSHOT'
+APP="${2:-bazel.workspace:app:1.0.0-SNAPSHOT}"
 EXT='com.example.smoke:smoke-extension:1.0.0'
 ARC='io.quarkus:quarkus-arc:3.33.2'
 

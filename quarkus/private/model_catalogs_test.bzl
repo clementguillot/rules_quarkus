@@ -427,7 +427,9 @@ def _conditional_catalog_test_impl(ctx):
             "conflict_resolution": {},
             "dependencies": [{
                 "coord": "g:feature:jar:tests:1.0",
-                "directDependencies": [],
+                # Coursier can retain POM edges to artifacts already supplied
+                # by the locked runtime graph without selecting another file.
+                "directDependencies": ["g:runtime:jar::1.0"],
                 "exclusions": [],
                 "file": cache_path,
             }],
@@ -443,6 +445,7 @@ def _conditional_catalog_test_impl(ctx):
 
     asserts.equals(env, "quarkus-bazel-conditional-catalog-v1", catalog["schemaVersion"])
     asserts.equals(env, "g:feature:tests:jar:1.0", catalog["nodes"][0]["coordinate"])
+    asserts.equals(env, [], catalog["nodes"][0]["dependencies"])
     asserts.equals(env, ["g:feature:tests:jar:1.0"], catalog["roots"])
     asserts.equals(env, "g:a:classifier:zip:1", coursier_report_coordinate_for_test("g:a:zip:classifier:1"))
     return unittest.end(env)

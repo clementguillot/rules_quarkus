@@ -10,6 +10,7 @@
     "io.quarkus:quarkus-arc-deployment": 1838642928,
     "io.quarkus:quarkus-core-deployment": 950899707,
     "io.quarkus:quarkus-extension-processor": 1093258188,
+    "io.quarkus:quarkus-grpc": 1482874094,
     "io.quarkus:quarkus-junit": -607105226,
     "io.quarkus:quarkus-kotlin": 158644689,
     "io.quarkus:quarkus-rest": -2129969500,
@@ -30,6 +31,7 @@
     "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml": -1376269882,
     "com.fasterxml.jackson.module:jackson-module-parameter-names": 1226744229,
     "com.github.javaparser:javaparser-core": -1165910921,
+    "com.google.api.grpc:proto-google-common-protos": 266636659,
     "com.google.code.findbugs:jsr305": 870839855,
     "com.google.code.gson:gson": -2092238571,
     "com.google.errorprone:error_prone_annotations": 213918278,
@@ -38,10 +40,20 @@
     "com.google.guava:listenablefuture": 1079558157,
     "com.google.inject:guice:jar:classes": -1301081110,
     "com.google.j2objc:j2objc-annotations": -1008747351,
+    "com.google.protobuf:protobuf-java": 1838995038,
+    "com.google.protobuf:protobuf-java-util": -25825785,
     "commons-cli:commons-cli": -32742453,
     "commons-codec:commons-codec": 58403102,
     "commons-io:commons-io": 1539755249,
     "commons-logging:commons-logging": 1248790901,
+    "io.grpc:grpc-api": -321251638,
+    "io.grpc:grpc-context": 598299603,
+    "io.grpc:grpc-core": 1651024479,
+    "io.grpc:grpc-netty": 1504685064,
+    "io.grpc:grpc-protobuf": 1371467664,
+    "io.grpc:grpc-protobuf-lite": 1218041933,
+    "io.grpc:grpc-stub": -482273625,
+    "io.grpc:grpc-util": 877644131,
     "io.netty:netty-buffer": 732776351,
     "io.netty:netty-codec": 1756350512,
     "io.netty:netty-codec-dns": -1060339948,
@@ -56,6 +68,7 @@
     "io.netty:netty-resolver-dns": -1315367001,
     "io.netty:netty-transport": 155358324,
     "io.netty:netty-transport-native-unix-common": 279328611,
+    "io.perfmark:perfmark-api": -1795841558,
     "io.quarkus.arc:arc": -202246125,
     "io.quarkus.arc:arc-processor": -272482540,
     "io.quarkus.gizmo:gizmo": 820430385,
@@ -88,6 +101,11 @@
     "io.quarkus:quarkus-devui-deployment-spi": 516337979,
     "io.quarkus:quarkus-extension-processor": 893050077,
     "io.quarkus:quarkus-fs-util": -1554263633,
+    "io.quarkus:quarkus-grpc": 223977351,
+    "io.quarkus:quarkus-grpc-api": 1428559877,
+    "io.quarkus:quarkus-grpc-common": 1483500639,
+    "io.quarkus:quarkus-grpc-reflection": 904861009,
+    "io.quarkus:quarkus-grpc-stubs": -1076206739,
     "io.quarkus:quarkus-hibernate-validator-spi": 877894256,
     "io.quarkus:quarkus-ide-launcher": -1795725963,
     "io.quarkus:quarkus-jsonp": 415257726,
@@ -102,6 +120,7 @@
     "io.quarkus:quarkus-security-runtime-spi": -764481795,
     "io.quarkus:quarkus-smallrye-context-propagation": -527803629,
     "io.quarkus:quarkus-smallrye-context-propagation-spi": -692531602,
+    "io.quarkus:quarkus-smallrye-stork": -1801597477,
     "io.quarkus:quarkus-test-common": 26349865,
     "io.quarkus:quarkus-tls-registry": 1346835960,
     "io.quarkus:quarkus-tls-registry-spi": -104484469,
@@ -147,6 +166,8 @@
     "io.smallrye.reactive:smallrye-mutiny-vertx-web": -592163683,
     "io.smallrye.reactive:smallrye-mutiny-vertx-web-common": -696162268,
     "io.smallrye.reactive:vertx-mutiny-generator": 1011263807,
+    "io.smallrye.stork:stork-api": -2010200142,
+    "io.smallrye.stork:stork-core": -172792847,
     "io.smallrye:jandex": 1595401939,
     "io.smallrye:jandex-gizmo2": -1229258748,
     "io.smallrye:smallrye-context-propagation": 786105975,
@@ -158,6 +179,10 @@
     "io.vertx:vertx-bridge-common": -1225050642,
     "io.vertx:vertx-codegen": -399346269,
     "io.vertx:vertx-core": -994177087,
+    "io.vertx:vertx-grpc": 1471796389,
+    "io.vertx:vertx-grpc-client": 1883460293,
+    "io.vertx:vertx-grpc-common": 1551332696,
+    "io.vertx:vertx-grpc-server": -367188804,
     "io.vertx:vertx-uri-template": -1753912546,
     "io.vertx:vertx-web": 625843592,
     "io.vertx:vertx-web-common": -2085713373,
@@ -336,6 +361,12 @@
       },
       "version": "3.28.0"
     },
+    "com.google.api.grpc:proto-google-common-protos": {
+      "shasums": {
+        "jar": "a37b117a271adc145c67c7de40f1fd62621e6398c22217c942ce26b618a93adf"
+      },
+      "version": "2.65.1"
+    },
     "com.google.code.findbugs:jsr305": {
       "shasums": {
         "jar": "766ad2a0783f2687962c8ad74ceecc38a28b9f72a2d085ee438b7813e928d0c7"
@@ -384,6 +415,18 @@
       },
       "version": "3.1"
     },
+    "com.google.protobuf:protobuf-java": {
+      "shasums": {
+        "jar": "c5b582aa127fb62c5fc3077329d522dfb7930b4e9a625c08760b681b2ba5aab7"
+      },
+      "version": "4.33.2"
+    },
+    "com.google.protobuf:protobuf-java-util": {
+      "shasums": {
+        "jar": "810ecf895fde89e0f0f0bc34f3fec0bfa949c8173e941c15f9f2bb9f0ed7644a"
+      },
+      "version": "4.33.2"
+    },
     "commons-cli:commons-cli": {
       "shasums": {
         "jar": "8f7f8605d68e15bf32db61ec94eac6fdafc51b1bdbe1e0e0802b57d23f387792"
@@ -407,6 +450,54 @@
         "jar": "daddea1ea0be0f56978ab3006b8ac92834afeefbd9b7e4e6316fca57df0fa636"
       },
       "version": "1.2"
+    },
+    "io.grpc:grpc-api": {
+      "shasums": {
+        "jar": "f09410380ddb66cfe52a5c865624be8af750433f0b550efdfab3dff9df2b97ac"
+      },
+      "version": "1.79.0"
+    },
+    "io.grpc:grpc-context": {
+      "shasums": {
+        "jar": "d911eb41290d3d6dd7ff521b77e80b455d58459e939fe8dbf21c4795d951655c"
+      },
+      "version": "1.79.0"
+    },
+    "io.grpc:grpc-core": {
+      "shasums": {
+        "jar": "3905dcc7d56288fa4b102f0af94f941c393167ec5fce1fc2a9662f2a9c53821b"
+      },
+      "version": "1.79.0"
+    },
+    "io.grpc:grpc-netty": {
+      "shasums": {
+        "jar": "7cb02da891d6409459bb602be68e63be2419af12e96c97ff64ef758f6a150acd"
+      },
+      "version": "1.79.0"
+    },
+    "io.grpc:grpc-protobuf": {
+      "shasums": {
+        "jar": "3985a84170198c1a50d36011285ed43d78477c8e9a4b5e4a8ae038a03a8b8241"
+      },
+      "version": "1.79.0"
+    },
+    "io.grpc:grpc-protobuf-lite": {
+      "shasums": {
+        "jar": "27a1bc17bdd0a9f1432bd299d51773f5cf1f20e14a6fc943754a34be4029a596"
+      },
+      "version": "1.79.0"
+    },
+    "io.grpc:grpc-stub": {
+      "shasums": {
+        "jar": "6ac28427db750e24dc89421230e63927fb49e9ec0bee8cecb0634c90785c8ac3"
+      },
+      "version": "1.79.0"
+    },
+    "io.grpc:grpc-util": {
+      "shasums": {
+        "jar": "3ed8871e5f740f4d3254b6fc0011612d7e8be97b684dce36a763a9c599a95329"
+      },
+      "version": "1.79.0"
     },
     "io.netty:netty-buffer": {
       "shasums": {
@@ -491,6 +582,12 @@
         "jar": "75681c3be01ff3c5bb6a39a7583e70289f64fd926e4fc29859ce9cf223ad99fc"
       },
       "version": "4.1.133.Final"
+    },
+    "io.perfmark:perfmark-api": {
+      "shasums": {
+        "jar": "c7b478503ec524e55df19b424d46d27c8a68aeb801664fadd4f069b71f52d0f6"
+      },
+      "version": "0.27.0"
     },
     "io.quarkus.arc:arc": {
       "shasums": {
@@ -684,6 +781,36 @@
       },
       "version": "1.3.0"
     },
+    "io.quarkus:quarkus-grpc": {
+      "shasums": {
+        "jar": "c740078e69c401decb38ad20a621ffd616ae531ae80018420254096e32d25fea"
+      },
+      "version": "3.33.2"
+    },
+    "io.quarkus:quarkus-grpc-api": {
+      "shasums": {
+        "jar": "d77ef732ddc637808646423c526a387675ce7829c253467154912d0393b752cc"
+      },
+      "version": "3.33.2"
+    },
+    "io.quarkus:quarkus-grpc-common": {
+      "shasums": {
+        "jar": "6e00abbddb2d855d74fa19006c14ef0a3fdd6eeac5312c4101212a2f62400189"
+      },
+      "version": "3.33.2"
+    },
+    "io.quarkus:quarkus-grpc-reflection": {
+      "shasums": {
+        "jar": "64678a86b310be543b98ac60cb5d8895f08357a73e8ee774ba41d4547253c32c"
+      },
+      "version": "3.33.2"
+    },
+    "io.quarkus:quarkus-grpc-stubs": {
+      "shasums": {
+        "jar": "d3fa27dc4093fd1007178f87082c273187ad9bb9c553be067583ae2115f727ef"
+      },
+      "version": "3.33.2"
+    },
     "io.quarkus:quarkus-hibernate-validator-spi": {
       "shasums": {
         "jar": "135676366467c092c4fc557e15b12533f893f663107b1a4c372e82b508b56c54"
@@ -765,6 +892,12 @@
     "io.quarkus:quarkus-smallrye-context-propagation-spi": {
       "shasums": {
         "jar": "f106fd5353dcebc3876b1388ff5ed1f9575719f9ef2539802e1bbb35cee7768a"
+      },
+      "version": "3.33.2"
+    },
+    "io.quarkus:quarkus-smallrye-stork": {
+      "shasums": {
+        "jar": "f8b246d399d839e585570238a1986463f5ed6bba1aff31d1d12db69901d20599"
       },
       "version": "3.33.2"
     },
@@ -1038,6 +1171,18 @@
       },
       "version": "3.21.6"
     },
+    "io.smallrye.stork:stork-api": {
+      "shasums": {
+        "jar": "8fa472d79e69f8ad6a7b5b3edadb0fa0d53ace46eb4dff98a2577a8db188c06a"
+      },
+      "version": "2.7.9"
+    },
+    "io.smallrye.stork:stork-core": {
+      "shasums": {
+        "jar": "970d2d2d3a7c825cb0a0b38babac1db351b7fd19b8679dfee10b79e1afd6d5aa"
+      },
+      "version": "2.7.9"
+    },
     "io.smallrye:jandex": {
       "shasums": {
         "jar": "45c2bf6d360cd9d4cb836273af712c5f9734e04b592030c12ac04601e60578a3"
@@ -1101,6 +1246,30 @@
     "io.vertx:vertx-core": {
       "shasums": {
         "jar": "8f411bfed688e27a9fdd01a0d86f19e37b91845af76f1a4a6810cabc61f3cd46"
+      },
+      "version": "4.5.27"
+    },
+    "io.vertx:vertx-grpc": {
+      "shasums": {
+        "jar": "d563ddeca8e2046894fa62093a66c6e94343770ceb0d52f9b0eef697ba57035e"
+      },
+      "version": "4.5.27"
+    },
+    "io.vertx:vertx-grpc-client": {
+      "shasums": {
+        "jar": "3d751de468863f5b367f73ee2b1f151636cfe9915e3b66d16109719885258fcc"
+      },
+      "version": "4.5.27"
+    },
+    "io.vertx:vertx-grpc-common": {
+      "shasums": {
+        "jar": "7e93bc414ef6e4b64579a4da7415ec75e5d8e74452a1ba639b6b38b4ab8fd820"
+      },
+      "version": "4.5.27"
+    },
+    "io.vertx:vertx-grpc-server": {
+      "shasums": {
+        "jar": "f64035f719671c5d86f7e4de86a0fa794c0dec2716e6cb3e71cd942b24fa515b"
       },
       "version": "4.5.27"
     },
@@ -1771,6 +1940,9 @@
       "com.fasterxml.jackson.core:jackson-core",
       "com.fasterxml.jackson.core:jackson-databind"
     ],
+    "com.google.api.grpc:proto-google-common-protos": [
+      "com.google.protobuf:protobuf-java"
+    ],
     "com.google.code.gson:gson": [
       "com.google.errorprone:error_prone_annotations"
     ],
@@ -1784,6 +1956,52 @@
     "com.google.inject:guice:jar:classes": [
       "aopalliance:aopalliance",
       "javax.inject:javax.inject"
+    ],
+    "com.google.protobuf:protobuf-java-util": [
+      "com.google.code.findbugs:jsr305",
+      "com.google.code.gson:gson",
+      "com.google.errorprone:error_prone_annotations",
+      "com.google.protobuf:protobuf-java"
+    ],
+    "io.grpc:grpc-api": [
+      "com.google.code.findbugs:jsr305"
+    ],
+    "io.grpc:grpc-context": [
+      "io.grpc:grpc-api"
+    ],
+    "io.grpc:grpc-core": [
+      "com.google.code.gson:gson",
+      "com.google.errorprone:error_prone_annotations",
+      "com.google.guava:guava",
+      "io.grpc:grpc-api",
+      "io.grpc:grpc-context",
+      "io.perfmark:perfmark-api"
+    ],
+    "io.grpc:grpc-netty": [
+      "io.grpc:grpc-api",
+      "io.grpc:grpc-core",
+      "io.grpc:grpc-util",
+      "io.perfmark:perfmark-api"
+    ],
+    "io.grpc:grpc-protobuf": [
+      "com.google.api.grpc:proto-google-common-protos",
+      "com.google.code.findbugs:jsr305",
+      "com.google.protobuf:protobuf-java",
+      "io.grpc:grpc-api",
+      "io.grpc:grpc-protobuf-lite"
+    ],
+    "io.grpc:grpc-protobuf-lite": [
+      "com.google.code.findbugs:jsr305",
+      "io.grpc:grpc-api"
+    ],
+    "io.grpc:grpc-stub": [
+      "com.google.errorprone:error_prone_annotations",
+      "com.google.guava:guava",
+      "io.grpc:grpc-api"
+    ],
+    "io.grpc:grpc-util": [
+      "io.grpc:grpc-api",
+      "io.grpc:grpc-core"
     ],
     "io.netty:netty-buffer": [
       "io.netty:netty-common"
@@ -2072,6 +2290,43 @@
       "org.jboss.jdeparser:jdeparser",
       "org.jsoup:jsoup"
     ],
+    "io.quarkus:quarkus-grpc": [
+      "com.google.protobuf:protobuf-java-util",
+      "io.grpc:grpc-stub",
+      "io.quarkus.security:quarkus-security",
+      "io.quarkus:quarkus-arc",
+      "io.quarkus:quarkus-core",
+      "io.quarkus:quarkus-grpc-api",
+      "io.quarkus:quarkus-grpc-common",
+      "io.quarkus:quarkus-grpc-reflection",
+      "io.quarkus:quarkus-grpc-stubs",
+      "io.quarkus:quarkus-mutiny",
+      "io.quarkus:quarkus-smallrye-stork",
+      "io.quarkus:quarkus-vertx-http",
+      "io.quarkus:quarkus-virtual-threads",
+      "io.smallrye.common:smallrye-common-annotation",
+      "io.smallrye.common:smallrye-common-vertx-context",
+      "jakarta.annotation:jakarta.annotation-api"
+    ],
+    "io.quarkus:quarkus-grpc-api": [
+      "io.grpc:grpc-stub",
+      "io.quarkus.arc:arc",
+      "jakarta.enterprise:jakarta.enterprise.cdi-api"
+    ],
+    "io.quarkus:quarkus-grpc-common": [
+      "io.grpc:grpc-core",
+      "io.quarkus:quarkus-vertx",
+      "io.vertx:vertx-grpc",
+      "io.vertx:vertx-grpc-client",
+      "io.vertx:vertx-grpc-server"
+    ],
+    "io.quarkus:quarkus-grpc-reflection": [
+      "io.grpc:grpc-protobuf",
+      "io.grpc:grpc-stub",
+      "io.quarkus:quarkus-grpc-api",
+      "io.quarkus:quarkus-grpc-stubs",
+      "io.smallrye.reactive:mutiny"
+    ],
     "io.quarkus:quarkus-hibernate-validator-spi": [
       "io.quarkus:quarkus-builder",
       "io.smallrye:jandex"
@@ -2151,6 +2406,13 @@
     "io.quarkus:quarkus-smallrye-context-propagation-spi": [
       "io.quarkus:quarkus-core-deployment",
       "org.eclipse.microprofile.context-propagation:microprofile-context-propagation-api"
+    ],
+    "io.quarkus:quarkus-smallrye-stork": [
+      "io.quarkus:quarkus-arc",
+      "io.quarkus:quarkus-core",
+      "io.quarkus:quarkus-vertx",
+      "io.smallrye.stork:stork-api",
+      "io.smallrye.stork:stork-core"
     ],
     "io.quarkus:quarkus-test-common": [
       "commons-io:commons-io",
@@ -2391,6 +2653,14 @@
       "io.smallrye.reactive:smallrye-mutiny-vertx-runtime",
       "io.vertx:vertx-codegen"
     ],
+    "io.smallrye.stork:stork-api": [
+      "io.smallrye.reactive:mutiny"
+    ],
+    "io.smallrye.stork:stork-core": [
+      "io.smallrye.stork:stork-api",
+      "jakarta.enterprise:jakarta.enterprise.cdi-api",
+      "org.slf4j:slf4j-api"
+    ],
     "io.smallrye:jandex-gizmo2": [
       "io.quarkus.gizmo:gizmo2",
       "io.smallrye:jandex"
@@ -2425,6 +2695,28 @@
       "io.netty:netty-resolver",
       "io.netty:netty-resolver-dns",
       "io.netty:netty-transport"
+    ],
+    "io.vertx:vertx-grpc": [
+      "com.google.guava:guava",
+      "io.grpc:grpc-netty",
+      "io.grpc:grpc-protobuf",
+      "io.grpc:grpc-stub",
+      "io.vertx:vertx-core"
+    ],
+    "io.vertx:vertx-grpc-client": [
+      "io.grpc:grpc-api",
+      "io.grpc:grpc-stub",
+      "io.vertx:vertx-grpc-common"
+    ],
+    "io.vertx:vertx-grpc-common": [
+      "com.google.guava:guava",
+      "io.grpc:grpc-api",
+      "io.grpc:grpc-protobuf",
+      "io.vertx:vertx-core"
+    ],
+    "io.vertx:vertx-grpc-server": [
+      "io.grpc:grpc-stub",
+      "io.vertx:vertx-grpc-common"
     ],
     "io.vertx:vertx-uri-template": [
       "io.vertx:vertx-core"
@@ -2858,6 +3150,20 @@
       "com.github.javaparser.resolution.types.parametrization",
       "com.github.javaparser.utils"
     ],
+    "com.google.api.grpc:proto-google-common-protos": [
+      "com.google.api",
+      "com.google.apps.card.v1",
+      "com.google.cloud",
+      "com.google.cloud.audit",
+      "com.google.cloud.location",
+      "com.google.geo.type",
+      "com.google.logging.type",
+      "com.google.longrunning",
+      "com.google.rpc",
+      "com.google.rpc.context",
+      "com.google.shopping.type",
+      "com.google.type"
+    ],
     "com.google.code.findbugs:jsr305": [
       "javax.annotation",
       "javax.annotation.concurrent",
@@ -2916,6 +3222,13 @@
     "com.google.j2objc:j2objc-annotations": [
       "com.google.j2objc.annotations"
     ],
+    "com.google.protobuf:protobuf-java": [
+      "com.google.protobuf",
+      "com.google.protobuf.compiler"
+    ],
+    "com.google.protobuf:protobuf-java-util": [
+      "com.google.protobuf.util"
+    ],
     "commons-cli:commons-cli": [
       "org.apache.commons.cli",
       "org.apache.commons.cli.help"
@@ -2949,6 +3262,28 @@
     "commons-logging:commons-logging": [
       "org.apache.commons.logging",
       "org.apache.commons.logging.impl"
+    ],
+    "io.grpc:grpc-api": [
+      "io.grpc"
+    ],
+    "io.grpc:grpc-core": [
+      "io.grpc.internal"
+    ],
+    "io.grpc:grpc-netty": [
+      "io.grpc.netty"
+    ],
+    "io.grpc:grpc-protobuf": [
+      "io.grpc.protobuf"
+    ],
+    "io.grpc:grpc-protobuf-lite": [
+      "io.grpc.protobuf.lite"
+    ],
+    "io.grpc:grpc-stub": [
+      "io.grpc.stub",
+      "io.grpc.stub.annotations"
+    ],
+    "io.grpc:grpc-util": [
+      "io.grpc.util"
     ],
     "io.netty:netty-buffer": [
       "io.netty.buffer",
@@ -3046,6 +3381,9 @@
     ],
     "io.netty:netty-transport-native-unix-common": [
       "io.netty.channel.unix"
+    ],
+    "io.perfmark:perfmark-api": [
+      "io.perfmark"
     ],
     "io.quarkus.arc:arc": [
       "io.quarkus.arc",
@@ -3428,6 +3766,36 @@
       "io.quarkus.fs.util.base",
       "io.quarkus.fs.util.sysfs"
     ],
+    "io.quarkus:quarkus-grpc": [
+      "io.grpc.override",
+      "io.quarkus.grpc.api",
+      "io.quarkus.grpc.auth",
+      "io.quarkus.grpc.runtime",
+      "io.quarkus.grpc.runtime.config",
+      "io.quarkus.grpc.runtime.devmode",
+      "io.quarkus.grpc.runtime.health",
+      "io.quarkus.grpc.runtime.stork",
+      "io.quarkus.grpc.runtime.supports",
+      "io.quarkus.grpc.runtime.supports.blocking",
+      "io.quarkus.grpc.runtime.supports.context",
+      "io.quarkus.grpc.runtime.supports.exc",
+      "io.quarkus.grpc.spi"
+    ],
+    "io.quarkus:quarkus-grpc-api": [
+      "io.quarkus.grpc"
+    ],
+    "io.quarkus:quarkus-grpc-common": [
+      "io.quarkus.grpc.common.runtime.graal"
+    ],
+    "io.quarkus:quarkus-grpc-reflection": [
+      "io.quarkus.grpc.reflection.service"
+    ],
+    "io.quarkus:quarkus-grpc-stubs": [
+      "grpc.health.v1",
+      "grpc.reflection.v1alpha",
+      "io.grpc.reflection.v1",
+      "io.quarkus.grpc.stubs"
+    ],
     "io.quarkus:quarkus-hibernate-validator-spi": [
       "io.quarkus.hibernate.validator.spi"
     ],
@@ -3482,6 +3850,9 @@
     ],
     "io.quarkus:quarkus-smallrye-context-propagation-spi": [
       "io.quarkus.smallrye.context.deployment.spi"
+    ],
+    "io.quarkus:quarkus-smallrye-stork": [
+      "io.quarkus.stork"
     ],
     "io.quarkus:quarkus-test-common": [
       "io.quarkus.test",
@@ -3761,6 +4132,20 @@
       "io.smallrye.mutiny.vertx.codegen.lang",
       "io.smallrye.mutiny.vertx.codegen.methods"
     ],
+    "io.smallrye.stork:stork-api": [
+      "io.smallrye.stork.api",
+      "io.smallrye.stork.api.config",
+      "io.smallrye.stork.api.observability",
+      "io.smallrye.stork.spi",
+      "io.smallrye.stork.spi.config",
+      "io.smallrye.stork.spi.internal"
+    ],
+    "io.smallrye.stork:stork-core": [
+      "io.smallrye.stork",
+      "io.smallrye.stork.impl",
+      "io.smallrye.stork.integration",
+      "io.smallrye.stork.utils"
+    ],
     "io.smallrye:jandex": [
       "org.jboss.jandex"
     ],
@@ -3881,6 +4266,24 @@
       "io.vertx.core.streams",
       "io.vertx.core.streams.impl",
       "io.vertx.core.tracing"
+    ],
+    "io.vertx:vertx-grpc": [
+      "io.vertx.grpc",
+      "io.vertx.grpc.stub"
+    ],
+    "io.vertx:vertx-grpc-client": [
+      "io.vertx.grpc.client",
+      "io.vertx.grpc.client.impl",
+      "io.vertx.grpcio.client"
+    ],
+    "io.vertx:vertx-grpc-common": [
+      "io.vertx.grpc.common",
+      "io.vertx.grpc.common.impl"
+    ],
+    "io.vertx:vertx-grpc-server": [
+      "io.vertx.grpc.server",
+      "io.vertx.grpc.server.impl",
+      "io.vertx.grpcio.server"
     ],
     "io.vertx:vertx-uri-template": [
       "io.vertx.uritemplate",
@@ -5141,6 +5544,7 @@
       "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml",
       "com.fasterxml.jackson.module:jackson-module-parameter-names",
       "com.github.javaparser:javaparser-core",
+      "com.google.api.grpc:proto-google-common-protos",
       "com.google.code.findbugs:jsr305",
       "com.google.code.gson:gson",
       "com.google.errorprone:error_prone_annotations",
@@ -5149,10 +5553,20 @@
       "com.google.guava:listenablefuture",
       "com.google.inject:guice:jar:classes",
       "com.google.j2objc:j2objc-annotations",
+      "com.google.protobuf:protobuf-java",
+      "com.google.protobuf:protobuf-java-util",
       "commons-cli:commons-cli",
       "commons-codec:commons-codec",
       "commons-io:commons-io",
       "commons-logging:commons-logging",
+      "io.grpc:grpc-api",
+      "io.grpc:grpc-context",
+      "io.grpc:grpc-core",
+      "io.grpc:grpc-netty",
+      "io.grpc:grpc-protobuf",
+      "io.grpc:grpc-protobuf-lite",
+      "io.grpc:grpc-stub",
+      "io.grpc:grpc-util",
       "io.netty:netty-buffer",
       "io.netty:netty-codec",
       "io.netty:netty-codec-dns",
@@ -5167,6 +5581,7 @@
       "io.netty:netty-resolver-dns",
       "io.netty:netty-transport",
       "io.netty:netty-transport-native-unix-common",
+      "io.perfmark:perfmark-api",
       "io.quarkus.arc:arc",
       "io.quarkus.arc:arc-processor",
       "io.quarkus.gizmo:gizmo",
@@ -5199,6 +5614,11 @@
       "io.quarkus:quarkus-devui-deployment-spi",
       "io.quarkus:quarkus-extension-processor",
       "io.quarkus:quarkus-fs-util",
+      "io.quarkus:quarkus-grpc",
+      "io.quarkus:quarkus-grpc-api",
+      "io.quarkus:quarkus-grpc-common",
+      "io.quarkus:quarkus-grpc-reflection",
+      "io.quarkus:quarkus-grpc-stubs",
       "io.quarkus:quarkus-hibernate-validator-spi",
       "io.quarkus:quarkus-ide-launcher",
       "io.quarkus:quarkus-jsonp",
@@ -5213,6 +5633,7 @@
       "io.quarkus:quarkus-security-runtime-spi",
       "io.quarkus:quarkus-smallrye-context-propagation",
       "io.quarkus:quarkus-smallrye-context-propagation-spi",
+      "io.quarkus:quarkus-smallrye-stork",
       "io.quarkus:quarkus-test-common",
       "io.quarkus:quarkus-tls-registry",
       "io.quarkus:quarkus-tls-registry-spi",
@@ -5258,6 +5679,8 @@
       "io.smallrye.reactive:smallrye-mutiny-vertx-web",
       "io.smallrye.reactive:smallrye-mutiny-vertx-web-common",
       "io.smallrye.reactive:vertx-mutiny-generator",
+      "io.smallrye.stork:stork-api",
+      "io.smallrye.stork:stork-core",
       "io.smallrye:jandex",
       "io.smallrye:jandex-gizmo2",
       "io.smallrye:smallrye-context-propagation",
@@ -5269,6 +5692,10 @@
       "io.vertx:vertx-bridge-common",
       "io.vertx:vertx-codegen",
       "io.vertx:vertx-core",
+      "io.vertx:vertx-grpc",
+      "io.vertx:vertx-grpc-client",
+      "io.vertx:vertx-grpc-common",
+      "io.vertx:vertx-grpc-server",
       "io.vertx:vertx-uri-template",
       "io.vertx:vertx-web",
       "io.vertx:vertx-web-common",
@@ -5403,6 +5830,33 @@
         "com.fasterxml.jackson.module.paramnames.ParameterNamesModule"
       ]
     },
+    "io.grpc:grpc-core": {
+      "io.grpc.LoadBalancerProvider": [
+        "io.grpc.internal.PickFirstLoadBalancerProvider"
+      ],
+      "io.grpc.NameResolverProvider": [
+        "io.grpc.internal.DnsNameResolverProvider"
+      ]
+    },
+    "io.grpc:grpc-netty": {
+      "io.grpc.ManagedChannelProvider": [
+        "io.grpc.netty.NettyChannelProvider",
+        "io.grpc.netty.UdsNettyChannelProvider"
+      ],
+      "io.grpc.NameResolverProvider": [
+        "io.grpc.netty.UdsNameResolverProvider"
+      ],
+      "io.grpc.ServerProvider": [
+        "io.grpc.netty.NettyServerProvider"
+      ]
+    },
+    "io.grpc:grpc-util": {
+      "io.grpc.LoadBalancerProvider": [
+        "io.grpc.util.OutlierDetectionLoadBalancerProvider",
+        "io.grpc.util.RandomSubsettingLoadBalancerProvider",
+        "io.grpc.util.SecretRoundRobinLoadBalancerProvider$Provider"
+      ]
+    },
     "io.netty:netty-common": {
       "reactor.blockhound.integration.BlockHoundIntegration": [
         "io.netty.util.internal.Hidden$NettyBlockHoundIntegration"
@@ -5474,6 +5928,14 @@
         "io.quarkus.annotation.processor.ExtensionAnnotationProcessor"
       ]
     },
+    "io.quarkus:quarkus-grpc": {
+      "io.quarkus.dev.spi.HotReplacementSetup": [
+        "io.quarkus.grpc.runtime.devmode.GrpcHotReplacementSetup"
+      ],
+      "io.quarkus.value.registry.RuntimeInfoProvider": [
+        "io.quarkus.grpc.runtime.GrpcServerRuntimeInfoProvider"
+      ]
+    },
     "io.quarkus:quarkus-junit": {
       "io.quarkus.test.junit.callback.QuarkusTestAfterConstructCallback": [
         "io.quarkus.test.junit.internal.VerifyMockitoMocksCallback"
@@ -5508,6 +5970,11 @@
     "io.quarkus:quarkus-rest": {
       "io.quarkus.runtime.test.TestHttpEndpointProvider": [
         "io.quarkus.resteasy.reactive.server.runtime.ResteasyReactiveTestHttpProvider"
+      ]
+    },
+    "io.quarkus:quarkus-smallrye-stork": {
+      "io.smallrye.stork.spi.config.ConfigProvider": [
+        "io.quarkus.stork.StorkConfigProvider"
       ]
     },
     "io.quarkus:quarkus-test-common": {
@@ -5610,6 +6077,13 @@
       "io.vertx.codegen.GeneratorLoader": [
         "io.smallrye.mutiny.vertx.codegen.MutinyGeneratorLoader"
       ]
+    },
+    "io.smallrye.stork:stork-core": {
+      "io.smallrye.stork.spi.internal.LoadBalancerLoader": [
+        "io.smallrye.stork.impl.RoundRobinLoadBalancerProviderLoader"
+      ],
+      "io.smallrye.stork.spi.internal.ServiceDiscoveryLoader": [],
+      "io.smallrye.stork.spi.internal.ServiceRegistrarLoader": []
     },
     "io.smallrye:smallrye-context-propagation": {
       "org.eclipse.microprofile.context.spi.ContextManagerProvider": [

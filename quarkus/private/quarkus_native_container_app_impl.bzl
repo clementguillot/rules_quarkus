@@ -211,6 +211,7 @@ including entries in a shared remote cache.
             mandatory = True,
             doc = "Internal deployment resolver graph catalog (set by macro).",
         ),
+        "deployment_artifacts": attr.label(mandatory = True),
         "platform_catalog": attr.label(
             allow_single_file = [".json"],
             mandatory = True,

@@ -146,6 +146,18 @@ inference paths have been removed.
 
 When source dirs are empty, hot-reload is disabled but the Dev UI still works.
 
+### Generated sources
+
+Code generation always runs through Bazel before the initial dev startup.
+`quarkus_app(dev_codegen = "bazel")`, the default, watches original generator
+inputs and rebuilds the configured `<name>_dev` target under the same lifecycle
+transition before syncing classes. `dev_codegen = "quarkus"` instead supplies
+source parents, generated-source paths, build directories, and codegen
+properties to Quarkus `ModuleInfo`, allowing `CodeGenWatcher` to handle later
+changes in the dev JVM. That subsequent path is non-hermetic and writes beneath
+the dev workspace build directory. `dev_codegen = "off"` preserves the
+initially generated classes without watching generator inputs.
+
 ### Hot-Reload Build Configuration
 
 On a source change, `BazelFileWatcher` runs `bazel build <targets>` (binary resolved by
@@ -175,7 +187,9 @@ sign of a configuration mismatch. The rebuild timeout defaults to 600 s
 
 - **Dependencies graph direct links**: The Dev UI "Application Dependencies" graph shows all runtime extensions as direct deps of the root node (instead of only user-declared ones like Maven does), because Bazel's flat classpath doesn't distinguish user-declared from transitive extensions ([#51](https://github.com/clementguillot/rules_quarkus/issues/51)).
 - **Extensions panel**: The Dev UI Extensions panel doesn't work — it uses Maven resolver classes unavailable in Bazel (produces `ClassCastException` for `RemoteRepository` across classloaders).
-- **No in-process dev mode**: Always uses a separate JVM process (~2-3s startup overhead).
+- **Separate dev JVM**: Startup still uses a separate JVM process. The
+  `dev_codegen = "quarkus"` option affects subsequent code generation inside
+  that dev process; it does not remove the process boundary.
 - **Docker required for Dev Services**: Dev Services need Docker on the host.
 
 ## Dev UI Static Resources
