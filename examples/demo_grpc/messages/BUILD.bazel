@@ -1,0 +1,25 @@
+load("@rules_quarkus//quarkus:defs.bzl", "quarkus_java_library")
+
+# Shared gRPC contract: generated once from item.proto and depended on by both
+# the producer (server implementation) and consumer (client) apps, so both
+# sides compile against the same message and stub classes.
+quarkus_java_library(
+    name = "messages",
+    codegen_build_properties = {
+        "quarkus.generate-code.grpc.scan-for-proto": "none",
+    },
+    codegen_srcs = ["src/main/proto/item.proto"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@maven//:com_google_guava_guava",
+        "@maven//:com_google_protobuf_protobuf_java",
+        "@maven//:io_grpc_grpc_api",
+        "@maven//:io_grpc_grpc_protobuf",
+        "@maven//:io_grpc_grpc_stub",
+        "@maven//:io_quarkus_quarkus_grpc",
+        "@maven//:io_quarkus_quarkus_grpc_api",
+        "@maven//:io_quarkus_quarkus_grpc_stubs",
+        "@maven//:io_smallrye_reactive_mutiny",
+        "@maven//:jakarta_annotation_jakarta_annotation_api",
+    ],
+)
