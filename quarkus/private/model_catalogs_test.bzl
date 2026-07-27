@@ -1,7 +1,7 @@
 "Unit tests for external model-catalog normalization."
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//quarkus:extensions.bzl", "conditional_catalog_for_test", "coursier_artifact_for_test", "coursier_report_coordinate_for_test", "deployment_catalog_for_test", "dev_mode_artifacts_for_test", "jar_target_name_for_test", "maven_target_name_for_test", "runtime_catalog_for_test", "runtime_discovery_artifacts_for_test", "runtime_resolution_roots_for_test")
+load("//quarkus:extensions.bzl", "conditional_catalog_for_test", "coursier_artifact_for_test", "coursier_report_coordinate_for_test", "deployment_catalog_for_test", "dev_mode_artifacts_for_test", "jar_target_name_for_test", "java_major_version_for_test", "maven_target_name_for_test", "min_java_version_for_test", "runtime_catalog_for_test", "runtime_discovery_artifacts_for_test", "runtime_resolution_roots_for_test")
 
 def _runtime_catalog_v3_test_impl(ctx):
     env = unittest.begin(ctx)
@@ -316,6 +316,64 @@ def _maven_target_name_test_impl(ctx):
 
 maven_target_name_test = unittest.make(_maven_target_name_test_impl)
 
+def _java_major_version_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    # JDK 8 writes both the banner and the properties to stderr, and reports
+    # the legacy 1.x form.
+    asserts.equals(env, 8, java_major_version_for_test(
+        "VM settings:\n" +
+        "Property settings:\n" +
+        "    java.specification.version = 1.8\n" +
+        "    java.version = 1.8.0_401\n" +
+        "\n" +
+        "java version \"1.8.0_401\"\n" +
+        "Java(TM) SE Runtime Environment (build 1.8.0_401-b10)\n",
+    ))
+
+    asserts.equals(env, 17, java_major_version_for_test(
+        "Property settings:\n" +
+        "    java.specification.version = 17\n" +
+        "\n" +
+        "openjdk version \"17.0.9\" 2023-10-17\n",
+    ))
+    asserts.equals(env, 21, java_major_version_for_test(
+        "    java.specification.version = 21\n",
+    ))
+
+    # A pre-release property value still yields its major version.
+    asserts.equals(env, 25, java_major_version_for_test(
+        "    java.specification.version = 25-ea\n",
+    ))
+
+    # The property wins over the banner even when the banner is seen first,
+    # since java.version can differ from java.specification.version.
+    asserts.equals(env, 11, java_major_version_for_test(
+        "openjdk version \"11.0.21\" 2023-10-17\n" +
+        "    java.specification.version = 11\n",
+    ))
+
+    # JVMs that ignore -XshowSettings leave only the banner to parse.
+    asserts.equals(env, 8, java_major_version_for_test(
+        "openjdk version \"1.8.0_402\"\n",
+    ))
+    asserts.equals(env, 17, java_major_version_for_test(
+        "openjdk version \"17.0.9\" 2023-10-17\n",
+    ))
+
+    # Unparsable output must not be mistaken for a usable JVM.
+    asserts.equals(env, None, java_major_version_for_test(""))
+    asserts.equals(env, None, java_major_version_for_test("Unable to locate a Java Runtime.\n"))
+    asserts.equals(env, None, java_major_version_for_test(
+        "    java.specification.version = unknown\n",
+    ))
+
+    # The minimum must stay aligned with the quarkifier's --java_language_version.
+    asserts.equals(env, 17, min_java_version_for_test)
+    return unittest.end(env)
+
+java_major_version_test = unittest.make(_java_major_version_test_impl)
+
 def _deployment_catalog_test_impl(ctx):
     env = unittest.begin(ctx)
     cache_path = "/machine/cache/maven2/g/a/1.0/a-1.0.jar"
@@ -402,6 +460,7 @@ def model_catalogs_test_suite():
         coursier_artifact_test,
         dev_mode_artifacts_test,
         maven_target_name_test,
+        java_major_version_test,
         deployment_catalog_test,
         conditional_catalog_test,
     )

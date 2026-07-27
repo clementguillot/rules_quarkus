@@ -562,32 +562,114 @@ def _host_platform_key(os):
         return None
     return platform + "-" + cpu
 
-def _is_usable_java(rctx, java):
-    return rctx.execute([java, "-version"], timeout = 30).return_code == 0
+# The quarkifier is compiled at --java_language_version=17 (tools/java17.bazelrc),
+# so the JVM that runs extension discovery must be at least 17. Coursier itself
+# targets 8, but both run on the JVM _find_java returns, so 17 is the floor.
+_MIN_JAVA_VERSION = 17
+
+def _leading_int(value):
+    """Parses the leading digits of `value`, or None when it has none."""
+    digits = ""
+    for char in value.elems():
+        if not char.isdigit():
+            break
+        digits += char
+    return int(digits) if digits else None
+
+def _java_major_version(output):
+    """Extracts the major Java version from `java -XshowSettings:properties -version`.
+
+    Prefers the `java.specification.version` property, which is stable across
+    vendors, and falls back to the `version "..."` banner when the property is
+    absent (some non-HotSpot JVMs ignore -XshowSettings). Java 8 reports "1.8"
+    in both forms while 9+ report the major number directly. Returns None when
+    neither form is present or parseable.
+    """
+    banner_version = None
+    for raw_line in output.split("\n"):
+        line = raw_line.strip()
+        value = None
+        if line.startswith("java.specification.version"):
+            parts = line.split("=", 1)
+            if len(parts) == 2:
+                value = parts[1].strip()
+        elif banner_version == None and line.find("version \"") != -1:
+            value = line.split("version \"", 1)[1]
+        if value == None:
+            continue
+        if value.startswith("1."):
+            value = value[len("1."):]
+        version = _leading_int(value)
+        if version == None:
+            continue
+        if line.startswith("java.specification.version"):
+            return version
+        banner_version = version
+    return banner_version
+
+def _java_version(rctx, java):
+    """Returns the major version of `java`, or None when it fails to run.
+
+    The version lands on stderr for JDK 8-14 and on stdout for some later
+    builds, so both streams are parsed.
+    """
+    result = rctx.execute([java, "-XshowSettings:properties", "-version"], timeout = 30)
+    if result.return_code != 0:
+        return None
+    return _java_major_version(result.stdout + "\n" + result.stderr)
 
 def _find_java(rctx):
-    """Locates a JVM to run Coursier with.
+    """Locates a JVM to run Coursier and the quarkifier with.
 
     Repository rules run in the fetch phase, before toolchain resolution, so
     --java_runtime_version cannot be honored here. Order: JAVA_HOME, then a
-    validated `java` from PATH (the macOS /usr/bin/java stub fails without an
-    installed JDK), then the hermetic fallback JDK (fetched lazily).
+    `java` from PATH (the macOS /usr/bin/java stub fails without an installed
+    JDK), then the hermetic fallback JDK (fetched lazily).
+
+    Local JVMs must be _MIN_JAVA_VERSION or newer: the quarkifier fails with
+    UnsupportedClassVersionError on older ones. A too-old JVM is skipped in
+    favor of the fallback just like a missing one, so hosts whose default JDK
+    predates 17 keep building without any user action.
     """
+    rejected = []
+
     java_home = rctx.getenv("JAVA_HOME")
     if java_home:
         java = java_home + "/bin/java"
-        if rctx.path(java).exists and _is_usable_java(rctx, java):
-            return java
+        if rctx.path(java).exists:
+            version = _java_version(rctx, java)
+            if version != None and version >= _MIN_JAVA_VERSION:
+                return java
+            if version != None:
+                rejected.append("JAVA_HOME ({}) is Java {}".format(java, version))
 
     java = rctx.which("java")
-    if java and _is_usable_java(rctx, str(java)):
-        return str(java)
+    if java:
+        java = str(java)
+        version = _java_version(rctx, java)
+        if version != None and version >= _MIN_JAVA_VERSION:
+            return java
+        if version != None:
+            rejected.append("`java` on PATH ({}) is Java {}".format(java, version))
 
     if rctx.attr.fallback_java:
         return str(rctx.path(rctx.attr.fallback_java))
 
-    fail("No Java runtime found to run Coursier: set JAVA_HOME or add java to PATH " +
-         "(no bundled JDK fallback is available for this host platform).")
+    if rejected:
+        fail(("rules_quarkus needs Java {min} or newer to run the quarkifier during " +
+              "extension discovery, but {found}. Point JAVA_HOME at a Java {min}+ JDK " +
+              "(no bundled JDK fallback is available for this host platform).").format(
+            min = _MIN_JAVA_VERSION,
+            found = " and ".join(rejected),
+        ))
+    fail(("No Java runtime found: rules_quarkus needs Java {min} or newer to run Coursier " +
+          "and the quarkifier. Set JAVA_HOME or add java to PATH " +
+          "(no bundled JDK fallback is available for this host platform).").format(
+        min = _MIN_JAVA_VERSION,
+    ))
+
+java_major_version_for_test = _java_major_version
+min_java_version_for_test = _MIN_JAVA_VERSION
 
 def _coursier_fetch(rctx, java, artifacts, report_path, forced_versions = []):
     """Runs a batched Coursier fetch.
