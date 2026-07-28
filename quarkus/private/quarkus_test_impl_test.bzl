@@ -1,7 +1,7 @@
 "Unit tests for Quarkus JUnit ConsoleLauncher argument construction."
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load(":quarkus_test_impl.bzl", "build_test_args_for_test", "integration_version_error_for_test")
+load(":quarkus_test_impl.bzl", "build_test_args_for_test", "integration_version_error_for_test", "quarkus_jacoco_present_for_test")
 
 def _unit_test_args_test_impl(ctx):
     env = unittest.begin(ctx)
@@ -50,10 +50,25 @@ def _integration_version_test_impl(ctx):
 
 integration_version_test = unittest.make(_integration_version_test_impl)
 
+def _quarkus_jacoco_present_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    # Unit tests keep quarkus-jacoco's own report; the launcher, not this flag,
+    # is what turns it off while Bazel coverage collects.
+    asserts.true(env, quarkus_jacoco_present_for_test(False, True))
+    asserts.false(env, quarkus_jacoco_present_for_test(False, False))
+
+    # Integration tests run the app out of process, so quarkus-jacoco cannot report.
+    asserts.false(env, quarkus_jacoco_present_for_test(True, True))
+    return unittest.end(env)
+
+quarkus_jacoco_present_test = unittest.make(_quarkus_jacoco_present_test_impl)
+
 def quarkus_test_impl_test_suite(name = "quarkus_test_impl_tests"):
     unittest.suite(
         name,
         integration_test_args_test,
         integration_version_test,
+        quarkus_jacoco_present_test,
         unit_test_args_test,
     )
