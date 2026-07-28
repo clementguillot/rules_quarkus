@@ -39,6 +39,15 @@ def _build_test_args(test_packages, test_classes, fail_if_no_tests, integration 
         args.append("--exclude-classname=.*IT$")
     return " ".join(args)
 
+def _quarkus_jacoco_present(integration, jacoco_dep_present):
+    """Whether the launcher should let quarkus-jacoco write its own report.
+
+    Independent of `--collect_code_coverage`: the launcher itself sets
+    `quarkus.jacoco.enabled=false` when Bazel coverage runs, so gating on
+    coverage here would make the report unreachable in both modes.
+    """
+    return not integration and jacoco_dep_present
+
 def _integration_version_error(rule_name, test_version, app_label, app_version):
     if test_version == app_version:
         return ""
@@ -135,7 +144,7 @@ def _test_impl(ctx, integration):
             "%{jvm_flags}": " ".join([shell.quote(f) for f in ctx.attr.jvm_flags]),
             "%{model_file}": model.short_path,
             "%{jacoco_runner}": jacoco_runner_path,
-            "%{quarkus_jacoco_present}": "true" if coverage_enabled and has_maven_artifact(ctx.attr.deps, "io.quarkus", "quarkus-jacoco") else "false",
+            "%{quarkus_jacoco_present}": "true" if _quarkus_jacoco_present(integration, has_maven_artifact(ctx.attr.deps, "io.quarkus", "quarkus-jacoco")) else "false",
             "%{test_args}": _build_test_args(ctx.attr.test_packages, ctx.attr.test_classes, ctx.attr.fail_if_no_tests, integration),
             "%{test_kind}": "integration" if integration else "quarkus",
             "%{tool_jar}": tool_jar.short_path,
@@ -300,3 +309,4 @@ Services through the serialized TEST-mode ApplicationModel.
 
 build_test_args_for_test = _build_test_args
 integration_version_error_for_test = _integration_version_error
+quarkus_jacoco_present_for_test = _quarkus_jacoco_present
