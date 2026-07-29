@@ -32,13 +32,9 @@ QuarkusExtensionInfo = provider(
 )
 
 QuarkusCodeGenInfo = provider(
-    doc = "Inputs and outputs of one Quarkus CodeGenProvider action.",
+    doc = "Lifecycle metadata for one Quarkus CodeGenProvider action.",
     fields = {
-        "build_properties": "Dictionary of build properties used by code generation.",
-        "generated_source_jar": "Generated Java source jar.",
-        "input_files": "Depset of original generator input files.",
         "mode": "Declared mode: main or test.",
-        "owner_label": "Owning Bazel target label.",
         "source_roots": "Workspace-relative CodeGenProvider source-parent paths.",
     },
 )

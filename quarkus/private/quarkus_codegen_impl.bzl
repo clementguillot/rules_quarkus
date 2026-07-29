@@ -10,10 +10,9 @@ load("//quarkus/private:coverage_transition.bzl", "disable_coverage_transition",
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
 
 QuarkusCodeGenTransitiveInfo = provider(
-    "Accumulates QuarkusCodeGenInfo metadata and input files transitively across deps.",
+    "Accumulates main CodeGenProvider source roots transitively across deps.",
     fields = {
-        "entries": "Transitive codegen metadata entries.",
-        "input_files": "Transitive generator input files.",
+        "source_roots": "Transitive workspace-relative CodeGenProvider source-parent paths.",
     },
 )
 
@@ -128,7 +127,7 @@ def _quarkus_codegen_impl(ctx):
         conditional_classpath,
         deployment_classpath,
         mode.model,
-        ctx.attr.application_name or ctx.label.name,
+        ctx.label.name,
     )
     properties = _write_properties(ctx)
     generated_tree = ctx.actions.declare_directory(ctx.label.name + ".generated")
@@ -177,11 +176,7 @@ def _quarkus_codegen_impl(ctx):
             quarkus_codegen_sources = depset([generated_tree]),
         ),
         QuarkusCodeGenInfo(
-            build_properties = dict(ctx.attr.build_properties),
-            generated_source_jar = source_jar,
-            input_files = depset(ctx.files.srcs),
             mode = ctx.attr.mode,
-            owner_label = ctx.attr.owning_module or str(ctx.label),
             source_roots = source_roots,
         ),
     ]
@@ -189,7 +184,6 @@ def _quarkus_codegen_impl(ctx):
 quarkus_codegen_rule = rule(
     implementation = _quarkus_codegen_impl,
     attrs = {
-        "application_name": attr.string(),
         "build_properties": attr.string_dict(),
         "conditional_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
         "conditional_deps": attr.label(
@@ -210,7 +204,6 @@ quarkus_codegen_rule = rule(
             providers = [JavaInfo],
         ),
         "mode": attr.string(values = ["main", "test"], default = "main"),
-        "owning_module": attr.string(),
         "platform_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
         "platform_properties": attr.label(mandatory = True),
         "quarkifier_tool": attr.label(allow_single_file = [".jar"], mandatory = True),
@@ -219,7 +212,6 @@ quarkus_codegen_rule = rule(
         "runtime_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
         "source_roots": attr.string_list(mandatory = True),
         "srcs": attr.label_list(allow_files = True, mandatory = True),
-        "version": attr.string(),
         "_codegen_lifecycle": attr.label(
             default = Label("//quarkus/private:codegen_lifecycle"),
         ),
@@ -234,17 +226,11 @@ quarkus_codegen_rule = rule(
 )
 
 def _metadata_aspect_impl(target, ctx):
-    entries = []
-    inputs = []
+    roots = []
     if QuarkusCodeGenInfo in target:
         info = target[QuarkusCodeGenInfo]
-        entries.append(struct(
-            build_properties = info.build_properties,
-            mode = info.mode,
-            owner_label = info.owner_label,
-            source_roots = info.source_roots,
-        ))
-        inputs.append(info.input_files)
+        if info.mode == "main":
+            roots.append(depset(info.source_roots))
     for attr_name in ("srcs", "deps", "exports", "runtime_deps"):
         if not hasattr(ctx.rule.attr, attr_name):
             continue
@@ -252,28 +238,25 @@ def _metadata_aspect_impl(target, ctx):
         dependencies = value if type(value) == "list" else [value]
         for dependency in dependencies:
             if QuarkusCodeGenTransitiveInfo in dependency:
-                entries.extend(dependency[QuarkusCodeGenTransitiveInfo].entries)
-                inputs.append(dependency[QuarkusCodeGenTransitiveInfo].input_files)
-    return [QuarkusCodeGenTransitiveInfo(entries = entries, input_files = depset(transitive = inputs))]
+                roots.append(dependency[QuarkusCodeGenTransitiveInfo].source_roots)
+    return [QuarkusCodeGenTransitiveInfo(source_roots = depset(transitive = roots))]
 
 quarkus_codegen_metadata_aspect = aspect(
     implementation = _metadata_aspect_impl,
     attr_aspects = ["srcs", "deps", "exports", "runtime_deps"],
 )
 
-def collect_codegen_metadata(deps):
-    """Collects transitive QuarkusCodeGenTransitiveInfo entries and input files from deps.
+def collect_codegen_source_roots(deps):
+    """Collects transitive main CodeGenProvider source roots from deps.
 
     Args:
-        deps: list of targets carrying QuarkusCodeGenTransitiveInfo.
+        deps: List of targets carrying QuarkusCodeGenTransitiveInfo.
 
     Returns:
-        A struct with fields `entries` (list) and `input_files` (depset).
+        A depset of workspace-relative source-root strings.
     """
-    entries = []
-    inputs = []
+    roots = []
     for dep in deps:
         if QuarkusCodeGenTransitiveInfo in dep:
-            entries.extend(dep[QuarkusCodeGenTransitiveInfo].entries)
-            inputs.append(dep[QuarkusCodeGenTransitiveInfo].input_files)
-    return struct(entries = entries, input_files = depset(transitive = inputs))
+            roots.append(dep[QuarkusCodeGenTransitiveInfo].source_roots)
+    return depset(transitive = roots)

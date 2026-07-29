@@ -1,8 +1,5 @@
 # Quarkus code generation
 
-The runnable example lives in [`examples/demo_grpc`](../examples/demo_grpc): a
-gRPC producer/consumer pair sharing a single generated contract.
-
 `rules_quarkus` runs Quarkus extension `CodeGenProvider` implementations in a
 hermetic Bazel action before Java compilation. The action consumes the explicit
 application model and declared inputs, then emits a deterministic source JAR.
@@ -105,29 +102,19 @@ layouts.
 
 ## Dev regeneration
 
-Initial dev startup always compiles Bazel-generated sources. Choose how later
-input changes are handled with `quarkus_app.dev_codegen`:
+Initial dev startup compiles Bazel-generated sources. The dev target watches
+the original generator inputs, rebuilds itself hermetically, and syncs the
+newly compiled classes through the normal hot-reload mechanism:
 
 ```starlark
-# Default: rebuild the dev target hermetically and sync new classes.
 quarkus_app(
     name = "app",
-    dev_codegen = "bazel",
-    deps = [":messages"],
-)
-
-# Opt in to Quarkus CodeGenWatcher for subsequent changes.
-quarkus_app(
-    name = "app_in_process",
-    dev_codegen = "quarkus",
     deps = [":messages"],
 )
 ```
 
-`dev_codegen = "off"` keeps initially generated classes but does not watch
-generator inputs. The `quarkus` strategy is intentionally non-hermetic after
-startup and writes transient generated sources below the dev workspace build
-directory; use the default `bazel` strategy for reproducible regeneration.
+Production, test, and dev code generation therefore share the same declared
+inputs, lifecycle-specific application model, sandbox, and action cache.
 
 ## Caching and outputs
 

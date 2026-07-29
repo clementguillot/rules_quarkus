@@ -71,7 +71,6 @@ CODEGEN_SOURCE_PARENTS=""
 if [ -f "$CODEGEN_SOURCE_PARENTS_FILE" ]; then
     CODEGEN_SOURCE_PARENTS=$(cat "$CODEGEN_SOURCE_PARENTS_FILE")
 fi
-CODEGEN_PROPERTIES_FILE="${RUNFILES_DIR}/%{workspace}/%{codegen_properties_file}"
 
 # Create temp dirs with unique prefixes for security
 OUTPUT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/quarkus_dev_output_XXXXXX")
@@ -130,16 +129,19 @@ if [ -n "$CODEGEN_SOURCE_PARENTS" ]; then
     CODEGEN_SOURCE_PARENTS_VALUE=$(_join_comma "${CG_ABS[@]}")
 fi
 
-if [ -n "$SOURCE_DIRS" ] && [ -n "$BAZEL_TARGETS" ]; then
+if [ -n "$BAZEL_TARGETS" ] && { [ -n "$SOURCE_DIRS" ] || [ -n "$CODEGEN_SOURCE_PARENTS_VALUE" ]; }; then
     CLASSES_DIR=$(mktemp -d "${TMPDIR:-/tmp}/quarkus_hotreload_classes_XXXXXX")
 
     # Resolve source dirs to absolute paths
-    SD_ABS=()
-    IFS=',' read -ra SD_ENTRIES <<< "$SOURCE_DIRS"
-    for sd in "${SD_ENTRIES[@]}"; do
-        SD_ABS+=("${WORKSPACE_ROOT}/${sd}")
-    done
-    ABS_SOURCE_DIRS=$(_join_comma "${SD_ABS[@]}")
+    ABS_SOURCE_DIRS=""
+    if [ -n "$SOURCE_DIRS" ]; then
+        SD_ABS=()
+        IFS=',' read -ra SD_ENTRIES <<< "$SOURCE_DIRS"
+        for sd in "${SD_ENTRIES[@]}"; do
+            SD_ABS+=("${WORKSPACE_ROOT}/${sd}")
+        done
+        ABS_SOURCE_DIRS=$(_join_comma "${SD_ABS[@]}")
+    fi
 
     # Resolve classes output dirs to absolute paths
     COD_ABS=()
@@ -150,11 +152,13 @@ if [ -n "$SOURCE_DIRS" ] && [ -n "$BAZEL_TARGETS" ]; then
     ABS_CLASSES_OUTPUT_DIRS=$(_join_comma "${COD_ABS[@]}")
 
     HOT_RELOAD_ARGS=(
-      "--source-dirs" "$ABS_SOURCE_DIRS"
       "--classes-dir" "$CLASSES_DIR"
       "--bazel-targets" "$BAZEL_TARGETS"
       "--classes-output-dirs" "$ABS_CLASSES_OUTPUT_DIRS"
     )
+    if [ -n "$ABS_SOURCE_DIRS" ]; then
+        HOT_RELOAD_ARGS+=("--source-dirs" "$ABS_SOURCE_DIRS")
+    fi
 fi
 
 # Use a JDK @argfile to pass all java arguments, avoiding E2BIG.
@@ -192,15 +196,9 @@ _JAVA_ARGFILE=$(mktemp "${OUTPUT_DIR}/quarkus_dev_args_XXXXXX")
   _q "$WORKSPACE_ROOT"
   echo "--bazel-command"
   _q "$BAZEL_BIN"
-  echo "--dev-codegen"
-  echo "%{dev_codegen}"
   if [ -n "$CODEGEN_SOURCE_PARENTS_VALUE" ]; then
     echo "--codegen-source-parents"
     _q "$CODEGEN_SOURCE_PARENTS_VALUE"
-  fi
-  if [ -f "$CODEGEN_PROPERTIES_FILE" ]; then
-    echo "--codegen-properties-file"
-    _q "$CODEGEN_PROPERTIES_FILE"
   fi
   if [ -n "%{dev_build_args}" ]; then
     echo "--bazel-build-args"

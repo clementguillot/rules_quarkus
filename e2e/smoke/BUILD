@@ -51,17 +51,6 @@ quarkus_app(
     deps = [":lib"],
 )
 
-quarkus_app(
-    name = "app_quarkus_codegen",
-    dev_codegen = "quarkus",
-    deps = [":lib"],
-)
-
-build_test(
-    name = "quarkus_codegen_dev_build_test",
-    targets = [":app_quarkus_codegen_dev"],
-)
-
 quarkus_java_library(
     name = "test_lib",
     testonly = True,
@@ -184,18 +173,6 @@ sh_test(
     args = ["$(rlocationpath :app_dev)"],
     data = [":app_dev"],
     # The test copies the launcher and points it at this test's merged runfiles tree.
-    tags = ["no-sandbox"],
-)
-
-sh_test(
-    name = "quarkus_codegen_dev_ui_test",
-    size = "large",
-    srcs = ["dev_ui_application_model_test.sh"],
-    args = [
-        "$(rlocationpath :app_quarkus_codegen_dev)",
-        "bazel.workspace:app_quarkus_codegen:1.0-SNAPSHOT",
-    ],
-    data = [":app_quarkus_codegen_dev"],
     tags = ["no-sandbox"],
 )
 

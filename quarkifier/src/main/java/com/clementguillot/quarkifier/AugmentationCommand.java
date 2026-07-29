@@ -161,17 +161,6 @@ public final class AugmentationCommand implements Callable<Integer> {
       split = ",")
   private List<Path> codegenSourceParents;
 
-  @Option(
-      names = "--dev-codegen",
-      description = "Dev code-generation strategy: bazel, quarkus, or off.",
-      defaultValue = "bazel")
-  private String devCodegen;
-
-  @Option(
-      names = "--codegen-properties-file",
-      description = "Properties used by in-process dev code generation.")
-  private Path codegenPropertiesFile;
-
   // ---- Execution ----
 
   @Override
@@ -219,9 +208,6 @@ public final class AugmentationCommand implements Callable<Integer> {
     if (bazelBuildTimeoutSeconds <= 0) {
       throw parameterException("--bazel-build-timeout-seconds must be positive");
     }
-    if (!List.of("bazel", "quarkus", "off").contains(devCodegen)) {
-      throw parameterException("--dev-codegen must be bazel, quarkus, or off");
-    }
 
     return new QuarkifierConfig(
         resolvedAppCp,
@@ -241,8 +227,6 @@ public final class AugmentationCommand implements Callable<Integer> {
         bazelCommand,
         orEmpty(bazelBuildArgs),
         orEmpty(codegenSourceParents),
-        devCodegen,
-        codegenPropertiesFile,
         resolvedLocalJars,
         applicationModel);
   }

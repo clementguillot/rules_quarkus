@@ -9,14 +9,14 @@ disable_coverage_transition = transition(
     outputs = ["//command_line_option:collect_code_coverage"],
 )
 
-def _dev_codegen_transition_impl(_settings, _attr):
+def _dev_lifecycle_transition_impl(_settings, _attr):
     return {
         "//command_line_option:collect_code_coverage": False,
         "//quarkus/private:codegen_lifecycle": "dev",
     }
 
-dev_codegen_transition = transition(
-    implementation = _dev_codegen_transition_impl,
+dev_lifecycle_transition = transition(
+    implementation = _dev_lifecycle_transition_impl,
     inputs = [],
     outputs = [
         "//command_line_option:collect_code_coverage",

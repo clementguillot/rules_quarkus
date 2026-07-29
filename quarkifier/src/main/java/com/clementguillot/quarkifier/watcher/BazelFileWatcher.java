@@ -122,9 +122,7 @@ public final class BazelFileWatcher implements Closeable {
 
       // Step 2: Register watchers on all source directories
       watcher.registerWatchers(config.sourceDirs());
-      if ("bazel".equals(config.devCodegen())) {
-        watcher.registerWatchers(config.codegenSourceParents());
-      }
+      watcher.registerWatchers(config.codegenSourceParents());
       LOGGER.debug("[hot-reload] File watchers registered");
 
       // Step 3: Start watcher thread AFTER population is complete
@@ -232,9 +230,6 @@ public final class BazelFileWatcher implements Closeable {
   }
 
   private boolean isCodegenInput(Path changed) {
-    if (!"bazel".equals(config.devCodegen())) {
-      return false;
-    }
     Path absolute = changed.toAbsolutePath().normalize();
     for (Path sourceParent : config.codegenSourceParents()) {
       if (absolute.startsWith(sourceParent.toAbsolutePath().normalize())) {

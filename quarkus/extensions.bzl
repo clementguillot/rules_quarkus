@@ -1159,9 +1159,9 @@ def _write_deployment_build(rctx, all_jars, core_jar_set, extra_artifacts = []):
     """Copies resolved jars into deployment/ and writes its BUILD file."""
     return _write_jar_build(rctx, "deployment", all_jars, core_jar_set, extra_artifacts)
 
-def _write_conditional_build(rctx, all_jars, extra_artifacts = []):
+def _write_conditional_build(rctx, all_jars):
     """Materializes conditional candidates without placing them on the public runtime graph."""
-    return _write_jar_build(rctx, "conditional", all_jars, extra_artifacts = extra_artifacts)
+    return _write_jar_build(rctx, "conditional", all_jars)
 
 def _normalize_catalog(report, repo_paths, label, remap_coordinates = False, prune_unresolved_edges = False):
     """Merges and deduplicates a Coursier dependency report into canonical nodes.
@@ -1364,8 +1364,7 @@ _TEST_INFRASTRUCTURE_DEPS = [
 _DEFAULT_BUILDER_IMAGE = DEFAULT_NATIVE_BUILDER_IMAGE
 
 def quarkus_codegen(name, srcs, deps, resources = [], source_roots = None, mode = "main",
-                    build_properties = {{}}, resource_strip_prefix = "", application_name = "",
-                    _owning_module = "", **kwargs):
+                    build_properties = {{}}, resource_strip_prefix = "", **kwargs):
     \"\"\"Runs extension-provided Quarkus code generators and emits a Java source jar.
 
     The generated target can be listed directly in java_library.srcs.
@@ -1392,7 +1391,6 @@ def quarkus_codegen(name, srcs, deps, resources = [], source_roots = None, mode 
     )
     quarkus_codegen_rule(
         name = name,
-        application_name = application_name,
         build_properties = build_properties,
         conditional_deps = _CONDITIONAL_DEPS,
         conditional_catalog = _CONDITIONAL_CATALOG,
@@ -1401,7 +1399,6 @@ def quarkus_codegen(name, srcs, deps, resources = [], source_roots = None, mode 
         deployment_deps = _DEPLOYMENT_DEPS,
         deps = [":" + root_name],
         mode = mode,
-        owning_module = _owning_module,
         platform_catalog = _PLATFORM_CATALOG,
         platform_properties = _PLATFORM_PROPERTIES,
         quarkifier_tool = _QUARKIFIER_TOOL,
@@ -1423,15 +1420,11 @@ def quarkus_java_library(name, srcs = [], resources = [], deps = [], codegen_src
         java_kwargs["resource_strip_prefix"] = resource_strip_prefix
     if codegen_srcs:
         codegen_name = name + "_quarkus_codegen"
-        package = native.package_name()
-        owning_module = "//{{}}:{{}}".format(package, name) if package else "//:" + name
         quarkus_codegen(
             name = codegen_name,
-            application_name = name,
             build_properties = codegen_build_properties,
             deps = deps,
             mode = codegen_mode,
-            _owning_module = owning_module,
             resource_strip_prefix = resource_strip_prefix,
             resources = resources,
             source_roots = codegen_source_roots,
@@ -1447,7 +1440,7 @@ def quarkus_java_library(name, srcs = [], resources = [], deps = [], codegen_src
         **java_kwargs
     )
 
-def quarkus_app(name, dev = True, dev_build_args = [], dev_codegen = "bazel", native = False, native_container_build = False,
+def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_container_build = False,
                 native_container_runtime = "auto", native_builder_image = _DEFAULT_BUILDER_IMAGE,
                 **kwargs):
     \"\"\"Builds a Quarkus application with optional dev-mode and native targets.
@@ -1463,7 +1456,6 @@ def quarkus_app(name, dev = True, dev_build_args = [], dev_codegen = "bazel", na
         dev_build_args: Extra flags for the hot-reload `bazel build` (e.g. ["--config=dev"]).
             Must match the flags you pass to `bazel run` for the dev target, otherwise
             rebuilt classes land in a different output tree and hot-reload syncs stale files.
-        dev_codegen: Regeneration strategy: "bazel" (default), "quarkus", or "off".
         native: If True, creates a <name>_native target using rules_graalvm (host compilation).
         native_container_build: If True, creates a <name>_native target using Docker/Podman (container compilation).
         native_container_runtime: Container runtime: 'auto' (default), 'docker', or 'podman'.
@@ -1511,7 +1503,6 @@ def quarkus_app(name, dev = True, dev_build_args = [], dev_codegen = "bazel", na
             name = name + "_dev",
             core_deployment_deps = _CORE_DEPLOYMENT_DEPS,
             dev_build_args = dev_build_args,
-            dev_codegen = dev_codegen,
             **common
         )
     if native:
@@ -1724,11 +1715,8 @@ def _rules_quarkus_repo_impl(rctx):
         deployment_report_roots,
         core_jar_paths,
     )
-    conditional_report = conditional_resolution.report
-    conditional_files = [] if conditional_report == None else _artifact_paths_from_report(conditional_report)
-    conditional_jars = [path for path in conditional_files if path.endswith(".jar")]
-    conditional_artifacts = [path for path in conditional_files if not path.endswith(".jar")]
-    conditional_repo_paths = _write_conditional_build(rctx, conditional_jars, conditional_artifacts)
+    conditional_jars = [] if conditional_resolution.resolution == None else _jar_paths_from_fetch_output(conditional_resolution.resolution.stdout, {})
+    conditional_repo_paths = _write_conditional_build(rctx, conditional_jars)
     repo_paths = _write_deployment_build(
         rctx,
         deployment_resolution.jars,
