@@ -1,0 +1,43 @@
+load("@rules_quarkus//quarkus:defs.bzl", "quarkus_java_library")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+# Two independent CodeGenProvider families in ONE generation action: gRPC reads
+# src/main/proto, Avro reads src/main/avro, and the handwritten
+# ContractEnvelope compiles against both generated APIs. Downstream packages
+# then consume the generated and handwritten types together.
+quarkus_java_library(
+    name = "contracts",
+    srcs = glob(["src/main/java/**/*.java"]),
+    codegen_srcs = glob([
+        "src/main/avro/**/*.avsc",
+        "src/main/proto/**/*.proto",
+    ]),
+    visibility = ["//visibility:public"],
+    deps = [
+        "@maven//:com_google_guava_guava",
+        "@maven//:com_google_protobuf_protobuf_java",
+        "@maven//:io_grpc_grpc_api",
+        "@maven//:io_grpc_grpc_protobuf",
+        "@maven//:io_grpc_grpc_stub",
+        "@maven//:io_quarkus_quarkus_avro",
+        "@maven//:io_quarkus_quarkus_grpc",
+        "@maven//:io_quarkus_quarkus_grpc_api",
+        "@maven//:io_quarkus_quarkus_grpc_stubs",
+        "@maven//:io_smallrye_reactive_mutiny",
+        "@maven//:jakarta_annotation_jakarta_annotation_api",
+        "@maven//:org_apache_avro_avro",
+    ],
+)
+
+filegroup(
+    name = "codegen_sources",
+    srcs = [":contracts_quarkus_codegen"],
+    output_group = "quarkus_codegen_sources",
+)
+
+sh_test(
+    name = "multi_provider_codegen_test",
+    srcs = ["multi_provider_codegen_test.sh"],
+    args = ["$(rootpath :codegen_sources)"],
+    data = [":codegen_sources"],
+)

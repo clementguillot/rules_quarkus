@@ -38,11 +38,11 @@ public final class CodeGenerationCommand implements Callable<Integer> {
   @Option(names = "--aux-output-dir", required = true)
   private Path auxiliaryOutputDir;
 
+  @Option(names = "--work-output-dir", required = true)
+  private Path workOutputDir;
+
   @Option(names = "--source-jar", required = true)
   private Path sourceJar;
-
-  @Option(names = "--build-dir", required = true)
-  private Path buildDir;
 
   @Option(
       names = "--launch-mode",
@@ -65,8 +65,8 @@ public final class CodeGenerationCommand implements Callable<Integer> {
           sourceParents,
           generatedSourcesDir,
           auxiliaryOutputDir,
+          workOutputDir,
           sourceJar,
-          buildDir,
           launchMode,
           test,
           propertiesFile);

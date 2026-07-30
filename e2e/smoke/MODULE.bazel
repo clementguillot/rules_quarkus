@@ -48,6 +48,7 @@ maven.install(
     artifacts = [
         "io.quarkus:quarkus-rest:3.33.2",
         "io.quarkus:quarkus-arc:3.33.2",
+        "io.quarkus:quarkus-avro:3.33.2",
         "io.quarkus:quarkus-grpc:3.33.2",
         # Activates quarkus-rest's normal conditional quarkus-rest-kotlin dependency.
         "io.quarkus:quarkus-kotlin:3.33.2",

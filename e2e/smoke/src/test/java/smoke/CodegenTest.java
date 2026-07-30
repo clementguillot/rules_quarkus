@@ -9,6 +9,6 @@ class CodegenTest {
 
   @Test
   void generatedTestSourceIsCompiled() {
-    assertEquals("Test: test code generation", GeneratedTest.message());
+    assertEquals("Configured Test: test code generation", GeneratedTest.message());
   }
 }

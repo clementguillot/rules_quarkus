@@ -149,10 +149,27 @@ When source dirs are empty, hot-reload is disabled but the Dev UI still works.
 ### Generated sources
 
 Code generation always runs through Bazel before the initial dev startup.
-The launcher watches original generator inputs and rebuilds the configured
-`<name>_dev` target under the same lifecycle transition before syncing classes.
-This keeps regeneration sandboxed and cacheable and ensures dev mode compiles
-the same generated sources as production and test builds.
+The launcher watches the declared generator input directories and rebuilds the
+`<name>_dev` target before syncing classes, which keeps regeneration sandboxed
+and cacheable.
+
+Dev mode regenerates under its own lifecycle: `deps` are configured through
+`dev_lifecycle_transition`, so `quarkus_codegen` runs with launch mode
+`DEVELOPMENT` and a `dev` application model, whereas `bazel build //:app` and
+`bazel test` use `NORMAL` / `TEST`. Providers whose output depends on the launch
+mode or config profile can therefore emit different sources in dev than in a
+production or test build — worth checking first when a bug reproduces only under
+`bazel run //:app_dev`. That transition is also why the watcher always rebuilds
+the dev target itself rather than its deps: a dep built directly from the command
+line would land in the baseline output tree, and hot-reload would sync stale
+classes.
+
+Because the transition changes a build setting, the dev dependency graph gets
+its own configuration. `bazel cquery 'deps(//:app_dev) intersect //:lib'` and
+the same query against `//:app` report different configuration hashes, so a
+`bazel build //...` that requests both compiles every shared dependency twice.
+That is the cost of making code generation launch-mode aware; build only
+`//:app` (or only `//:app_dev`) when the extra configuration is not wanted.
 
 ### Hot-Reload Build Configuration
 

@@ -126,14 +126,14 @@ class QuarkifierConfigTest {
   }
 
   @Test
-  void parse_codegenSourceParents() {
+  void parse_codegenInputDirs() {
     var config =
         parse(
             "--application-classpath", "a.jar",
             "--output-dir", "/out",
-            "--codegen-source-parents", "src/main,schemas/src/main");
+            "--codegen-input-dirs", "src/main,schemas/src/main");
     assertEquals(
-        List.of(Path.of("src/main"), Path.of("schemas/src/main")), config.codegenSourceParents());
+        List.of(Path.of("src/main"), Path.of("schemas/src/main")), config.codegenInputDirs());
   }
 
   @Test

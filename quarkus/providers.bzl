@@ -34,6 +34,7 @@ QuarkusExtensionInfo = provider(
 QuarkusCodeGenInfo = provider(
     doc = "Lifecycle metadata for one Quarkus CodeGenProvider action.",
     fields = {
+        "input_dirs": "Workspace-relative directories holding the declared generator inputs.",
         "mode": "Declared mode: main or test.",
         "source_roots": "Workspace-relative CodeGenProvider source-parent paths.",
     },

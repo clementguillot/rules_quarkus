@@ -66,10 +66,10 @@ if [ -f "$CLASSES_OUTPUT_DIRS_FILE" ]; then
     CLASSES_OUTPUT_DIRS=$(cat "$CLASSES_OUTPUT_DIRS_FILE")
 fi
 
-CODEGEN_SOURCE_PARENTS_FILE="${RUNFILES_DIR}/%{workspace}/%{codegen_source_parents_file}"
-CODEGEN_SOURCE_PARENTS=""
-if [ -f "$CODEGEN_SOURCE_PARENTS_FILE" ]; then
-    CODEGEN_SOURCE_PARENTS=$(cat "$CODEGEN_SOURCE_PARENTS_FILE")
+CODEGEN_INPUT_DIRS_FILE="${RUNFILES_DIR}/%{workspace}/%{codegen_input_dirs_file}"
+CODEGEN_INPUT_DIRS=""
+if [ -f "$CODEGEN_INPUT_DIRS_FILE" ]; then
+    CODEGEN_INPUT_DIRS=$(cat "$CODEGEN_INPUT_DIRS_FILE")
 fi
 
 # Create temp dirs with unique prefixes for security
@@ -95,7 +95,7 @@ case "$MODEL_REAL" in
 esac
 HOT_RELOAD_ARGS=()
 RESOURCES_VALUE=""
-CODEGEN_SOURCE_PARENTS_VALUE=""
+CODEGEN_INPUT_DIRS_VALUE=""
 
 # Prefixing helper: accumulate into an array (O(1) append) and join once.
 # String accumulation in a loop is quadratic in bash and takes minutes on
@@ -120,16 +120,16 @@ if [ -n "$RESOURCE_DIRS" ]; then
     fi
 fi
 
-if [ -n "$CODEGEN_SOURCE_PARENTS" ]; then
+if [ -n "$CODEGEN_INPUT_DIRS" ]; then
     CG_ABS=()
-    IFS=',' read -ra CG_ENTRIES <<< "$CODEGEN_SOURCE_PARENTS"
+    IFS=',' read -ra CG_ENTRIES <<< "$CODEGEN_INPUT_DIRS"
     for cg in "${CG_ENTRIES[@]}"; do
         CG_ABS+=("${WORKSPACE_ROOT}/${cg}")
     done
-    CODEGEN_SOURCE_PARENTS_VALUE=$(_join_comma "${CG_ABS[@]}")
+    CODEGEN_INPUT_DIRS_VALUE=$(_join_comma "${CG_ABS[@]}")
 fi
 
-if [ -n "$BAZEL_TARGETS" ] && { [ -n "$SOURCE_DIRS" ] || [ -n "$CODEGEN_SOURCE_PARENTS_VALUE" ]; }; then
+if [ -n "$BAZEL_TARGETS" ] && { [ -n "$SOURCE_DIRS" ] || [ -n "$CODEGEN_INPUT_DIRS_VALUE" ]; }; then
     CLASSES_DIR=$(mktemp -d "${TMPDIR:-/tmp}/quarkus_hotreload_classes_XXXXXX")
 
     # Resolve source dirs to absolute paths
@@ -143,19 +143,25 @@ if [ -n "$BAZEL_TARGETS" ] && { [ -n "$SOURCE_DIRS" ] || [ -n "$CODEGEN_SOURCE_P
         ABS_SOURCE_DIRS=$(_join_comma "${SD_ABS[@]}")
     fi
 
-    # Resolve classes output dirs to absolute paths
-    COD_ABS=()
-    IFS=',' read -ra COD_ENTRIES <<< "$CLASSES_OUTPUT_DIRS"
-    for cod in "${COD_ENTRIES[@]}"; do
-        COD_ABS+=("${MODEL_EXEC_ROOT}/${cod}")
-    done
-    ABS_CLASSES_OUTPUT_DIRS=$(_join_comma "${COD_ABS[@]}")
+    # Resolve classes output dirs to absolute paths. Reading an empty value
+    # would yield one empty entry and hand the watcher the whole exec root.
+    ABS_CLASSES_OUTPUT_DIRS=""
+    if [ -n "$CLASSES_OUTPUT_DIRS" ]; then
+        COD_ABS=()
+        IFS=',' read -ra COD_ENTRIES <<< "$CLASSES_OUTPUT_DIRS"
+        for cod in "${COD_ENTRIES[@]}"; do
+            COD_ABS+=("${MODEL_EXEC_ROOT}/${cod}")
+        done
+        ABS_CLASSES_OUTPUT_DIRS=$(_join_comma "${COD_ABS[@]}")
+    fi
 
     HOT_RELOAD_ARGS=(
       "--classes-dir" "$CLASSES_DIR"
       "--bazel-targets" "$BAZEL_TARGETS"
-      "--classes-output-dirs" "$ABS_CLASSES_OUTPUT_DIRS"
     )
+    if [ -n "$ABS_CLASSES_OUTPUT_DIRS" ]; then
+        HOT_RELOAD_ARGS+=("--classes-output-dirs" "$ABS_CLASSES_OUTPUT_DIRS")
+    fi
     if [ -n "$ABS_SOURCE_DIRS" ]; then
         HOT_RELOAD_ARGS+=("--source-dirs" "$ABS_SOURCE_DIRS")
     fi
@@ -196,9 +202,9 @@ _JAVA_ARGFILE=$(mktemp "${OUTPUT_DIR}/quarkus_dev_args_XXXXXX")
   _q "$WORKSPACE_ROOT"
   echo "--bazel-command"
   _q "$BAZEL_BIN"
-  if [ -n "$CODEGEN_SOURCE_PARENTS_VALUE" ]; then
-    echo "--codegen-source-parents"
-    _q "$CODEGEN_SOURCE_PARENTS_VALUE"
+  if [ -n "$CODEGEN_INPUT_DIRS_VALUE" ]; then
+    echo "--codegen-input-dirs"
+    _q "$CODEGEN_INPUT_DIRS_VALUE"
   fi
   if [ -n "%{dev_build_args}" ]; then
     echo "--bazel-build-args"

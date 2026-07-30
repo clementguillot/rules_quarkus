@@ -15,6 +15,20 @@ load("//quarkus/private:versions.bzl", "COURSIER_SHA256", "COURSIER_URL", "GITHU
 
 _DEFAULT_EXTENSION_GROUP_PREFIXES = ["io.quarkus", "io.quarkiverse."]
 
+# The JVM subset of Coursier's default artifact types (Resolution.defaultTypes
+# also carries maven-plugin, eclipse-plugin, hk2, orbit, scala-jar and klib),
+# pinned so every fetch in this file agrees on the set. Omitting "test-jar"
+# here would silently drop extension dependencies declared with
+# <type>test-jar</type>, which passing --artifact-type at all opts out of.
+_CLASSPATH_ARTIFACT_TYPES = "jar,bundle,test-jar"
+
+# Deployment resolution additionally needs the native helper binaries some
+# extensions declare (protoc and its plugins ship as <type>exe</type>), which
+# CodeGenProviders execute during generation. Conditional and runtime
+# resolution stay classpath-only: a non-JAR file there has no java_import to
+# land in and would fail catalog normalization.
+_DEPLOYMENT_ARTIFACT_TYPES = _CLASSPATH_ARTIFACT_TYPES + ",exe"
+
 # ---- Version helpers ----
 
 def _extract_minor_version(version):
@@ -671,7 +685,7 @@ def _find_java(rctx):
 java_major_version_for_test = _java_major_version
 min_java_version_for_test = _MIN_JAVA_VERSION
 
-def _coursier_fetch(rctx, java, artifacts, report_path, forced_versions = []):
+def _coursier_fetch(rctx, java, artifacts, report_path, forced_versions = [], artifact_types = _CLASSPATH_ARTIFACT_TYPES):
     """Runs a batched Coursier fetch.
 
     Timeout scales with artifact count: cold-cache batch fetches for large
@@ -683,7 +697,7 @@ def _coursier_fetch(rctx, java, artifacts, report_path, forced_versions = []):
         "deployment/coursier.jar",
         "fetch",
         "--artifact-type",
-        "jar,bundle,exe",
+        artifact_types,
         "--json-output-file",
         report_path,
         "--repository",
@@ -749,6 +763,8 @@ def _fetch_runtime_jars_for_discovery(rctx, java):
             "-jar",
             "deployment/coursier.jar",
             "fetch",
+            "--artifact-type",
+            _CLASSPATH_ARTIFACT_TYPES,
             "--json-output-file",
             report_path,
             "--repository",
@@ -908,7 +924,6 @@ def _resolve_conditional_runtime(rctx, java, initial_catalog, forced_versions):
     descriptors = _descriptor_map(initial_catalog)
     resolved_roots = {}
     final_report = None
-    final_result = None
     converged = False
     max_passes = 32
     for pass_index in range(max_passes):
@@ -935,7 +950,6 @@ def _resolve_conditional_runtime(rctx, java, initial_catalog, forced_versions):
                 fail("Runtime artifact '{}' has conflicting extension descriptors".format(runtime))
             descriptors[runtime] = discovered[runtime]
         final_report = report
-        final_result = result
         next_roots = _conditional_roots(descriptors)
         if sorted(next_roots.keys()) == sorted(roots.keys()):
             resolved_roots = next_roots
@@ -947,7 +961,6 @@ def _resolve_conditional_runtime(rctx, java, initial_catalog, forced_versions):
     return struct(
         descriptors = [descriptors[key] for key in sorted(descriptors)],
         report = final_report,
-        resolution = final_result,
         roots = resolved_roots,
     )
 
@@ -991,7 +1004,13 @@ def _resolve_deployment_jars(rctx, java, deployment_artifacts, report_roots, cor
     """
     rctx.report_progress("Resolving deployment artifacts")
     report_path = "deployment/deployment-resolution.json"
-    result = _coursier_fetch(rctx, java, deployment_artifacts, report_path)
+    result = _coursier_fetch(
+        rctx,
+        java,
+        deployment_artifacts,
+        report_path,
+        artifact_types = _DEPLOYMENT_ARTIFACT_TYPES,
+    )
     if result.return_code != 0:
         fail(("Failed to resolve descriptor-declared Quarkus deployment artifacts via Coursier. " +
               "No deployment root can be skipped safely:\n{}").format(result.stderr))
@@ -1171,8 +1190,8 @@ def _normalize_catalog(report, repo_paths, label, remap_coordinates = False, pru
         repo_paths: Dict mapping absolute jar path → repo-relative path.
         label: Human-readable label for error messages (e.g. "deployment", "conditional").
         remap_coordinates: When True, applies _coursier_report_coordinate() to
-            each coordinate and dependency (needed for conditional catalogs whose
-            Coursier report uses G:A:T:C:V ordering).
+            coordinates, dependencies, and conflict-resolution entries from
+            Coursier's G:A:T:C:V order to Quarkus' G:A:C:T:V order.
         prune_unresolved_edges: Omits POM edges whose artifacts are outside the
             selected report. Conditional resolution can reference artifacts
             already supplied by the locked runtime graph.
@@ -1235,6 +1254,11 @@ def _normalize_catalog(report, repo_paths, label, remap_coordinates = False, pru
     conflicts = report.get("conflict_resolution", {})
     if type(conflicts) != "dict":
         fail("Invalid {} Coursier report: 'conflict_resolution' must be an object".format(label))
+    if remap_coordinates:
+        conflicts = {
+            _coursier_report_coordinate(key): _coursier_report_coordinate(value)
+            for key, value in conflicts.items()
+        }
     sorted_conflicts = {key: conflicts[key] for key in sorted(conflicts)}
     return nodes, sorted_conflicts
 
@@ -1276,8 +1300,10 @@ coursier_report_coordinate_for_test = _coursier_report_coordinate
 def _deployment_catalog(report, roots, dropped_roots, repo_paths):
     """Normalizes a Coursier report and removes machine-global cache paths.
 
-    Dependency edges may point at artifacts already present in the locked
+    Dependency edges may point at artifacts already supplied by the locked
     runtime graph even when Coursier does not emit a second deployment file.
+    Those edges are kept: the model assembler resolves them against the runtime
+    catalog and fails on the ones that resolve in neither.
     """
     nodes, conflicts = _normalize_catalog(
         report,
@@ -1363,22 +1389,27 @@ _TEST_INFRASTRUCTURE_DEPS = [
 # (a mutable tag lets the same cache key cover different GraalVM versions).
 _DEFAULT_BUILDER_IMAGE = DEFAULT_NATIVE_BUILDER_IMAGE
 
-def quarkus_codegen(name, srcs, deps, resources = [], source_roots = None, mode = "main",
-                    build_properties = {{}}, resource_strip_prefix = "", **kwargs):
-    \"\"\"Runs extension-provided Quarkus code generators and emits a Java source jar.
-
-    The generated target can be listed directly in java_library.srcs.
-    \"\"\"
+def _declare_quarkus_codegen(name, srcs, deps, exports, runtime_deps, resources, source_roots, mode,
+                             build_properties, resource_strip_prefix, application_name,
+                             target_kwargs):
     if mode not in ("main", "test"):
         fail("quarkus_codegen mode must be 'main' or 'test', got '{{}}'".format(mode))
-    if not srcs:
-        fail("quarkus_codegen requires at least one input in srcs")
     roots = source_roots
     if roots == None:
         roots = ["src/test"] if mode == "test" else ["src/main"]
-    target_kwargs = dict(kwargs)
+    target_kwargs = dict(target_kwargs)
     if "testonly" not in target_kwargs:
         target_kwargs["testonly"] = mode == "test"
+
+    # Common attributes that must govern the hidden targets exactly as they
+    # govern the library: otherwise `bazel build //...` still runs the
+    # generation action on a platform the author excluded, or on a target they
+    # marked manual.
+    root_kwargs = {{
+        key: target_kwargs[key]
+        for key in ("tags", "target_compatible_with", "testonly")
+        if key in target_kwargs
+    }}
 
     root_name = name + "_application_root"
     quarkus_codegen_root_rule(
@@ -1387,10 +1418,13 @@ def quarkus_codegen(name, srcs, deps, resources = [], source_roots = None, mode 
         resources = resources,
         resource_strip_prefix = resource_strip_prefix,
         deps = deps,
-        testonly = target_kwargs["testonly"],
+        exports = exports,
+        runtime_deps = runtime_deps,
+        **root_kwargs
     )
     quarkus_codegen_rule(
         name = name,
+        application_name = application_name,
         build_properties = build_properties,
         conditional_deps = _CONDITIONAL_DEPS,
         conditional_catalog = _CONDITIONAL_CATALOG,
@@ -1410,26 +1444,72 @@ def quarkus_codegen(name, srcs, deps, resources = [], source_roots = None, mode 
         **target_kwargs
     )
 
-def quarkus_java_library(name, srcs = [], resources = [], deps = [], codegen_srcs = [],
+def quarkus_codegen(name, srcs, deps, resources = [], source_roots = None, mode = "main",
+                    build_properties = {{}}, resource_strip_prefix = "", exports = [],
+                    runtime_deps = [], **kwargs):
+    \"\"\"Runs extension-provided Quarkus code generators and emits a Java source jar.
+
+    The generated target can be listed directly in java_library.srcs.
+    \"\"\"
+    _declare_quarkus_codegen(
+        name = name,
+        application_name = name,
+        build_properties = build_properties,
+        deps = deps,
+        exports = exports,
+        mode = mode,
+        resource_strip_prefix = resource_strip_prefix,
+        resources = resources,
+        source_roots = source_roots,
+        srcs = srcs,
+        runtime_deps = runtime_deps,
+        target_kwargs = kwargs,
+    )
+
+def quarkus_java_library(name, srcs = [], resources = [], deps = [], codegen_srcs = None,
                          codegen_source_roots = None, codegen_mode = "main",
-                         codegen_build_properties = {{}}, resource_strip_prefix = "", **kwargs):
+                         codegen_build_properties = {{}}, resource_strip_prefix = "",
+                         exports = [], runtime_deps = [], codegen = False, **kwargs):
     \"\"\"Creates a java_library with optional Quarkus-generated Java sources.\"\"\"
+
+    # java_library rejects `deps` without `srcs` ("deps not allowed without
+    # srcs; move to runtime_deps?") instead of silently dropping them. An
+    # explicitly empty codegen_srcs is the same class of mistake: it is what a
+    # glob produces once its directory is renamed, and Bazel 7 still defaults
+    # glob() to allow_empty = True. Without this the target would quietly
+    # downgrade to a plain java_library and fail much later, in compilation of
+    # the handwritten sources that expected generated types.
+    if codegen_srcs != None and not codegen_srcs and not codegen:
+        fail("codegen_srcs is empty; use codegen = True for dependency-only generation?")
+    codegen_srcs = codegen_srcs or []
     all_srcs = list(srcs)
     java_kwargs = dict(kwargs)
+    has_codegen = codegen or bool(codegen_srcs)
+    if has_codegen and codegen_mode == "test" and "testonly" not in java_kwargs:
+        java_kwargs["testonly"] = True
     if resource_strip_prefix:
         java_kwargs["resource_strip_prefix"] = resource_strip_prefix
-    if codegen_srcs:
+    if has_codegen:
         codegen_name = name + "_quarkus_codegen"
-        quarkus_codegen(
+        codegen_kwargs = {{"testonly": java_kwargs.get("testonly", False)}}
+        for attribute in ("tags", "target_compatible_with"):
+            if attribute in java_kwargs:
+                codegen_kwargs[attribute] = java_kwargs[attribute]
+        _declare_quarkus_codegen(
             name = codegen_name,
+            # The model's application artifact must name the library being
+            # built, not the generated helper target.
+            application_name = name,
             build_properties = codegen_build_properties,
             deps = deps,
+            exports = exports,
             mode = codegen_mode,
             resource_strip_prefix = resource_strip_prefix,
             resources = resources,
             source_roots = codegen_source_roots,
             srcs = codegen_srcs,
-            testonly = kwargs.get("testonly", codegen_mode == "test"),
+            runtime_deps = runtime_deps,
+            target_kwargs = codegen_kwargs,
         )
         all_srcs.append(":" + codegen_name)
     java_library(
@@ -1437,6 +1517,8 @@ def quarkus_java_library(name, srcs = [], resources = [], deps = [], codegen_src
         srcs = all_srcs,
         resources = resources,
         deps = deps,
+        exports = exports,
+        runtime_deps = runtime_deps,
         **java_kwargs
     )
 
@@ -1715,7 +1797,7 @@ def _rules_quarkus_repo_impl(rctx):
         deployment_report_roots,
         core_jar_paths,
     )
-    conditional_jars = [] if conditional_resolution.resolution == None else _jar_paths_from_fetch_output(conditional_resolution.resolution.stdout, {})
+    conditional_jars = [] if conditional_resolution.report == None else _artifact_paths_from_report(conditional_resolution.report)
     conditional_repo_paths = _write_conditional_build(rctx, conditional_jars)
     repo_paths = _write_deployment_build(
         rctx,

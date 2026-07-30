@@ -1,0 +1,15 @@
+{
+  "type": "record",
+  "name": "AuditEvent",
+  "namespace": "smoke.contracts.events",
+  "fields": [
+    {
+      "name": "contractId",
+      "type": "string"
+    },
+    {
+      "name": "action",
+      "type": "string"
+    }
+  ]
+}

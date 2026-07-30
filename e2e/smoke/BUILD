@@ -9,13 +9,19 @@ load(":native_integration_launcher_test.bzl", "fake_native_app", "native_integra
 quarkus_java_library(
     name = "lib",
     srcs = glob(["src/main/java/**/*.java"]),
-    codegen_build_properties = {"smoke.codegen.prefix": "Hello from "},
+    codegen_build_properties = {
+        "smoke.codegen.prefix": "Hello from ",
+        "smoke.codegen.require-application-properties": "true",
+        "smoke.codegen.work-report": "true",
+    },
     codegen_srcs = ["src/main/hello/greeting.hello"],
     resources = glob(["src/main/resources/**/*"]),
     # //big reuses the app sources for the E2BIG regression targets.
     visibility = ["//big:__pkg__"],
     deps = [
         ":grpc_lib",
+        # Generated (Avro + gRPC) and handwritten types consumed from another package.
+        "//contracts",
         # Locally-built custom extension (runtime side); deployment is auto-wired.
         "//ext/runtime",
         "@maven//:io_quarkus_quarkus_arc",
@@ -28,6 +34,10 @@ quarkus_java_library(
 quarkus_java_library(
     name = "grpc_lib",
     srcs = ["src/grpc/java/smoke/GrpcGeneratedResource.java"],
+    codegen_build_properties = {
+        "quarkus.generate-code.grpc.descriptor-set.generate": "true",
+        "quarkus.generate-code.grpc.descriptor-set.output-dir": "descriptors",
+    },
     codegen_srcs = ["src/main/proto/greeting.proto"],
     deps = [
         "@maven//:com_google_guava_guava",
@@ -88,6 +98,25 @@ quarkus_integration_test(
     deps = [":test_lib"],
 )
 
+# Strict deps force a test that imports shared contract types to declare those
+# libraries alongside the application library. Only //:lib may be promoted to
+# the application under test; the libraries it owns must not compete with it.
+quarkus_test(
+    name = "multi_dep_test",
+    srcs = ["src/multidep/java/smoke/MultiDepCodegenTest.java"],
+    deps = [
+        ":grpc_lib",
+        ":lib",
+        "//contracts",
+        "@maven//:com_google_protobuf_protobuf_java",
+        "@maven//:io_quarkus_quarkus_junit",
+        "@maven//:org_junit_jupiter_junit_jupiter",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+        "@maven//:org_junit_platform_junit_platform_console_standalone",
+        "@maven//:org_junit_platform_junit_platform_launcher",
+    ],
+)
+
 fake_native_app(
     name = "fake_native_app",
     testonly = True,
@@ -127,6 +156,131 @@ build_test(
     name = "smoke_test",
     targets = [
         ":app",
+    ],
+)
+
+filegroup(
+    name = "codegen_model",
+    srcs = [":lib_quarkus_codegen"],
+    output_group = "quarkus_codegen_model",
+)
+
+sh_test(
+    name = "codegen_application_name_test",
+    srcs = ["codegen_application_name_test.sh"],
+    data = [":codegen_model"],
+)
+
+sh_test(
+    name = "dev_codegen_metadata_test",
+    srcs = ["dev_codegen_metadata_test.sh"],
+    data = [":app_dev"],
+)
+
+filegroup(
+    name = "codegen_work",
+    srcs = [":lib_quarkus_codegen"],
+    output_group = "quarkus_codegen_work",
+)
+
+filegroup(
+    name = "grpc_codegen_work",
+    srcs = [":grpc_lib_quarkus_codegen"],
+    output_group = "quarkus_codegen_work",
+)
+
+sh_test(
+    name = "codegen_work_output_test",
+    srcs = ["codegen_work_output_test.sh"],
+    args = [
+        "$(rootpath :codegen_work)",
+        "$(rootpath :grpc_codegen_work)",
+    ],
+    data = [
+        ":codegen_work",
+        ":grpc_codegen_work",
+    ],
+)
+
+# Code generation is allowed to no-op when every discovered provider declines
+# the configured roots. The deterministic empty source JAR remains consumable
+# by java_library.
+quarkus_java_library(
+    name = "no_output_codegen",
+    codegen = True,
+    deps = ["@maven//:io_quarkus_quarkus_rest"],
+)
+
+# A local CodeGenProvider may be discovered from exports or runtime_deps, not
+# just deps. Both targets compile handwritten Java against their generated
+# source JAR.
+quarkus_java_library(
+    name = "runtime_edge_codegen",
+    srcs = ["src/codegen_edges/runtime/java/smoke/RuntimeCodegenConsumer.java"],
+    codegen_source_roots = ["src/codegen_edges/runtime"],
+    codegen_srcs = ["src/codegen_edges/runtime/hello/runtime.hello"],
+    runtime_deps = ["//ext/runtime"],
+)
+
+quarkus_java_library(
+    name = "exports_edge_codegen",
+    srcs = ["src/codegen_edges/exports/java/smoke/ExportedCodegenConsumer.java"],
+    codegen_source_roots = ["src/codegen_edges/exports"],
+    codegen_srcs = ["src/codegen_edges/exports/hello/exported.hello"],
+    exports = ["//ext/runtime"],
+)
+
+# Auxiliary-only providers are successful and expose their files through the
+# existing quarkus_codegen_aux output group.
+quarkus_java_library(
+    name = "aux_only_codegen",
+    codegen_build_properties = {"smoke.codegen.aux-only": "true"},
+    codegen_source_roots = ["src/codegen_edges/aux"],
+    codegen_srcs = ["src/codegen_edges/aux/hello/auxiliary.hello"],
+    runtime_deps = ["//ext/runtime"],
+)
+
+java_library(
+    name = "proto_dependency",
+    resource_strip_prefix = "src/dependency",
+    resources = ["src/dependency/proto/dependency.proto"],
+)
+
+# gRPC supports scanning .proto resources embedded in dependencies without a
+# local proto input. codegen=True opts the helper into that dependency-only
+# lifecycle while keeping codegen_srcs empty.
+quarkus_java_library(
+    name = "dependency_only_grpc_codegen",
+    srcs = ["src/dependency/java/smoke/DependencyGeneratedConsumer.java"],
+    codegen = True,
+    codegen_build_properties = {
+        "quarkus.generate-code.grpc.scan-for-imports": "none",
+        "quarkus.generate-code.grpc.scan-for-proto": "bazel.workspace:proto_dependency",
+    },
+    deps = [
+        ":proto_dependency",
+        "@maven//:com_google_guava_guava",
+        "@maven//:com_google_protobuf_protobuf_java",
+        "@maven//:io_grpc_grpc_api",
+        "@maven//:io_grpc_grpc_protobuf",
+        "@maven//:io_grpc_grpc_stub",
+        "@maven//:io_quarkus_quarkus_grpc",
+        "@maven//:io_quarkus_quarkus_grpc_api",
+        "@maven//:io_quarkus_quarkus_grpc_stubs",
+        "@maven//:io_smallrye_reactive_mutiny",
+        "@maven//:jakarta_annotation_jakarta_annotation_api",
+    ],
+)
+
+build_test(
+    name = "codegen_edge_build_test",
+    targets = [
+        "//contracts",
+        ":aux_only_codegen",
+        ":dependency_only_grpc_codegen",
+        ":exports_edge_codegen",
+        ":no_output_codegen",
+        ":runtime_edge_codegen",
     ],
 )
 

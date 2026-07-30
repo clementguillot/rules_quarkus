@@ -4,10 +4,9 @@ load("@rules_java//java/common:java_common.bzl", "java_common")
 load("//quarkus/private:application_model_aspect.bzl", "collect_deployment_model_artifacts", "collect_deployment_model_fragments", "collect_local_deployments", "collect_local_runtime_aliases", "collect_model_artifacts", "collect_model_fragments", "write_model_roots_file")
 load("//quarkus/private:versions.bzl", "RULES_VERSION")
 
-_DEPLOYMENT_PATH_MARKER = "deployment/jars/"
-_DEPLOYMENT_ARTIFACT_PATH_MARKER = "deployment/artifacts/"
-_CONDITIONAL_PATH_MARKER = "conditional/jars/"
-_PLATFORM_PROPERTY_PATH_MARKER = "model/platform-properties/"
+_DEPLOYMENT_PATH_MARKERS = ["deployment/jars/", "deployment/artifacts/"]
+_CONDITIONAL_PATH_MARKERS = ["conditional/jars/"]
+_PLATFORM_PROPERTY_PATH_MARKERS = ["model/platform-properties/"]
 
 def _write_path_lines(ctx, suffix, files):
     output = ctx.actions.declare_file(ctx.label.name + suffix)
@@ -17,16 +16,17 @@ def _write_path_lines(ctx, suffix, files):
     ctx.actions.write(output = output, content = args)
     return output
 
-def _write_marker_paths(ctx, files, marker, suffix, label, require_marker = False):
+def _write_marker_paths(ctx, files, markers, suffix, label, require_marker = False):
     """Writes a sorted tab-separated path manifest for files matching a marker prefix.
 
     Args:
         ctx: Rule context.
         files: Iterable of File objects to scan.
-        marker: Path substring that marks relevant files (e.g. "deployment/jars/").
+        markers: Path substrings that mark relevant files (e.g. ["deployment/jars/"]).
+            The first marker present in a path wins.
         suffix: Output file name suffix (e.g. ".quarkus-deployment-paths-v1.txt").
         label: Human-readable label for error messages.
-        require_marker: When True, files missing the marker cause a fail() instead of being skipped.
+        require_marker: When True, files missing every marker cause a fail() instead of being skipped.
 
     Returns:
         The declared output file.
@@ -34,7 +34,11 @@ def _write_marker_paths(ctx, files, marker, suffix, label, require_marker = Fals
     output = ctx.actions.declare_file(ctx.label.name + suffix)
     seen = {}
     for file in files:
-        marker_index = file.path.find(marker)
+        marker_index = -1
+        for marker in markers:
+            marker_index = file.path.find(marker)
+            if marker_index >= 0:
+                break
         if marker_index < 0:
             if require_marker:
                 fail("{} input '{}' is outside the generated model repository".format(label, file.path))
@@ -48,30 +52,14 @@ def _write_marker_paths(ctx, files, marker, suffix, label, require_marker = Fals
     return output
 
 def _write_deployment_paths(ctx, deployment_classpath):
-    files = list(deployment_classpath.to_list())
-    if hasattr(ctx.files, "deployment_artifacts"):
-        files.extend(ctx.files.deployment_artifacts)
-    output = ctx.actions.declare_file(ctx.label.name + ".quarkus-deployment-paths-v1.txt")
-    seen = {}
-    for file in files:
-        marker_index = file.path.find(_DEPLOYMENT_PATH_MARKER)
-        if marker_index < 0:
-            marker_index = file.path.find(_DEPLOYMENT_ARTIFACT_PATH_MARKER)
-        if marker_index < 0:
-            continue
-        repo_path = file.path[marker_index:]
-        if repo_path in seen and seen[repo_path] != file.path:
-            fail("deployment catalog path '{}' maps to both '{}' and '{}'".format(repo_path, seen[repo_path], file.path))
-        seen[repo_path] = file.path
-    lines = [repo_path + "\t" + seen[repo_path] for repo_path in sorted(seen)]
-    ctx.actions.write(output = output, content = "\n".join(lines) + ("\n" if lines else ""))
-    return output
+    files = deployment_classpath.to_list() + ctx.files.deployment_artifacts
+    return _write_marker_paths(ctx, files, _DEPLOYMENT_PATH_MARKERS, ".quarkus-deployment-paths-v1.txt", "deployment catalog")
 
 def _write_conditional_paths(ctx, conditional_classpath):
-    return _write_marker_paths(ctx, conditional_classpath.to_list(), _CONDITIONAL_PATH_MARKER, ".quarkus-conditional-paths-v1.txt", "conditional catalog")
+    return _write_marker_paths(ctx, conditional_classpath.to_list(), _CONDITIONAL_PATH_MARKERS, ".quarkus-conditional-paths-v1.txt", "conditional catalog")
 
 def _write_platform_property_paths(ctx):
-    return _write_marker_paths(ctx, ctx.files.platform_properties, _PLATFORM_PROPERTY_PATH_MARKER, ".quarkus-platform-property-paths-v1.txt", "platform properties", require_marker = True)
+    return _write_marker_paths(ctx, ctx.files.platform_properties, _PLATFORM_PROPERTY_PATH_MARKERS, ".quarkus-platform-property-paths-v1.txt", "platform properties", require_marker = True)
 
 def _write_local_deployments(ctx, local_deployments):
     output = ctx.actions.declare_file(ctx.label.name + ".quarkus-local-deployments-v1.txt")
@@ -175,7 +163,7 @@ def _run_model_assembly(ctx, roots, fragments, model_artifacts, deployment_fragm
                 local_deployments_file,
                 local_runtime_aliases_file,
             ],
-            transitive = [all_fragments, all_model_artifacts, runtime_classpath, conditional_classpath, deployment_classpath, depset(ctx.files.deployment_artifacts) if hasattr(ctx.files, "deployment_artifacts") else depset(), depset(ctx.files.platform_properties), java_runtime.files],
+            transitive = [all_fragments, all_model_artifacts, runtime_classpath, conditional_classpath, deployment_classpath, depset(ctx.files.deployment_artifacts), depset(ctx.files.platform_properties), java_runtime.files],
         ),
         outputs = [output],
         mnemonic = "QuarkusModelAssembly",

@@ -104,6 +104,7 @@ quarkus_native_app_rule(
     name = "app_native",
     conditional_catalog = "@rules_quarkus//model:conditional-catalog-v1.json",
     conditional_deps = "@rules_quarkus//conditional:all",
+    deployment_artifacts = "@rules_quarkus//deployment:artifacts",
     deployment_catalog = "@rules_quarkus//model:deployment-catalog-v1.json",
     deployment_deps = "@rules_quarkus//deployment:all",
     platform_catalog = "@rules_quarkus//model:platform-catalog-v1.json",

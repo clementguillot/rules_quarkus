@@ -8,6 +8,7 @@
     "com.google.j2objc:j2objc-annotations": 2003271689,
     "io.quarkus:quarkus-arc": -406974566,
     "io.quarkus:quarkus-arc-deployment": 1838642928,
+    "io.quarkus:quarkus-avro": 36343298,
     "io.quarkus:quarkus-core-deployment": 950899707,
     "io.quarkus:quarkus-extension-processor": 1093258188,
     "io.quarkus:quarkus-grpc": 1482874094,
@@ -84,6 +85,7 @@
     "io.quarkus:quarkus-arc-dev": -215608823,
     "io.quarkus:quarkus-arc-test-supplement": 1495243250,
     "io.quarkus:quarkus-arc-test-supplement-decorator": -1966936880,
+    "io.quarkus:quarkus-avro": -178451743,
     "io.quarkus:quarkus-bootstrap-app-model": -383225870,
     "io.quarkus:quarkus-bootstrap-core": -735057621,
     "io.quarkus:quarkus-bootstrap-gradle-resolver": 987382197,
@@ -202,6 +204,7 @@
     "net.bytebuddy:byte-buddy-agent": -1974088055,
     "org.aesh:aesh": -684107909,
     "org.aesh:readline": 1066826701,
+    "org.apache.avro:avro": 1952983419,
     "org.apache.commons:commons-compress": -994049658,
     "org.apache.commons:commons-lang3": 1841935436,
     "org.apache.groovy:groovy": -643259552,
@@ -676,6 +679,12 @@
     "io.quarkus:quarkus-arc-test-supplement-decorator": {
       "shasums": {
         "jar": "24b1dd99e6f86348308678deedde6f1a2dcc5471d2cffdec73c0dab54f21dea9"
+      },
+      "version": "3.33.2"
+    },
+    "io.quarkus:quarkus-avro": {
+      "shasums": {
+        "jar": "dc212ad05bdc2bf27e32e92cb71082488f8a482c08d523f2083992c84b2531db"
       },
       "version": "3.33.2"
     },
@@ -1386,6 +1395,12 @@
         "jar": "601eb6cbc77a8b07b8014ba89cf3fbdda20fcdb96493e57466d3753fa26accde"
       },
       "version": "2.6"
+    },
+    "org.apache.avro:avro": {
+      "shasums": {
+        "jar": "72600f057bfbe2efe35fa55433e7756d45667dc938934be38a6e2be368aca237"
+      },
+      "version": "1.12.1"
     },
     "org.apache.commons:commons-compress": {
       "shasums": {
@@ -2176,6 +2191,10 @@
     "io.quarkus:quarkus-arc-test-supplement-decorator": [
       "jakarta.enterprise:jakarta.enterprise.cdi-api"
     ],
+    "io.quarkus:quarkus-avro": [
+      "io.quarkus:quarkus-core",
+      "org.apache.avro:avro"
+    ],
     "io.quarkus:quarkus-bootstrap-app-model": [
       "io.quarkus:quarkus-fs-util",
       "org.jboss.logging:commons-logging-jboss-logging",
@@ -2745,6 +2764,12 @@
     ],
     "org.aesh:readline": [
       "org.fusesource.jansi:jansi"
+    ],
+    "org.apache.avro:avro": [
+      "com.fasterxml.jackson.core:jackson-core",
+      "com.fasterxml.jackson.core:jackson-databind",
+      "org.apache.commons:commons-compress",
+      "org.slf4j:slf4j-api"
     ],
     "org.apache.commons:commons-compress": [
       "commons-codec:commons-codec",
@@ -3490,6 +3515,11 @@
     ],
     "io.quarkus:quarkus-arc-test-supplement-decorator": [
       "io.quarkus.arc.test.supplement.decorator"
+    ],
+    "io.quarkus:quarkus-avro": [
+      "io.quarkus.avro.runtime",
+      "io.quarkus.avro.runtime.graal",
+      "io.quarkus.avro.runtime.jackson"
     ],
     "io.quarkus:quarkus-bootstrap-app-model": [
       "io.quarkus.bootstrap",
@@ -4459,6 +4489,21 @@
       "org.aesh.terminal.io",
       "org.aesh.terminal.tty",
       "org.aesh.terminal.utils"
+    ],
+    "org.apache.avro:avro": [
+      "org.apache.avro",
+      "org.apache.avro.data",
+      "org.apache.avro.file",
+      "org.apache.avro.generic",
+      "org.apache.avro.io",
+      "org.apache.avro.io.parsing",
+      "org.apache.avro.message",
+      "org.apache.avro.path",
+      "org.apache.avro.reflect",
+      "org.apache.avro.specific",
+      "org.apache.avro.util",
+      "org.apache.avro.util.internal",
+      "org.apache.avro.util.springframework"
     ],
     "org.apache.commons:commons-compress": [
       "org.apache.commons.compress",
@@ -5597,6 +5642,7 @@
       "io.quarkus:quarkus-arc-dev",
       "io.quarkus:quarkus-arc-test-supplement",
       "io.quarkus:quarkus-arc-test-supplement-decorator",
+      "io.quarkus:quarkus-avro",
       "io.quarkus:quarkus-bootstrap-app-model",
       "io.quarkus:quarkus-bootstrap-core",
       "io.quarkus:quarkus-bootstrap-gradle-resolver",
@@ -5715,6 +5761,7 @@
       "net.bytebuddy:byte-buddy-agent",
       "org.aesh:aesh",
       "org.aesh:readline",
+      "org.apache.avro:avro",
       "org.apache.commons:commons-compress",
       "org.apache.commons:commons-lang3",
       "org.apache.groovy:groovy",
@@ -6119,6 +6166,12 @@
         "io.vertx.core.impl.launcher.commands.StartCommandFactory",
         "io.vertx.core.impl.launcher.commands.StopCommandFactory",
         "io.vertx.core.impl.launcher.commands.VersionCommandFactory"
+      ]
+    },
+    "org.apache.avro:avro": {
+      "org.apache.avro.SchemaFormatterFactory": [
+        "org.apache.avro.CanonicalSchemaFormatterFactory",
+        "org.apache.avro.JsonSchemaFormatterFactory"
       ]
     },
     "org.apache.groovy:groovy": {

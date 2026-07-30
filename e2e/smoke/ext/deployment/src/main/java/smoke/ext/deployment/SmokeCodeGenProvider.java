@@ -1,5 +1,6 @@
 package smoke.ext.deployment;
 
+import io.quarkus.bootstrap.model.ApplicationModel;
 import io.quarkus.bootstrap.prebuild.CodeGenException;
 import io.quarkus.deployment.CodeGenContext;
 import io.quarkus.deployment.CodeGenProvider;
@@ -8,10 +9,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Stream;
 
 /** Small generic SPI provider used to certify rules_quarkus code generation. */
 public final class SmokeCodeGenProvider implements CodeGenProvider {
+
+  private String initPrefix;
 
   @Override
   public String providerId() {
@@ -26,6 +30,18 @@ public final class SmokeCodeGenProvider implements CodeGenProvider {
   @Override
   public String inputDirectory() {
     return "hello";
+  }
+
+  @Override
+  public void init(ApplicationModel model, Map<String, String> properties) {
+    initPrefix = properties.getOrDefault("smoke.codegen.init-prefix", "");
+    if (Boolean.parseBoolean(properties.get("smoke.codegen.require-application-properties"))
+        && (!properties.containsKey("quarkus.application.name")
+            || !properties.containsKey("quarkus.application.version")
+            || properties.containsKey("user.dir"))) {
+      throw new IllegalStateException(
+          "Effective properties are missing application defaults or include ambient JVM state");
+    }
   }
 
   @Override
@@ -52,7 +68,24 @@ public final class SmokeCodeGenProvider implements CodeGenProvider {
                 .append(word.substring(1));
           }
         }
-        String message = prefix + Files.readString(input).strip();
+        String message = initPrefix + prefix + Files.readString(input).strip();
+        if (context
+            .config()
+            .getOptionalValue("smoke.codegen.work-report", Boolean.class)
+            .orElse(false)) {
+          Path report = context.workDir().resolve("reports/" + className + ".txt");
+          Files.createDirectories(report.getParent());
+          Files.writeString(report, message);
+        }
+        if (context
+            .config()
+            .getOptionalValue("smoke.codegen.aux-only", Boolean.class)
+            .orElse(false)) {
+          Path auxiliary = context.outDir().resolve("META-INF/" + className + ".txt");
+          Files.createDirectories(auxiliary.getParent());
+          Files.writeString(auxiliary, message);
+          continue;
+        }
         Path output = context.outDir().resolve("generated/" + className + ".java");
         Files.createDirectories(output.getParent());
         Files.writeString(

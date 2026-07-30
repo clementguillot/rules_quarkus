@@ -10,9 +10,9 @@ load("//quarkus/private:coverage_transition.bzl", "disable_coverage_transition",
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
 
 QuarkusCodeGenTransitiveInfo = provider(
-    "Accumulates main CodeGenProvider source roots transitively across deps.",
+    "Accumulates main CodeGenProvider input directories transitively across deps.",
     fields = {
-        "source_roots": "Transitive workspace-relative CodeGenProvider source-parent paths.",
+        "input_dirs": "Transitive workspace-relative CodeGenProvider input directories.",
     },
 )
 
@@ -27,10 +27,15 @@ def _resource_entry(file, strip_prefix, package):
         if not short_path.startswith(prefix):
             fail("resource '{}' is outside resource_strip_prefix '{}'".format(short_path, strip_prefix))
         return short_path[len(prefix):]
-    for marker in ("/src/main/resources/", "/src/test/resources/"):
-        index = short_path.find(marker)
+    for marker in ("src/main/resources/", "src/test/resources/"):
+        # A resource in the root package starts with the marker outright, so
+        # matching only "/<marker>" would leave the whole path as the jar entry
+        # and keep application.properties off the classpath root.
+        if short_path.startswith(marker):
+            return short_path[len(marker):]
+        index = short_path.find("/" + marker)
         if index >= 0:
-            return short_path[index + len(marker):]
+            return short_path[index + 1 + len(marker):]
     return short_path
 
 def _codegen_root_impl(ctx):
@@ -50,12 +55,16 @@ def _codegen_root_impl(ctx):
         progress_message = "Preparing Quarkus code-generation root for %{label}",
     )
     java_deps = [dep[JavaInfo] for dep in ctx.attr.deps]
+    java_exports = [dep[JavaInfo] for dep in ctx.attr.exports]
+    java_runtime_deps = [dep[JavaInfo] for dep in ctx.attr.runtime_deps]
     return [
         DefaultInfo(files = depset([output_jar])),
         JavaInfo(
             output_jar = output_jar,
             compile_jar = output_jar,
             deps = java_deps,
+            exports = java_exports,
+            runtime_deps = java_runtime_deps,
         ),
     ]
 
@@ -63,8 +72,13 @@ quarkus_codegen_root_rule = rule(
     implementation = _codegen_root_impl,
     attrs = {
         "deps": attr.label_list(providers = [JavaInfo]),
+        "exports": attr.label_list(providers = [JavaInfo]),
         "resources": attr.label_list(allow_files = True),
         "resource_strip_prefix": attr.string(),
+        "runtime_deps": attr.label_list(providers = [JavaInfo]),
+        # The model aspect deliberately reads ctx.rule.files.srcs from this
+        # synthetic application root to retain the original codegen inputs as
+        # source provenance, even though JavaInfo only exposes the resource jar.
         "srcs": attr.label_list(allow_files = True),
         "_singlejar": attr.label(
             default = Label("@bazel_tools//tools/jdk:singlejar"),
@@ -75,7 +89,9 @@ quarkus_codegen_root_rule = rule(
 )
 
 def _escape_property(value):
-    return value.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t").replace("=", "\\=").replace(":", "\\:")
+    return value.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t").replace(" ", "\\ ").replace("=", "\\=").replace(":", "\\:").replace("#", "\\#").replace("!", "\\!")
+
+escape_property_for_test = _escape_property
 
 def _write_properties(ctx):
     output = ctx.actions.declare_file(ctx.label.name + ".codegen.properties")
@@ -95,6 +111,13 @@ def _workspace_source_roots(ctx):
             fail("source_roots entries must be non-empty package-relative paths, got '{}'".format(root))
         roots.append(package + "/" + normalized if package else normalized)
     for source in ctx.files.srcs:
+        if not source.is_source:
+            # --source-parent is a workspace-relative path resolved against the
+            # exec root, while a generated file lives under bazel-out. Its
+            # short_path is indistinguishable from a source file's, so without
+            # this check the provider would silently find an empty input
+            # directory and generate nothing.
+            fail("codegen input '{}' is a generated file; quarkus_codegen inputs must be source files".format(source.short_path))
         contained = False
         for root in roots:
             if source.short_path == root or source.short_path.startswith(root + "/"):
@@ -103,6 +126,53 @@ def _workspace_source_roots(ctx):
         if not contained:
             fail("codegen input '{}' is outside source_roots {}".format(source.short_path, roots))
     return roots
+
+def _codegen_input_dirs(source_paths, source_roots):
+    """Returns the workspace-relative directories that hold the declared generator inputs.
+
+    Dev-mode watching keys off these rather than off the source roots: a root is
+    the whole `src/main` tree, so watching it would rebuild on every resource and
+    non-Java file save. A provider's inputs live in its own subdirectory
+    (`src/main/proto`, `src/main/hello`), which is what actually needs watching.
+
+    Args:
+        source_paths: Workspace-relative paths of the declared generator inputs.
+        source_roots: Validated workspace-relative CodeGenProvider source parents.
+    Returns:
+        A sorted, deduplicated list of workspace-relative directory paths.
+    """
+    candidates = {}
+    for source_path in source_paths:
+        matched = False
+        for root in source_roots:
+            if source_path != root and not source_path.startswith(root + "/"):
+                continue
+            matched = True
+            relative = source_path[len(root):].lstrip("/")
+            parts = relative.split("/")
+            input_dir = root
+            if len(parts) > 1:
+                input_dir += "/" + parts[0]
+            candidates[input_dir] = True
+        if not matched:
+            fail("codegen input '{}' is outside source_roots {}".format(source_path, source_roots))
+
+    dirs = []
+    for candidate in sorted(candidates):
+        if not any([
+            candidate != parent and candidate.startswith(parent + "/")
+            for parent in candidates
+        ]):
+            dirs.append(candidate)
+    return dirs
+
+codegen_input_dirs_for_test = _codegen_input_dirs
+
+def _input_dirs(ctx, source_roots):
+    return _codegen_input_dirs(
+        [source.short_path for source in ctx.files.srcs],
+        source_roots,
+    )
 
 def _effective_mode(ctx):
     if ctx.attr.mode == "test":
@@ -127,16 +197,15 @@ def _quarkus_codegen_impl(ctx):
         conditional_classpath,
         deployment_classpath,
         mode.model,
-        ctx.label.name,
+        ctx.attr.application_name,
     )
     properties = _write_properties(ctx)
     generated_tree = ctx.actions.declare_directory(ctx.label.name + ".generated")
     auxiliary_tree = ctx.actions.declare_directory(ctx.label.name + ".aux")
-    build_dir = ctx.actions.declare_directory(ctx.label.name + ".codegen-build")
+    work_tree = ctx.actions.declare_directory(ctx.label.name + ".work")
     source_jar = ctx.actions.declare_file(ctx.label.name + ".srcjar")
 
     args = ctx.actions.args()
-    args.add("-Djava.io.tmpdir=" + build_dir.path)
     args.add("-jar")
     args.add(ctx.file.quarkifier_tool)
     args.add("codegen")
@@ -144,8 +213,8 @@ def _quarkus_codegen_impl(ctx):
     args.add_all(source_roots, before_each = "--source-parent")
     args.add("--generated-sources-dir", generated_tree.path)
     args.add("--aux-output-dir", auxiliary_tree.path)
+    args.add("--work-output-dir", work_tree.path)
     args.add("--source-jar", source_jar)
-    args.add("--build-dir", build_dir.path)
     args.add("--launch-mode", mode.launch)
     args.add("--test=" + str(mode.test).lower())
     args.add("--properties-file", properties)
@@ -163,7 +232,7 @@ def _quarkus_codegen_impl(ctx):
                 java_runtime.files,
             ],
         ),
-        outputs = [generated_tree, auxiliary_tree, build_dir, source_jar],
+        outputs = [generated_tree, auxiliary_tree, work_tree, source_jar],
         mnemonic = "QuarkusCodeGen",
         progress_message = "Generating Quarkus sources for %{label}",
         use_default_shell_env = False,
@@ -171,11 +240,13 @@ def _quarkus_codegen_impl(ctx):
     return [
         DefaultInfo(files = depset([source_jar])),
         OutputGroupInfo(
-            quarkus_codegen_aux = depset([auxiliary_tree]),
+            quarkus_codegen_aux = depset([auxiliary_tree, work_tree]),
             quarkus_codegen_model = depset([model]),
             quarkus_codegen_sources = depset([generated_tree]),
+            quarkus_codegen_work = depset([work_tree]),
         ),
         QuarkusCodeGenInfo(
+            input_dirs = _input_dirs(ctx, source_roots),
             mode = ctx.attr.mode,
             source_roots = source_roots,
         ),
@@ -184,6 +255,7 @@ def _quarkus_codegen_impl(ctx):
 quarkus_codegen_rule = rule(
     implementation = _quarkus_codegen_impl,
     attrs = {
+        "application_name": attr.string(mandatory = True),
         "build_properties": attr.string_dict(),
         "conditional_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
         "conditional_deps": attr.label(
@@ -226,11 +298,11 @@ quarkus_codegen_rule = rule(
 )
 
 def _metadata_aspect_impl(target, ctx):
-    roots = []
+    dirs = []
     if QuarkusCodeGenInfo in target:
         info = target[QuarkusCodeGenInfo]
         if info.mode == "main":
-            roots.append(depset(info.source_roots))
+            dirs.append(depset(info.input_dirs))
     for attr_name in ("srcs", "deps", "exports", "runtime_deps"):
         if not hasattr(ctx.rule.attr, attr_name):
             continue
@@ -238,25 +310,25 @@ def _metadata_aspect_impl(target, ctx):
         dependencies = value if type(value) == "list" else [value]
         for dependency in dependencies:
             if QuarkusCodeGenTransitiveInfo in dependency:
-                roots.append(dependency[QuarkusCodeGenTransitiveInfo].source_roots)
-    return [QuarkusCodeGenTransitiveInfo(source_roots = depset(transitive = roots))]
+                dirs.append(dependency[QuarkusCodeGenTransitiveInfo].input_dirs)
+    return [QuarkusCodeGenTransitiveInfo(input_dirs = depset(transitive = dirs))]
 
 quarkus_codegen_metadata_aspect = aspect(
     implementation = _metadata_aspect_impl,
     attr_aspects = ["srcs", "deps", "exports", "runtime_deps"],
 )
 
-def collect_codegen_source_roots(deps):
-    """Collects transitive main CodeGenProvider source roots from deps.
+def collect_codegen_input_dirs(deps):
+    """Collects transitive main CodeGenProvider input directories from deps.
 
     Args:
         deps: List of targets carrying QuarkusCodeGenTransitiveInfo.
 
     Returns:
-        A depset of workspace-relative source-root strings.
+        A depset of workspace-relative generator input directory strings.
     """
-    roots = []
+    dirs = []
     for dep in deps:
         if QuarkusCodeGenTransitiveInfo in dep:
-            roots.append(dep[QuarkusCodeGenTransitiveInfo].source_roots)
-    return depset(transitive = roots)
+            dirs.append(dep[QuarkusCodeGenTransitiveInfo].input_dirs)
+    return depset(transitive = dirs)

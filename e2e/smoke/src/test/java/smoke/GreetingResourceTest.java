@@ -16,6 +16,6 @@ class GreetingResourceTest {
         .get("/hello")
         .then()
         .statusCode(200)
-        .body(is("Hello from rules_quarkus smoke test"));
+        .body(is("Configured Hello from rules_quarkus smoke test"));
   }
 }

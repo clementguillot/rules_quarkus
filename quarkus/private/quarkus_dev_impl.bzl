@@ -15,29 +15,26 @@ load("//quarkus/private:application_model_aspect.bzl", "quarkus_application_mode
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_local_app_jars", "collect_resource_dir_paths", "collect_runtime_classpath", "collect_source_dir_paths", "is_local_artifact", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
 load("//quarkus/private:coverage_transition.bzl", "dev_lifecycle_transition", "disable_coverage_transition", "single_transitioned_target")
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
-load("//quarkus/private:quarkus_codegen_impl.bzl", "collect_codegen_source_roots", "quarkus_codegen_metadata_aspect")
+load("//quarkus/private:quarkus_codegen_impl.bzl", "collect_codegen_input_dirs", "quarkus_codegen_metadata_aspect")
 
-def _collect_bazel_targets(deps):
-    """Collects local workspace target labels for the file watcher's `bazel build`.
+def _hot_reload_bazel_target(ctx):
+    """Returns the label the file watcher rebuilds on a source change.
+
+    This must be the dev target itself, never its deps: `deps` is configured
+    through dev_lifecycle_transition, so a dep built directly from the command
+    line lands in the baseline output tree while _classes_output_dirs.txt
+    points into the transitioned one, and hot-reload would sync stale classes.
+    Building the dev target re-applies the transition to the whole graph.
 
     Args:
-        deps: List of targets providing JavaInfo.
+        ctx: Rule context for the dev target.
     Returns:
-        A deduplicated list of target label strings (e.g., ["//pkg:lib"]).
+        A single-element list holding the target label (e.g. ["//pkg:app_dev"]).
     """
-    targets = []
-    seen = {}
-    for dep in deps:
-        if JavaInfo not in dep or dep.label.workspace_name:
-            continue
 
-        # str(label) is "@@//pkg:name" (or "@//pkg:name" pre-Bazel 7); strip
-        # the canonical repo prefix for CLI invocation.
-        label_str = str(dep.label).lstrip("@")
-        if label_str not in seen:
-            seen[label_str] = True
-            targets.append(label_str)
-    return targets
+    # str(label) is "@@//pkg:name" (or "@//pkg:name" pre-Bazel 7); strip
+    # the canonical repo prefix for CLI invocation.
+    return [str(ctx.label).lstrip("@")]
 
 def _collect_classes_output_dirs(deps, runtime_classpath):
     """Derives bazel-bin class jar paths for syncing into the mutable classes dir.
@@ -90,10 +87,8 @@ def _quarkus_dev_impl(ctx):
         "dev",
         ctx.label.name.removesuffix("_dev"),
     )
-    codegen_source_roots = collect_codegen_source_roots(ctx.attr.deps).to_list()
-    bazel_targets = _collect_bazel_targets(ctx.attr.deps)
-    if codegen_source_roots:
-        bazel_targets = [str(ctx.label).lstrip("@")]
+    codegen_input_dirs = collect_codegen_input_dirs(ctx.attr.deps).to_list()
+    bazel_targets = _hot_reload_bazel_target(ctx)
 
     # Classpath and hot-reload metadata files, read by the launcher at runtime
     # and resolved against the runfiles tree.
@@ -105,7 +100,7 @@ def _quarkus_dev_impl(ctx):
         resource_dirs = _write_csv_file(ctx, "_resource_dirs.txt", collect_resource_dir_paths(ctx.attr.deps, runtime_classpath)),
         bazel_targets = _write_csv_file(ctx, "_bazel_targets.txt", bazel_targets),
         classes_output_dirs = _write_csv_file(ctx, "_classes_output_dirs.txt", _collect_classes_output_dirs(ctx.attr.deps, runtime_classpath)),
-        codegen_source_parents = _write_csv_file(ctx, "_codegen_source_parents.txt", codegen_source_roots),
+        codegen_input_dirs = _write_csv_file(ctx, "_codegen_input_dirs.txt", codegen_input_dirs),
     )
 
     tool_jar = ctx.file.quarkifier_tool
@@ -122,9 +117,9 @@ def _quarkus_dev_impl(ctx):
             files.resource_dirs,
             files.bazel_targets,
             files.classes_output_dirs,
-            files.codegen_source_parents,
+            files.codegen_input_dirs,
             model,
-        ],
+        ] + ctx.files.deployment_artifacts,
         transitive_files = depset(transitive = [runtime_classpath, conditional_classpath, deployment_classpath, core_deployment_classpath, java_runtime.files]),
     )
 
@@ -152,7 +147,7 @@ def _write_dev_launcher(ctx, tool_jar, files, model_file, java_runtime):
             "%{bazel_targets_file}": files.bazel_targets.short_path,
             "%{dev_build_args}": _join_dev_build_args(ctx.attr.dev_build_args),
             "%{classes_output_dirs_file}": files.classes_output_dirs.short_path,
-            "%{codegen_source_parents_file}": files.codegen_source_parents.short_path,
+            "%{codegen_input_dirs_file}": files.codegen_input_dirs.short_path,
             "%{core_deploy_cp_file}": files.core_deploy_cp.short_path,
             "%{java_home}": java_runtime.java_home_runfiles_path,
             "%{local_app_jars_file}": files.local_app_jars.short_path,

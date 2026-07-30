@@ -26,6 +26,7 @@ java_library(
     # @io.quarkus.Generated); not a published POM dependency.
     deps = DEPLOYMENT_DEPS + [
         "//ext/runtime:runtime_lib",
+        "@maven//:io_quarkus_quarkus_bootstrap_app_model",
         "@maven//:io_quarkus_quarkus_bootstrap_core",
         "@maven//:io_quarkus_quarkus_core",
     ],

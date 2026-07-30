@@ -156,10 +156,10 @@ public final class AugmentationCommand implements Callable<Integer> {
   private List<String> bazelBuildArgs;
 
   @Option(
-      names = "--codegen-source-parents",
-      description = "Comma-separated source parents containing CodeGenProvider inputs.",
+      names = "--codegen-input-dirs",
+      description = "Comma-separated directories holding CodeGenProvider inputs.",
       split = ",")
-  private List<Path> codegenSourceParents;
+  private List<Path> codegenInputDirs;
 
   // ---- Execution ----
 
@@ -226,7 +226,7 @@ public final class AugmentationCommand implements Callable<Integer> {
         bazelBuildTimeoutSeconds,
         bazelCommand,
         orEmpty(bazelBuildArgs),
-        orEmpty(codegenSourceParents),
+        orEmpty(codegenInputDirs),
         resolvedLocalJars,
         applicationModel);
   }

@@ -14,6 +14,7 @@ java_library(
         "@maven//:io_quarkus_quarkus_smallrye_openapi",
         "@maven//:io_smallrye_reactive_mutiny",
         "@maven//:jakarta_ws_rs_jakarta_ws_rs_api",
+        "@maven//:org_apache_avro_avro",
         "@maven//:org_eclipse_microprofile_openapi_microprofile_openapi_api",
     ],
 )

@@ -76,6 +76,9 @@ def quarkifier_targets(minor, maven_repo):
             ":" + lib_name,
             maven_repo + "//:io_quarkus_quarkus_bootstrap_app_model",
             maven_repo + "//:io_quarkus_quarkus_bootstrap_core",
+            # CodeGenerationExecutorTest pins the CodeGenerator.initAndRun
+            # signature this minor compiles against.
+            maven_repo + "//:io_quarkus_quarkus_core_deployment",
             maven_repo + "//:info_picocli_picocli",
             maven_repo + "//:org_junit_jupiter_junit_jupiter",
             maven_repo + "//:org_junit_platform_junit_platform_console_standalone",

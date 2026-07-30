@@ -122,7 +122,7 @@ public final class BazelFileWatcher implements Closeable {
 
       // Step 2: Register watchers on all source directories
       watcher.registerWatchers(config.sourceDirs());
-      watcher.registerWatchers(config.codegenSourceParents());
+      watcher.registerWatchers(config.codegenInputDirs());
       LOGGER.debug("[hot-reload] File watchers registered");
 
       // Step 3: Start watcher thread AFTER population is complete
@@ -229,14 +229,44 @@ public final class BazelFileWatcher implements Closeable {
     return rebuildNeeded;
   }
 
+  /**
+   * Reports whether {@code changed} is a code-generation input.
+   *
+   * <p>Matching is scoped to the generator input directories (for example {@code src/main/proto}),
+   * not to the enclosing source parent: a source parent is the whole {@code src/main} tree, so
+   * matching on it would trigger a full Bazel rebuild whenever any resource or other non-Java file
+   * below it is saved.
+   *
+   * <p>Editor scratch files created inside those directories are ignored. An input directory
+   * matches on location alone rather than on an extension, so without this a single {@code vim}
+   * save of one {@code .proto} would queue rebuilds for the {@code 4913} probe file, the {@code
+   * .swp} file, and the {@code ~} backup as well.
+   */
   private boolean isCodegenInput(Path changed) {
+    if (isEditorScratchFile(changed.getFileName())) {
+      return false;
+    }
     Path absolute = changed.toAbsolutePath().normalize();
-    for (Path sourceParent : config.codegenSourceParents()) {
-      if (absolute.startsWith(sourceParent.toAbsolutePath().normalize())) {
+    for (Path inputDir : config.codegenInputDirs()) {
+      if (absolute.startsWith(inputDir.toAbsolutePath().normalize())) {
         return true;
       }
     }
     return false;
+  }
+
+  /** Reports whether {@code fileName} is an editor temporary, backup, or probe file. */
+  private static boolean isEditorScratchFile(Path fileName) {
+    if (fileName == null) {
+      return true;
+    }
+    String name = fileName.toString();
+    return name.isEmpty()
+        || name.startsWith(".")
+        || name.endsWith("~")
+        || name.endsWith(".swp")
+        || name.endsWith(".swx")
+        || name.endsWith(".tmp");
   }
 
   /** Cancels any pending scheduled build and schedules a new one after the debounce delay. */

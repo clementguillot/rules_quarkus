@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.clementguillot.quarkifier.model.ExplicitApplicationModelBuilder;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.ArtifactCoordinates;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.ArtifactKey;
+import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.DependencyRelation;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.DependencyScope;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.Mode;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel.Node;
@@ -42,6 +43,7 @@ class BazelApplicationModelAssemblerTest {
   private static final String APP = "@@//:app";
   private static final String EXT = "@@maven//:io_quarkus_example";
   private static final String COMMON = "@@maven//:org_example_common";
+  private static final String SHARED = "@@//contracts:contracts";
   private static final String TEST_ONLY = "@@maven//:org_example_test_only";
   private static final String TEST_PRIVATE = "@@maven//:org_example_test_private";
   private static final String DEPLOYMENT = "io.quarkus:example-deployment::jar:3.33.2";
@@ -122,6 +124,93 @@ class BazelApplicationModelAssemblerTest {
 
     assertTrue(exception.getMessage().contains("descriptor-declared artifact"));
     assertTrue(exception.getMessage().contains("missing-deployment"));
+  }
+
+  @Test
+  void rejectsDeploymentEdgeMissingFromBothResolverCatalogs() throws IOException {
+    var base = inputs(true, DEPLOYMENT);
+    var nodes = new java.util.ArrayList<>(base.deploymentCatalog().nodes());
+    DeploymentCatalogNode root = nodes.get(0);
+    nodes.set(
+        0,
+        new DeploymentCatalogNode(
+            root.coordinate(),
+            root.repoPath(),
+            List.of("missing.group:missing:1.0"),
+            root.exclusions()));
+    DeploymentCatalog deployment =
+        new DeploymentCatalog(
+            base.deploymentCatalog().resolver(),
+            base.deploymentCatalog().resolverReportVersion(),
+            base.deploymentCatalog().roots(),
+            base.deploymentCatalog().droppedRoots(),
+            nodes,
+            base.deploymentCatalog().conflictResolution());
+
+    BazelApplicationModelException exception =
+        assertThrows(
+            BazelApplicationModelException.class,
+            () -> BazelApplicationModelAssembler.assemble(withDeploymentCatalog(base, deployment)));
+
+    assertTrue(exception.getMessage().contains("deployment catalog contains an unresolved edge"));
+    assertTrue(exception.getMessage().contains("missing.group:missing"));
+  }
+
+  @Test
+  void preservesRuntimeCatalogExclusionsOnCrossCatalogDeploymentEdge() throws IOException {
+    var base = inputs(true, DEPLOYMENT);
+    RuntimeCatalogNode common = base.runtimeCatalog().nodes().get(1);
+    RuntimeCatalog runtime =
+        new RuntimeCatalog(
+            List.of(
+                base.runtimeCatalog().nodes().get(0),
+                new RuntimeCatalogNode(
+                    common.coordinateKey(),
+                    common.targetName(),
+                    common.coordinates(),
+                    common.dependencies(),
+                    common.optional(),
+                    List.of("runtime.only:excluded"))),
+            base.runtimeCatalog().directArtifacts(),
+            base.runtimeCatalog().conflictResolution());
+    var deploymentNodes =
+        base.deploymentCatalog().nodes().stream()
+            .filter(node -> !"org.example:common:1.0".equals(node.coordinate()))
+            .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
+    DeploymentCatalogNode deploymentRoot = deploymentNodes.get(0);
+    deploymentNodes.set(
+        0,
+        new DeploymentCatalogNode(
+            deploymentRoot.coordinate(),
+            deploymentRoot.repoPath(),
+            java.util.stream.Stream.concat(
+                    deploymentRoot.dependencies().stream(),
+                    java.util.stream.Stream.of("org.example:common:1.0"))
+                .toList(),
+            deploymentRoot.exclusions()));
+    DeploymentCatalog deployment =
+        new DeploymentCatalog(
+            base.deploymentCatalog().resolver(),
+            base.deploymentCatalog().resolverReportVersion(),
+            base.deploymentCatalog().roots(),
+            base.deploymentCatalog().droppedRoots(),
+            deploymentNodes,
+            base.deploymentCatalog().conflictResolution());
+
+    BazelApplicationModel model =
+        BazelApplicationModelAssembler.assemble(
+            withDeploymentCatalog(withRuntimeCatalog(base, runtime), deployment));
+
+    assertEquals(
+        List.of(new ArtifactKey("runtime.only", "excluded")),
+        node(model, "deployment:" + DEPLOYMENT).dependencies().stream()
+            .filter(
+                edge ->
+                    edge.relation() == DependencyRelation.DEPLOYMENT
+                        && COMMON.equals(edge.targetId()))
+            .findFirst()
+            .orElseThrow()
+            .exclusions());
   }
 
   @Test
@@ -419,6 +508,29 @@ class BazelApplicationModelAssemblerTest {
   }
 
   @Test
+  void testModeSelectsTheApplicationThatOwnsTheOtherCandidateLibraries() throws IOException {
+    var testInputs = multiDependencyTestInputs(true);
+
+    BazelApplicationModel model = BazelApplicationModelAssembler.assemble(testInputs);
+
+    assertEquals(APP, model.applicationId());
+    assertTrue(model.nodes().stream().anyMatch(node -> SHARED.equals(node.id())));
+  }
+
+  @Test
+  void testModeRejectsIndependentApplicationLibraries() throws IOException {
+    var testInputs = multiDependencyTestInputs(false);
+
+    BazelApplicationModelException exception =
+        assertThrows(
+            BazelApplicationModelException.class,
+            () -> BazelApplicationModelAssembler.assemble(testInputs));
+
+    assertTrue(exception.getMessage().contains("independent local application library"));
+    assertTrue(exception.getMessage().contains(SHARED));
+  }
+
+  @Test
   void testModePromotesMainLibraryAndAttachesTestSources() throws IOException {
     var base = inputs(true, DEPLOYMENT);
     String testRoot = "@@//:test_lib";
@@ -427,6 +539,11 @@ class BazelApplicationModelAssemblerTest {
     Path testOnlyJar = jar("test-only.jar", null);
     Path testPrivateJar = jar("test-private.jar", null);
     var fragments = new java.util.ArrayList<>(base.targetFragments());
+    fragments.replaceAll(
+        fragment ->
+            APP.equals(fragment.targetId())
+                ? withSources(fragment, "custom-layout/java/com/example/App.java")
+                : fragment);
     fragments.add(
         testLocal(
             testRoot,
@@ -876,6 +993,30 @@ class BazelApplicationModelAssemblerTest {
         base.producerVersion());
   }
 
+  private static BazelApplicationModelAssembler.Inputs withDeploymentCatalog(
+      BazelApplicationModelAssembler.Inputs base, DeploymentCatalog deployment) {
+    return new BazelApplicationModelAssembler.Inputs(
+        base.roots(),
+        base.targetFragments(),
+        base.runtimeCatalog(),
+        base.conditionalCatalog(),
+        deployment,
+        base.platformCatalog(),
+        base.localDeployments(),
+        base.localRuntimeAliases(),
+        base.conditionalPaths(),
+        base.deploymentPaths(),
+        base.platformPropertyPaths(),
+        base.runtimeClasspathPaths(),
+        base.deploymentClasspathPaths(),
+        base.modelPrivateTargetIds(),
+        base.quarkusVersion(),
+        base.mode(),
+        base.applicationName(),
+        base.applicationVersion(),
+        base.producerVersion());
+  }
+
   private Path jar(String name, String deploymentArtifact) throws IOException {
     Path path = tempDir.resolve(name);
     try (var output = new JarOutputStream(Files.newOutputStream(path))) {
@@ -971,6 +1112,94 @@ class BazelApplicationModelAssemblerTest {
         List.of(new FileReference(outputPath, outputPath, fragment.targetId(), false)),
         fragment.sourceJars(),
         fragment.sources(),
+        fragment.resources(),
+        fragment.edges());
+  }
+
+  /**
+   * Builds TEST-mode inputs whose test root names two local libraries with main sources.
+   *
+   * @param applicationOwnsShared whether the application library depends on the shared one, which
+   *     is what makes the selection unambiguous
+   */
+  private BazelApplicationModelAssembler.Inputs multiDependencyTestInputs(
+      boolean applicationOwnsShared) throws IOException {
+    var base = inputs(true, DEPLOYMENT);
+    String testRoot = "@@//:multi_dep_test_lib";
+    Path sharedJar = jar("contracts.jar", null);
+    Path testJar = jar("multi-dep-test-lib.jar", null);
+    var fragments = new java.util.ArrayList<>(base.targetFragments());
+    if (applicationOwnsShared) {
+      fragments.replaceAll(
+          fragment ->
+              APP.equals(fragment.targetId())
+                  ? withEdges(fragment, List.of(edge(EXT), edge(SHARED)))
+                  : fragment);
+    }
+    fragments.add(fragment(SHARED, "", "contracts", sharedJar, List.of()));
+    fragments.add(testLocal(testRoot, testJar, List.of(edge(APP), edge(SHARED))));
+    var runtimePaths = new java.util.HashSet<>(base.runtimeClasspathPaths());
+    runtimePaths.add(sharedJar.toString());
+    runtimePaths.add(testJar.toString());
+    var deploymentPaths = new java.util.HashSet<>(base.deploymentClasspathPaths());
+    deploymentPaths.add(sharedJar.toString());
+    deploymentPaths.add(testJar.toString());
+    return new BazelApplicationModelAssembler.Inputs(
+        new Roots("@@//:multi_dep_test", List.of(testRoot)),
+        fragments,
+        base.runtimeCatalog(),
+        emptyConditionalCatalog(),
+        base.deploymentCatalog(),
+        base.platformCatalog(),
+        base.localDeployments(),
+        base.localRuntimeAliases(),
+        Map.of(),
+        base.deploymentPaths(),
+        base.platformPropertyPaths(),
+        runtimePaths,
+        deploymentPaths,
+        Set.of(),
+        base.quarkusVersion(),
+        Mode.TEST,
+        "multi_dep_test",
+        "ignored-test-version",
+        base.producerVersion());
+  }
+
+  private static TargetFragment withEdges(TargetFragment fragment, List<TargetEdge> edges) {
+    return new TargetFragment(
+        fragment.targetId(),
+        fragment.bazelLabel(),
+        fragment.workspaceName(),
+        fragment.packageName(),
+        fragment.targetName(),
+        fragment.ruleKind(),
+        fragment.buildFile(),
+        fragment.neverlink(),
+        fragment.coordinates(),
+        fragment.runtimeOutputJars(),
+        fragment.outputDirectories(),
+        fragment.sourceJars(),
+        fragment.sources(),
+        fragment.resources(),
+        edges);
+  }
+
+  private static TargetFragment withSources(TargetFragment fragment, String sourcePath) {
+    return new TargetFragment(
+        fragment.targetId(),
+        fragment.bazelLabel(),
+        fragment.workspaceName(),
+        fragment.packageName(),
+        fragment.targetName(),
+        fragment.ruleKind(),
+        fragment.buildFile(),
+        fragment.neverlink(),
+        fragment.coordinates(),
+        fragment.runtimeOutputJars(),
+        fragment.outputDirectories(),
+        fragment.sourceJars(),
+        List.of(new FileReference(sourcePath, sourcePath, fragment.targetId(), true)),
         fragment.resources(),
         fragment.edges());
   }

@@ -11,27 +11,21 @@ import io.quarkus.bootstrap.model.ApplicationModel;
 import io.quarkus.deployment.CodeGenerator;
 import io.quarkus.paths.PathCollection;
 import io.quarkus.paths.PathList;
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.function.Consumer;
-import java.util.jar.JarEntry;
-import java.util.jar.JarOutputStream;
+import org.jboss.logging.Logger;
 
 /** Hermetic adapter around Quarkus' build-tool code-generation entry point. */
 public final class CodeGenerationExecutor {
-
-  private static final long DETERMINISTIC_ZIP_TIME = 0L;
 
   private CodeGenerationExecutor() {}
 
@@ -40,31 +34,43 @@ public final class CodeGenerationExecutor {
       List<Path> sourceParents,
       Path generatedSourcesDir,
       Path auxiliaryOutputDir,
+      Path workOutputDir,
       Path sourceJar,
-      Path buildDir,
       String launchMode,
       boolean test,
       Path propertiesFile)
       throws CodeGenerationException {
+    Path bootstrapDir = null;
+    Path providerWorkDir = null;
     try {
       BazelApplicationModel explicitModel = BazelApplicationModelReader.read(applicationModelPath);
       validateMode(explicitModel, launchMode, test);
       ApplicationModel applicationModel = ExplicitApplicationModelBuilder.build(explicitModel);
       Properties properties = loadProperties(propertiesFile);
+      properties.putIfAbsent(
+          "quarkus.application.name", applicationModel.getAppArtifact().getArtifactId());
+      properties.putIfAbsent(
+          "quarkus.application.version", applicationModel.getAppArtifact().getVersion());
 
       Files.createDirectories(generatedSourcesDir);
       Files.createDirectories(auxiliaryOutputDir);
-      Files.createDirectories(buildDir);
+      Files.createDirectories(workOutputDir);
       if (sourceJar.getParent() != null) {
         Files.createDirectories(sourceJar.getParent());
       }
+
+      // Quarkus bootstrap scratch is not reproducible (randomized temp names,
+      // timestamps), so it must stay out of the action's declared outputs.
+      // The JVM temp dir is the action's own writable scratch under Bazel.
+      bootstrapDir = Files.createTempDirectory("quarkus-codegen-bootstrap");
+      providerWorkDir = Files.createTempDirectory("quarkus-codegen-work");
 
       QuarkusBootstrap.Mode bootstrapMode = bootstrapMode(launchMode);
       QuarkusBootstrap bootstrap =
           QuarkusBootstrap.builder()
               .setExistingModel(applicationModel)
               .setApplicationRoot(applicationModel.getAppArtifact().getResolvedPaths())
-              .setTargetDirectory(buildDir)
+              .setTargetDirectory(bootstrapDir)
               .setBaseName("quarkus-codegen")
               .setMode(bootstrapMode)
               .setIsolateDeployment(true)
@@ -76,18 +82,26 @@ public final class CodeGenerationExecutor {
       try (CuratedApplication curatedApplication = bootstrap.bootstrap();
           QuarkusClassLoader deploymentClassLoader =
               curatedApplication.createDeploymentClassLoader()) {
-        invokeCodeGenerator(
-            deploymentClassLoader,
-            PathList.from(sourceParents),
-            generatedSourcesDir,
-            buildDir,
-            applicationModel,
-            properties,
-            launchMode,
-            test);
+        Path codeGenerationWorkDir = providerWorkDir;
+        Properties effectiveProperties =
+            CodeGenerationProperties.effective(
+                deploymentClassLoader, applicationModel, properties, launchMode);
+        CodeGenerationProperties.withQuarkusSystemProperties(
+            effectiveProperties,
+            () ->
+                invokeCodeGenerator(
+                    deploymentClassLoader,
+                    PathList.from(sourceParents),
+                    generatedSourcesDir,
+                    codeGenerationWorkDir,
+                    applicationModel,
+                    effectiveProperties,
+                    launchMode,
+                    test));
       }
 
-      packageOutputs(generatedSourcesDir, sourceJar, auxiliaryOutputDir);
+      CodeGenerationOutputs.packageOutputs(generatedSourcesDir, sourceJar, auxiliaryOutputDir);
+      CodeGenerationOutputs.copyStableWorkOutputs(providerWorkDir, workOutputDir);
     } catch (CodeGenerationException e) {
       throw e;
     } catch (Exception e) {
@@ -97,7 +111,53 @@ public final class CodeGenerationExecutor {
         message = cause.getClass().getName();
       }
       throw new CodeGenerationException(message, cause);
+    } finally {
+      deleteRecursively(providerWorkDir);
+      deleteRecursively(bootstrapDir);
     }
+  }
+
+  private static void deleteRecursively(Path root) {
+    if (root == null || !Files.exists(root)) {
+      return;
+    }
+    try (var paths = Files.walk(root)) {
+      for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
+        Files.deleteIfExists(path);
+      }
+    } catch (IOException e) {
+      // Scratch cleanup is best-effort: the directory lives under the action's
+      // temp dir, which Bazel discards anyway.
+      Logger.getLogger(CodeGenerationExecutor.class)
+          .debugf(e, "Failed to clean code-generation scratch directory %s", root);
+    }
+  }
+
+  /**
+   * Resolves Quarkus' build-tool code-generation entry point on {@code codeGenerator}.
+   *
+   * <p>Package-private so a unit test can pin the exact signature against the compiled
+   * quarkus-core-deployment of each supported minor: at runtime the class comes from the isolated
+   * deployment classloader while the parameter types come from this one, so a signature change or a
+   * bootstrap class that stops being parent-first only surfaces as a {@link NoSuchMethodException}
+   * once the action already runs.
+   *
+   * @param codeGenerator the {@code io.quarkus.deployment.CodeGenerator} class to reflect on
+   * @return the resolved {@code initAndRun} method
+   * @throws NoSuchMethodException if the expected signature is absent
+   */
+  static Method codeGeneratorEntryPoint(Class<?> codeGenerator) throws NoSuchMethodException {
+    return codeGenerator.getMethod(
+        "initAndRun",
+        QuarkusClassLoader.class,
+        PathCollection.class,
+        Path.class,
+        Path.class,
+        Consumer.class,
+        ApplicationModel.class,
+        Properties.class,
+        String.class,
+        boolean.class);
   }
 
   private static void invokeCodeGenerator(
@@ -111,18 +171,7 @@ public final class CodeGenerationExecutor {
       boolean test)
       throws ReflectiveOperationException {
     Class<?> codeGenerator = deploymentClassLoader.loadClass(CodeGenerator.class.getName());
-    Method initAndRun =
-        codeGenerator.getMethod(
-            "initAndRun",
-            QuarkusClassLoader.class,
-            PathCollection.class,
-            Path.class,
-            Path.class,
-            Consumer.class,
-            ApplicationModel.class,
-            Properties.class,
-            String.class,
-            boolean.class);
+    Method initAndRun = codeGeneratorEntryPoint(codeGenerator);
     ClassLoader original = Thread.currentThread().getContextClassLoader();
     try {
       Thread.currentThread().setContextClassLoader(deploymentClassLoader);
@@ -142,68 +191,11 @@ public final class CodeGenerationExecutor {
     }
   }
 
-  static void packageOutputs(Path generatedSourcesDir, Path sourceJar, Path auxiliaryOutputDir)
-      throws IOException, CodeGenerationException {
-    List<Path> javaSources = new ArrayList<>();
-    List<Path> auxiliaryFiles = new ArrayList<>();
-    List<Path> unsupportedSources = new ArrayList<>();
-    try (var paths = Files.walk(generatedSourcesDir)) {
-      paths
-          .filter(Files::isRegularFile)
-          .forEach(
-              path -> {
-                String name = path.getFileName().toString();
-                if (name.endsWith(".java")) {
-                  javaSources.add(path);
-                } else if (name.endsWith(".kt") || name.endsWith(".scala")) {
-                  unsupportedSources.add(path);
-                } else {
-                  auxiliaryFiles.add(path);
-                }
-              });
-    }
-    if (!unsupportedSources.isEmpty()) {
-      throw new CodeGenerationException(
-          "Generated Kotlin/Scala sources are not supported yet: " + unsupportedSources);
-    }
-    if (javaSources.isEmpty()) {
-      throw new CodeGenerationException(
-          "No Java sources were generated; verify that a CodeGenProvider is present and that"
-              + " --source-parent contains its input directory");
-    }
-
-    Comparator<Path> relativeOrder =
-        Comparator.comparing(path -> generatedSourcesDir.relativize(path).toString());
-    javaSources.sort(relativeOrder);
-    auxiliaryFiles.sort(relativeOrder);
-
-    try (JarOutputStream jar =
-        new JarOutputStream(new BufferedOutputStream(Files.newOutputStream(sourceJar)))) {
-      for (Path source : javaSources) {
-        String entryName = generatedSourcesDir.relativize(source).toString().replace('\\', '/');
-        JarEntry entry = new JarEntry(entryName);
-        entry.setTime(DETERMINISTIC_ZIP_TIME);
-        jar.putNextEntry(entry);
-        try (InputStream input = new BufferedInputStream(Files.newInputStream(source))) {
-          input.transferTo(jar);
-        }
-        jar.closeEntry();
-      }
-    }
-
-    for (Path auxiliary : auxiliaryFiles) {
-      Path relative = generatedSourcesDir.relativize(auxiliary);
-      Path destination = auxiliaryOutputDir.resolve(relative);
-      Files.createDirectories(destination.getParent());
-      Files.copy(auxiliary, destination);
-    }
-  }
-
-  private static Properties loadProperties(Path propertiesFile) throws IOException {
+  static Properties loadProperties(Path propertiesFile) throws IOException {
     Properties properties = new Properties();
     if (propertiesFile != null) {
-      try (InputStream input = Files.newInputStream(propertiesFile)) {
-        properties.load(input);
+      try (var reader = Files.newBufferedReader(propertiesFile, StandardCharsets.UTF_8)) {
+        properties.load(reader);
       }
     }
     return properties;
