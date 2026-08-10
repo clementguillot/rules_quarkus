@@ -116,6 +116,60 @@ class MavenCoordinateParserTest {
     assertEquals("0.0.0", coords.version());
   }
 
+  /**
+   * Quarkus names each {@code lib/} entry {@code <groupId>.<originalFileName>}, so a jar supplied
+   * by {@code rules_jvm_external} lands there as {@code
+   * <groupId>.processed_<artifactId>-<version>.jar}. There is no Maven directory structure left to
+   * read, and {@code rules_jvm_external} strips {@code META-INF/maven/**}, so the name is the only
+   * source of the coordinate. Getting it wrong means the artifact does not dedupe against the same
+   * one resolved from the classpath and is shipped twice.
+   */
+  @ParameterizedTest
+  @CsvSource({
+    "io.opentelemetry.processed_opentelemetry-api-1.57.0.jar, io.opentelemetry, opentelemetry-api,"
+        + " 1.57.0",
+    "org.graalvm.sdk.processed_collections-24.2.2.jar, org.graalvm.sdk, collections, 24.2.2",
+    "io.micrometer.processed_micrometer-registry-prometheus-simpleclient-1.16.3.jar, io.micrometer,"
+        + " micrometer-registry-prometheus-simpleclient, 1.16.3",
+    "org.mongodb.processed_bson-record-codec-5.6.4.jar, org.mongodb, bson-record-codec, 5.6.4",
+  })
+  void recoversCoordinatesFromFlattenedLibName(
+      String filename, String expectedGroup, String expectedArtifact, String expectedVersion) {
+    var coords = MavenCoordinateParser.parse(Path.of("quarkus-app/lib/main/" + filename));
+    assertEquals(expectedGroup, coords.groupId());
+    assertEquals(expectedArtifact, coords.artifactId());
+    assertEquals(expectedVersion, coords.version());
+  }
+
+  @Test
+  void skipsEmbeddedProcessedOccurrenceBeforeFlattenedBoundary() {
+    var coords =
+        MavenCoordinateParser.parse(
+            Path.of("jars/com.preprocessed_group.processed_artifact-1.0.jar"));
+    assertEquals("com.preprocessed_group", coords.groupId());
+    assertEquals("artifact", coords.artifactId());
+    assertEquals("1.0", coords.version());
+  }
+
+  @Test
+  void rejectsProcessedBoundaryWithEmptyGroupId() {
+    var coords = MavenCoordinateParser.parse(Path.of("jars/.processed_artifact-1.0.jar"));
+    assertEquals("unknown", coords.groupId());
+    assertEquals(".processed_artifact", coords.artifactId());
+    assertEquals("1.0", coords.version());
+  }
+
+  @Test
+  void leavesAProcessedMarkerThatIsNotAtASegmentBoundaryAlone() {
+    // Only a marker introduced by a `.` is a groupId separator; an artifact that merely contains
+    // the
+    // word keeps its name.
+    var coords = MavenCoordinateParser.parse(Path.of("jars/preprocessed_thing-2.0.jar"));
+    assertEquals("unknown", coords.groupId());
+    assertEquals("preprocessed_thing", coords.artifactId());
+    assertEquals("2.0", coords.version());
+  }
+
   @Test
   void parseDeepGroupId() {
     var path = Path.of("/repo/org/apache/commons/commons-lang3/3.14.0/commons-lang3-3.14.0.jar");

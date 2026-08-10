@@ -63,6 +63,49 @@ class FastJarAssemblerTest {
   }
 
   @Test
+  void assembleLibDirectories_deduplicatesFlattenedProcessedJarAndMovesItToBoot()
+      throws IOException {
+    Path outputDir = quarkusAppDir();
+    Path libBoot = outputDir.resolve("quarkus-app/lib/boot");
+    Path libMain = outputDir.resolve("quarkus-app/lib/main");
+    Files.createDirectories(libMain);
+
+    Path augmentedJar =
+        createJarWithEntry(
+            "augmented",
+            "io.opentelemetry",
+            "opentelemetry-api",
+            "1.57.0",
+            "augmented-only.txt",
+            "augmented");
+    Files.copy(
+        augmentedJar, libMain.resolve("io.opentelemetry.processed_opentelemetry-api-1.57.0.jar"));
+
+    Path pristineJar =
+        createJarWithEntry(
+            "runtime/jars",
+            "io.opentelemetry",
+            "opentelemetry-api",
+            "1.57.0",
+            "pristine-only.txt",
+            "pristine");
+    ApplicationModel model =
+        modelWith(dep("io.opentelemetry", "opentelemetry-api", "1.57.0", true));
+
+    FastJarAssembler.assembleLibDirectories(outputDir, List.of(pristineJar), model);
+
+    Path resultJar = libBoot.resolve("io.opentelemetry.opentelemetry-api-1.57.0.jar");
+    assertTrue(Files.exists(resultJar), "parent-first augmented jar must move to lib/boot");
+    try (var files = Files.list(libMain)) {
+      assertEquals(0, files.count(), "runtime jar must deduplicate against the augmented jar");
+    }
+    try (var jar = new JarFile(resultJar.toFile())) {
+      assertNotNull(jar.getEntry("augmented-only.txt"), "augmented jar content must be preserved");
+      assertNull(jar.getEntry("pristine-only.txt"), "pristine runtime jar must not replace it");
+    }
+  }
+
+  @Test
   void assembleLibDirectories_keepsSameArtifactAndVersionFromDifferentGroups() throws IOException {
     Path outputDir = quarkusAppDir();
     Path first = createJarAt("first/jars", "com.example.one", "runtime", "1.0.0");
