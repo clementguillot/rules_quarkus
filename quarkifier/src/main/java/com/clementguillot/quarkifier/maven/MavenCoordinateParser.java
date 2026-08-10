@@ -23,6 +23,12 @@ public final class MavenCoordinateParser {
   /** Prefixes that mark non-groupId segments (Bazel/OS roots). */
   private static final String[] STOP_PREFIXES = {"bazel-", "darwin", "linux", "windows"};
 
+  /** Prefix {@code rules_jvm_external} gives the jars it rewrites. */
+  private static final String PROCESSED_PREFIX = "processed_";
+
+  /** groupId reported when the path and the jar's own metadata both fail to supply one. */
+  private static final String UNKNOWN_GROUP_ID = "unknown";
+
   private MavenCoordinateParser() {}
 
   /** Parsed Maven coordinates. */
@@ -56,7 +62,7 @@ public final class MavenCoordinateParser {
     String artifactId = parts[parts.length - 3];
 
     String expectedSuffix = artifactId + "-" + version + ".jar";
-    if (!filename.equals(expectedSuffix) && !filename.equals("processed_" + expectedSuffix)) {
+    if (!filename.equals(expectedSuffix) && !filename.equals(PROCESSED_PREFIX + expectedSuffix)) {
       return fallbackWithJarIntrospection(jarPath);
     }
 
@@ -139,12 +145,34 @@ public final class MavenCoordinateParser {
   /**
    * Fallback when the path doesn't match the standard Maven layout. Extracts artifactId and version
    * from the filename alone (e.g. {@code quarkus-arc-3.27.4.jar} → {@code quarkus-arc} / {@code
-   * 3.27.4}). Returns {@code "unknown"} for groupId.
+   * 3.27.4}).
+   *
+   * <p>Recognises the flattened name Quarkus gives each {@code lib/} entry, {@code
+   * <groupId>.<originalFileName>}. When the original file name is one of {@code
+   * rules_jvm_external}'s {@code processed_<artifactId>-<version>.jar}, the result is {@code
+   * <groupId>.processed_<artifactId>-<version>.jar} — a name with no Maven directory structure to
+   * read and, because {@code rules_jvm_external} strips {@code META-INF/maven/**}, no {@code
+   * pom.properties} to introspect either. Splitting on the marker recovers the real coordinate.
+   *
+   * <p>That matters beyond tidiness: the coordinate is the dedupe key used to decide whether an
+   * artifact is already packaged, so failing to recover it ships the same jar twice — once under
+   * its proper name and once under a synthetic {@code unknown.*} one — and misfiles it in {@code
+   * lib/main} when it belongs in {@code lib/boot}.
+   *
+   * <p>Returns {@code "unknown"} for groupId when the name carries no usable prefix.
    */
   private static Coordinates fallback(Path jarPath) {
     String name = jarPath.getFileName().toString();
-    if (name.startsWith("processed_")) {
-      name = name.substring("processed_".length());
+    String groupId = UNKNOWN_GROUP_ID;
+
+    if (name.startsWith(PROCESSED_PREFIX)) {
+      name = name.substring(PROCESSED_PREFIX.length());
+    } else {
+      int marker = name.indexOf("." + PROCESSED_PREFIX, 1);
+      if (marker > 0) {
+        groupId = name.substring(0, marker);
+        name = name.substring(marker + PROCESSED_PREFIX.length() + 1);
+      }
     }
     if (name.endsWith(".jar")) {
       name = name.substring(0, name.length() - 4);
@@ -163,9 +191,9 @@ public final class MavenCoordinateParser {
     if (versionSep > 0) {
       String artifactId = name.substring(0, versionSep);
       String version = name.substring(versionSep + 1);
-      return new Coordinates("unknown", artifactId, version);
+      return new Coordinates(groupId, artifactId, version);
     }
 
-    return new Coordinates("unknown", name, "0.0.0");
+    return new Coordinates(groupId, name, "0.0.0");
   }
 }
