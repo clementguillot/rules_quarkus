@@ -1146,9 +1146,25 @@ def _write_jar_build(rctx, subdir, all_jars, core_jar_set = None, extra_artifact
             core_targets.append('":{}"'.format(target_name))
 
     artifact_files = []
+    seen_artifact_paths = {}
     for artifact_path in extra_artifacts:
         relative_path = _maven_relative_path(artifact_path)
         repo_path = "artifacts/" + relative_path
+        if relative_path in seen_artifact_paths:
+            seen_artifact_paths[relative_path] += 1
+            n = seen_artifact_paths[relative_path]
+
+            # buildifier: disable=print
+            print(("WARNING: rules_quarkus: {} artifacts collide on repository path '{}' " +
+                   "({}); keeping both, this one under 'dup{}'.").format(
+                subdir,
+                relative_path,
+                artifact_path,
+                n,
+            ))
+            repo_path = "artifacts/dup{}/{}".format(n, relative_path)
+        else:
+            seen_artifact_paths[relative_path] = 1
         copies.append((artifact_path, subdir + "/" + repo_path))
         repo_paths[artifact_path] = subdir + "/" + repo_path
         artifact_files.append('":{}"'.format(repo_path))
@@ -1407,7 +1423,7 @@ def _declare_quarkus_codegen(name, srcs, deps, exports, runtime_deps, resources,
     # marked manual.
     root_kwargs = {{
         key: target_kwargs[key]
-        for key in ("tags", "target_compatible_with", "testonly")
+        for key in ("exec_compatible_with", "exec_properties", "tags", "target_compatible_with", "testonly")
         if key in target_kwargs
     }}
 
@@ -1492,7 +1508,7 @@ def quarkus_java_library(name, srcs = [], resources = [], deps = [], codegen_src
     if has_codegen:
         codegen_name = name + "_quarkus_codegen"
         codegen_kwargs = {{"testonly": java_kwargs.get("testonly", False)}}
-        for attribute in ("tags", "target_compatible_with"):
+        for attribute in ("exec_compatible_with", "exec_properties", "tags", "target_compatible_with"):
             if attribute in java_kwargs:
                 codegen_kwargs[attribute] = java_kwargs[attribute]
         _declare_quarkus_codegen(

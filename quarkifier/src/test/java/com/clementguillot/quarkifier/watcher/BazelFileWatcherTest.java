@@ -91,6 +91,15 @@ class BazelFileWatcherTest {
   }
 
   @Test
+  void versionControlDirectoriesAreExcludedWithoutExcludingDeclaredDotDirectories() {
+    assertTrue(BazelFileWatcher.isVersionControlDirectory(Path.of("workspace/.git")));
+    assertTrue(BazelFileWatcher.isVersionControlDirectory(Path.of("workspace/.hg")));
+    assertTrue(BazelFileWatcher.isVersionControlDirectory(Path.of("workspace/.svn")));
+    assertFalse(BazelFileWatcher.isVersionControlDirectory(Path.of("workspace/.schemas")));
+    assertFalse(BazelFileWatcher.isVersionControlDirectory(Path.of("workspace/proto")));
+  }
+
+  @Test
   void triggerBuildAndSync_serializesConcurrentCalls() throws Exception {
     var config = testConfig(tempDir.resolve("output"), List.of());
     var watcher = new BazelFileWatcher(config);

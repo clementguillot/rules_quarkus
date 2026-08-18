@@ -110,6 +110,10 @@ public final class SmokeCodeGenProvider implements CodeGenProvider {
   }
 
   private static String javaString(String value) {
-    return value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
+    return value
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+        .replace("\r", "\\r")
+        .replace("\n", "\\n");
   }
 }

@@ -174,7 +174,10 @@ sh_test(
 sh_test(
     name = "dev_codegen_metadata_test",
     srcs = ["dev_codegen_metadata_test.sh"],
-    data = [":app_dev"],
+    data = [
+        ":app_dev",
+        ":dependency_only_codegen_app_dev",
+    ],
 )
 
 filegroup(
@@ -270,6 +273,14 @@ quarkus_java_library(
         "@maven//:io_smallrye_reactive_mutiny",
         "@maven//:jakarta_annotation_jakarta_annotation_api",
     ],
+)
+
+# Its dev target certifies that resource-only generator inputs from a
+# dependency propagate into the Bazel rebuild watcher even though the codegen
+# target has no local codegen_srcs.
+quarkus_app(
+    name = "dependency_only_codegen_app",
+    deps = [":dependency_only_grpc_codegen"],
 )
 
 build_test(

@@ -144,7 +144,9 @@ inference paths have been removed.
 3. `DevModeLauncher` sets them as `sourcePaths` in `DevModeContext.ModuleInfo`
 4. `IsolatedDevModeMain` creates a `RuntimeUpdatesProcessor` that watches these directories
 
-When source dirs are empty, hot-reload is disabled but the Dev UI still works.
+When both source dirs and code-generation input dirs are empty, hot-reload is
+disabled but the Dev UI still works. Declared code-generation inputs keep the
+rebuild watcher active even when there are no Java source dirs.
 
 ### Generated sources
 

@@ -30,7 +30,10 @@ quarkus_java_library(
     name = "lib",
     srcs = glob(["src/main/java/**/*.java"]),
     codegen_srcs = glob(["src/main/proto/**/*.proto"]),
-    deps = ["@maven//:io_quarkus_quarkus_grpc"],
+    deps = [
+        "@maven//:com_google_protobuf_protobuf_java",
+        "@maven//:io_quarkus_quarkus_grpc",
+    ],
 )
 
 quarkus_app(

@@ -10,14 +10,14 @@ load("//quarkus/private:coverage_transition.bzl", "disable_coverage_transition",
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
 
 QuarkusCodeGenTransitiveInfo = provider(
-    "Accumulates main CodeGenProvider input directories transitively across deps.",
+    "Accumulates main CodeGenProvider inputs and source resource directories across deps.",
     fields = {
         "input_dirs": "Transitive workspace-relative CodeGenProvider input directories.",
+        "resource_dirs": "Transitive workspace-relative source resource directories.",
     },
 )
 
-def _resource_entry(file, strip_prefix, package):
-    short_path = file.short_path
+def _resource_entry_path(short_path, strip_prefix, package):
     if strip_prefix:
         normalized = strip_prefix.strip("/")
         workspace_prefix = normalized
@@ -27,16 +27,34 @@ def _resource_entry(file, strip_prefix, package):
         if not short_path.startswith(prefix):
             fail("resource '{}' is outside resource_strip_prefix '{}'".format(short_path, strip_prefix))
         return short_path[len(prefix):]
-    for marker in ("src/main/resources/", "src/test/resources/"):
-        # A resource in the root package starts with the marker outright, so
-        # matching only "/<marker>" would leave the whole path as the jar entry
-        # and keep application.properties off the classpath root.
-        if short_path.startswith(marker):
-            return short_path[len(marker):]
-        index = short_path.find("/" + marker)
-        if index >= 0:
-            return short_path[index + 1 + len(marker):]
+
+    # Match rules_java's default resource-path semantics: first prefer any
+    # Maven-style src/<source-set>/resources root, then the topmost java or
+    # javatests directory.
+    segments = short_path.split("/")
+    for index in range(0, len(segments) - 2):
+        if segments[index] == "src" and segments[index + 2] == "resources":
+            return "/".join(segments[index + 3:])
+    for index in range(0, len(segments)):
+        if segments[index] in ("java", "javatests"):
+            return "/".join(segments[index + 1:])
     return short_path
+
+def _resource_entry(file, strip_prefix, package):
+    return _resource_entry_path(file.short_path, strip_prefix, package)
+
+resource_entry_for_test = _resource_entry_path
+
+def _resource_watch_dir(short_path, entry):
+    """Returns the narrowest source directory containing a mapped resource root."""
+    if entry != short_path:
+        suffix = "/" + entry
+        if short_path.endswith(suffix):
+            return short_path[:-len(suffix)]
+    parts = short_path.rsplit("/", 1)
+    return parts[0] if len(parts) == 2 else "."
+
+resource_watch_dir_for_test = _resource_watch_dir
 
 def _codegen_root_impl(ctx):
     output_jar = ctx.actions.declare_file(ctx.label.name + ".jar")
@@ -102,14 +120,38 @@ def _write_properties(ctx):
     ctx.actions.write(output = output, content = "\n".join(lines) + ("\n" if lines else ""))
     return output
 
-def _workspace_source_roots(ctx):
-    package = ctx.label.package
+def _normalize_source_roots(package, declared_roots):
+    if not declared_roots:
+        fail("source_roots must contain at least one package-relative path")
+
     roots = []
-    for root in ctx.attr.source_roots:
+    seen = {}
+    for root in declared_roots:
         normalized = root.strip("/")
-        if not normalized or root.startswith("/") or ".." in normalized.split("/"):
+        segments = normalized.split("/")
+        if (
+            not normalized or
+            root.startswith("/") or
+            (normalized != "." and any([segment in ("", ".", "..") for segment in segments])) or
+            ".." in segments
+        ):
             fail("source_roots entries must be non-empty package-relative paths, got '{}'".format(root))
-        roots.append(package + "/" + normalized if package else normalized)
+        if normalized == ".":
+            workspace_root = package if package else "."
+        else:
+            workspace_root = package + "/" + normalized if package else normalized
+        if workspace_root not in seen:
+            roots.append(workspace_root)
+            seen[workspace_root] = True
+    return roots
+
+normalize_source_roots_for_test = _normalize_source_roots
+
+def _is_under_root(path, root):
+    return not path.startswith("../") and (root == "." or path == root or path.startswith(root + "/"))
+
+def _workspace_source_roots(ctx):
+    roots = _normalize_source_roots(ctx.label.package, ctx.attr.source_roots)
     for source in ctx.files.srcs:
         if not source.is_source:
             # --source-parent is a workspace-relative path resolved against the
@@ -118,11 +160,7 @@ def _workspace_source_roots(ctx):
             # this check the provider would silently find an empty input
             # directory and generate nothing.
             fail("codegen input '{}' is a generated file; quarkus_codegen inputs must be source files".format(source.short_path))
-        contained = False
-        for root in roots:
-            if source.short_path == root or source.short_path.startswith(root + "/"):
-                contained = True
-                break
+        contained = any([_is_under_root(source.short_path, root) for root in roots])
         if not contained:
             fail("codegen input '{}' is outside source_roots {}".format(source.short_path, roots))
     return roots
@@ -145,28 +183,32 @@ def _codegen_input_dirs(source_paths, source_roots):
     for source_path in source_paths:
         matched = False
         for root in source_roots:
-            if source_path != root and not source_path.startswith(root + "/"):
+            if not _is_under_root(source_path, root):
                 continue
             matched = True
-            relative = source_path[len(root):].lstrip("/")
+            relative = source_path if root == "." else source_path[len(root):].lstrip("/")
             parts = relative.split("/")
             input_dir = root
             if len(parts) > 1:
-                input_dir += "/" + parts[0]
+                input_dir = parts[0] if root == "." else root + "/" + parts[0]
             candidates[input_dir] = True
         if not matched:
             fail("codegen input '{}' is outside source_roots {}".format(source_path, source_roots))
 
+    return _minimal_directories(candidates.keys())
+
+codegen_input_dirs_for_test = _codegen_input_dirs
+
+def _minimal_directories(candidates):
+    unique = {candidate: True for candidate in candidates}
     dirs = []
-    for candidate in sorted(candidates):
+    for candidate in sorted(unique):
         if not any([
-            candidate != parent and candidate.startswith(parent + "/")
-            for parent in candidates
+            candidate != parent and (parent == "." or candidate.startswith(parent + "/"))
+            for parent in unique
         ]):
             dirs.append(candidate)
     return dirs
-
-codegen_input_dirs_for_test = _codegen_input_dirs
 
 def _input_dirs(ctx, source_roots):
     return _codegen_input_dirs(
@@ -298,11 +340,8 @@ quarkus_codegen_rule = rule(
 )
 
 def _metadata_aspect_impl(target, ctx):
-    dirs = []
-    if QuarkusCodeGenInfo in target:
-        info = target[QuarkusCodeGenInfo]
-        if info.mode == "main":
-            dirs.append(depset(info.input_dirs))
+    input_dirs = []
+    resource_dirs = []
     for attr_name in ("srcs", "deps", "exports", "runtime_deps"):
         if not hasattr(ctx.rule.attr, attr_name):
             continue
@@ -310,8 +349,38 @@ def _metadata_aspect_impl(target, ctx):
         dependencies = value if type(value) == "list" else [value]
         for dependency in dependencies:
             if QuarkusCodeGenTransitiveInfo in dependency:
-                dirs.append(dependency[QuarkusCodeGenTransitiveInfo].input_dirs)
-    return [QuarkusCodeGenTransitiveInfo(input_dirs = depset(transitive = dirs))]
+                dependency_info = dependency[QuarkusCodeGenTransitiveInfo]
+                input_dirs.append(dependency_info.input_dirs)
+                resource_dirs.append(dependency_info.resource_dirs)
+
+    direct_resource_dirs = []
+    if not ctx.label.repo_name and hasattr(ctx.rule.files, "resources"):
+        strip_prefix = ctx.rule.attr.resource_strip_prefix if hasattr(ctx.rule.attr, "resource_strip_prefix") else ""
+        for resource in ctx.rule.files.resources:
+            if not resource.is_source or resource.short_path.startswith("../"):
+                continue
+            entry = _resource_entry(resource, strip_prefix, ctx.label.package)
+            direct_resource_dirs.append(_resource_watch_dir(resource.short_path, entry))
+    all_resource_dirs = depset(
+        direct = _minimal_directories(direct_resource_dirs),
+        transitive = resource_dirs,
+    )
+
+    if QuarkusCodeGenInfo in target:
+        info = target[QuarkusCodeGenInfo]
+        if info.mode == "main":
+            input_dirs.append(depset(info.input_dirs))
+
+            # Resources from the synthetic application root and all of its
+            # dependencies can affect provider initialization or supply
+            # dependency-only generator inputs.
+            input_dirs.append(all_resource_dirs)
+    return [
+        QuarkusCodeGenTransitiveInfo(
+            input_dirs = depset(transitive = input_dirs),
+            resource_dirs = all_resource_dirs,
+        ),
+    ]
 
 quarkus_codegen_metadata_aspect = aspect(
     implementation = _metadata_aspect_impl,
@@ -330,5 +399,5 @@ def collect_codegen_input_dirs(deps):
     dirs = []
     for dep in deps:
         if QuarkusCodeGenTransitiveInfo in dep:
-            dirs.append(dep[QuarkusCodeGenTransitiveInfo].input_dirs)
-    return depset(transitive = dirs)
+            dirs.extend(dep[QuarkusCodeGenTransitiveInfo].input_dirs.to_list())
+    return depset(_minimal_directories(dirs))

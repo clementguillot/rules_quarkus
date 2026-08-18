@@ -19,4 +19,14 @@ class GrpcGeneratedResourceTest {
         .statusCode(200)
         .body(is("Generated gRPC, Bazel!"));
   }
+
+  @Test
+  void missingNameUsesDefault() {
+    given()
+        .when()
+        .get("/grpc-generated")
+        .then()
+        .statusCode(200)
+        .body(is("Generated gRPC, Quarkus!"));
+  }
 }

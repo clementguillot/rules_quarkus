@@ -1,5 +1,6 @@
 package org.acme.grpc.consumer;
 
+import io.grpc.Status;
 import io.quarkus.grpc.GrpcClient;
 import io.smallrye.mutiny.Uni;
 import jakarta.ws.rs.Consumes;
@@ -47,7 +48,7 @@ public class ItemResource {
     return itemService
         .getItem(ItemId.newBuilder().setId(id).build())
         .map(item -> Response.ok(ItemDto.from(item)).build())
-        .onFailure()
+        .onFailure(ItemResource::isNotFound)
         .recoverWithItem(Response.status(Response.Status.NOT_FOUND).build());
   }
 
@@ -73,7 +74,7 @@ public class ItemResource {
     return itemService
         .updateItem(toUpdate)
         .map(item -> Response.ok(ItemDto.from(item)).build())
-        .onFailure()
+        .onFailure(ItemResource::isNotFound)
         .recoverWithItem(Response.status(Response.Status.NOT_FOUND).build());
   }
 
@@ -84,7 +85,11 @@ public class ItemResource {
     return itemService
         .deleteItem(ItemId.newBuilder().setId(id).build())
         .map(empty -> Response.noContent().build())
-        .onFailure()
+        .onFailure(ItemResource::isNotFound)
         .recoverWithItem(Response.status(Response.Status.NOT_FOUND).build());
+  }
+
+  static boolean isNotFound(Throwable failure) {
+    return Status.fromThrowable(failure).getCode() == Status.Code.NOT_FOUND;
   }
 }

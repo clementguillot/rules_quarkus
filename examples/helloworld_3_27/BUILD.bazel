@@ -1,14 +1,12 @@
-load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_integration_test", "quarkus_java_library", "quarkus_test")
+load("@rules_java//java:java_library.bzl", "java_library")
+load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_integration_test", "quarkus_test")
 
-quarkus_java_library(
+java_library(
     name = "lib",
     srcs = glob(["src/main/java/**/*.java"]),
-    codegen_srcs = ["src/main/proto/greeting.proto"],
     resources = glob(["src/main/resources/**/*"]),
     deps = [
-        "@maven//:com_google_protobuf_protobuf_java",
         "@maven//:io_quarkus_quarkus_arc",
-        "@maven//:io_quarkus_quarkus_grpc",
         "@maven//:io_quarkus_quarkus_rest",
         "@maven//:jakarta_ws_rs_jakarta_ws_rs_api",
     ],

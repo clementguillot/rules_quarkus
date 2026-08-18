@@ -4,8 +4,9 @@ set -euo pipefail
 runfiles_root="${TEST_SRCDIR}/${TEST_WORKSPACE}"
 targets_file=$(find "$runfiles_root" -name 'app_dev_bazel_targets.txt' -print -quit)
 input_dirs_file=$(find "$runfiles_root" -name 'app_dev_codegen_input_dirs.txt' -print -quit)
+dependency_input_dirs_file=$(find "$runfiles_root" -name 'dependency_only_codegen_app_dev_codegen_input_dirs.txt' -print -quit)
 
-if [[ -z "$targets_file" || -z "$input_dirs_file" ]]; then
+if [[ -z "$targets_file" || -z "$input_dirs_file" || -z "$dependency_input_dirs_file" ]]; then
   echo "dev codegen metadata was not present in runfiles" >&2
   exit 1
 fi
@@ -19,5 +20,13 @@ if tr ',' '\n' <"$input_dirs_file" | grep -qx 'src/main'; then
 fi
 if ! tr ',' '\n' <"$input_dirs_file" | grep -qx 'src/main/proto'; then
   echo "codegen watcher does not include the declared proto input directory" >&2
+  exit 1
+fi
+if ! tr ',' '\n' <"$input_dirs_file" | grep -qx 'src/main/resources'; then
+  echo "codegen watcher does not include resources consumed during provider initialization" >&2
+  exit 1
+fi
+if ! tr ',' '\n' <"$dependency_input_dirs_file" | grep -qx 'src/dependency'; then
+  echo "codegen watcher does not include dependency-only resource inputs" >&2
   exit 1
 fi

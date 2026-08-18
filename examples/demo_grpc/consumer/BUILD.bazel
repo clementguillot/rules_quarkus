@@ -7,6 +7,7 @@ java_library(
     resources = glob(["src/main/resources/**/*"]),
     deps = [
         "//messages",
+        "@maven//:io_grpc_grpc_api",
         "@maven//:io_quarkus_quarkus_grpc",
         "@maven//:io_quarkus_quarkus_grpc_api",
         "@maven//:io_quarkus_quarkus_rest",
@@ -30,6 +31,7 @@ quarkus_test(
     srcs = glob(["src/test/java/**/*.java"]),
     deps = [
         ":lib",
+        "@maven//:io_grpc_grpc_api",
         "@maven//:io_quarkus_quarkus_junit",
         "@maven//:io_rest_assured_rest_assured",
         "@maven//:org_hamcrest_hamcrest",
