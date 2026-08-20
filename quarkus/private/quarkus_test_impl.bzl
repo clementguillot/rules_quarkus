@@ -16,6 +16,7 @@ load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusAppInfo", "QuarkusNativeInfo")
 load("//quarkus/private:application_model_aspect.bzl", "has_maven_artifact", "quarkus_application_model_aspect")
+load("//quarkus/private:build_properties.bzl", "write_build_properties")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_extension_runtime_jars", "collect_local_app_jars", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
 load("//quarkus/private:coverage_transition.bzl", "disable_coverage_transition", "single_transitioned_target")
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
@@ -47,6 +48,13 @@ def _quarkus_jacoco_present(integration, jacoco_dep_present):
     coverage here would make the report unreachable in both modes.
     """
     return not integration and jacoco_dep_present
+
+def _build_property_jvm_flags(build_properties):
+    """Returns shell-safe JVM flags for the test-time Quarkus bootstrap."""
+    return [
+        shell.quote("-D{}={}".format(key, build_properties[key]))
+        for key in sorted(build_properties)
+    ]
 
 def _integration_version_error(rule_name, test_version, app_label, app_version):
     if test_version == app_version:
@@ -106,6 +114,7 @@ def _test_impl(ctx, integration):
     # Extension runtime jars are excluded from direct_jars: leaving them as app
     # roots exposes their @ConfigRoot classes to both classloaders (SRCFG00027).
     cp_file = write_runfiles_paths_file(ctx, "_cp.txt", runtime_classpath, ":")
+    build_properties = write_build_properties(ctx)
     ext_rt_jars = collect_extension_runtime_jars(ctx.attr.deps)
     direct_jars_file = write_runfiles_paths_file(ctx, "_direct_jars.txt", collect_local_app_jars(ctx.attr.deps, runtime_classpath, ext_rt_jars), ",")
 
@@ -135,6 +144,8 @@ def _test_impl(ctx, integration):
             "%{app_name}": ctx.label.name,
             "%{artifact_path}": integration_artifact.artifact_path if integration else "",
             "%{artifact_type}": integration_artifact.artifact_type if integration else "",
+            "%{build_properties_file}": build_properties.short_path,
+            "%{build_property_jvm_flags}": " ".join(_build_property_jvm_flags(ctx.attr.build_properties)),
             "%{classpath_file}": cp_file.short_path,
             "%{coverage_enabled}": "true" if coverage_enabled else "false",
             "%{coverage_jars_file}": coverage_jars_file.short_path if coverage_jars_file else "",
@@ -153,7 +164,7 @@ def _test_impl(ctx, integration):
         is_executable = True,
     )
 
-    direct_runfiles = [cp_file, direct_jars_file, model, tool_jar] + coverage_files
+    direct_runfiles = [build_properties, cp_file, direct_jars_file, model, tool_jar] + coverage_files
     if coverage_jars_file:
         direct_runfiles.append(coverage_jars_file)
     if integration:
@@ -169,7 +180,10 @@ def _test_impl(ctx, integration):
 
     return [
         DefaultInfo(executable = launcher, runfiles = runfiles),
-        OutputGroupInfo(quarkus_model = depset([model])),
+        OutputGroupInfo(
+            quarkus_build_properties = depset([build_properties]),
+            quarkus_model = depset([model]),
+        ),
     ]
 
 def _quarkus_test_impl(ctx):
@@ -181,6 +195,9 @@ def _quarkus_integration_test_impl(ctx):
 def _test_attrs(integration = False):
     dependency_cfg = disable_coverage_transition if integration else "target"
     attrs = {
+        "build_properties": attr.string_dict(
+            doc = "Declared build-time properties passed hermetically to Quarkus test bootstrap.",
+        ),
         "conditional_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
         "conditional_deps": attr.label(
             mandatory = True,
@@ -311,3 +328,4 @@ Services through the serialized TEST-mode ApplicationModel.
 build_test_args_for_test = _build_test_args
 integration_version_error_for_test = _integration_version_error
 quarkus_jacoco_present_for_test = _quarkus_jacoco_present
+build_property_jvm_flags_for_test = _build_property_jvm_flags

@@ -135,7 +135,7 @@ def _quarkus_native_container_app_impl(ctx):
     )
 
     output_dir = ctx.actions.declare_directory(ctx.label.name + "-native-sources")
-    run_augmentation(
+    build_properties = run_augmentation(
         ctx,
         output_dir,
         runtime_classpath,
@@ -181,6 +181,7 @@ def _quarkus_native_container_app_impl(ctx):
             quarkus_version = ctx.attr.quarkus_version,
         ),
         OutputGroupInfo(
+            quarkus_build_properties = depset([build_properties]),
             quarkus_model = depset([model]),
         ),
     ]
@@ -189,6 +190,9 @@ quarkus_native_container_app_rule = rule(
     implementation = _quarkus_native_container_app_impl,
     executable = True,
     attrs = {
+        "build_properties": attr.string_dict(
+            doc = "Declared build-time properties passed hermetically to native-sources augmentation.",
+        ),
         "conditional_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
         "conditional_deps": attr.label(mandatory = True, providers = [JavaInfo]),
         "builder_image": attr.string(

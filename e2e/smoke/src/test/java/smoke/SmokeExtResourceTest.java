@@ -7,8 +7,9 @@ import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
 
 /**
- * Verifies the locally-built smoke extension end to end: the build-time config prefix ("CI", set in
- * application.properties) flows through the recorder into the runtime bean.
+ * Verifies the locally-built smoke extension end to end: the declared Bazel build property
+ * overrides the value in application.properties and flows through the recorder into the runtime
+ * bean.
  */
 @QuarkusTest
 class SmokeExtResourceTest {
@@ -21,6 +22,6 @@ class SmokeExtResourceTest {
         .get("/smoke-ext")
         .then()
         .statusCode(200)
-        .body(is("CI, Bazel!"));
+        .body(is("Declared, Bazel!"));
   }
 }

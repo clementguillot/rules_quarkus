@@ -3,7 +3,7 @@
 [![CI](https://github.com/clementguillot/rules_quarkus/actions/workflows/ci.yaml/badge.svg?branch=main&event=push)](https://github.com/clementguillot/rules_quarkus/actions/workflows/ci.yaml)
 [![Release](https://img.shields.io/github/v/release/clementguillot/rules_quarkus?label=Release)](https://github.com/clementguillot/rules_quarkus/releases/latest)
 
-Bazel rules for building and running [Quarkus](https://quarkus.io/) applications. Supports `quarkus_app` (Fast JAR, Uber JAR, mutable JAR, legacy JAR, AOT JAR, and native executables), extension-driven Java code generation, dev mode with hot-reload, `quarkus_test` (`@QuarkusTest`), `quarkus_integration_test` (`@QuarkusIntegrationTest`), and `quarkus_extension_runtime` (building, using, and publishing custom Quarkus extensions — see [Building Quarkus Extensions](docs/extensions.md) and [`examples/demo_extension`](examples/demo_extension)).
+Bazel rules for building and running [Quarkus](https://quarkus.io/) applications. Supports `quarkus_app` (Fast JAR, Uber JAR, mutable JAR, legacy JAR, AOT JAR, and native executables), hermetic build-time configuration, extension-driven Java code generation, dev mode with hot-reload, `quarkus_test` (`@QuarkusTest`), `quarkus_integration_test` (`@QuarkusIntegrationTest`), and `quarkus_extension_runtime` (building, using, and publishing custom Quarkus extensions — see [Building Quarkus Extensions](docs/extensions.md) and [`examples/demo_extension`](examples/demo_extension)).
 
 ## Installation
 

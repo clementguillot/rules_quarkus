@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /** Unit tests for {@link DevModeLauncher#buildDevModeContext}. */
 class DevModeLauncherTest {
@@ -75,6 +76,20 @@ class DevModeLauncherTest {
     var context = DevModeLauncher.buildDevModeContext(devConfig("--source-dirs", "src/main/java"));
 
     assertFalse(context.isLocalProjectDiscovery());
+  }
+
+  @Test
+  void buildDevModeContext_includesDeclaredBuildProperties(@TempDir Path tempDir) throws Exception {
+    Path propertiesFile = tempDir.resolve("build.properties");
+    java.nio.file.Files.writeString(
+        propertiesFile, "smoke.ext.prefix=Declared\nquarkus.package.jar.type=legacy-jar\n");
+
+    var context =
+        DevModeLauncher.buildDevModeContext(
+            devConfig("--build-properties-file", propertiesFile.toString()));
+
+    assertEquals("Declared", context.getBuildSystemProperties().get("smoke.ext.prefix"));
+    assertEquals("fast-jar", context.getBuildSystemProperties().get("quarkus.package.jar.type"));
   }
 
   @Test

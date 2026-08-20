@@ -1,7 +1,18 @@
 "Unit tests for Quarkus JUnit ConsoleLauncher argument construction."
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load(":quarkus_test_impl.bzl", "build_test_args_for_test", "integration_version_error_for_test", "quarkus_jacoco_present_for_test")
+load(":quarkus_test_impl.bzl", "build_property_jvm_flags_for_test", "build_test_args_for_test", "integration_version_error_for_test", "quarkus_jacoco_present_for_test")
+
+def _build_property_jvm_flags_test_impl(ctx):
+    env = unittest.begin(ctx)
+    asserts.equals(
+        env,
+        ["'-Da=two words'", "'-Dz=last'"],
+        build_property_jvm_flags_for_test({"z": "last", "a": "two words"}),
+    )
+    return unittest.end(env)
+
+build_property_jvm_flags_test = unittest.make(_build_property_jvm_flags_test_impl)
 
 def _unit_test_args_test_impl(ctx):
     env = unittest.begin(ctx)
@@ -67,6 +78,7 @@ quarkus_jacoco_present_test = unittest.make(_quarkus_jacoco_present_test_impl)
 def quarkus_test_impl_test_suite(name = "quarkus_test_impl_tests"):
     unittest.suite(
         name,
+        build_property_jvm_flags_test,
         integration_test_args_test,
         integration_version_test,
         quarkus_jacoco_present_test,

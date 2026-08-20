@@ -6,6 +6,15 @@ load(":assert_junit_xml.bzl", "assert_junit_xml_test")
 load(":expect_test_failure.bzl", "expect_test_failure_test")
 load(":native_integration_launcher_test.bzl", "fake_native_app", "native_integration_launcher_test")
 
+# Overrides src/main/resources/application.properties to prove that the declared
+# build-system input has the same higher-precedence semantics in every lifecycle.
+_BUILD_PROPERTIES = {
+    "declared.smoke.prefix": "Declared",
+    # Dedicated package_type/test lifecycle invariants must win this conflict.
+    "quarkus.package.jar.type": "legacy-jar",
+    "smoke.ext.prefix": "${declared.smoke.prefix}",
+}
+
 quarkus_java_library(
     name = "lib",
     srcs = glob(["src/main/java/**/*.java"]),
@@ -57,6 +66,7 @@ quarkus_java_library(
 
 quarkus_app(
     name = "app",
+    build_properties = _BUILD_PROPERTIES,
     version = "1.0.0-SNAPSHOT",
     deps = [":lib"],
 )
@@ -65,6 +75,7 @@ quarkus_app(
 # variants share the same application graph and intentionally omit dev targets.
 quarkus_app(
     name = "app_uber",
+    build_properties = _BUILD_PROPERTIES,
     dev = False,
     package_type = "uber-jar",
     version = "1.0.0-SNAPSHOT",
@@ -73,6 +84,7 @@ quarkus_app(
 
 quarkus_app(
     name = "app_mutable",
+    build_properties = _BUILD_PROPERTIES,
     dev = False,
     package_type = "mutable-jar",
     version = "1.0.0-SNAPSHOT",
@@ -81,6 +93,7 @@ quarkus_app(
 
 quarkus_app(
     name = "app_legacy",
+    build_properties = _BUILD_PROPERTIES,
     dev = False,
     package_type = "legacy-jar",
     version = "1.0.0-SNAPSHOT",
@@ -89,6 +102,7 @@ quarkus_app(
 
 quarkus_app(
     name = "app_aot",
+    build_properties = _BUILD_PROPERTIES,
     dev = False,
     package_type = "aot-jar",
     version = "1.0.0-SNAPSHOT",
@@ -121,6 +135,7 @@ quarkus_java_library(
 
 quarkus_test(
     name = "test",
+    build_properties = _BUILD_PROPERTIES,
     deps = [
         ":test_lib",
     ],
@@ -129,12 +144,14 @@ quarkus_test(
 quarkus_integration_test(
     name = "integration_test",
     app = ":app",
+    build_properties = _BUILD_PROPERTIES,
     deps = [":test_lib"],
 )
 
 quarkus_integration_test(
     name = "uber_integration_test",
     app = ":app_uber",
+    build_properties = _BUILD_PROPERTIES,
     tags = ["exclusive"],
     deps = [":test_lib"],
 )
@@ -142,6 +159,7 @@ quarkus_integration_test(
 quarkus_integration_test(
     name = "mutable_integration_test",
     app = ":app_mutable",
+    build_properties = _BUILD_PROPERTIES,
     tags = ["exclusive"],
     deps = [":test_lib"],
 )
@@ -149,6 +167,7 @@ quarkus_integration_test(
 quarkus_integration_test(
     name = "legacy_integration_test",
     app = ":app_legacy",
+    build_properties = _BUILD_PROPERTIES,
     tags = ["exclusive"],
     deps = [":test_lib"],
 )
@@ -156,6 +175,7 @@ quarkus_integration_test(
 quarkus_integration_test(
     name = "aot_integration_test",
     app = ":app_aot",
+    build_properties = _BUILD_PROPERTIES,
     tags = ["exclusive"],
     deps = [":test_lib"],
 )

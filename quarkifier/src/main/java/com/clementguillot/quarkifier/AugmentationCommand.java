@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import org.jboss.logging.Logger;
 import picocli.CommandLine;
@@ -117,6 +118,11 @@ public final class AugmentationCommand implements Callable<Integer> {
       description = "Native builder image for platform.quarkus.native.builder-image.")
   private String nativeBuilderImage;
 
+  @Option(
+      names = "--build-properties-file",
+      description = "UTF-8 .properties file containing declared build-time configuration.")
+  private Path buildPropertiesFile;
+
   // ---- Dev-mode options ----
 
   @Option(
@@ -202,6 +208,7 @@ public final class AugmentationCommand implements Callable<Integer> {
     List<Path> resolvedCoreCp =
         resolveClasspath(coreDeploymentClasspath, coreDeploymentClasspathFile);
     List<Path> resolvedLocalJars = resolveClasspath(localAppJars, localAppJarsFile);
+    Map<String, String> resolvedBuildProperties = resolveBuildProperties(buildPropertiesFile);
 
     if (resolvedAppCp.isEmpty()) {
       throw parameterException(
@@ -237,6 +244,7 @@ public final class AugmentationCommand implements Callable<Integer> {
         orEmpty(bazelBuildArgs),
         orEmpty(codegenInputDirs),
         resolvedLocalJars,
+        resolvedBuildProperties,
         applicationModel);
   }
 
@@ -255,6 +263,14 @@ public final class AugmentationCommand implements Callable<Integer> {
       }
     }
     return inline.stream().filter(p -> !p.toString().isEmpty()).toList();
+  }
+
+  private Map<String, String> resolveBuildProperties(Path file) {
+    try {
+      return BuildProperties.load(file);
+    } catch (IOException e) {
+      throw parameterException("Failed to read build properties file: " + file, e);
+    }
   }
 
   private static <T> List<T> orEmpty(List<T> list) {

@@ -1,5 +1,12 @@
 package com.clementguillot.quarkifier;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 
 /**
@@ -21,6 +28,22 @@ public final class BuildProperties {
 
   private BuildProperties() {}
 
+  /** Loads a declared UTF-8 properties file without consulting ambient process state. */
+  public static Map<String, String> load(Path propertiesFile) throws IOException {
+    if (propertiesFile == null) {
+      return Map.of();
+    }
+    var loaded = new Properties();
+    try (var reader = Files.newBufferedReader(propertiesFile, UTF_8)) {
+      loaded.load(reader);
+    }
+    var result = new HashMap<String, String>();
+    for (String name : loaded.stringPropertyNames()) {
+      result.put(name, loaded.getProperty(name));
+    }
+    return Map.copyOf(result);
+  }
+
   /**
    * Creates a new {@link Properties} instance with the default Quarkus build properties.
    *
@@ -30,7 +53,23 @@ public final class BuildProperties {
    */
   public static Properties defaults(
       String mainClass, String builderImage, JarPackageType packageType) {
+    return defaults(Map.of(), mainClass, builderImage, packageType);
+  }
+
+  /**
+   * Merges declared properties with Bazel rule invariants.
+   *
+   * <p>Dedicated rule attributes win over identically named entries in {@code declaredProperties}
+   * so the action's package layout, main class, and native toolchain cannot disagree with its
+   * declared outputs.
+   */
+  public static Properties defaults(
+      Map<String, String> declaredProperties,
+      String mainClass,
+      String builderImage,
+      JarPackageType packageType) {
     var props = new Properties();
+    declaredProperties.forEach(props::setProperty);
     props.setProperty(
         "platform.quarkus.native.builder-image",
         builderImage != null ? builderImage : DEFAULT_BUILDER_IMAGE);
@@ -51,7 +90,13 @@ public final class BuildProperties {
    * @param builderImage the native builder image, or {@code null} to use the default
    */
   public static Properties nativeSourcesOnly(String mainClass, String builderImage) {
-    var props = defaults(mainClass, builderImage, JarPackageType.FAST_JAR);
+    return nativeSourcesOnly(Map.of(), mainClass, builderImage);
+  }
+
+  /** Creates native-sources properties from the declared lifecycle configuration. */
+  public static Properties nativeSourcesOnly(
+      Map<String, String> declaredProperties, String mainClass, String builderImage) {
+    var props = defaults(declaredProperties, mainClass, builderImage, JarPackageType.FAST_JAR);
     props.setProperty("quarkus.package.jar.add-runner-suffix", "true");
     props.setProperty("quarkus.native.enabled", "true");
     props.setProperty("quarkus.native.sources-only", "true");

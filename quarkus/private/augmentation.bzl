@@ -5,6 +5,7 @@ quarkus_native_container_app_rule (native mode).
 """
 
 load("@rules_java//java/common:java_common.bzl", "java_common")
+load("//quarkus/private:build_properties.bzl", "write_build_properties")
 
 def _write_classpath_file(ctx, name_suffix, jars):
     """Writes colon-joined jar paths to a declared file (avoids E2BIG on argv).
@@ -45,12 +46,16 @@ def run_augmentation(ctx, output_dir, runtime_classpath, conditional_classpath, 
             application artifact, so order matters.
         model_file: Explicit Bazel model JSON. Required for every Bazel lifecycle.
 
+    Returns:
+        The declared build-properties file passed to the augmentation action.
+
     """
 
     if not model_file:
         fail("run_augmentation requires an explicit application model; Bazel actions must not use legacy classpath inference")
 
     app_cp_file = _write_classpath_file(ctx, "_app_classpath.txt", runtime_classpath)
+    build_properties_file = write_build_properties(ctx)
 
     args = ctx.actions.args()
     args.add("--application-classpath-file", app_cp_file)
@@ -59,6 +64,7 @@ def run_augmentation(ctx, output_dir, runtime_classpath, conditional_classpath, 
         local_jars_file = _write_classpath_file(ctx, "_local_app_jars.txt", local_jars)
         args.add("--local-app-jars-file", local_jars_file)
     args.add("--application-model", model_file)
+    args.add("--build-properties-file", build_properties_file)
     args.add("--output-dir", output_dir.path)
     if mode:
         args.add("--mode", mode)
@@ -93,10 +99,11 @@ def run_augmentation(ctx, output_dir, runtime_classpath, conditional_classpath, 
             # friends). They are absent from deployment_classpath but the model
             # lists their exec paths, so they must be declared or the sandbox
             # will not have them when Quarkus opens the deployment closure.
-            direct = [tool_jar, app_cp_file, model_file] + ctx.files.deployment_artifacts + ([local_jars_file] if local_jars_file else []),
+            direct = [tool_jar, app_cp_file, build_properties_file, model_file] + ctx.files.deployment_artifacts + ([local_jars_file] if local_jars_file else []),
             transitive = [runtime_classpath, conditional_classpath, deployment_classpath, java_runtime.files],
         ),
         outputs = [output_dir],
         mnemonic = mnemonic,
         progress_message = progress_message,
     )
+    return build_properties_file

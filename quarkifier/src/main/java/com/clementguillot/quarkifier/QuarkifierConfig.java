@@ -2,6 +2,7 @@ package com.clementguillot.quarkifier;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Immutable configuration for a single augmentation invocation.
@@ -28,6 +29,7 @@ import java.util.List;
  * @param bazelBuildArgs extra flags for the hot-reload {@code bazel build}
  * @param codegenInputDirs directories holding the declared CodeGenProvider inputs
  * @param localAppJars local workspace jars to use as application roots
+ * @param buildProperties declared hermetic build-time configuration
  * @param applicationModel explicit validated Bazel model JSON
  */
 public record QuarkifierConfig(
@@ -50,4 +52,5 @@ public record QuarkifierConfig(
     List<String> bazelBuildArgs,
     List<Path> codegenInputDirs,
     List<Path> localAppJars,
+    Map<String, String> buildProperties,
     Path applicationModel) {}

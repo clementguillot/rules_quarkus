@@ -4,6 +4,7 @@ load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusCodeGenInfo")
 load("//quarkus/private:application_model_aspect.bzl", "quarkus_application_model_aspect")
+load("//quarkus/private:build_properties.bzl", "write_build_properties", _escape_property_for_test = "escape_property_for_test")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect")
 load("//quarkus/private:codegen_lifecycle.bzl", "QuarkusCodeGenLifecycleInfo")
 load("//quarkus/private:coverage_transition.bzl", "disable_coverage_transition", "single_transitioned_target")
@@ -106,19 +107,9 @@ quarkus_codegen_root_rule = rule(
     },
 )
 
-def _escape_property(value):
-    return value.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t").replace(" ", "\\ ").replace("=", "\\=").replace(":", "\\:").replace("#", "\\#").replace("!", "\\!")
-
-escape_property_for_test = _escape_property
-
-def _write_properties(ctx):
-    output = ctx.actions.declare_file(ctx.label.name + ".codegen.properties")
-    lines = [
-        "{}={}".format(_escape_property(key), _escape_property(ctx.attr.build_properties[key]))
-        for key in sorted(ctx.attr.build_properties)
-    ]
-    ctx.actions.write(output = output, content = "\n".join(lines) + ("\n" if lines else ""))
-    return output
+# Preserve the existing test-only export while sharing the production writer
+# with every other Quarkus lifecycle.
+escape_property_for_test = _escape_property_for_test
 
 def _normalize_source_roots(package, declared_roots):
     if not declared_roots:
@@ -241,7 +232,7 @@ def _quarkus_codegen_impl(ctx):
         mode.model,
         ctx.attr.application_name,
     )
-    properties = _write_properties(ctx)
+    properties = write_build_properties(ctx)
     generated_tree = ctx.actions.declare_directory(ctx.label.name + ".generated")
     auxiliary_tree = ctx.actions.declare_directory(ctx.label.name + ".aux")
     work_tree = ctx.actions.declare_directory(ctx.label.name + ".work")
@@ -283,6 +274,7 @@ def _quarkus_codegen_impl(ctx):
         DefaultInfo(files = depset([source_jar])),
         OutputGroupInfo(
             quarkus_codegen_aux = depset([auxiliary_tree, work_tree]),
+            quarkus_build_properties = depset([properties]),
             quarkus_codegen_model = depset([model]),
             quarkus_codegen_sources = depset([generated_tree]),
             quarkus_codegen_work = depset([work_tree]),

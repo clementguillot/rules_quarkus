@@ -141,6 +141,45 @@ public class GreetingResource {
 quarkus.http.port=8080
 ```
 
+### Declared build-time configuration
+
+Use `build_properties` for values that must be visible while Quarkus performs
+augmentation. The map is serialized as a sorted UTF-8 `.properties` action
+input, so changing any key or value invalidates the relevant Bazel actions
+without reading the ambient environment.
+
+```starlark
+quarkus_app(
+    name = "helloworld",
+    build_properties = {
+        "quarkus.profile": "prod",
+        "quarkus.package.jar.compress": "true",
+        # Non-Quarkus keys can satisfy ${...} expressions in Quarkus config.
+        "deployment.region": "eu-west",
+    },
+    version = "1.0.0",
+    deps = [":lib"],
+)
+```
+
+The `quarkus_app` map is shared automatically with its generated
+`<name>_dev` and `<name>_native` targets. `quarkus_test`,
+`quarkus_integration_test`, and direct `quarkus_codegen` targets expose the
+same `build_properties` attribute. When using `quarkus_java_library` code
+generation, use `codegen_build_properties` because that action belongs to the
+library rather than to a downstream application.
+
+Build properties are not a replacement for run-time configuration. Values
+that may change after packaging should remain in `application.properties`, an
+external config file, environment variables, or run-time JVM flags. Dedicated
+rule attributes take precedence over conflicting map entries: for example,
+`package_type` controls `quarkus.package.jar.type`, and native rules always
+force native sources-only augmentation.
+
+Do not place secrets in `build_properties`. The generated file is an ordinary
+Bazel output and may be retained in `bazel-bin`, the local disk cache, or a
+remote cache. Supply credentials and other secrets at run time instead.
+
 ## 5. Build and Run
 
 ```bash
@@ -171,6 +210,13 @@ Model assembly fails before Quarkus starts when it finds missing coordinates,
 dangling edges, duplicate identities, ambiguous artifact joins, or a missing
 descriptor-declared deployment artifact. This fail-closed behavior is internal;
 application BUILD declarations do not gain model attributes.
+
+The exact declared build input can also be inspected without building the
+application package:
+
+```bash
+bazel build //:helloworld --output_groups=quarkus_build_properties
+```
 
 ## 6. Test and collect coverage
 
