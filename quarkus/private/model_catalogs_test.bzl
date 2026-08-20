@@ -377,20 +377,45 @@ java_major_version_test = unittest.make(_java_major_version_test_impl)
 def _deployment_catalog_test_impl(ctx):
     env = unittest.begin(ctx)
     cache_path = "/machine/cache/maven2/g/a/1.0/a-1.0.jar"
+    exe_cache_path = "/machine/cache/maven2/g/tool/1.0/tool-1.0-linux-x86_64.exe"
+    osx_exe_cache_path = "/machine/cache/maven2/g/tool/1.0/tool-1.0-osx-aarch_64.exe"
     report = {
-        "conflict_resolution": {"g:a:0.9": "g:a:1.0"},
+        "conflict_resolution": {
+            "g:a:0.9": "g:a:1.0",
+            "g:tool:exe:linux-x86_64:0.9": "g:tool:exe:linux-x86_64:1.0",
+        },
         "dependencies": [
             {
                 "coord": "g:a:1.0",
-                "directDependencies": ["g:b:2.0"],
+                # g:runtime:1.0 is already supplied by the locked runtime graph,
+                # so Coursier selects no deployment file for it. The edge is
+                # kept; the model assembler resolves it against the runtime
+                # catalog and fails only when it resolves in neither.
+                "directDependencies": [
+                    "g:tool:exe:linux-x86_64:1.0",
+                    "g:tool:exe:osx-aarch_64:1.0",
+                    "g:runtime:1.0",
+                ],
                 "exclusions": ["x:one"],
                 "file": cache_path,
             },
             {
                 "coord": "g:a:1.0",
-                "directDependencies": ["g:c:3.0"],
+                "directDependencies": [],
                 "exclusions": ["x:two"],
                 "file": cache_path,
+            },
+            {
+                "coord": "g:tool:exe:linux-x86_64:1.0",
+                "directDependencies": [],
+                "exclusions": [],
+                "file": exe_cache_path,
+            },
+            {
+                "coord": "g:tool:exe:osx-aarch_64:1.0",
+                "directDependencies": [],
+                "exclusions": [],
+                "file": osx_exe_cache_path,
             },
         ],
         "version": "0.1.0",
@@ -398,16 +423,60 @@ def _deployment_catalog_test_impl(ctx):
 
     catalog = deployment_catalog_for_test(
         report,
-        ["g:a:1.0"],
-        ["g:missing:1.0"],
-        {cache_path: "deployment/jars/g/a/1.0/a-1.0.jar"},
+        ["g:a:1.0", "g:tool:exe:linux-x86_64:1.0", "g:tool:exe:osx-aarch_64:1.0"],
+        ["g:missing:jar:tests:1.0"],
+        {
+            cache_path: "deployment/jars/g/a/1.0/a-1.0.jar",
+            exe_cache_path: "deployment/artifacts/g/tool/1.0/tool-1.0-linux-x86_64.exe",
+            osx_exe_cache_path: "deployment/artifacts/g/tool/1.0/tool-1.0-osx-aarch_64.exe",
+        },
     )
 
     asserts.equals(env, "quarkus-bazel-deployment-catalog-v1", catalog["schemaVersion"])
-    asserts.equals(env, ["g:b:2.0", "g:c:3.0"], catalog["nodes"][0]["dependencies"])
     asserts.equals(env, ["x:one", "x:two"], catalog["nodes"][0]["exclusions"])
     asserts.equals(env, "deployment/jars/g/a/1.0/a-1.0.jar", catalog["nodes"][0]["repoPath"])
-    asserts.equals(env, ["g:missing:1.0"], catalog["droppedRoots"])
+
+    # Classified artifacts arrive in Coursier's G:A:T:C:V order and must be
+    # remapped to Quarkus' G:A:C:T:V in nodes, edges, roots and droppedRoots.
+    asserts.equals(
+        env,
+        [
+            "g:runtime:1.0",
+            "g:tool:linux-x86_64:exe:1.0",
+            "g:tool:osx-aarch_64:exe:1.0",
+        ],
+        catalog["nodes"][0]["dependencies"],
+    )
+    asserts.equals(env, "g:tool:linux-x86_64:exe:1.0", catalog["nodes"][1]["coordinate"])
+    asserts.equals(
+        env,
+        "deployment/artifacts/g/tool/1.0/tool-1.0-linux-x86_64.exe",
+        catalog["nodes"][1]["repoPath"],
+    )
+    asserts.equals(env, "g:tool:osx-aarch_64:exe:1.0", catalog["nodes"][2]["coordinate"])
+    asserts.equals(
+        env,
+        "deployment/artifacts/g/tool/1.0/tool-1.0-osx-aarch_64.exe",
+        catalog["nodes"][2]["repoPath"],
+    )
+    asserts.equals(
+        env,
+        [
+            "g:a:1.0",
+            "g:tool:linux-x86_64:exe:1.0",
+            "g:tool:osx-aarch_64:exe:1.0",
+        ],
+        catalog["roots"],
+    )
+    asserts.equals(env, ["g:missing:tests:jar:1.0"], catalog["droppedRoots"])
+    asserts.equals(
+        env,
+        {
+            "g:a:0.9": "g:a:1.0",
+            "g:tool:linux-x86_64:exe:0.9": "g:tool:linux-x86_64:exe:1.0",
+        },
+        catalog["conflictResolution"],
+    )
     return unittest.end(env)
 
 deployment_catalog_test = unittest.make(_deployment_catalog_test_impl)
@@ -427,7 +496,9 @@ def _conditional_catalog_test_impl(ctx):
             "conflict_resolution": {},
             "dependencies": [{
                 "coord": "g:feature:jar:tests:1.0",
-                "directDependencies": [],
+                # Coursier can retain POM edges to artifacts already supplied
+                # by the locked runtime graph without selecting another file.
+                "directDependencies": ["g:runtime:jar::1.0"],
                 "exclusions": [],
                 "file": cache_path,
             }],
@@ -443,6 +514,7 @@ def _conditional_catalog_test_impl(ctx):
 
     asserts.equals(env, "quarkus-bazel-conditional-catalog-v1", catalog["schemaVersion"])
     asserts.equals(env, "g:feature:tests:jar:1.0", catalog["nodes"][0]["coordinate"])
+    asserts.equals(env, [], catalog["nodes"][0]["dependencies"])
     asserts.equals(env, ["g:feature:tests:jar:1.0"], catalog["roots"])
     asserts.equals(env, "g:a:classifier:zip:1", coursier_report_coordinate_for_test("g:a:zip:classifier:1"))
     return unittest.end(env)

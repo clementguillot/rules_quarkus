@@ -85,6 +85,19 @@ class BazelModelInputReaderTest {
   }
 
   @Test
+  void readsDeploymentNonJarArtifactPath() {
+    var catalog =
+        BazelModelInputReader.readDeploymentCatalog(
+            deploymentCatalog()
+                .replace(
+                    "deployment/jars/g/b/2.0/b-2.0.jar",
+                    "deployment/artifacts/g/b/2.0/b-2.0-linux-aarch_64.exe"));
+
+    assertEquals(
+        "deployment/artifacts/g/b/2.0/b-2.0-linux-aarch_64.exe", catalog.nodes().get(1).repoPath());
+  }
+
+  @Test
   void rejectsMachineLocalDeploymentPath() {
     BazelApplicationModelException exception =
         assertThrows(
@@ -96,7 +109,7 @@ class BazelModelInputReaderTest {
                             "deployment/jars/g/a/1.0/a-1.0.jar",
                             "/Users/person/.cache/a-1.0.jar")));
 
-    assertTrue(exception.getMessage().contains("repository-owned deployment/jars path"));
+    assertTrue(exception.getMessage().contains("repository-owned deployment path"));
   }
 
   @Test

@@ -122,6 +122,10 @@ quarkus_app_rule = rule(
             mandatory = True,
             doc = "Internal deployment resolver graph catalog (set by macro).",
         ),
+        "deployment_artifacts": attr.label(
+            mandatory = True,
+            doc = "Internal non-JAR deployment artifacts (set by macro).",
+        ),
         "platform_catalog": attr.label(
             allow_single_file = [".json"],
             mandatory = True,

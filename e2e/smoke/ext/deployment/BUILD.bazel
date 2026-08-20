@@ -21,10 +21,13 @@ java_library(
     name = "deployment",
     srcs = glob(["src/main/java/**/*.java"]),
     plugins = [":quarkus_processor"],
+    resources = glob(["src/main/resources/**/*"]),
     # quarkus-core is a compile-only dep (the generated $$accessor references
     # @io.quarkus.Generated); not a published POM dependency.
     deps = DEPLOYMENT_DEPS + [
         "//ext/runtime:runtime_lib",
+        "@maven//:io_quarkus_quarkus_bootstrap_app_model",
+        "@maven//:io_quarkus_quarkus_bootstrap_core",
         "@maven//:io_quarkus_quarkus_core",
     ],
 )

@@ -86,7 +86,11 @@ def run_augmentation(ctx, output_dir, runtime_classpath, conditional_classpath, 
         executable = java_runtime.java_executable_exec_path,
         arguments = [jar_args, args],
         inputs = depset(
-            direct = [tool_jar, app_cp_file, model_file] + ([local_jars_file] if local_jars_file else []),
+            # deployment_artifacts holds the non-JAR deployment files (protoc and
+            # friends). They are absent from deployment_classpath but the model
+            # lists their exec paths, so they must be declared or the sandbox
+            # will not have them when Quarkus opens the deployment closure.
+            direct = [tool_jar, app_cp_file, model_file] + ctx.files.deployment_artifacts + ([local_jars_file] if local_jars_file else []),
             transitive = [runtime_classpath, conditional_classpath, deployment_classpath, java_runtime.files],
         ),
         outputs = [output_dir],

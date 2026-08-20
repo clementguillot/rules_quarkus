@@ -119,6 +119,7 @@ public final class BazelApplicationModelAssembler {
     private final Map<String, RuntimeCatalogNode> runtimeByTarget = new HashMap<>();
     private final Map<String, RuntimeCatalogNode> runtimeByCoordinateKey = new HashMap<>();
     private final Map<String, RuntimeCatalogNode> runtimeByCoordinates = new HashMap<>();
+    private final Map<String, RuntimeCatalogNode> runtimeCatalogByGACT = new HashMap<>();
     private final Map<String, String> externalTargetIds = new HashMap<>();
     private final Map<String, DeploymentCatalogNode> deploymentByCoordinates =
         new LinkedHashMap<>();
@@ -173,6 +174,7 @@ public final class BazelApplicationModelAssembler {
         runtimeByTarget.put(node.targetName(), node);
         runtimeByCoordinateKey.put(node.coordinateKey(), node);
         runtimeByCoordinates.put(BazelArtifactCoordinates.canonical(node.coordinates()), node);
+        runtimeCatalogByGACT.putIfAbsent(gact(node.coordinates()), node);
       }
       for (DeploymentCatalogNode node : inputs.deploymentCatalog().nodes()) {
         ArtifactCoordinates coordinates = BazelArtifactCoordinates.parse(node.coordinate());
@@ -188,6 +190,7 @@ public final class BazelApplicationModelAssembler {
           fail("duplicate normalized conditional coordinate " + canonical);
         }
       }
+      validateDeploymentCatalogEdges();
       for (ExtensionDescriptor descriptor : inputs.conditionalCatalog().extensions()) {
         String runtime =
             BazelArtifactCoordinates.canonical(
@@ -214,6 +217,39 @@ public final class BazelApplicationModelAssembler {
                   fail("duplicate local runtime alias " + rawId);
                 }
               });
+    }
+
+    /**
+     * Returns the exclusions a deployment edge carries.
+     *
+     * <p>An edge may target an artifact the deployment resolver never selected a file for because
+     * the locked runtime graph already supplies it. Its exclusions then come from the runtime
+     * catalog: dropping them would widen the deployment closure.
+     */
+    private List<ArtifactKey> deploymentEdgeExclusions(
+        DeploymentCatalogNode targetCatalog, ArtifactCoordinates targetCoordinates) {
+      if (targetCatalog != null) {
+        return artifactKeys(targetCatalog.exclusions());
+      }
+      RuntimeCatalogNode runtimeCatalog = runtimeCatalogByGACT.get(gact(targetCoordinates));
+      return runtimeCatalog == null ? List.of() : artifactKeys(runtimeCatalog.exclusions());
+    }
+
+    private void validateDeploymentCatalogEdges() {
+      for (DeploymentCatalogNode node : deploymentByCoordinates.values()) {
+        for (String dependency : node.dependencies()) {
+          ArtifactCoordinates coordinates = BazelArtifactCoordinates.parse(dependency);
+          String canonical = BazelArtifactCoordinates.canonical(coordinates);
+          if (!deploymentByCoordinates.containsKey(canonical)
+              && !runtimeCatalogByGACT.containsKey(gact(coordinates))) {
+            fail(
+                "deployment catalog contains an unresolved edge from "
+                    + node.coordinate()
+                    + " to "
+                    + canonical);
+          }
+        }
+      }
     }
 
     private Reachability validateAndFindReachableTargets() {
@@ -542,13 +578,54 @@ public final class BazelApplicationModelAssembler {
             .map(applicationId -> new TestSelection(rootId, applicationId))
             .forEach(candidates::add);
       }
-      if (candidates.size() != 1) {
+      List<TestSelection> selected = pruneDependedUponCandidates(candidates);
+      if (selected.size() != 1) {
         fail(
-            "quarkus_test roots must identify exactly one local test target with exactly one direct"
-                + " local application library with main sources; found "
-                + candidates);
+            "quarkus_test roots must identify exactly one local test target with exactly one"
+                + " independent local application library with main sources; found "
+                + selected);
       }
-      return candidates.get(0);
+      return selected.get(0);
+    }
+
+    /**
+     * Drops candidates that another candidate of the same test root already depends on.
+     *
+     * <p>Listing a library the application library itself depends on in {@code quarkus_test.deps}
+     * is ordinary Bazel style: strict deps require every directly referenced target on the compile
+     * classpath, so a test importing types from a shared contract library names both it and the
+     * application library. Only a candidate no other candidate depends on can be the application
+     * under test; the rest are its dependencies and must not compete with it.
+     */
+    private List<TestSelection> pruneDependedUponCandidates(List<TestSelection> candidates) {
+      if (candidates.size() < 2) {
+        return candidates;
+      }
+      // One traversal per distinct candidate application, reused across every
+      // pairwise comparison below.
+      Map<String, Set<String>> reachableByApplication = new HashMap<>();
+      for (TestSelection candidate : candidates) {
+        reachableByApplication.computeIfAbsent(
+            candidate.applicationId(), id -> reachableFrom(List.of(id)));
+      }
+      List<TestSelection> independent = new ArrayList<>();
+      for (TestSelection candidate : candidates) {
+        boolean dependedUpon = false;
+        for (TestSelection other : candidates) {
+          if (other.equals(candidate) || !other.testRootId().equals(candidate.testRootId())) {
+            continue;
+          }
+          Set<String> reachable = reachableByApplication.get(other.applicationId());
+          if (reachable.contains(candidate.applicationId())) {
+            dependedUpon = true;
+            break;
+          }
+        }
+        if (!dependedUpon) {
+          independent.add(candidate);
+        }
+      }
+      return independent;
     }
 
     private record TestSelection(String testRootId, String applicationId) {}
@@ -558,7 +635,10 @@ public final class BazelApplicationModelAssembler {
               fragment.sources().stream(), fragment.resources().stream())
           .map(FileReference::path)
           .map(path -> path.replace('\\', '/'))
-          .anyMatch(path -> path.contains("/src/main/") || path.startsWith("src/main/"));
+          // Bazel libraries are not required to use Maven's src/main layout.
+          // A direct local dependency is a main candidate when it carries any
+          // non-test source/resource, including a generated source JAR.
+          .anyMatch(path -> !(path.contains("/src/test/") || path.startsWith("src/test/")));
     }
 
     private void collapseTestRoot(String testRootId, String applicationId) {
@@ -1200,12 +1280,19 @@ public final class BazelApplicationModelAssembler {
           ArtifactCoordinates targetCoordinates = BazelArtifactCoordinates.parse(dependency);
           String targetCanonical = BazelArtifactCoordinates.canonical(targetCoordinates);
           DeploymentCatalogNode targetCatalog = deploymentByCoordinates.get(targetCanonical);
-          if (targetCatalog == null) {
-            fail("deployment graph contains an unresolved edge to " + targetCanonical);
-          }
           MutableNode target = nodesByCoordinates.get(targetCanonical);
           if (target == null) {
             target = runtimeNodesByGACT.get(gact(targetCoordinates));
+          }
+          if (targetCatalog == null && target == null) {
+            // The deployment resolver selected no file for this edge and this
+            // application's runtime graph does not carry the artifact either.
+            // validateDeploymentCatalogEdges() already proved the coordinate
+            // exists in the workspace-wide runtime catalog, so the artifact is
+            // simply outside this application's closure. Emitting the edge would
+            // name a deployment node that nothing below ever creates, and model
+            // validation would reject it as an unknown target id.
+            continue;
           }
           String targetId = target == null ? deploymentId(targetCoordinates) : target.id;
           if (!targetId.equals(reinsertionParentId)
@@ -1217,9 +1304,11 @@ public final class BazelApplicationModelAssembler {
                     DependencyRelation.DEPLOYMENT,
                     DependencyScope.COMPILE,
                     false,
-                    artifactKeys(targetCatalog.exclusions())));
+                    deploymentEdgeExclusions(targetCatalog, targetCoordinates)));
           }
-          pending.addLast(targetCanonical);
+          if (targetCatalog != null) {
+            pending.addLast(targetCanonical);
+          }
         }
       }
       return rootId;

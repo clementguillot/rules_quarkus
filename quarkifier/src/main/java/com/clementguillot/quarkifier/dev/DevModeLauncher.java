@@ -139,7 +139,7 @@ public final class DevModeLauncher {
       throws Exception {
     if (config.classesDir() == null
         || config.bazelTargets().isEmpty()
-        || config.sourceDirs().isEmpty()) {
+        || (config.sourceDirs().isEmpty() && config.codegenInputDirs().isEmpty())) {
       return null;
     }
     LOGGER.debug("[hot-reload] Starting file watcher...");

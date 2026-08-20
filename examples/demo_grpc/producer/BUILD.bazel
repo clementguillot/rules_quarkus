@@ -1,0 +1,42 @@
+load("@rules_java//java:java_library.bzl", "java_library")
+load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_test")
+
+java_library(
+    name = "lib",
+    srcs = glob(["src/main/java/**/*.java"]),
+    resources = glob(["src/main/resources/**/*"]),
+    deps = [
+        "//messages",
+        "@maven//:io_grpc_grpc_api",
+        "@maven//:io_quarkus_quarkus_grpc",
+        "@maven//:io_quarkus_quarkus_grpc_api",
+        "@maven//:io_quarkus_quarkus_hibernate_orm_panache",
+        "@maven//:io_quarkus_quarkus_jdbc_postgresql",
+        "@maven//:io_smallrye_common_smallrye_common_annotation",
+        "@maven//:io_smallrye_reactive_mutiny",
+        "@maven//:jakarta_persistence_jakarta_persistence_api",
+        "@maven//:jakarta_transaction_jakarta_transaction_api",
+    ],
+)
+
+quarkus_app(
+    name = "producer",
+    version = "1.0.0",
+    deps = [":lib"],
+)
+
+quarkus_test(
+    name = "test",
+    srcs = glob(["src/test/java/**/*.java"]),
+    deps = [
+        ":lib",
+        "//messages",
+        "@maven//:io_quarkus_quarkus_grpc_api",
+        "@maven//:io_quarkus_quarkus_junit",
+        "@maven//:io_smallrye_reactive_mutiny",
+        "@maven//:org_junit_jupiter_junit_jupiter",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+        "@maven//:org_junit_platform_junit_platform_console_standalone",
+        "@maven//:org_junit_platform_junit_platform_launcher",
+    ],
+)

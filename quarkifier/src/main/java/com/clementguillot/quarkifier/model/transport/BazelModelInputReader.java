@@ -413,13 +413,6 @@ public final class BazelModelInputReader {
       uniqueNonBlank(node.dependencies(), path + ".dependencies", true);
       uniqueNonBlank(node.exclusions(), path + ".exclusions", true);
     }
-    for (DeploymentCatalogNode node : value.nodes()) {
-      for (String dependency : node.dependencies()) {
-        if (!coordinates.contains(dependency)) {
-          throw problem("$.nodes", "dangling deployment catalog edge to '" + dependency + "'");
-        }
-      }
-    }
     for (String root : value.roots()) {
       if (!coordinates.contains(root)) {
         throw problem("$.roots", "unknown deployment coordinate '" + root + "'");
@@ -555,12 +548,12 @@ public final class BazelModelInputReader {
 
   private static void validateRepoPath(String value, String path) {
     nonBlank(value, path);
-    if (!value.startsWith("deployment/jars/")
+    if (!(value.startsWith("deployment/jars/") || value.startsWith("deployment/artifacts/"))
         || value.startsWith("/")
         || value.contains("\\")
         || value.contains("/../")
         || value.endsWith("/..")) {
-      throw problem(path, "must be a normalized repository-owned deployment/jars path");
+      throw problem(path, "must be a normalized repository-owned deployment path");
     }
   }
 

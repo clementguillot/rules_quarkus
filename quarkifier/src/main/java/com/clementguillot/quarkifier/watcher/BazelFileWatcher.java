@@ -122,6 +122,7 @@ public final class BazelFileWatcher implements Closeable {
 
       // Step 2: Register watchers on all source directories
       watcher.registerWatchers(config.sourceDirs());
+      watcher.registerWatchers(config.codegenInputDirs());
       LOGGER.debug("[hot-reload] File watchers registered");
 
       // Step 3: Start watcher thread AFTER population is complete
@@ -220,12 +221,52 @@ public final class BazelFileWatcher implements Closeable {
         }
       }
 
-      if (changed.toString().endsWith(".java")) {
+      if (changed.toString().endsWith(".java") || isCodegenInput(changed)) {
         rebuildNeeded = true;
         LOGGER.debugf("Change detected: %s (%s)", changed, kind.name());
       }
     }
     return rebuildNeeded;
+  }
+
+  /**
+   * Reports whether {@code changed} is a code-generation input.
+   *
+   * <p>Matching is scoped to the generator input directories (for example {@code src/main/proto}),
+   * not to the enclosing source parent: a source parent is the whole {@code src/main} tree, so
+   * matching on it would trigger a full Bazel rebuild whenever any resource or other non-Java file
+   * below it is saved.
+   *
+   * <p>Editor scratch files created inside those directories are ignored. An input directory
+   * matches on location alone rather than on an extension, so without this a single {@code vim}
+   * save of one {@code .proto} would queue rebuilds for the {@code 4913} probe file, the {@code
+   * .swp} file, and the {@code ~} backup as well.
+   */
+  private boolean isCodegenInput(Path changed) {
+    if (isEditorScratchFile(changed.getFileName())) {
+      return false;
+    }
+    Path absolute = changed.toAbsolutePath().normalize();
+    for (Path inputDir : config.codegenInputDirs()) {
+      if (absolute.startsWith(inputDir.toAbsolutePath().normalize())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Reports whether {@code fileName} is an editor temporary, backup, or probe file. */
+  private static boolean isEditorScratchFile(Path fileName) {
+    if (fileName == null) {
+      return true;
+    }
+    String name = fileName.toString();
+    return name.isEmpty()
+        || name.startsWith(".")
+        || name.endsWith("~")
+        || name.endsWith(".swp")
+        || name.endsWith(".swx")
+        || name.endsWith(".tmp");
   }
 
   /** Cancels any pending scheduled build and schedules a new one after the debounce delay. */
@@ -439,6 +480,9 @@ public final class BazelFileWatcher implements Closeable {
           @Override
           public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
               throws IOException {
+            if (isVersionControlDirectory(dir)) {
+              return FileVisitResult.SKIP_SUBTREE;
+            }
             WatchKey key =
                 dir.register(
                     watchService,
@@ -450,5 +494,24 @@ public final class BazelFileWatcher implements Closeable {
             return FileVisitResult.CONTINUE;
           }
         });
+  }
+
+  /**
+   * Reports whether {@code dir} is version-control metadata that must never be watched.
+   *
+   * <p>A watched root can legitimately widen to the whole workspace: a source root of {@code "."},
+   * or a resource declared directly at the workspace root, both collapse to it. Registering every
+   * directory below such a root would put a watch on {@code .git}, whose constant churn during any
+   * ordinary git operation would then queue a full rebuild, and on Linux would burn the per-user
+   * inotify watch budget. Other dot-directories remain eligible because they may contain explicitly
+   * declared generator inputs.
+   */
+  static boolean isVersionControlDirectory(Path dir) {
+    Path name = dir.getFileName();
+    if (name == null) {
+      return false;
+    }
+    String value = name.toString();
+    return ".git".equals(value) || ".hg".equals(value) || ".svn".equals(value);
   }
 }

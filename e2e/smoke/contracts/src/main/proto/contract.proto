@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "smoke.contracts.generated";
+
+package smoke.contracts;
+
+message Contract {
+  string id = 1;
+  string name = 2;
+}

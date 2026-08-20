@@ -1,0 +1,15 @@
+{
+  "type": "record",
+  "name": "AuditEvent",
+  "namespace": "org.acme.events",
+  "fields": [
+    {
+      "name": "itemId",
+      "type": "string"
+    },
+    {
+      "name": "action",
+      "type": "string"
+    }
+  ]
+}

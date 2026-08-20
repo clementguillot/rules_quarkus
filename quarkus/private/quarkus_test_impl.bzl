@@ -159,7 +159,7 @@ def _test_impl(ctx, integration):
     if integration:
         direct_runfiles.append(integration_artifact.artifact)
     runfiles = ctx.runfiles(
-        files = direct_runfiles,
+        files = direct_runfiles + ctx.files.deployment_artifacts,
         transitive_files = depset(
             transitive = [runtime_classpath, conditional_classpath, deploy_classpath, java_runtime.files],
         ),
@@ -196,6 +196,7 @@ def _test_attrs(integration = False):
             mandatory = True,
             doc = "Internal deployment resolver graph catalog (set by macro).",
         ),
+        "deployment_artifacts": attr.label(mandatory = True),
         "platform_catalog": attr.label(
             allow_single_file = [".json"],
             mandatory = True,

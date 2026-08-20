@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "org.acme.grpc";
+
+package org.acme.grpc;
+
+// Dummy CRUD contract shared by the producer (server) and consumer (client)
+// apps in this example.
+service ItemService {
+  rpc CreateItem (CreateItemRequest) returns (Item);
+  rpc GetItem (ItemId) returns (Item);
+  rpc ListItems (Empty) returns (ItemList);
+  rpc UpdateItem (Item) returns (Item);
+  rpc DeleteItem (ItemId) returns (Empty);
+}
+
+message Item {
+  string id = 1;
+  string name = 2;
+  int32 quantity = 3;
+}
+
+message CreateItemRequest {
+  string name = 1;
+  int32 quantity = 2;
+}
+
+message ItemId {
+  string id = 1;
+}
+
+message ItemList {
+  repeated Item items = 1;
+}
+
+message Empty {}
