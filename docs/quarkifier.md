@@ -26,6 +26,7 @@ java -jar quarkifier_<minor>_deploy.jar \
   --output-dir <path> \
   [--resources <path,path,...>] \
   [--mode normal|test|dev|native] \
+  [--package-type fast-jar|uber-jar|mutable-jar|legacy-jar|aot-jar] \
   [--app-name <name>] \
   [--main-class <class>] \
   [--native-builder-image <image>] \
@@ -52,9 +53,10 @@ java -jar quarkifier_<minor>_deploy.jar \
 | `--application-classpath-file` | No | — | File containing the application classpath (alternative to `--application-classpath`) |
 | `--core-deployment-classpath` | No | `[]` | Colon-separated list of core deployment jars (dev mode only) |
 | `--core-deployment-classpath-file` | No | — | File containing the core deployment classpath |
-| `--output-dir` | Yes | — | Directory where Fast_Jar output is written |
+| `--output-dir` | Yes | — | Directory where the selected package is written |
 | `--resources` | No | `[]` | Comma-separated list of resource file paths |
 | `--mode` | No | `normal` | Augmentation mode: `normal`, `test`, `dev`, or `native` |
+| `--package-type` | No | `fast-jar` | JVM package layout; `aot-jar` requires Quarkus 3.33 |
 | `--app-name` | No | `null` | Application name for Quarkus startup banner |
 | `--main-class` | No | `null` | Fully-qualified custom main class annotated with `@QuarkusMain` |
 | `--native-builder-image` | No | `null` | Native builder image for `platform.quarkus.native.builder-image` |
@@ -114,6 +116,7 @@ com.clementguillot.quarkifier
 ├── QuarkifierConfig                Immutable record for config + toArgs() serialization
 ├── QuarkifierVersionProvider       Picocli IVersionProvider: reads version from classpath resource
 ├── AugmentationMode                Enum: NORMAL, TEST, DEV, NATIVE
+├── JarPackageType                  Enum: Fast, Uber, mutable, legacy, and AOT JAR layouts
 ├── AugmentationException           Checked exception wrapping build errors
 ├── BuildProperties                 Default build system properties
 │
@@ -155,6 +158,7 @@ public record QuarkifierConfig(
     Path outputDir,
     List<Path> resources,
     AugmentationMode mode,
+    JarPackageType packageType,
     String appName,
     String mainClass,
     String nativeBuilderImage,
@@ -188,7 +192,7 @@ graph LR
     end
 
     subgraph Output
-        FJ[Fast_Jar Directory]
+        FJ[Selected JVM Package or Native Sources]
     end
 
     AC --> PARSE
@@ -220,7 +224,7 @@ coordinates; no `-deployment` name guess or orphan adoption occurs.
 
 `AugmentationExecutor.execute()` orchestrates the build. Its behavior depends on the mode:
 
-- **NORMAL/NATIVE**: Uses `ExplicitApplicationModelBuilder`, runs `QuarkusBootstrap` augmentation in-process, then performs lifecycle-specific assembly
+- **NORMAL/NATIVE**: Uses `ExplicitApplicationModelBuilder`, runs `QuarkusBootstrap` augmentation in-process, then performs lifecycle-specific assembly. Normal mode passes the selected JVM package type through to Quarkus; only Fast JAR needs rules_quarkus-specific post-processing.
 - **TEST**: Serializes the same explicit model for `QuarkusTestExtension`
 - **DEV**: Delegates to `DevModeLauncher` (see [Dev Mode](dev-mode.md))
 
@@ -232,6 +236,15 @@ selected external runtime/deployment graph; the assembler applies lifecycle
 reachability and conditional fixpoints. The Java adapter owns Quarkus API and
 flag semantics. There is no classpath-inference fallback: every augmentation,
 dev, test, and native invocation requires the explicit model.
+
+## Package outputs
+
+Normal augmentation supports `fast-jar`, `uber-jar`, `mutable-jar`,
+`legacy-jar`, and (with Quarkus 3.33) `aot-jar`. A stable
+`quarkus-run.jar` name is requested for every layout so Bazel launchers and
+integration tests never need to discover a configurable runner suffix. Fast,
+mutable, and AOT layouts place it under `quarkus-app/`; Uber and legacy place
+it at the output root.
 
 ## Post-Processing (FastJarAssembler)
 

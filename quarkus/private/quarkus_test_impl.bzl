@@ -63,8 +63,8 @@ def _integration_artifact(ctx):
     if QuarkusAppInfo in app:
         info = app[QuarkusAppInfo]
         artifact_type = "jar"
-        artifact = info.fast_jar_dir
-        artifact_path = artifact.short_path + "/quarkus-app/quarkus-run.jar"
+        artifact = info.output_dir
+        artifact_path = artifact.short_path + "/" + info.runner_path
         quarkus_version = info.quarkus_version
     elif QuarkusNativeInfo in app:
         info = app[QuarkusNativeInfo]

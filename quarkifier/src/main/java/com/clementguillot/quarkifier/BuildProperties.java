@@ -26,13 +26,18 @@ public final class BuildProperties {
    *
    * @param mainClass the fully-qualified main class name, or {@code null} to omit the property
    * @param builderImage the native builder image, or {@code null} to use the default
+   * @param packageType the JVM package layout to request from Quarkus
    */
-  public static Properties defaults(String mainClass, String builderImage) {
+  public static Properties defaults(
+      String mainClass, String builderImage, JarPackageType packageType) {
     var props = new Properties();
     props.setProperty(
         "platform.quarkus.native.builder-image",
         builderImage != null ? builderImage : DEFAULT_BUILDER_IMAGE);
-    props.setProperty("quarkus.package.jar.type", "fast-jar");
+    props.setProperty("quarkus.package.jar.type", packageType.configValue());
+    // A stable file name lets Bazel launch every non-fast layout without
+    // guessing Quarkus' configurable runner suffix.
+    props.setProperty("quarkus.package.jar.add-runner-suffix", "false");
     if (mainClass != null) {
       props.setProperty("quarkus.package.main-class", mainClass);
     }
@@ -46,7 +51,7 @@ public final class BuildProperties {
    * @param builderImage the native builder image, or {@code null} to use the default
    */
   public static Properties nativeSourcesOnly(String mainClass, String builderImage) {
-    var props = defaults(mainClass, builderImage);
+    var props = defaults(mainClass, builderImage, JarPackageType.FAST_JAR);
     props.setProperty("quarkus.native.enabled", "true");
     props.setProperty("quarkus.native.sources-only", "true");
     return props;

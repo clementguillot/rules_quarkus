@@ -10,7 +10,9 @@ bazel test //...
 
 All targets:
 - `:lib` — Java library compilation
-- `:app` — Quarkus Fast-Jar application (via `quarkus_app`)
+- `:app` — Quarkus Fast JAR application (via `quarkus_app`)
+- `:app_uber`, `:app_mutable`, `:app_legacy`, `:app_aot` — alternative JVM packages
+- `:*_integration_test` — execution checks for every JVM package layout
 - `:test` — @QuarkusTest execution (via `quarkus_test`)
 - `:smoke_test` — Build validation (via `build_test`)
 

@@ -16,6 +16,16 @@ You can run your application in dev mode that enables live coding using:
 
 ## Packaging and running the application
 
+With Bazel, every Quarkus 3.33 JVM package layout is directly runnable:
+
+```shell
+bazel run //:helloworld          # Fast JAR
+bazel run //:helloworld_uber     # Uber JAR
+bazel run //:helloworld_mutable  # Mutable JAR
+bazel run //:helloworld_legacy   # Legacy JAR
+bazel run //:helloworld_aot      # AOT-compatible JAR layout
+```
+
 The application can be packaged using:
 
 ```shell script

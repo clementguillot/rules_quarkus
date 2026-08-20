@@ -14,6 +14,24 @@ load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "c
 load("//quarkus/private:coverage_transition.bzl", "disable_coverage_transition", "single_transitioned_target")
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
 
+_PACKAGE_TYPES = [
+    "fast-jar",
+    "uber-jar",
+    "mutable-jar",
+    "legacy-jar",
+    "aot-jar",
+]
+
+def _runner_path(package_type):
+    if package_type in ("fast-jar", "mutable-jar", "aot-jar"):
+        return "quarkus-app/quarkus-run.jar"
+    return "quarkus-run.jar"
+
+def _package_type_version_error(package_type, quarkus_version):
+    if package_type == "aot-jar" and quarkus_version.startswith("3.27."):
+        return "package_type 'aot-jar' requires Quarkus 3.33; configured version is {}".format(quarkus_version)
+    return ""
+
 def _shell_quote(s):
     """Shell-quotes a string so it survives word splitting."""
     return "'" + s.replace("'", "'\\''") + "'"
@@ -29,6 +47,7 @@ def _write_launcher(ctx, output_dir, java_runtime):
             "%{jvm_flags}": " ".join([_shell_quote(f) for f in ctx.attr.jvm_flags]),
             "%{main_class_flag}": main_class_flag,
             "%{output_dir}": output_dir.short_path,
+            "%{runner_path}": _runner_path(ctx.attr.package_type),
             "%{workspace}": ctx.workspace_name,
         },
         is_executable = True,
@@ -38,6 +57,9 @@ def _write_launcher(ctx, output_dir, java_runtime):
 def _quarkus_app_impl(ctx):
     if not ctx.attr.deps:
         fail("quarkus_app rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
+    package_type_error = _package_type_version_error(ctx.attr.package_type, ctx.attr.quarkus_version)
+    if package_type_error:
+        fail(package_type_error)
 
     runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
     conditional_classpath = collect_runtime_classpath([single_transitioned_target(ctx.attr.conditional_deps)])
@@ -52,6 +74,7 @@ def _quarkus_app_impl(ctx):
         runtime_classpath,
         conditional_classpath,
         deployment_classpath,
+        package_type = ctx.attr.package_type,
         local_jars = local_jars,
         model_file = model,
     )
@@ -75,7 +98,10 @@ def _quarkus_app_impl(ctx):
             quarkus_model = depset([model]),
         ),
         QuarkusAppInfo(
+            output_dir = output_dir,
             fast_jar_dir = output_dir,
+            package_type = ctx.attr.package_type,
+            runner_path = _runner_path(ctx.attr.package_type),
             application_classpath = runtime_classpath,
             source_jars = collect_source_jars(ctx.attr.deps),
             quarkus_version = ctx.attr.quarkus_version,
@@ -116,6 +142,11 @@ quarkus_app_rule = rule(
         ),
         "main_class": attr.string(
             doc = "Override main class. Defaults to the Quarkus runner.",
+        ),
+        "package_type": attr.string(
+            default = "fast-jar",
+            values = _PACKAGE_TYPES,
+            doc = "JVM package type: fast-jar, uber-jar, mutable-jar, legacy-jar, or aot-jar.",
         ),
         "deployment_catalog": attr.label(
             allow_single_file = [".json"],
@@ -171,3 +202,7 @@ quarkus_app_rule = rule(
 Internal rule — use quarkus_app() macro from @rules_quarkus//quarkus:defs.bzl instead.
 """,
 )
+
+# Exported only for Starlark unit tests.
+package_type_version_error_for_test = _package_type_version_error
+runner_path_for_test = _runner_path

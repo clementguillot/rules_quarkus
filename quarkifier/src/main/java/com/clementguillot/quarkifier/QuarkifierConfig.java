@@ -9,9 +9,10 @@ import java.util.List;
  * @param applicationClasspath runtime jars
  * @param coreDeploymentClasspath dev process infrastructure — Quarkus bootstrap resolvers and
  *     quarkus-core-deployment transitive closures (dev mode only)
- * @param outputDir directory where Fast_Jar output is written
+ * @param outputDir directory where the selected package is written
  * @param resources additional resource paths
  * @param mode NORMAL, TEST, DEV, or NATIVE
+ * @param packageType Quarkus JVM package layout (used in NORMAL mode)
  * @param appName application name for Quarkus startup banner (may be {@code null})
  * @param mainClass fully-qualified custom main class name annotated with {@code @QuarkusMain} (may
  *     be {@code null})
@@ -35,6 +36,7 @@ public record QuarkifierConfig(
     Path outputDir,
     List<Path> resources,
     AugmentationMode mode,
+    JarPackageType packageType,
     String appName,
     String mainClass,
     String nativeBuilderImage,

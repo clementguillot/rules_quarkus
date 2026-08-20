@@ -22,7 +22,7 @@ import picocli.CommandLine.Spec;
  */
 @Command(
     name = "augmentation",
-    description = "Run Quarkus build-time augmentation to produce a Fast_Jar.",
+    description = "Run Quarkus build-time augmentation to produce an application package.",
     mixinStandardHelpOptions = true)
 @SuppressWarnings({"PMD.AvoidPrintStackTrace", "PMD.TooManyFields", "PMD.TooManyMethods"})
 // picocli pattern — one field per CLI option; not worth splitting
@@ -82,7 +82,7 @@ public final class AugmentationCommand implements Callable<Integer> {
   @Option(
       names = "--output-dir",
       required = true,
-      description = "Directory where Fast_Jar output is written.")
+      description = "Directory where the selected application package is written.")
   private Path outputDir;
 
   // ---- Optional flags (comma-separated lists) ----
@@ -95,6 +95,12 @@ public final class AugmentationCommand implements Callable<Integer> {
       description = "Augmentation mode: normal, test, dev, or native.",
       defaultValue = "normal")
   private String mode;
+
+  @Option(
+      names = "--package-type",
+      description = "JVM package type: fast-jar, uber-jar, mutable-jar, legacy-jar, or aot-jar.",
+      defaultValue = "fast-jar")
+  private String packageType;
 
   @Option(names = "--app-name", description = "Application name for Quarkus startup banner.")
   private String appName;
@@ -215,6 +221,7 @@ public final class AugmentationCommand implements Callable<Integer> {
         outputDir,
         orEmpty(resources),
         parseMode(mode),
+        parsePackageType(packageType),
         appName,
         mainClass,
         nativeBuilderImage,
@@ -276,6 +283,14 @@ public final class AugmentationCommand implements Callable<Integer> {
   private AugmentationMode parseMode(String modeStr) {
     try {
       return AugmentationMode.parse(modeStr);
+    } catch (IllegalArgumentException e) {
+      throw parameterException(e.getMessage(), e);
+    }
+  }
+
+  private JarPackageType parsePackageType(String packageTypeStr) {
+    try {
+      return JarPackageType.parse(packageTypeStr);
     } catch (IllegalArgumentException e) {
       throw parameterException(e.getMessage(), e);
     }

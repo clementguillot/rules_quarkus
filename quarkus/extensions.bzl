@@ -1538,13 +1538,13 @@ def quarkus_java_library(name, srcs = [], resources = [], deps = [], codegen_src
         **java_kwargs
     )
 
-def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_container_build = False,
+def quarkus_app(name, dev = True, dev_build_args = [], package_type = "fast-jar", native = False, native_container_build = False,
                 native_container_runtime = "auto", native_builder_image = _DEFAULT_BUILDER_IMAGE,
                 **kwargs):
     \"\"\"Builds a Quarkus application with optional dev-mode and native targets.
 
     Creates:
-      - <name>: production Fast_Jar target (bazel run //pkg:<name>)
+      - <name>: production JVM package (bazel run //pkg:<name>)
       - <name>_dev: dev mode with hot-reload (bazel run //pkg:<name>_dev), unless dev=False
       - <name>_native: native binary (bazel run //pkg:<name>_native), if native=True or native_container_build=True
 
@@ -1554,6 +1554,8 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
         dev_build_args: Extra flags for the hot-reload `bazel build` (e.g. ["--config=dev"]).
             Must match the flags you pass to `bazel run` for the dev target, otherwise
             rebuilt classes land in a different output tree and hot-reload syncs stale files.
+        package_type: JVM output: fast-jar, uber-jar, mutable-jar, legacy-jar, or aot-jar.
+            aot-jar requires Quarkus 3.33.
         native: If True, creates a <name>_native target using rules_graalvm (host compilation).
         native_container_build: If True, creates a <name>_native target using Docker/Podman (container compilation).
         native_container_runtime: Container runtime: 'auto' (default), 'docker', or 'podman'.
@@ -1567,6 +1569,7 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
 
     quarkus_app_rule(
         name = name,
+        package_type = package_type,
         quarkus_version = _QUARKUS_VERSION,
         quarkifier_tool = _QUARKIFIER_TOOL,
         deployment_deps = _DEPLOYMENT_DEPS,

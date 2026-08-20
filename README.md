@@ -3,7 +3,7 @@
 [![CI](https://github.com/clementguillot/rules_quarkus/actions/workflows/ci.yaml/badge.svg?branch=main&event=push)](https://github.com/clementguillot/rules_quarkus/actions/workflows/ci.yaml)
 [![Release](https://img.shields.io/github/v/release/clementguillot/rules_quarkus?label=Release)](https://github.com/clementguillot/rules_quarkus/releases/latest)
 
-Bazel rules for building and running [Quarkus](https://quarkus.io/) applications. Supports `quarkus_app` (production Fast-Jar and native executables), extension-driven Java code generation, dev mode with hot-reload, `quarkus_test` (`@QuarkusTest`), `quarkus_integration_test` (`@QuarkusIntegrationTest`), and `quarkus_extension_runtime` (building, using, and publishing custom Quarkus extensions — see [Building Quarkus Extensions](docs/extensions.md) and [`examples/demo_extension`](examples/demo_extension)).
+Bazel rules for building and running [Quarkus](https://quarkus.io/) applications. Supports `quarkus_app` (Fast JAR, Uber JAR, mutable JAR, legacy JAR, AOT JAR, and native executables), extension-driven Java code generation, dev mode with hot-reload, `quarkus_test` (`@QuarkusTest`), `quarkus_integration_test` (`@QuarkusIntegrationTest`), and `quarkus_extension_runtime` (building, using, and publishing custom Quarkus extensions — see [Building Quarkus Extensions](docs/extensions.md) and [`examples/demo_extension`](examples/demo_extension)).
 
 ## Installation
 
@@ -38,6 +38,7 @@ quarkus_java_library(
 
 quarkus_app(
     name = "app",
+    package_type = "fast-jar",  # default; see docs for every JVM layout
     version = "1.0.0-SNAPSHOT",
     deps = [":lib"],
 )
@@ -58,7 +59,7 @@ quarkus_integration_test(
 bazel run //:app       # Production mode
 bazel run //:app_dev   # Dev mode (hot-reload + Dev UI)
 bazel test //:test     # @QuarkusTest
-bazel test //:integration_test # @QuarkusIntegrationTest against the Fast JAR
+bazel test //:integration_test # @QuarkusIntegrationTest against the selected package
 bazel coverage //:test # Bazel LCOV coverage
 ```
 

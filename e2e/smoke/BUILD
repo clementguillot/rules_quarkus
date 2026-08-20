@@ -61,6 +61,40 @@ quarkus_app(
     deps = [":lib"],
 )
 
+# Every Quarkus JVM package type must remain a first-class Bazel output. These
+# variants share the same application graph and intentionally omit dev targets.
+quarkus_app(
+    name = "app_uber",
+    dev = False,
+    package_type = "uber-jar",
+    version = "1.0.0-SNAPSHOT",
+    deps = [":lib"],
+)
+
+quarkus_app(
+    name = "app_mutable",
+    dev = False,
+    package_type = "mutable-jar",
+    version = "1.0.0-SNAPSHOT",
+    deps = [":lib"],
+)
+
+quarkus_app(
+    name = "app_legacy",
+    dev = False,
+    package_type = "legacy-jar",
+    version = "1.0.0-SNAPSHOT",
+    deps = [":lib"],
+)
+
+quarkus_app(
+    name = "app_aot",
+    dev = False,
+    package_type = "aot-jar",
+    version = "1.0.0-SNAPSHOT",
+    deps = [":lib"],
+)
+
 quarkus_java_library(
     name = "test_lib",
     testonly = True,
@@ -95,6 +129,34 @@ quarkus_test(
 quarkus_integration_test(
     name = "integration_test",
     app = ":app",
+    deps = [":test_lib"],
+)
+
+quarkus_integration_test(
+    name = "uber_integration_test",
+    app = ":app_uber",
+    tags = ["exclusive"],
+    deps = [":test_lib"],
+)
+
+quarkus_integration_test(
+    name = "mutable_integration_test",
+    app = ":app_mutable",
+    tags = ["exclusive"],
+    deps = [":test_lib"],
+)
+
+quarkus_integration_test(
+    name = "legacy_integration_test",
+    app = ":app_legacy",
+    tags = ["exclusive"],
+    deps = [":test_lib"],
+)
+
+quarkus_integration_test(
+    name = "aot_integration_test",
+    app = ":app_aot",
+    tags = ["exclusive"],
     deps = [":test_lib"],
 )
 
@@ -156,6 +218,16 @@ build_test(
     name = "smoke_test",
     targets = [
         ":app",
+    ],
+)
+
+build_test(
+    name = "package_outputs_build_test",
+    targets = [
+        ":app_aot",
+        ":app_legacy",
+        ":app_mutable",
+        ":app_uber",
     ],
 )
 
