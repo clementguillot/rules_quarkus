@@ -83,6 +83,40 @@ class QuarkifierConfigTest {
   }
 
   @Test
+  void parse_defaultPackageTypeIsFastJar() {
+    var config =
+        parse(
+            "--application-classpath", "a.jar",
+            "--output-dir", "/out");
+    assertEquals(JarPackageType.FAST_JAR, config.packageType());
+  }
+
+  @Test
+  void parse_everyPackageType() {
+    for (JarPackageType type : JarPackageType.values()) {
+      var config =
+          parse(
+              "--application-classpath", "a.jar",
+              "--output-dir", "/out",
+              "--package-type", type.configValue());
+      assertEquals(type, config.packageType());
+    }
+  }
+
+  @Test
+  void parse_invalidPackageType() {
+    var exception =
+        assertThrows(
+            CommandLine.ParameterException.class,
+            () ->
+                parse(
+                    "--application-classpath", "a.jar",
+                    "--output-dir", "/out",
+                    "--package-type", "thin-jar"));
+    assertTrue(exception.getMessage().contains("Invalid package type"));
+  }
+
+  @Test
   void parse_emptyApplicationClasspath() {
     // Empty inline + no file = validation error
     var ex =

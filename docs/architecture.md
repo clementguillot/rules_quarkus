@@ -14,7 +14,7 @@
 |---|---|
 | Direct Quarkus build API instead of Maven/Gradle wrapper | Avoids shelling out to external build tools; enables proper Bazel action caching and sandboxing |
 | Quarkifier as a separate Java binary | Isolates Quarkus deployment classpath from the user's build classpath; can be versioned independently |
-| Fast_Jar as default packaging | Quarkus's recommended format; fastest startup; simplest directory layout to produce |
+| Fast JAR as default, with every Quarkus JVM layout selectable | Keeps the recommended default while exposing Uber, mutable, legacy, and AOT JARs as ordinary Bazel targets |
 | Explicit ApplicationModel | A Bazel aspect and resolver catalogs preserve graph/workspace facts before a version-specific Java adapter applies Quarkus semantics |
 | Deployment artifact auto-resolution via descriptors + Coursier | Module extension scans locked jars for exact `deployment-artifact` coordinates and resolves their transitive graph |
 | One generated repository from module extension | Keeps generated rules, the versioned Quarkifier, model catalogs, and copied deployment artifacts under `@rules_quarkus` |
@@ -149,7 +149,7 @@ The pipeline in brief:
 
 For DEV mode, step 5 delegates to `DevModeLauncher` instead. See [Dev Mode](dev-mode.md).
 
-## Fast_Jar Output Structure
+## Fast JAR Output Structure
 
 ```
 output-dir/
@@ -178,7 +178,10 @@ Custom Starlark provider that carries augmentation metadata between rules:
 ```starlark
 QuarkusAppInfo = provider(
     fields = {
-        "fast_jar_dir":            "Directory containing the Fast_Jar output",
+        "output_dir":              "Directory containing the selected package",
+        "package_type":            "Canonical Quarkus JVM package type",
+        "runner_path":             "Executable JAR path relative to output_dir",
+        "fast_jar_dir":            "Deprecated compatibility alias for output_dir",
         "application_classpath":   "Depset of runtime classpath jars",
         "source_dirs":             "Depset of source directories (for dev mode)",
         "quarkus_version":         "String: Quarkus version used",

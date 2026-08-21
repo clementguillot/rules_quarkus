@@ -23,7 +23,7 @@ def _write_classpath_file(ctx, name_suffix, jars):
     ctx.actions.write(output = out, content = args)
     return out
 
-def run_augmentation(ctx, output_dir, runtime_classpath, conditional_classpath, deployment_classpath, mode = None, local_jars = None, model_file = None):
+def run_augmentation(ctx, output_dir, runtime_classpath, conditional_classpath, deployment_classpath, mode = None, package_type = None, local_jars = None, model_file = None):
     """Runs the quarkifier deploy jar to augment the application.
 
     The deploy jar is a fat jar containing all tool classes + dependencies,
@@ -39,6 +39,7 @@ def run_augmentation(ctx, output_dir, runtime_classpath, conditional_classpath, 
             action inputs only; activation is controlled exclusively by the explicit model.
         deployment_classpath: Depset of deployment classpath jars.
         mode: Quarkifier mode ("native"), or None for the default Fast_Jar mode.
+        package_type: Quarkus JVM package type, or None for fast-jar.
         local_jars: Optional list of local workspace jars, passed via
             --local-app-jars-file. The first entry is treated as the
             application artifact, so order matters.
@@ -61,6 +62,8 @@ def run_augmentation(ctx, output_dir, runtime_classpath, conditional_classpath, 
     args.add("--output-dir", output_dir.path)
     if mode:
         args.add("--mode", mode)
+    if package_type:
+        args.add("--package-type", package_type)
     args.add("--app-name", ctx.label.name)
     if hasattr(ctx.attr, "builder_image") and ctx.attr.builder_image:
         args.add("--native-builder-image", ctx.attr.builder_image)

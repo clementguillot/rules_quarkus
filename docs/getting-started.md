@@ -272,6 +272,33 @@ quarkus_app(
 
 See [Dev Mode & Dev UI Integration](dev-mode.md) for details on how this works under the hood.
 
+### JVM package types
+
+`fast-jar` remains the default. Select another Quarkus JVM layout with
+`package_type`; the resulting target stays directly runnable with `bazel run`
+and can be passed to `quarkus_integration_test`.
+
+```starlark
+quarkus_app(
+    name = "helloworld_uber",
+    dev = False,
+    package_type = "uber-jar",
+    deps = [":lib"],
+)
+```
+
+| `package_type` | Quarkus | Runner inside the Bazel tree artifact | Purpose |
+|---|---|---|---|
+| `fast-jar` | 3.27, 3.33 | `quarkus-app/quarkus-run.jar` | Recommended indexed production layout |
+| `uber-jar` | 3.27, 3.33 | `quarkus-run.jar` | Single executable JAR |
+| `mutable-jar` | 3.27, 3.33 | `quarkus-app/quarkus-run.jar` | Re-augmentable layout for remote development |
+| `legacy-jar` | 3.27, 3.33 | `quarkus-run.jar` | Deprecated pre-1.12 thin-JAR layout |
+| `aot-jar` | 3.33 only | `quarkus-app/quarkus-run.jar` | System-classloader layout used for AOT-cache workflows |
+
+`aot-jar` selects the AOT-compatible package layout. It does not train or
+embed an `app.aot` cache; cache generation remains a separate, JDK-specific
+workflow. Selecting `aot-jar` with Quarkus 3.27 fails during Bazel analysis.
+
 ## quarkus_app Attributes
 
 | Attribute | Type | Default | Description |
@@ -280,6 +307,11 @@ See [Dev Mode & Dev UI Integration](dev-mode.md) for details on how this works u
 | `version` | `string` | `""` | Application version for Quarkus startup banner |
 | `jvm_flags` | `string_list` | `[]` | JVM flags for runtime execution |
 | `main_class` | `string` | `""` | Override main class (default: Quarkus runner) |
+| `package_type` | `string` | `"fast-jar"` | JVM package layout; see the table above |
+| `dev` | `bool` | `True` | Also create the `<name>_dev` target |
+| `dev_build_args` | `string_list` | `[]` | Extra Bazel flags reused by hot-reload builds |
+| `native` | `bool` | `False` | Also create `<name>_native` using `rules_graalvm` |
+| `native_container_build` | `bool` | `False` | Also create `<name>_native` using Docker or Podman |
 
 The `quarkus_version`, `quarkifier_tool`, and `deployment_deps` attributes are injected automatically by the `@rules_quarkus//quarkus:defs.bzl` macros.
 

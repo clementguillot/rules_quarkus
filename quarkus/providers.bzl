@@ -4,8 +4,11 @@ QuarkusAppInfo = provider(
     doc = "Information about a built Quarkus application",
     fields = {
         "application_classpath": "Depset of runtime classpath jars",
-        "fast_jar_dir": "Directory containing the Fast_Jar output",
+        "fast_jar_dir": "Deprecated alias of output_dir, retained for compatibility",
+        "output_dir": "Directory containing the packaged application",
+        "package_type": "String: Quarkus JVM package type",
         "quarkus_version": "String: Quarkus version used",
+        "runner_path": "String: executable JAR path relative to output_dir",
         "source_jars": "Depset of transitive source jars (for dev mode)",
     },
 )

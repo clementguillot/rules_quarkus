@@ -3,6 +3,7 @@ package com.clementguillot.quarkifier.augmentation;
 import com.clementguillot.quarkifier.AugmentationException;
 import com.clementguillot.quarkifier.AugmentationMode;
 import com.clementguillot.quarkifier.BuildProperties;
+import com.clementguillot.quarkifier.JarPackageType;
 import com.clementguillot.quarkifier.QuarkifierConfig;
 import com.clementguillot.quarkifier.QuarkifierVersionProvider;
 import com.clementguillot.quarkifier.dev.AppModelSerializerImpl;
@@ -26,7 +27,7 @@ import java.util.Properties;
 
 /**
  * Orchestrates Quarkus augmentation: builds the ApplicationModel, invokes the Quarkus build API,
- * and delegates post-processing to {@link FastJarAssembler}.
+ * selects the requested output layout, and post-processes Fast JAR output when necessary.
  *
  * <p>For DEV mode, delegates entirely to {@link DevModeLauncher}.
  */
@@ -67,8 +68,11 @@ public final class AugmentationExecutor {
         }
         case NORMAL -> {
           runAugmentation(config, partition.localAppJars(), appModel, outputDir);
-          FastJarAssembler.assemble(
-              outputDir, effectiveRuntimeJars, appModel, config.resources(), config.mainClass());
+          if (config.packageType() == JarPackageType.FAST_JAR) {
+            FastJarAssembler.assemble(
+                outputDir, effectiveRuntimeJars, appModel, config.resources(), config.mainClass());
+          }
+          config.packageType().validateOutput(outputDir);
         }
         default -> throw new AugmentationException("Unhandled mode: " + config.mode());
       }
@@ -85,6 +89,7 @@ public final class AugmentationExecutor {
     }
     var explicitModel = BazelApplicationModelReader.read(config.applicationModel());
     validateModelCompatibility(config.mode(), explicitModel);
+    config.packageType().validateCompatibility(config.mode(), explicitModel.quarkusVersion());
     return ExplicitApplicationModelBuilder.build(explicitModel);
   }
 
@@ -131,7 +136,8 @@ public final class AugmentationExecutor {
     Properties buildProps =
         config.mode() == AugmentationMode.NATIVE
             ? BuildProperties.nativeSourcesOnly(config.mainClass(), config.nativeBuilderImage())
-            : BuildProperties.defaults(config.mainClass(), config.nativeBuilderImage());
+            : BuildProperties.defaults(
+                config.mainClass(), config.nativeBuilderImage(), config.packageType());
 
     QuarkusBootstrap bootstrap =
         QuarkusBootstrap.builder()

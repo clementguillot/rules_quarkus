@@ -7,6 +7,7 @@ load(":application_model_aspect_test.bzl", "application_model_aspect_test_suite"
 load(":codegen_lifecycle.bzl", "codegen_lifecycle_setting")
 load(":codegen_metadata_test.bzl", "codegen_metadata_test_suite")
 load(":model_catalogs_test.bzl", "model_catalogs_test_suite")
+load(":quarkus_app_impl_test.bzl", "quarkus_app_impl_test_suite")
 load(":quarkus_test_impl_test.bzl", "quarkus_test_impl_test_suite")
 
 exports_files([
@@ -60,3 +61,5 @@ codegen_metadata_test_suite()
 application_model_aspect_test_suite()
 
 quarkus_test_impl_test_suite()
+
+quarkus_app_impl_test_suite()

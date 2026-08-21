@@ -18,6 +18,32 @@ quarkus_app(
     deps = [":lib"],
 )
 
+# Additional package layouts supported by the Quarkus 3.27 line. AOT JAR is
+# available from the supported Quarkus 3.33 line only.
+quarkus_app(
+    name = "helloworld_uber",
+    dev = False,
+    package_type = "uber-jar",
+    version = "1.0.0",
+    deps = [":lib"],
+)
+
+quarkus_app(
+    name = "helloworld_mutable",
+    dev = False,
+    package_type = "mutable-jar",
+    version = "1.0.0",
+    deps = [":lib"],
+)
+
+quarkus_app(
+    name = "helloworld_legacy",
+    dev = False,
+    package_type = "legacy-jar",
+    version = "1.0.0",
+    deps = [":lib"],
+)
+
 quarkus_test(
     name = "test",
     srcs = glob(["src/test/java/**/*.java"]),

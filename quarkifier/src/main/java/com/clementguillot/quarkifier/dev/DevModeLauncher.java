@@ -263,7 +263,7 @@ public final class DevModeLauncher {
     context.setProjectDir(projectRoot.toAbsolutePath().toFile());
 
     // Platform properties for SmallRye Config expression resolution
-    BuildProperties.defaults(config.mainClass(), null)
+    BuildProperties.defaults(config.mainClass(), null, config.packageType())
         .forEach((k, v) -> context.getBuildSystemProperties().put((String) k, (String) v));
 
     context.setApplicationRoot(buildAppModuleInfo(config, projectRoot));

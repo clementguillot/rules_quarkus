@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.clementguillot.quarkifier.AugmentationException;
 import com.clementguillot.quarkifier.AugmentationMode;
+import com.clementguillot.quarkifier.JarPackageType;
 import com.clementguillot.quarkifier.QuarkifierConfig;
 import com.clementguillot.quarkifier.QuarkifierVersionProvider;
 import com.clementguillot.quarkifier.TestQuarkifierConfig;
@@ -31,6 +32,31 @@ import org.junit.jupiter.api.io.TempDir;
  * <p><b>Validates: Requirements 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4</b>
  */
 class AugmentationExecutorBugConditionTest {
+
+  @Test
+  void validatePackageTypeCompatibility_acceptsSupportedJvmOutputs() {
+    for (JarPackageType type : JarPackageType.values()) {
+      assertDoesNotThrow(() -> type.validateCompatibility(AugmentationMode.NORMAL, "3.33.2"));
+    }
+  }
+
+  @Test
+  void validatePackageTypeCompatibility_rejectsAotOn327() {
+    var exception =
+        assertThrows(
+            AugmentationException.class,
+            () -> JarPackageType.AOT_JAR.validateCompatibility(AugmentationMode.NORMAL, "3.27.4"));
+    assertTrue(exception.getMessage().contains("not supported by Quarkus 3.27.4"));
+  }
+
+  @Test
+  void validatePackageTypeCompatibility_rejectsJvmTypeOutsideNormalMode() {
+    var exception =
+        assertThrows(
+            AugmentationException.class,
+            () -> JarPackageType.UBER_JAR.validateCompatibility(AugmentationMode.NATIVE, "3.33.2"));
+    assertTrue(exception.getMessage().contains("only valid in normal mode"));
+  }
 
   @Test
   void validateModelCompatibility_acceptsMatchingModeAndToolVersion() {

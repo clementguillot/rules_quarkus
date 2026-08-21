@@ -1540,11 +1540,12 @@ def quarkus_java_library(name, srcs = [], resources = [], deps = [], codegen_src
 
 def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_container_build = False,
                 native_container_runtime = "auto", native_builder_image = _DEFAULT_BUILDER_IMAGE,
+                package_type = "fast-jar",
                 **kwargs):
     \"\"\"Builds a Quarkus application with optional dev-mode and native targets.
 
     Creates:
-      - <name>: production Fast_Jar target (bazel run //pkg:<name>)
+      - <name>: production JVM package (bazel run //pkg:<name>)
       - <name>_dev: dev mode with hot-reload (bazel run //pkg:<name>_dev), unless dev=False
       - <name>_native: native binary (bazel run //pkg:<name>_native), if native=True or native_container_build=True
 
@@ -1558,6 +1559,8 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
         native_container_build: If True, creates a <name>_native target using Docker/Podman (container compilation).
         native_container_runtime: Container runtime: 'auto' (default), 'docker', or 'podman'.
         native_builder_image: Builder image for container native compilation.
+        package_type: JVM output: fast-jar, uber-jar, mutable-jar, legacy-jar, or aot-jar.
+            aot-jar requires Quarkus 3.33.
         **kwargs: Passed to the underlying quarkus_app_rule (deps, version, jvm_flags, etc.).
     \"\"\"
     if native and native_container_build:
@@ -1567,6 +1570,7 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
 
     quarkus_app_rule(
         name = name,
+        package_type = package_type,
         quarkus_version = _QUARKUS_VERSION,
         quarkifier_tool = _QUARKIFIER_TOOL,
         deployment_deps = _DEPLOYMENT_DEPS,
