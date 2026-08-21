@@ -56,7 +56,7 @@ java -jar quarkifier_<minor>_deploy.jar \
 | `--output-dir` | Yes | — | Directory where the selected package is written |
 | `--resources` | No | `[]` | Comma-separated list of resource file paths |
 | `--mode` | No | `normal` | Augmentation mode: `normal`, `test`, `dev`, or `native` |
-| `--package-type` | No | `fast-jar` | JVM package layout; `aot-jar` requires Quarkus 3.33 |
+| `--package-type` | No | `fast-jar` | JVM package layout; `uber-jar`, `mutable-jar`, `legacy-jar`, and `aot-jar` require `--mode normal`; `aot-jar` also requires Quarkus 3.33 |
 | `--app-name` | No | `null` | Application name for Quarkus startup banner |
 | `--main-class` | No | `null` | Fully-qualified custom main class annotated with `@QuarkusMain` |
 | `--native-builder-image` | No | `null` | Native builder image for `platform.quarkus.native.builder-image` |

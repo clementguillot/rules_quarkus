@@ -98,7 +98,9 @@ public final class AugmentationCommand implements Callable<Integer> {
 
   @Option(
       names = "--package-type",
-      description = "JVM package type: fast-jar, uber-jar, mutable-jar, legacy-jar, or aot-jar.",
+      description =
+          "JVM package type: fast-jar, uber-jar, mutable-jar, legacy-jar, or aot-jar."
+              + " uber-jar, mutable-jar, legacy-jar, and aot-jar require --mode normal.",
       defaultValue = "fast-jar")
   private String packageType;
 
