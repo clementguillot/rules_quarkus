@@ -52,6 +52,7 @@ public final class BuildProperties {
    */
   public static Properties nativeSourcesOnly(String mainClass, String builderImage) {
     var props = defaults(mainClass, builderImage, JarPackageType.FAST_JAR);
+    props.setProperty("quarkus.package.jar.add-runner-suffix", "true");
     props.setProperty("quarkus.native.enabled", "true");
     props.setProperty("quarkus.native.sources-only", "true");
     return props;
