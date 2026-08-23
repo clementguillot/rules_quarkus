@@ -143,49 +143,55 @@ public final class AugmentationExecutor {
                 config.nativeBuilderImage(),
                 config.packageType());
 
-    QuarkusBootstrap bootstrap =
-        QuarkusBootstrap.builder()
-            .setExistingModel(appModel)
-            .setApplicationRoot(PathList.from(localAppJars))
-            .setTargetDirectory(outputDir)
-            .setBaseName(
-                config.mode() == AugmentationMode.NATIVE && config.appName() != null
-                    ? config.appName()
-                    : "quarkus-run")
-            .setMode(mapMode(config.mode()))
-            // Workspace dependencies are present in both the augmentation and deployment
-            // layers. Isolation is required to keep reloadable runtime classes in exactly one
-            // layer; otherwise config mappings and build-step parameters can have distinct Class
-            // identities.
-            .setIsolateDeployment(true)
-            .setFlatClassPath(true)
-            .setLocalProjectDiscovery(false)
-            .setBuildSystemProperties(buildProps)
-            .build();
+    BuildProperties.withSystemProperties(
+        buildProps,
+        () -> {
+          QuarkusBootstrap bootstrap =
+              QuarkusBootstrap.builder()
+                  .setExistingModel(appModel)
+                  .setApplicationRoot(PathList.from(localAppJars))
+                  .setTargetDirectory(outputDir)
+                  .setBaseName(
+                      config.mode() == AugmentationMode.NATIVE && config.appName() != null
+                          ? config.appName()
+                          : "quarkus-run")
+                  .setMode(mapMode(config.mode()))
+                  // Workspace dependencies are present in both the augmentation and deployment
+                  // layers. Isolation is required to keep reloadable runtime classes in exactly
+                  // one layer; otherwise config mappings and build-step parameters can have
+                  // distinct Class identities.
+                  .setIsolateDeployment(true)
+                  .setFlatClassPath(true)
+                  .setLocalProjectDiscovery(false)
+                  .setBuildSystemProperties(buildProps)
+                  .build();
 
-    try (CuratedApplication curatedApp = bootstrap.bootstrap()) {
-      // Load AugmentActionImpl from the augment classloader to avoid classloader
-      // conflicts. Set the TCCL so ASM's ClassWriter.getCommonSuperClass() can
-      // resolve all types during bytecode generation.
-      ClassLoader augmentCl = curatedApp.getOrCreateAugmentClassLoader();
-      Class<?> augmentClass = augmentCl.loadClass("io.quarkus.runner.bootstrap.AugmentActionImpl");
+          try (CuratedApplication curatedApp = bootstrap.bootstrap()) {
+            // Load AugmentActionImpl from the augment classloader to avoid classloader
+            // conflicts. Set the TCCL so ASM's ClassWriter.getCommonSuperClass() can
+            // resolve all types during bytecode generation.
+            ClassLoader augmentCl = curatedApp.getOrCreateAugmentClassLoader();
+            Class<?> augmentClass =
+                augmentCl.loadClass("io.quarkus.runner.bootstrap.AugmentActionImpl");
 
-      Constructor<?> ctor = findAugmentConstructor(augmentClass);
+            Constructor<?> ctor = findAugmentConstructor(augmentClass);
 
-      ClassLoader originalTccl = Thread.currentThread().getContextClassLoader();
-      try {
-        Thread.currentThread().setContextClassLoader(augmentCl);
+            ClassLoader originalTccl = Thread.currentThread().getContextClassLoader();
+            try {
+              Thread.currentThread().setContextClassLoader(augmentCl);
 
-        AugmentAction action = (AugmentAction) ctor.newInstance(curatedApp);
-        AugmentResult result = action.createProductionApplication();
-        if (result == null) {
-          throw new AugmentationException(
-              "Augmentation produced no result for output directory: " + outputDir);
-        }
-      } finally {
-        Thread.currentThread().setContextClassLoader(originalTccl);
-      }
-    }
+              AugmentAction action = (AugmentAction) ctor.newInstance(curatedApp);
+              AugmentResult result = action.createProductionApplication();
+              if (result == null) {
+                throw new AugmentationException(
+                    "Augmentation produced no result for output directory: " + outputDir);
+              }
+            } finally {
+              Thread.currentThread().setContextClassLoader(originalTccl);
+            }
+          }
+          return null;
+        });
   }
 
   /**

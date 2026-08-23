@@ -2,6 +2,7 @@ package com.clementguillot.quarkifier;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -10,14 +11,70 @@ import org.junit.jupiter.api.io.TempDir;
 
 class BuildPropertiesTest {
 
+  @Test
+  void scopesDeclaredSystemPropertiesAndRestoresPriorState() throws Exception {
+    String existingName = "rules.quarkus.build-properties.existing";
+    String newName = "rules.quarkus.build-properties.new";
+    String previousExisting = System.getProperty(existingName);
+    String previousNew = System.getProperty(newName);
+    try {
+      System.setProperty(existingName, "before");
+      System.clearProperty(newName);
+      var properties = new java.util.Properties();
+      properties.setProperty(existingName, "during");
+      properties.setProperty(newName, "declared");
+
+      String result =
+          BuildProperties.withSystemProperties(
+              properties,
+              () -> {
+                assertEquals("during", System.getProperty(existingName));
+                assertEquals("declared", System.getProperty(newName));
+                return "done";
+              });
+
+      assertEquals("done", result);
+      assertEquals("before", System.getProperty(existingName));
+      assertNull(System.getProperty(newName));
+    } finally {
+      restoreSystemProperty(existingName, previousExisting);
+      restoreSystemProperty(newName, previousNew);
+    }
+  }
+
+  private static void restoreSystemProperty(String name, String value) {
+    if (value == null) {
+      System.clearProperty(name);
+    } else {
+      System.setProperty(name, value);
+    }
+  }
+
   @TempDir Path temporaryDirectory;
 
   @Test
   void loadsDeclaredUtf8Properties() throws Exception {
     Path file = temporaryDirectory.resolve("build.properties");
-    Files.writeString(file, "clé=été\nspaced=\\ leading\\ value\n");
+    Files.writeString(file, "clé=été\nspaced=\\ leading\\ value\nkey\\:\\ with\\ spaces=value\n");
 
-    assertEquals(Map.of("clé", "été", "spaced", " leading value"), BuildProperties.load(file));
+    assertEquals(
+        Map.of("clé", "été", "spaced", " leading value", "key: with spaces", "value"),
+        BuildProperties.load(file));
+  }
+
+  @Test
+  void rejectsNamesThatCannotUseTheJvmPropertyChannel() throws Exception {
+    Path emptyName = temporaryDirectory.resolve("empty-name.properties");
+    Files.writeString(emptyName, "=value\n");
+    IOException emptyException =
+        assertThrows(IOException.class, () -> BuildProperties.load(emptyName));
+    assertTrue(emptyException.getMessage().contains("empty property name"));
+
+    Path equalsName = temporaryDirectory.resolve("equals-name.properties");
+    Files.writeString(equalsName, "key\\=part=value\n");
+    IOException equalsException =
+        assertThrows(IOException.class, () -> BuildProperties.load(equalsName));
+    assertTrue(equalsException.getMessage().contains("cannot be represented as a JVM -D flag"));
   }
 
   @Test

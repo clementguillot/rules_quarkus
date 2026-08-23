@@ -109,11 +109,30 @@ public final class DevModeLauncher {
     }
   }
 
+  /**
+   * Merges the declared build configuration with the dev-lifecycle invariants.
+   *
+   * <p>Dev mode carries this same set over two channels — the child JVM's {@code -D} flags and the
+   * serialized {@link DevModeContext} build-system properties — so both must derive it here.
+   */
+  private static java.util.Properties devBuildProperties(QuarkifierConfig config) {
+    return BuildProperties.defaults(
+        config.buildProperties(), config.mainClass(), null, config.packageType());
+  }
+
   /** Starts the child JVM running {@link DevModeMain} from the dev jar. */
   private static Process startDevProcess(QuarkifierConfig config, Path serializedModel, Path devJar)
       throws Exception {
     List<String> cmd = new ArrayList<>();
     cmd.add(System.getProperty("java.home") + "/bin/java");
+    // Declared build properties come first so every launcher-owned setting
+    // below wins any key conflict: the JVM keeps the last `-D` for a name.
+    // This matches the ordering the test launcher pins.
+    var buildProperties = devBuildProperties(config);
+    buildProperties.stringPropertyNames().stream()
+        .sorted()
+        .map(name -> "-D" + name + "=" + buildProperties.getProperty(name))
+        .forEach(cmd::add);
     cmd.add("-Djava.util.logging.manager=org.jboss.logmanager.LogManager");
     // Required for jboss-threads on Java 24+
     cmd.add("--add-opens");
@@ -263,8 +282,7 @@ public final class DevModeLauncher {
     context.setProjectDir(projectRoot.toAbsolutePath().toFile());
 
     // Platform properties for SmallRye Config expression resolution
-    BuildProperties.defaults(
-            config.buildProperties(), config.mainClass(), null, config.packageType())
+    devBuildProperties(config)
         .forEach((k, v) -> context.getBuildSystemProperties().put((String) k, (String) v));
 
     context.setApplicationRoot(buildAppModuleInfo(config, projectRoot));

@@ -7,8 +7,12 @@ def _build_property_jvm_flags_test_impl(ctx):
     env = unittest.begin(ctx)
     asserts.equals(
         env,
-        ["'-Da=two words'", "'-Dz=last'"],
-        build_property_jvm_flags_for_test({"z": "last", "a": "two words"}),
+        ["'-Da=two words'", "'-Dkey: with whitespace=value'", "'-Dz=last'"],
+        build_property_jvm_flags_for_test({
+            "z": "last",
+            "a": "two words",
+            "key: with whitespace": "value",
+        }),
     )
     return unittest.end(env)
 

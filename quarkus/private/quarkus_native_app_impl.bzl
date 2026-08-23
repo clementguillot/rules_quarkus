@@ -97,12 +97,13 @@ def _quarkus_native_app_impl(ctx):
     )
 
     output_dir = ctx.actions.declare_directory(ctx.label.name + "-native-sources")
-    build_properties = run_augmentation(
+    run_augmentation(
         ctx,
         output_dir,
         runtime_classpath,
         conditional_classpath,
         deployment_classpath,
+        ctx.attr.build_properties,
         mode = "native",
         local_jars = collect_local_app_jars(ctx.attr.deps, runtime_classpath),
         model_file = model,
@@ -123,7 +124,6 @@ def _quarkus_native_app_impl(ctx):
             quarkus_version = ctx.attr.quarkus_version,
         ),
         OutputGroupInfo(
-            quarkus_build_properties = depset([build_properties]),
             quarkus_model = depset([model]),
         ),
     ]

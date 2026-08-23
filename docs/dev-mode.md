@@ -66,6 +66,36 @@ The manifest classpath contains two categories of jars, matching Maven's `DevMoj
 
 Everything else — extension deployment jars, runtime extension jars — is loaded by the augment classloader from the serialized `ApplicationModel`.
 
+## Declared Build Properties
+
+`quarkus_app` shares its `build_properties` map with the generated
+`<name>_dev` target, which writes it to a `.build.properties` runfile and
+passes `--build-properties-file` to the quarkifier. `BuildProperties.defaults`
+merges it with the dev-lifecycle invariants (package type, main class, pinned
+builder image), which win any key conflict, and `DevModeLauncher` then carries
+the merged set over **two** channels:
+
+1. **`-D` flags on the child JVM** — emitted first on the command line, before
+   every launcher-owned flag. Later `-D` flags win for the same name, so
+   `java.util.logging.manager` and the serialized application-model path stay
+   launcher-owned and cannot be redirected by a declared property. This mirrors
+   the ordering `e2e/smoke/launcher_precedence_test.bzl` pins for the test
+   launcher.
+2. **The serialized `DevModeContext`** — `context.getBuildSystemProperties()`,
+   which Quarkus reads for SmallRye Config expression resolution during
+   augmentation.
+
+Both channels derive from `DevModeLauncher.devBuildProperties(config)` so they
+cannot drift apart.
+
+Unlike the packaged JVM lifecycle — where the properties are scoped around
+augmentation and are gone once the packaged application runs — the dev `-D`
+flags are ordinary system properties (ordinal 400) and stay visible to run-time
+configuration for the whole dev session. A declared `quarkus.profile`,
+therefore, also suppresses `%dev.*` entries in `application.properties` and
+changes Dev Services behavior. Keep run-time configuration in
+`application.properties` rather than in `build_properties`.
+
 ## Three Classpaths
 
 The `quarkus_dev` rule manages three separate classpaths:

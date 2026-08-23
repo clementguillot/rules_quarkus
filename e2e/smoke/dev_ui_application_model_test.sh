@@ -64,6 +64,17 @@ grep -Fq "\"source\":\"${APP}\",\"target\":\"${EXT}\"" "${DATA}"
 grep -Fq "\"source\":\"${EXT}\",\"target\":\"${ARC}\"" "${DATA}"
 grep -Fq '"title":"Application Dependencies"' "${DATA}"
 
+# The same real dev process must observe the application's declared build
+# properties during augmentation, including expression expansion from an
+# application-defined declared key. This catches propagation regressions that
+# a launcher/runfiles inspection cannot.
+RESPONSE=$(curl -fsS "${BASE_URL}/smoke-ext?name=Bazel")
+if [ "${RESPONSE}" != 'Declared:=\ spaced, Bazel!' ]; then
+  echo "FAIL: dev augmentation ignored build_properties: ${RESPONSE}" >&2
+  tail -n 80 "${LOG}" >&2
+  exit 1
+fi
+
 if grep -Fq 'Failed to process extension descriptor' "${LOG}" || \
    grep -Fq 'Failed to locate META-INF/quarkus-extension.properties' "${LOG}" || \
    grep -Fq 'SettingsDecryptionRequest' "${LOG}"; then
@@ -72,4 +83,4 @@ if grep -Fq 'Failed to process extension descriptor' "${LOG}" || \
   exit 1
 fi
 
-echo "PASS: Dev UI exposes the nested Bazel ApplicationModel graph"
+echo "PASS: Dev UI exposes the nested Bazel ApplicationModel graph and declared build properties"

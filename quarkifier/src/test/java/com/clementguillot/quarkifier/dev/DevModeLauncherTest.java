@@ -9,6 +9,7 @@ import io.quarkus.bootstrap.model.ApplicationModel;
 import io.quarkus.bootstrap.model.ApplicationModelBuilder;
 import io.quarkus.maven.dependency.DependencyFlags;
 import io.quarkus.maven.dependency.ResolvedDependencyBuilder;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -81,7 +82,7 @@ class DevModeLauncherTest {
   @Test
   void buildDevModeContext_includesDeclaredBuildProperties(@TempDir Path tempDir) throws Exception {
     Path propertiesFile = tempDir.resolve("build.properties");
-    java.nio.file.Files.writeString(
+    Files.writeString(
         propertiesFile, "smoke.ext.prefix=Declared\nquarkus.package.jar.type=legacy-jar\n");
 
     var context =
@@ -90,6 +91,24 @@ class DevModeLauncherTest {
 
     assertEquals("Declared", context.getBuildSystemProperties().get("smoke.ext.prefix"));
     assertEquals("fast-jar", context.getBuildSystemProperties().get("quarkus.package.jar.type"));
+  }
+
+  @Test
+  void buildDevModeContext_mainClassFlagOverridesDeclaredProperty(@TempDir Path tempDir)
+      throws Exception {
+    Path propertiesFile = tempDir.resolve("build.properties");
+    Files.writeString(propertiesFile, "quarkus.package.main-class=wrong.Main\n");
+
+    var context =
+        DevModeLauncher.buildDevModeContext(
+            devConfig(
+                "--build-properties-file",
+                propertiesFile.toString(),
+                "--main-class",
+                "example.Main"));
+
+    assertEquals(
+        "example.Main", context.getBuildSystemProperties().get("quarkus.package.main-class"));
   }
 
   @Test

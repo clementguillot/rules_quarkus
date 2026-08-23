@@ -9,6 +9,7 @@ rule also wires a Java file watcher (BazelFileWatcher) that triggers incremental
 Quarkus hot-reload.
 """
 
+load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus/private:application_model_aspect.bzl", "quarkus_application_model_aspect")
@@ -95,7 +96,7 @@ def _quarkus_dev_impl(ctx):
     # and resolved against the runfiles tree.
     files = struct(
         app_cp = write_runfiles_paths_file(ctx, "_app_cp.txt", runtime_classpath, ":"),
-        build_properties = write_build_properties(ctx),
+        build_properties = write_build_properties(ctx, ctx.attr.build_properties),
         local_app_jars = write_runfiles_paths_file(ctx, "_local_app_jars.txt", depset(collect_local_app_jars(ctx.attr.deps, runtime_classpath)), ":"),
         core_deploy_cp = write_runfiles_paths_file(ctx, "_core_deploy_cp.txt", core_deployment_classpath, ":"),
         source_dirs = _write_csv_file(ctx, "_source_dirs.txt", collect_source_dir_paths(ctx.attr.deps, runtime_classpath)),
@@ -128,10 +129,7 @@ def _quarkus_dev_impl(ctx):
 
     return [
         DefaultInfo(executable = launcher, runfiles = runfiles),
-        OutputGroupInfo(
-            quarkus_build_properties = depset([files.build_properties]),
-            quarkus_model = depset([model]),
-        ),
+        OutputGroupInfo(quarkus_model = depset([model])),
     ]
 
 def _join_dev_build_args(args):
@@ -158,6 +156,7 @@ def _write_dev_launcher(ctx, tool_jar, files, model_file, java_runtime):
             "%{core_deploy_cp_file}": files.core_deploy_cp.short_path,
             "%{java_home}": java_runtime.java_home_runfiles_path,
             "%{local_app_jars_file}": files.local_app_jars.short_path,
+            "%{main_class}": shell.quote(ctx.attr.main_class),
             "%{model_file}": model_file.short_path,
             "%{resource_dirs_file}": files.resource_dirs.short_path,
             "%{source_dirs_file}": files.source_dirs.short_path,
@@ -222,6 +221,9 @@ match the configuration used to `bazel run` the dev target — otherwise
 rebuilt classes land in a different bazel-out tree and hot-reload syncs
 stale files. Flags containing commas are not supported.
 """,
+        ),
+        "main_class": attr.string(
+            doc = "Override main class, shared from the quarkus_app target.",
         ),
         "quarkifier_tool": attr.label(
             allow_single_file = [".jar"],

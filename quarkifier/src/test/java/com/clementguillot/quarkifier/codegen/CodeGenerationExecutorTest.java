@@ -2,10 +2,10 @@ package com.clementguillot.quarkifier.codegen;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.clementguillot.quarkifier.BuildProperties;
 import com.clementguillot.quarkifier.CodeGenerationException;
 import io.quarkus.deployment.CodeGenerator;
 import java.io.IOException;
@@ -13,6 +13,8 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.Properties;
 import java.util.jar.JarFile;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -117,38 +119,60 @@ class CodeGenerationExecutorTest {
     Path propertiesFile = temporaryDirectory.resolve("codegen.properties");
     Files.writeString(propertiesFile, "clé=été\nspaced=\\ leading\\ value\n");
 
-    var properties = CodeGenerationExecutor.loadProperties(propertiesFile);
+    var properties = BuildProperties.load(propertiesFile);
 
-    assertEquals("été", properties.getProperty("clé"));
-    assertEquals(" leading value", properties.getProperty("spaced"));
+    assertEquals("été", properties.get("clé"));
+    assertEquals(" leading value", properties.get("spaced"));
   }
 
   @Test
-  void scopesEffectiveQuarkusPropertiesToProviderExecution() throws Exception {
-    String quarkusProperty = "quarkus.rules-quarkus.codegen-test";
-    String ordinaryProperty = "rules-quarkus.codegen-test";
-    String previousQuarkus = System.getProperty(quarkusProperty);
-    String previousOrdinary = System.getProperty(ordinaryProperty);
-    try {
-      System.setProperty(quarkusProperty, "before");
-      System.clearProperty(ordinaryProperty);
-      var properties = new java.util.Properties();
-      properties.setProperty(quarkusProperty, "during");
-      properties.setProperty(ordinaryProperty, "not-exported");
+  void rejectsAmbientPropertyReferencedByDeclaredGeneratedValue() {
+    Properties declared = new Properties();
+    declared.setProperty("generated.value", "${ambient.only}");
+    Map<String, CodeGenerationProperties.ConfigProperty> resolved =
+        Map.of(
+            "ambient.only",
+            new CodeGenerationProperties.ConfigProperty(
+                "not-an-input", "not-an-input", "SysPropConfigSource"));
 
-      CodeGenerationProperties.withQuarkusSystemProperties(
-          properties,
-          () -> {
-            assertEquals("during", System.getProperty(quarkusProperty));
-            assertNull(System.getProperty(ordinaryProperty));
-          });
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                CodeGenerationProperties.validateDeclaredExpressionInputs(declared, resolved::get));
 
-      assertEquals("before", System.getProperty(quarkusProperty));
-      assertNull(System.getProperty(ordinaryProperty));
-    } finally {
-      restoreSystemProperty(quarkusProperty, previousQuarkus);
-      restoreSystemProperty(ordinaryProperty, previousOrdinary);
-    }
+    assertTrue(exception.getMessage().contains("generated.value"));
+    assertTrue(exception.getMessage().contains("ambient.only"));
+  }
+
+  @Test
+  void rejectsTransitiveAmbientReferenceFromActionInputProperty() {
+    Properties declared = new Properties();
+    declared.setProperty("generated.value", "${application.value}");
+    Map<String, CodeGenerationProperties.ConfigProperty> resolved =
+        Map.of(
+            "application.value",
+            new CodeGenerationProperties.ConfigProperty(
+                "${ambient.only}", "not-an-input", "application.properties"),
+            "ambient.only",
+            new CodeGenerationProperties.ConfigProperty(
+                "not-an-input", "not-an-input", "EnvConfigSource"));
+
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                CodeGenerationProperties.validateDeclaredExpressionInputs(declared, resolved::get));
+
+    assertTrue(exception.getMessage().contains("ambient.only"));
+  }
+
+  @Test
+  void allowsExpressionDefaultWhenAmbientPropertyIsAbsent() {
+    Properties declared = new Properties();
+    declared.setProperty("generated.value", "${ambient.only:fallback}");
+
+    CodeGenerationProperties.validateDeclaredExpressionInputs(declared, ignored -> null);
   }
 
   private static void writeGeneratedTree(Path root) throws IOException {
@@ -157,13 +181,5 @@ class CodeGenerationExecutorTest {
     Files.writeString(root.resolve("example/Zulu.java"), "package example; class Zulu {}");
     Files.writeString(root.resolve("example/Alpha.java"), "package example; class Alpha {}");
     Files.writeString(root.resolve("META-INF/generated.txt"), "descriptor");
-  }
-
-  private static void restoreSystemProperty(String name, String value) {
-    if (value == null) {
-      System.clearProperty(name);
-    } else {
-      System.setProperty(name, value);
-    }
   }
 }

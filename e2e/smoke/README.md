@@ -16,6 +16,12 @@ All targets:
 - `:uber_integration_test`, `:mutable_integration_test`, `:legacy_integration_test`,
   `:aot_integration_test` — integration tests for the alternative JVM package layouts
 - `:test` — @QuarkusTest execution (via `quarkus_test`)
+- `:build_properties_packaging_test` — packaged-output proof that declared
+  build configuration reaches JVM augmentation
+- `:native_build_properties_test` — manual real-native certification of native
+  build-property propagation (`bazel test :native_build_properties_test`)
+- `:dev_ui_application_model_test` — real dev startup, Dev UI model, and
+  declared build-property behavior
 - `:smoke_test` — Build validation (via `build_test`)
 
 ## E2BIG regression tests (`//big`)

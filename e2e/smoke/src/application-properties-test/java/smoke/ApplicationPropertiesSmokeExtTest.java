@@ -6,22 +6,18 @@ import static org.hamcrest.CoreMatchers.is;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
 
-/**
- * Verifies the locally-built smoke extension end to end: the declared Bazel build property
- * overrides the value in application.properties and flows through the recorder into the runtime
- * bean.
- */
+/** Pins the checked-in application.properties baseline without a Bazel build-property override. */
 @QuarkusTest
-class SmokeExtResourceTest {
+class ApplicationPropertiesSmokeExtTest {
 
   @Test
-  void testExtensionEndpoint() {
+  void usesApplicationPropertiesDuringTestAugmentation() {
     given()
         .queryParam("name", "Bazel")
         .when()
         .get("/smoke-ext")
         .then()
         .statusCode(200)
-        .body(is("Declared:=\\ spaced, Bazel!"));
+        .body(is("CI, Bazel!"));
   }
 }

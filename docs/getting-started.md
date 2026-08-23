@@ -144,9 +144,12 @@ quarkus.http.port=8080
 ### Declared build-time configuration
 
 Use `build_properties` for values that must be visible while Quarkus performs
-augmentation. The map is serialized as a sorted UTF-8 `.properties` action
-input, so changing any key or value invalidates the relevant Bazel actions
-without reading the ambient environment.
+augmentation. The map is serialized deterministically in sorted order and
+declared to Bazel, so changing any key or value invalidates the relevant
+actions without reading the ambient environment. The packaged JVM, native, and
+dev lifecycles carry it as a UTF-8 `.properties` action input; `quarkus_test`
+carries the same map as JVM system properties on its launcher, because Quarkus
+augments inside the test JVM.
 
 ```starlark
 quarkus_app(
@@ -162,12 +165,39 @@ quarkus_app(
 )
 ```
 
+Declared names must be non-empty and must not contain `=`. The equals sign is
+representable in the `.properties` file but not in the `-Dname=value` JVM flags
+that carry the same map into the test and dev JVMs, so it is rejected during
+Bazel analysis rather than meaning two different things per lifecycle. Spaces,
+colons, and other characters are preserved by both channels. Values are
+unrestricted.
+
 The `quarkus_app` map is shared automatically with its generated
-`<name>_dev` and `<name>_native` targets. `quarkus_test`,
-`quarkus_integration_test`, and direct `quarkus_codegen` targets expose the
-same `build_properties` attribute. When using `quarkus_java_library` code
-generation, use `codegen_build_properties` because that action belongs to the
-library rather than to a downstream application.
+`<name>_dev` and `<name>_native` targets. Direct `quarkus_codegen` targets also
+expose `build_properties`. When using `quarkus_java_library` code generation,
+use `codegen_build_properties` because that action belongs to the library
+rather than to a downstream application.
+
+The packaged JVM and native lifecycles scope the map around augmentation only,
+so the values are gone by the time the packaged application runs. The
+`<name>_dev` target instead passes them as JVM system properties to the dev
+child process, where they stay visible to run-time configuration for the whole
+dev session — a declared `quarkus.profile`, for example, suppresses `%dev.*`
+entries in `application.properties`. See [Dev Mode](dev-mode.md).
+
+`quarkus_test` also accepts `build_properties`, but Quarkus performs its test
+augmentation inside the test JVM. The values are therefore passed as JVM
+system properties and remain visible for the duration of the test; use this
+attribute only for test-augmentation configuration. Launcher-owned properties
+such as the serialized application-model path, dynamic integration-test ports,
+coverage settings, and package layout take precedence over `build_properties`.
+Explicit `jvm_flags` retain their existing last-wins behavior and can override
+launcher defaults when required.
+
+`quarkus_integration_test` deliberately has no `build_properties` attribute:
+it launches an application that has already been augmented and packaged.
+Declare build-time configuration on the referenced `quarkus_app`; use the
+integration test's `jvm_flags` only for test-runner configuration.
 
 Build properties are not a replacement for run-time configuration. Values
 that may change after packaging should remain in `application.properties`, an
@@ -210,13 +240,6 @@ Model assembly fails before Quarkus starts when it finds missing coordinates,
 dangling edges, duplicate identities, ambiguous artifact joins, or a missing
 descriptor-declared deployment artifact. This fail-closed behavior is internal;
 application BUILD declarations do not gain model attributes.
-
-The exact declared build input can also be inspected without building the
-application package:
-
-```bash
-bazel build //:helloworld --output_groups=quarkus_build_properties
-```
 
 ## 6. Test and collect coverage
 
@@ -351,6 +374,7 @@ workflow. Selecting `aot-jar` with Quarkus 3.27 fails during Bazel analysis.
 |---|---|---|---|
 | `deps` | `label_list` | (required) | `java_library` and Maven artifact targets |
 | `version` | `string` | `""` | Application version for Quarkus startup banner |
+| `build_properties` | `string_dict` | `{}` | Declared build-time configuration shared with the `_dev` and `_native` targets; see [Declared build-time configuration](#declared-build-time-configuration) |
 | `jvm_flags` | `string_list` | `[]` | JVM flags for runtime execution |
 | `main_class` | `string` | `""` | Override main class (default: Quarkus runner) |
 | `package_type` | `string` | `"fast-jar"` | JVM package layout; see the table above |

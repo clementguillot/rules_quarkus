@@ -14,7 +14,6 @@ WORKSPACE_DIR="${RUNFILES_DIR}/%{workspace}"
 TOOL_JAR="${WORKSPACE_DIR}/%{tool_jar}"
 JAVA="${WORKSPACE_DIR}/%{java_home}/bin/java"
 MODEL_FILE="${WORKSPACE_DIR}/%{model_file}"
-BUILD_PROPERTIES_FILE="${WORKSPACE_DIR}/%{build_properties_file}"
 COVERAGE_ENABLED="%{coverage_enabled}"
 QUARKUS_JACOCO_PRESENT="%{quarkus_jacoco_present}"
 JACOCO_RUNNER="${WORKSPACE_DIR}/%{jacoco_runner}"
@@ -123,7 +122,6 @@ trap _cleanup_test_dirs EXIT
   --output-dir "$MODEL_DIR" \
   --mode test \
   --application-model "$MODEL_FILE" \
-  --build-properties-file "$BUILD_PROPERTIES_FILE" \
   --local-app-jars-file "$LOCAL_APP_JARS_FILE" \
   --app-name %{app_name})
 
@@ -284,12 +282,12 @@ JAVA_ARGS_FILE=$(mktemp)
 "$JAVA" "@$JAVA_ARGS_FILE" \
   --add-opens=java.base/java.lang=ALL-UNNAMED \
   --add-opens=java.base/java.lang.invoke=ALL-UNNAMED \
+  %{build_property_jvm_flags} \
   -Dquarkus-internal-test.serialized-app-model.path="$MODEL_DIR/test-app-model.dat" \
   -Dplatform.quarkus.native.builder-image=quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25@sha256:4dda6a3d677b57614849557d0d18aac7326c4f30175142b0f1bb91bdcfc5c29a \
+  -Dquarkus.package.jar.type=fast-jar \
   "${TEST_JVM_ARGS[@]}" \
   %{jvm_flags} \
-  %{build_property_jvm_flags} \
-  -Dquarkus.package.jar.type=fast-jar \
   org.junit.platform.console.ConsoleLauncher \
   $TEST_ARGS \
   --reports-dir="$REPORTS_DIR"

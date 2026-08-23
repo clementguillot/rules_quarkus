@@ -28,6 +28,7 @@ import com.clementguillot.quarkifier.model.transport.BazelModelInputs.TargetEdge
 import com.clementguillot.quarkifier.model.transport.BazelModelInputs.TargetFragment;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -1350,7 +1351,7 @@ public final class BazelApplicationModelAssembler {
           fail("platform properties file " + repoPath + " has no action input mapping");
         }
         Properties loaded = new Properties();
-        try (InputStream input = java.nio.file.Files.newInputStream(Path.of(actionPath))) {
+        try (InputStream input = Files.newInputStream(Path.of(actionPath))) {
           loaded.load(input);
         }
         for (String name : loaded.stringPropertyNames()) {

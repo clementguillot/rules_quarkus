@@ -208,6 +208,12 @@ public final class AugmentationCommand implements Callable<Integer> {
     List<Path> resolvedCoreCp =
         resolveClasspath(coreDeploymentClasspath, coreDeploymentClasspathFile);
     List<Path> resolvedLocalJars = resolveClasspath(localAppJars, localAppJarsFile);
+    AugmentationMode resolvedMode = parseMode(mode);
+    if (resolvedMode == AugmentationMode.TEST && buildPropertiesFile != null) {
+      throw parameterException(
+          "--build-properties-file is not supported in TEST mode; pass test augmentation"
+              + " properties to the test JVM");
+    }
     Map<String, String> resolvedBuildProperties = resolveBuildProperties(buildPropertiesFile);
 
     if (resolvedAppCp.isEmpty()) {
@@ -229,7 +235,7 @@ public final class AugmentationCommand implements Callable<Integer> {
         resolvedCoreCp,
         outputDir,
         orEmpty(resources),
-        parseMode(mode),
+        resolvedMode,
         parsePackageType(packageType),
         appName,
         mainClass,

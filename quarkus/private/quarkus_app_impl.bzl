@@ -68,12 +68,13 @@ def _quarkus_app_impl(ctx):
     model = assemble_application_model(ctx, ctx.attr.deps, runtime_classpath, conditional_classpath, deployment_classpath, "normal")
 
     output_dir = ctx.actions.declare_directory(ctx.label.name + "-quarkus-app")
-    build_properties = run_augmentation(
+    run_augmentation(
         ctx,
         output_dir,
         runtime_classpath,
         conditional_classpath,
         deployment_classpath,
+        ctx.attr.build_properties,
         package_type = ctx.attr.package_type,
         local_jars = local_jars,
         model_file = model,
@@ -95,7 +96,6 @@ def _quarkus_app_impl(ctx):
         ),
         OutputGroupInfo(
             quarkus_app = depset([output_dir]),
-            quarkus_build_properties = depset([build_properties]),
             quarkus_model = depset([model]),
         ),
         QuarkusAppInfo(

@@ -40,6 +40,7 @@ java -jar quarkifier_<minor>_deploy.jar \
   [--bazel-build-args <flag,flag,...>] \
   [--local-app-jars <jar:jar:...>] \
   [--local-app-jars-file <path>] \
+  [--build-properties-file <path>] \
   --application-model <quarkus-bazel-model-v1.json> \
   [-h|--help] \
   [-V|--version]
@@ -70,6 +71,7 @@ java -jar quarkifier_<minor>_deploy.jar \
 | `--bazel-build-args` | No | `[]` | Comma-separated extra flags for the hot-reload bazel build |
 | `--local-app-jars` | No | `[]` | Colon-separated local workspace jars to use as application roots |
 | `--local-app-jars-file` | No | — | File containing local app jars (alternative to `--local-app-jars`) |
+| `--build-properties-file` | No | — | UTF-8 `.properties` file containing declared build-system configuration; names must be non-empty and cannot contain `=`; accepted by normal, dev, and native augmentation and rejected in TEST mode, where augmentation occurs in the test JVM |
 | `--application-model` | Yes | — | Strict `quarkus-bazel-model-v1` input; its mode and Quarkus version must match the invocation and version-specific tool |
 | `-h`, `--help` | — | — | Show help message and exit |
 | `-V`, `--version` | — | — | Show version info and exit |
@@ -171,6 +173,7 @@ public record QuarkifierConfig(
     String bazelCommand,
     List<String> bazelBuildArgs,
     List<Path> localAppJars,
+    Map<String, String> buildProperties,
     Path applicationModel
 ) { ... }
 ```
@@ -227,6 +230,27 @@ coordinates; no `-deployment` name guess or orphan adoption occurs.
 - **NORMAL/NATIVE**: Uses `ExplicitApplicationModelBuilder`, runs `QuarkusBootstrap` augmentation in-process, then performs lifecycle-specific assembly. Normal mode passes the selected JVM package type through to Quarkus; only Fast JAR needs rules_quarkus-specific post-processing.
 - **TEST**: Serializes the same explicit model for `QuarkusTestExtension`
 - **DEV**: Delegates to `DevModeLauncher` (see [Dev Mode](dev-mode.md))
+
+Declared `--build-properties-file` entries are merged with the Bazel rule
+invariants by `BuildProperties`, where the dedicated rule attributes
+(`package_type`, main class, native builder image) win any key conflict. The
+merged set reaches Quarkus through two channels, because
+`setBuildSystemProperties` alone is not sufficient: Quarkus registers that map
+as a `PropertiesConfigSource` at ordinal 100, below the 250 of
+`application.properties`. `BuildProperties.withSystemProperties` therefore also
+scopes the merged set as real system properties (ordinal 400) around the
+bootstrap and restores the prior process state afterwards, reproducing the
+worker-JVM boundary Maven and Gradle get for free. Every declared name is
+scoped, not only `quarkus.*`, so applications can declare arbitrary keys to
+satisfy `${...}` expressions in Quarkus configuration. Code generation scopes
+the same declared map while Quarkus builds its effective configuration, then
+passes only declared and non-ambient action-input values to `CodeGenerator`.
+
+TEST mode has no such channel of its own: the Quarkus test bootstrap
+(`AppMakerHelper`) never calls `setBuildSystemProperties`, so `quarkus_test`
+supplies its declared properties as JVM `-D` flags on the test launcher, ahead
+of every launcher-owned flag. `--build-properties-file` is rejected in TEST
+mode to keep that single channel explicit.
 
 ## ApplicationModel Construction
 

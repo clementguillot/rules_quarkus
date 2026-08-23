@@ -1,5 +1,6 @@
 package com.clementguillot.quarkifier.codegen;
 
+import com.clementguillot.quarkifier.BuildProperties;
 import com.clementguillot.quarkifier.CodeGenerationException;
 import com.clementguillot.quarkifier.model.ExplicitApplicationModelBuilder;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel;
@@ -14,7 +15,6 @@ import io.quarkus.paths.PathList;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
@@ -46,7 +46,8 @@ public final class CodeGenerationExecutor {
       BazelApplicationModel explicitModel = BazelApplicationModelReader.read(applicationModelPath);
       validateMode(explicitModel, launchMode, test);
       ApplicationModel applicationModel = ExplicitApplicationModelBuilder.build(explicitModel);
-      Properties properties = loadProperties(propertiesFile);
+      Properties properties = new Properties();
+      properties.putAll(BuildProperties.load(propertiesFile));
       properties.putIfAbsent(
           "quarkus.application.name", applicationModel.getAppArtifact().getArtifactId());
       properties.putIfAbsent(
@@ -83,21 +84,28 @@ public final class CodeGenerationExecutor {
           QuarkusClassLoader deploymentClassLoader =
               curatedApplication.createDeploymentClassLoader()) {
         Path codeGenerationWorkDir = providerWorkDir;
-        Properties effectiveProperties =
-            CodeGenerationProperties.effective(
-                deploymentClassLoader, applicationModel, properties, launchMode);
-        CodeGenerationProperties.withQuarkusSystemProperties(
-            effectiveProperties,
-            () ->
-                invokeCodeGenerator(
-                    deploymentClassLoader,
-                    PathList.from(sourceParents),
-                    generatedSourcesDir,
-                    codeGenerationWorkDir,
-                    applicationModel,
-                    effectiveProperties,
-                    launchMode,
-                    test));
+        // Build-tool properties have higher precedence than application.properties in Maven and
+        // Gradle. Scope the explicitly declared map before resolving Quarkus' effective config so
+        // code generation observes that same ordering for both Quarkus and application-defined
+        // names. Ambient system properties are still filtered from the Properties handed to
+        // providers by CodeGenerationProperties.effective.
+        BuildProperties.withSystemProperties(
+            properties,
+            () -> {
+              Properties effectiveProperties =
+                  CodeGenerationProperties.effective(
+                      deploymentClassLoader, applicationModel, properties, launchMode);
+              invokeCodeGenerator(
+                  deploymentClassLoader,
+                  PathList.from(sourceParents),
+                  generatedSourcesDir,
+                  codeGenerationWorkDir,
+                  applicationModel,
+                  effectiveProperties,
+                  launchMode,
+                  test);
+              return null;
+            });
       }
 
       CodeGenerationOutputs.packageOutputs(generatedSourcesDir, sourceJar, auxiliaryOutputDir);
@@ -189,16 +197,6 @@ public final class CodeGenerationExecutor {
     } finally {
       Thread.currentThread().setContextClassLoader(original);
     }
-  }
-
-  static Properties loadProperties(Path propertiesFile) throws IOException {
-    Properties properties = new Properties();
-    if (propertiesFile != null) {
-      try (var reader = Files.newBufferedReader(propertiesFile, StandardCharsets.UTF_8)) {
-        properties.load(reader);
-      }
-    }
-    return properties;
   }
 
   private static QuarkusBootstrap.Mode bootstrapMode(String launchMode)

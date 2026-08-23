@@ -24,7 +24,7 @@ def _write_classpath_file(ctx, name_suffix, jars):
     ctx.actions.write(output = out, content = args)
     return out
 
-def run_augmentation(ctx, output_dir, runtime_classpath, conditional_classpath, deployment_classpath, mode = None, package_type = None, local_jars = None, model_file = None):
+def run_augmentation(ctx, output_dir, runtime_classpath, conditional_classpath, deployment_classpath, build_properties, mode = None, package_type = None, local_jars = None, model_file = None):
     """Runs the quarkifier deploy jar to augment the application.
 
     The deploy jar is a fat jar containing all tool classes + dependencies,
@@ -39,6 +39,7 @@ def run_augmentation(ctx, output_dir, runtime_classpath, conditional_classpath, 
         conditional_classpath: Depset of internally resolved conditional candidates. These are
             action inputs only; activation is controlled exclusively by the explicit model.
         deployment_classpath: Depset of deployment classpath jars.
+        build_properties: Declared build-time configuration for this lifecycle.
         mode: Quarkifier mode ("native"), or None for the default Fast_Jar mode.
         package_type: Quarkus JVM package type, or None for fast-jar.
         local_jars: Optional list of local workspace jars, passed via
@@ -46,16 +47,13 @@ def run_augmentation(ctx, output_dir, runtime_classpath, conditional_classpath, 
             application artifact, so order matters.
         model_file: Explicit Bazel model JSON. Required for every Bazel lifecycle.
 
-    Returns:
-        The declared build-properties file passed to the augmentation action.
-
     """
 
     if not model_file:
         fail("run_augmentation requires an explicit application model; Bazel actions must not use legacy classpath inference")
 
     app_cp_file = _write_classpath_file(ctx, "_app_classpath.txt", runtime_classpath)
-    build_properties_file = write_build_properties(ctx)
+    build_properties_file = write_build_properties(ctx, build_properties)
 
     args = ctx.actions.args()
     args.add("--application-classpath-file", app_cp_file)
@@ -106,4 +104,3 @@ def run_augmentation(ctx, output_dir, runtime_classpath, conditional_classpath, 
         mnemonic = mnemonic,
         progress_message = progress_message,
     )
-    return build_properties_file
