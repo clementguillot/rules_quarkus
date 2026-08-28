@@ -141,6 +141,7 @@ def _quarkus_native_container_app_impl(ctx):
         runtime_classpath,
         conditional_classpath,
         deployment_classpath,
+        ctx.attr.build_properties,
         mode = "native",
         local_jars = collect_local_app_jars(ctx.attr.deps, runtime_classpath),
         model_file = model,
@@ -189,6 +190,9 @@ quarkus_native_container_app_rule = rule(
     implementation = _quarkus_native_container_app_impl,
     executable = True,
     attrs = {
+        "build_properties": attr.string_dict(
+            doc = "Declared build-time properties passed hermetically to native-sources augmentation.",
+        ),
         "conditional_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
         "conditional_deps": attr.label(mandatory = True, providers = [JavaInfo]),
         "builder_image": attr.string(

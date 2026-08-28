@@ -15,9 +15,11 @@ RUNFILES_DIR="${BASH_SOURCE[0]}.runfiles"
 JAVA="${RUNFILES_DIR}/%{workspace}/%{java_home}/bin/java"
 TOOL_JAR="${RUNFILES_DIR}/%{workspace}/%{tool_jar}"
 APP_CP_FILE="${RUNFILES_DIR}/%{workspace}/%{app_cp_file}"
+BUILD_PROPERTIES_FILE="${RUNFILES_DIR}/%{workspace}/%{build_properties_file}"
 CORE_DEPLOY_CP_FILE="${RUNFILES_DIR}/%{workspace}/%{core_deploy_cp_file}"
 LOCAL_APP_JARS_FILE="${RUNFILES_DIR}/%{workspace}/%{local_app_jars_file}"
 MODEL_FILE="${RUNFILES_DIR}/%{workspace}/%{model_file}"
+MAIN_CLASS=%{main_class}
 
 # Build absolute-path classpath files for quarkifier (avoids E2BIG on Linux).
 # Each entry in the source files is prefixed with the runfiles directory.
@@ -190,6 +192,8 @@ _JAVA_ARGFILE=$(mktemp "${OUTPUT_DIR}/quarkus_dev_args_XXXXXX")
   _q "$ABS_LOCAL_APP_JARS_FILE"
   echo "--application-model"
   _q "$MODEL_FILE"
+  echo "--build-properties-file"
+  _q "$BUILD_PROPERTIES_FILE"
   echo "--core-deployment-classpath-file"
   _q "$ABS_CORE_DEPLOY_CP_FILE"
   echo "--output-dir"
@@ -198,6 +202,10 @@ _JAVA_ARGFILE=$(mktemp "${OUTPUT_DIR}/quarkus_dev_args_XXXXXX")
   echo "dev"
   echo "--app-name"
   echo "%{app_name}"
+  if [ -n "$MAIN_CLASS" ]; then
+    echo "--main-class"
+    _q "$MAIN_CLASS"
+  fi
   echo "--workspace-dir"
   _q "$WORKSPACE_ROOT"
   echo "--bazel-command"

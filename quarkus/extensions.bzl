@@ -1540,8 +1540,7 @@ def quarkus_java_library(name, srcs = [], resources = [], deps = [], codegen_src
 
 def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_container_build = False,
                 native_container_runtime = "auto", native_builder_image = _DEFAULT_BUILDER_IMAGE,
-                package_type = "fast-jar",
-                **kwargs):
+                package_type = "fast-jar", build_properties = {{}}, **kwargs):
     \"\"\"Builds a Quarkus application with optional dev-mode and native targets.
 
     Creates:
@@ -1561,6 +1560,7 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
         native_builder_image: Builder image for container native compilation.
         package_type: JVM output: fast-jar, uber-jar, mutable-jar, legacy-jar, or aot-jar.
             aot-jar requires Quarkus 3.33.
+        build_properties: Declared build-time properties shared by the JVM, dev, and native targets.
         **kwargs: Passed to the underlying quarkus_app_rule (deps, version, jvm_flags, etc.).
     \"\"\"
     if native and native_container_build:
@@ -1570,6 +1570,7 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
 
     quarkus_app_rule(
         name = name,
+        build_properties = build_properties,
         package_type = package_type,
         quarkus_version = _QUARKUS_VERSION,
         quarkifier_tool = _QUARKIFIER_TOOL,
@@ -1585,7 +1586,10 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
     )
 
     # Attrs shared by the secondary (_dev / _native) targets.
+    main_class = kwargs.get("main_class", "")
     common = dict(
+        build_properties = build_properties,
+        main_class = main_class,
         quarkus_version = _QUARKUS_VERSION,
         quarkifier_tool = _QUARKIFIER_TOOL,
         deployment_deps = _DEPLOYMENT_DEPS,
@@ -1599,7 +1603,6 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
         runtime_catalog = _RUNTIME_CATALOG,
         version = kwargs.get("version", ""),
     )
-    main_class = kwargs.get("main_class", "")
     if dev:
         quarkus_dev_rule(
             name = name + "_dev",
@@ -1610,13 +1613,11 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
     if native:
         quarkus_native_app_rule(
             name = name + "_native",
-            main_class = main_class,
             **common
         )
     if native_container_build:
         quarkus_native_container_app_rule(
             name = name + "_native",
-            main_class = main_class,
             container_runtime = native_container_runtime,
             builder_image = native_builder_image,
             native_arch = select({{
@@ -1627,7 +1628,7 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
             **common
         )
 
-def _prepare_test_target(name, srcs, deps, test_packages, test_classes, jvm_flags, kwargs):
+def _prepare_test_target(name, srcs, deps, test_packages, test_classes, jvm_flags, build_properties, kwargs):
     test_deps = deps or []
     if srcs:
         compile_deps = []
@@ -1651,6 +1652,8 @@ def _prepare_test_target(name, srcs, deps, test_packages, test_classes, jvm_flag
         test_kwargs["test_classes"] = test_classes
     if jvm_flags:
         test_kwargs["jvm_flags"] = jvm_flags
+    if build_properties != None:
+        test_kwargs["build_properties"] = build_properties
     test_kwargs.update(kwargs)
 
     return struct(
@@ -1658,7 +1661,8 @@ def _prepare_test_target(name, srcs, deps, test_packages, test_classes, jvm_flag
         kwargs = test_kwargs,
     )
 
-def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_classes = None, jvm_flags = None, **kwargs):
+def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_classes = None,
+                 jvm_flags = None, build_properties = None, **kwargs):
     \"\"\"Runs @QuarkusTest-annotated JUnit 5 tests with full Quarkus augmentation.
 
     If srcs is provided, a java_library is created internally to compile the
@@ -1672,6 +1676,7 @@ def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_clas
         test_packages,
         test_classes,
         jvm_flags,
+        build_properties,
         kwargs,
     )
 
@@ -1705,6 +1710,9 @@ def quarkus_integration_test(name, app, srcs = None, deps = None, test_packages 
     test sources. If srcs is omitted, deps must include a pre-compiled
     java_library containing the integration-test classes.
     \"\"\"
+    if "build_properties" in kwargs:
+        fail("quarkus_integration_test does not accept build_properties; declare build-time configuration on its app target")
+
     prepared = _prepare_test_target(
         name,
         srcs,
@@ -1712,6 +1720,7 @@ def quarkus_integration_test(name, app, srcs = None, deps = None, test_packages 
         test_packages,
         test_classes,
         jvm_flags,
+        None,
         kwargs,
     )
 

@@ -9,9 +9,11 @@ rule also wires a Java file watcher (BazelFileWatcher) that triggers incremental
 Quarkus hot-reload.
 """
 
+load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus/private:application_model_aspect.bzl", "quarkus_application_model_aspect")
+load("//quarkus/private:build_properties.bzl", "write_build_properties")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_local_app_jars", "collect_resource_dir_paths", "collect_runtime_classpath", "collect_source_dir_paths", "is_local_artifact", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
 load("//quarkus/private:coverage_transition.bzl", "dev_lifecycle_transition", "disable_coverage_transition", "single_transitioned_target")
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
@@ -94,6 +96,7 @@ def _quarkus_dev_impl(ctx):
     # and resolved against the runfiles tree.
     files = struct(
         app_cp = write_runfiles_paths_file(ctx, "_app_cp.txt", runtime_classpath, ":"),
+        build_properties = write_build_properties(ctx, ctx.attr.build_properties),
         local_app_jars = write_runfiles_paths_file(ctx, "_local_app_jars.txt", depset(collect_local_app_jars(ctx.attr.deps, runtime_classpath)), ":"),
         core_deploy_cp = write_runfiles_paths_file(ctx, "_core_deploy_cp.txt", core_deployment_classpath, ":"),
         source_dirs = _write_csv_file(ctx, "_source_dirs.txt", collect_source_dir_paths(ctx.attr.deps, runtime_classpath)),
@@ -111,6 +114,7 @@ def _quarkus_dev_impl(ctx):
         files = [
             tool_jar,
             files.app_cp,
+            files.build_properties,
             files.local_app_jars,
             files.core_deploy_cp,
             files.source_dirs,
@@ -145,12 +149,14 @@ def _write_dev_launcher(ctx, tool_jar, files, model_file, java_runtime):
             "%{app_cp_file}": files.app_cp.short_path,
             "%{app_name}": ctx.label.name.removesuffix("_dev"),
             "%{bazel_targets_file}": files.bazel_targets.short_path,
+            "%{build_properties_file}": files.build_properties.short_path,
             "%{dev_build_args}": _join_dev_build_args(ctx.attr.dev_build_args),
             "%{classes_output_dirs_file}": files.classes_output_dirs.short_path,
             "%{codegen_input_dirs_file}": files.codegen_input_dirs.short_path,
             "%{core_deploy_cp_file}": files.core_deploy_cp.short_path,
             "%{java_home}": java_runtime.java_home_runfiles_path,
             "%{local_app_jars_file}": files.local_app_jars.short_path,
+            "%{main_class}": shell.quote(ctx.attr.main_class),
             "%{model_file}": model_file.short_path,
             "%{resource_dirs_file}": files.resource_dirs.short_path,
             "%{source_dirs_file}": files.source_dirs.short_path,
@@ -165,6 +171,9 @@ quarkus_dev_rule = rule(
     implementation = _quarkus_dev_impl,
     executable = True,
     attrs = {
+        "build_properties": attr.string_dict(
+            doc = "Declared build-time properties passed hermetically to Quarkus dev mode.",
+        ),
         "conditional_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
         "conditional_deps": attr.label(
             mandatory = True,
@@ -212,6 +221,9 @@ match the configuration used to `bazel run` the dev target — otherwise
 rebuilt classes land in a different bazel-out tree and hot-reload syncs
 stale files. Flags containing commas are not supported.
 """,
+        ),
+        "main_class": attr.string(
+            doc = "Override main class, shared from the quarkus_app target.",
         ),
         "quarkifier_tool": attr.label(
             allow_single_file = [".jar"],

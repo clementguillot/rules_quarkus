@@ -38,9 +38,12 @@ public final class SmokeCodeGenProvider implements CodeGenProvider {
     if (Boolean.parseBoolean(properties.get("smoke.codegen.require-application-properties"))
         && (!properties.containsKey("quarkus.application.name")
             || !properties.containsKey("quarkus.application.version")
-            || properties.containsKey("user.dir"))) {
+            || properties.containsKey("user.dir")
+            || !"Declared init ".equals(initPrefix)
+            || !"round trip".equals(properties.get("smoke:codegen key")))) {
       throw new IllegalStateException(
-          "Effective properties are missing application defaults or include ambient JVM state");
+          "Effective properties are missing declared/application defaults or include ambient JVM"
+              + " state");
     }
   }
 

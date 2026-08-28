@@ -1,10 +1,9 @@
-"Unit tests for code-generation metadata and property serialization."
+"Unit tests for code-generation metadata."
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load(
     ":quarkus_codegen_impl.bzl",
     "codegen_input_dirs_for_test",
-    "escape_property_for_test",
     "normalize_source_roots_for_test",
     "resource_entry_for_test",
     "resource_watch_dir_for_test",
@@ -112,18 +111,10 @@ def _resource_paths_test_impl(ctx):
 
 resource_paths_test = unittest.make(_resource_paths_test_impl)
 
-def _escape_property_test_impl(ctx):
-    env = unittest.begin(ctx)
-    asserts.equals(env, "\\#\\ key\\!\\=\\:", escape_property_for_test("# key!=:"))
-    return unittest.end(env)
-
-escape_property_test = unittest.make(_escape_property_test_impl)
-
 def codegen_metadata_test_suite():
     unittest.suite(
         "codegen_metadata_tests",
         codegen_input_dirs_test,
-        escape_property_test,
         resource_paths_test,
         source_roots_test,
     )

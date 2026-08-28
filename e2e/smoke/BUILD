@@ -1,18 +1,69 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@com_clementguillot_rules_quarkus//quarkus:defs.bzl", "quarkus_native_app_rule")
 load("@rules_java//java:java_library.bzl", "java_library")
 load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_integration_test", "quarkus_java_library", "quarkus_test")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load(":assert_junit_xml.bzl", "assert_junit_xml_test")
 load(":expect_test_failure.bzl", "expect_test_failure_test")
+load(":launcher_precedence_test.bzl", "launcher_precedence_test")
+load(":native_build_properties_test.bzl", "native_build_properties_test")
 load(":native_integration_launcher_test.bzl", "fake_native_app", "native_integration_launcher_test")
+
+# Overrides src/main/resources/application.properties to prove the declared
+# build-system input outranks it during augmentation. The channel differs per
+# lifecycle: packaged and native augmentation scope these as system properties
+# around the Quarkus bootstrap, while quarkus_test hands them to the test JVM,
+# where they also stay visible to run-time config for the duration of the test.
+_BUILD_PROPERTIES = {
+    # Delimiters, whitespace, and a backslash exercise the Starlark writer to
+    # Java Properties.load round trip used by packaged augmentation.
+    "declared.smoke.prefix": "Declared:=\\ spaced",
+    # Dedicated package_type/test lifecycle invariants must win this conflict.
+    "quarkus.package.jar.type": "legacy-jar",
+    "smoke.ext.prefix": "${declared.smoke.prefix}",
+}
+
+_PACKAGING_BUILD_PROPERTIES = dict(_BUILD_PROPERTIES)
+
+_PACKAGING_BUILD_PROPERTIES.update({
+    # Defaults to true. The packaging smoke asserts that the dependency-list
+    # file is absent, proving this declaration reached real augmentation.
+    "quarkus.package.jar.include-dependency-list": "false",
+})
+
+_TEST_BUILD_PROPERTIES = dict(_BUILD_PROPERTIES)
+
+_TEST_BUILD_PROPERTIES.update({
+    # Quoted JVM argv preserves spaces and colons in property names.
+    "declared: smoke key": "round trip",
+    # Quotes and shell-looking syntax must remain data in generated launchers.
+    "declared.shell.value": "quote '$dollar `backtick` $(subshell)",
+    # The launcher's serialized model path is structural: a declared property
+    # with the same key must not redirect Quarkus to an arbitrary file.
+    "quarkus-internal-test.serialized-app-model.path": "/invalid/declared-model.dat",
+})
+
+_NATIVE_BUILD_PROPERTIES = dict(_BUILD_PROPERTIES)
+
+_NATIVE_BUILD_PROPERTIES.update({
+    # Lands verbatim in native-image.args, giving the smoke test an observable
+    # proof that native-sources augmentation consumed the declared map.
+    "quarkus.native.additional-build-args": "-J-Drules.quarkus.native.marker=declared",
+})
 
 quarkus_java_library(
     name = "lib",
     srcs = glob(["src/main/java/**/*.java"]),
     codegen_build_properties = {
+        # Overrides the same non-Quarkus key in application.properties. The
+        # key with delimiters also certifies Starlark writer -> Java loader.
+        "smoke.codegen.declared-prefix": "Declared init ",
+        # Provider.init receives the resolved value, matching context.config.
+        "smoke.codegen.init-prefix": "${smoke.codegen.declared-prefix}",
         "smoke.codegen.prefix": "Hello from ",
         "smoke.codegen.require-application-properties": "true",
         "smoke.codegen.work-report": "true",
+        "smoke:codegen key": "round trip",
     },
     codegen_srcs = ["src/main/hello/greeting.hello"],
     resources = glob(["src/main/resources/**/*"]),
@@ -57,14 +108,22 @@ quarkus_java_library(
 
 quarkus_app(
     name = "app",
+    build_properties = _PACKAGING_BUILD_PROPERTIES,
     version = "1.0.0-SNAPSHOT",
     deps = [":lib"],
+)
+
+sh_test(
+    name = "build_properties_packaging_test",
+    srcs = ["build_properties_packaging_test.sh"],
+    data = [":app"],
 )
 
 # Every Quarkus JVM package type must remain a first-class Bazel output. These
 # variants share the same application graph and intentionally omit dev targets.
 quarkus_app(
     name = "app_uber",
+    build_properties = _BUILD_PROPERTIES,
     dev = False,
     package_type = "uber-jar",
     version = "1.0.0-SNAPSHOT",
@@ -73,6 +132,7 @@ quarkus_app(
 
 quarkus_app(
     name = "app_mutable",
+    build_properties = _BUILD_PROPERTIES,
     dev = False,
     package_type = "mutable-jar",
     version = "1.0.0-SNAPSHOT",
@@ -81,6 +141,7 @@ quarkus_app(
 
 quarkus_app(
     name = "app_legacy",
+    build_properties = _BUILD_PROPERTIES,
     dev = False,
     package_type = "legacy-jar",
     version = "1.0.0-SNAPSHOT",
@@ -89,10 +150,37 @@ quarkus_app(
 
 quarkus_app(
     name = "app_aot",
+    build_properties = _BUILD_PROPERTIES,
     dev = False,
     package_type = "aot-jar",
     version = "1.0.0-SNAPSHOT",
     deps = [":lib"],
+)
+
+# Exercise native-sources augmentation without selecting a native binary in
+# wildcard builds. The public macro forwards the same build_properties attr.
+quarkus_native_app_rule(
+    name = "native_properties_native",
+    build_properties = _NATIVE_BUILD_PROPERTIES,
+    conditional_catalog = "@rules_quarkus//model:conditional-catalog-v1.json",
+    conditional_deps = "@rules_quarkus//conditional:all",
+    deployment_artifacts = "@rules_quarkus//deployment:artifacts",
+    deployment_catalog = "@rules_quarkus//model:deployment-catalog-v1.json",
+    deployment_deps = "@rules_quarkus//deployment:all",
+    platform_catalog = "@rules_quarkus//model:platform-catalog-v1.json",
+    platform_properties = "@rules_quarkus//model:platform_properties",
+    quarkifier_tool = "@rules_quarkus//quarkifier:tool.jar",
+    quarkus_version = "3.33.2",
+    runtime_catalog = "@rules_quarkus//model:runtime-catalog-v1.json",
+    tags = ["manual"],
+    version = "1.0.0-SNAPSHOT",
+    deps = [":lib"],
+)
+
+native_build_properties_test(
+    name = "native_build_properties_test",
+    tags = ["manual"],
+    target = ":native_properties_native",
 )
 
 quarkus_java_library(
@@ -121,9 +209,19 @@ quarkus_java_library(
 
 quarkus_test(
     name = "test",
+    build_properties = _TEST_BUILD_PROPERTIES,
+    jvm_flags = ["-Drules.quarkus.user-jvm-flag=declared"],
     deps = [
         ":test_lib",
     ],
+)
+
+# //:test proves the serialized-model key is protected by actually running.
+# This pins the ordering itself, covering the coverage and port keys that only
+# appear under `bazel coverage` or on integration targets.
+launcher_precedence_test(
+    name = "launcher_precedence_test",
+    target = ":test",
 )
 
 quarkus_integration_test(
@@ -158,6 +256,23 @@ quarkus_integration_test(
     app = ":app_aot",
     tags = ["exclusive"],
     deps = [":test_lib"],
+)
+
+# Proves checked-in application.properties still participates when no declared
+# test augmentation override is supplied.
+quarkus_test(
+    name = "application_properties_test",
+    srcs = ["src/application-properties-test/java/smoke/ApplicationPropertiesSmokeExtTest.java"],
+    deps = [
+        ":lib",
+        "@maven//:io_quarkus_quarkus_junit",
+        "@maven//:io_rest_assured_rest_assured",
+        "@maven//:org_hamcrest_hamcrest",
+        "@maven//:org_junit_jupiter_junit_jupiter",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+        "@maven//:org_junit_platform_junit_platform_console_standalone",
+        "@maven//:org_junit_platform_junit_platform_launcher",
+    ],
 )
 
 # Strict deps force a test that imports shared contract types to declare those

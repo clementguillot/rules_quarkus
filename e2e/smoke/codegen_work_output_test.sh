@@ -3,7 +3,7 @@ set -euo pipefail
 
 report="$1"
 test -f "${report}/reports/GeneratedGreeting.txt"
-grep -Fx "Configured Hello from rules_quarkus smoke test" \
+grep -Fx "Declared init Hello from rules_quarkus smoke test" \
   "${report}/reports/GeneratedGreeting.txt"
 
 grpc_work="$2"

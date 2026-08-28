@@ -74,6 +74,7 @@ def _quarkus_app_impl(ctx):
         runtime_classpath,
         conditional_classpath,
         deployment_classpath,
+        ctx.attr.build_properties,
         package_type = ctx.attr.package_type,
         local_jars = local_jars,
         model_file = model,
@@ -112,6 +113,9 @@ quarkus_app_rule = rule(
     implementation = _quarkus_app_impl,
     executable = True,
     attrs = {
+        "build_properties": attr.string_dict(
+            doc = "Declared build-time properties passed hermetically to every Quarkus augmentation lifecycle.",
+        ),
         "conditional_catalog": attr.label(
             allow_single_file = [".json"],
             mandatory = True,

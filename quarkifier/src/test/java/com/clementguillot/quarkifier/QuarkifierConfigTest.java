@@ -248,6 +248,64 @@ class QuarkifierConfigTest {
     assertNull(config.workspaceDir());
   }
 
+  @Test
+  void parse_buildPropertiesFromUtf8File(@TempDir Path tempDir) throws Exception {
+    Path propertiesFile = tempDir.resolve("build.properties");
+    Files.writeString(propertiesFile, "quarkus.banner.enabled=false\nclé=été\n");
+
+    var config =
+        parse(
+            "--application-classpath", "a.jar",
+            "--output-dir", "/out",
+            "--build-properties-file", propertiesFile.toString());
+
+    assertEquals(
+        java.util.Map.of("quarkus.banner.enabled", "false", "clé", "été"),
+        config.buildProperties());
+  }
+
+  @Test
+  void parse_absentBuildPropertiesDefaultsToEmptyMap() {
+    var config =
+        parse(
+            "--application-classpath", "a.jar",
+            "--output-dir", "/out");
+
+    assertEquals(java.util.Map.of(), config.buildProperties());
+  }
+
+  @Test
+  void parse_missingBuildPropertiesFile_throws() {
+    var exception =
+        assertThrows(
+            CommandLine.ParameterException.class,
+            () ->
+                parse(
+                    "--application-classpath", "a.jar",
+                    "--output-dir", "/out",
+                    "--build-properties-file", "/nonexistent/build.properties"));
+
+    assertTrue(exception.getMessage().contains("build properties file"));
+  }
+
+  @Test
+  void parse_testModeRejectsInertBuildPropertiesFile(@TempDir Path tempDir) throws Exception {
+    Path propertiesFile = tempDir.resolve("build.properties");
+    Files.writeString(propertiesFile, "quarkus.banner.enabled=false\n");
+
+    var exception =
+        assertThrows(
+            CommandLine.ParameterException.class,
+            () ->
+                parse(
+                    "--application-classpath", "a.jar",
+                    "--output-dir", "/out",
+                    "--mode", "test",
+                    "--build-properties-file", propertiesFile.toString()));
+
+    assertTrue(exception.getMessage().contains("not supported in TEST mode"));
+  }
+
   // ---- classpath file flags ----
 
   @Test

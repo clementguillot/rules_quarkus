@@ -9,11 +9,13 @@ import io.quarkus.bootstrap.model.ApplicationModel;
 import io.quarkus.bootstrap.model.ApplicationModelBuilder;
 import io.quarkus.maven.dependency.DependencyFlags;
 import io.quarkus.maven.dependency.ResolvedDependencyBuilder;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /** Unit tests for {@link DevModeLauncher#buildDevModeContext}. */
 class DevModeLauncherTest {
@@ -75,6 +77,38 @@ class DevModeLauncherTest {
     var context = DevModeLauncher.buildDevModeContext(devConfig("--source-dirs", "src/main/java"));
 
     assertFalse(context.isLocalProjectDiscovery());
+  }
+
+  @Test
+  void buildDevModeContext_includesDeclaredBuildProperties(@TempDir Path tempDir) throws Exception {
+    Path propertiesFile = tempDir.resolve("build.properties");
+    Files.writeString(
+        propertiesFile, "smoke.ext.prefix=Declared\nquarkus.package.jar.type=legacy-jar\n");
+
+    var context =
+        DevModeLauncher.buildDevModeContext(
+            devConfig("--build-properties-file", propertiesFile.toString()));
+
+    assertEquals("Declared", context.getBuildSystemProperties().get("smoke.ext.prefix"));
+    assertEquals("fast-jar", context.getBuildSystemProperties().get("quarkus.package.jar.type"));
+  }
+
+  @Test
+  void buildDevModeContext_mainClassFlagOverridesDeclaredProperty(@TempDir Path tempDir)
+      throws Exception {
+    Path propertiesFile = tempDir.resolve("build.properties");
+    Files.writeString(propertiesFile, "quarkus.package.main-class=wrong.Main\n");
+
+    var context =
+        DevModeLauncher.buildDevModeContext(
+            devConfig(
+                "--build-properties-file",
+                propertiesFile.toString(),
+                "--main-class",
+                "example.Main"));
+
+    assertEquals(
+        "example.Main", context.getBuildSystemProperties().get("quarkus.package.main-class"));
   }
 
   @Test

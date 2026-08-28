@@ -190,9 +190,14 @@ with Bazel's local or remote action cache.
 
 Declared build properties, application resource configuration, platform
 properties, and default `quarkus.application.name`/`version` values are made
-available during provider initialization. Effective `quarkus.*` values are
-also exposed as JVM system properties while providers run. Ambient user
-environment and JVM properties are deliberately excluded from this merge.
+available during provider initialization. Every explicitly declared name is
+also scoped as a JVM system property while Quarkus resolves configuration and
+runs providers, so declared values outrank same-named entries in
+`application.properties` just as they do during application augmentation.
+Ambient user environment and JVM properties are deliberately excluded from the
+effective map handed to providers. Declared expressions are also checked
+recursively: references to ambient system properties or environment variables
+fail the action instead of copying undeclared values into generated output.
 
 Deployment resolution retains every native tool classifier selected by the
 extension graph, so the provider chooses the executable matching the Bazel

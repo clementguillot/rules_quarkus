@@ -52,6 +52,9 @@ def quarkifier_targets(minor, maven_repo):
             maven_repo + "//:info_picocli_picocli",
             # Logging
             maven_repo + "//:org_jboss_logging_jboss_logging",
+            # Parse SmallRye configuration expressions so every referenced
+            # value can be checked for hermetic source provenance.
+            maven_repo + "//:io_smallrye_common_smallrye_common_expression",
         ],
     )
 
