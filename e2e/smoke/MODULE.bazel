@@ -23,7 +23,7 @@ bazel_dep(name = "rules_jvm_external", version = "7.0")
 bazel_dep(name = "rules_graalvm", version = "0.11.1")
 git_override(
     module_name = "rules_graalvm",
-    commit = "0241d7a902171ce6d5647fa45f7f4789626edb4f",
+    commit = "40bbecd298c2357d3796eff2988793deffd2a782",
     remote = "https://github.com/sgammon/rules_graalvm.git",
 )
 
