@@ -13,7 +13,8 @@ The solution follows Maven's `DevMojo` pattern: a **separate JVM process** is st
 Unlike production augmentation (which runs in-process), dev mode uses a **separate JVM process**:
 
 1. `AugmentationExecutor.execute()` detects `mode == DEV` and delegates to `DevModeLauncher.launch()`
-2. `DevModeLauncher` serializes the `ApplicationModel` to a temp file
+2. `DevModeLauncher` serializes the DEV `ApplicationModel` and, when configured,
+   the TEST `ApplicationModel` to temp files
 3. `DevModeLauncher` creates a minimal "dev jar" with a serialized `DevModeContext` and a precisely scoped manifest classpath
 4. A child `java -jar dev.jar` process is started with `ProcessBuilder`
 5. The child process runs `DevModeMain.main()` → `IsolatedDevModeMain` inside a clean augment classloader
@@ -178,12 +179,44 @@ When both source dirs and code-generation input dirs are empty, hot-reload is
 disabled but the Dev UI still works. Declared code-generation inputs keep the
 rebuild watcher active even when there are no Java source dirs.
 
+## Continuous Testing
+
+Continuous testing is opt-in because dev mode needs the test-only dependency
+graph and compiled test outputs. Point `continuous_test` at a `quarkus_test`
+target:
+
+```starlark
+quarkus_app(
+    name = "app",
+    continuous_test = ":test",
+    deps = [":lib"],
+)
+```
+
+The test rule exports its TEST-mode application model, source/resource roots,
+compiled test jar, and every file referenced by the model. The dev launcher:
+
+1. serializes both DEV and TEST application models and supplies Quarkus'
+   `SERIALIZED_TEST_APP_MODEL` system property;
+2. populates a mutable `test-classes` directory and records it in
+   `DevModeContext.ModuleInfo` alongside the test source/resource paths;
+3. watches main and test Java sources, test resources, and both main and test
+   code-generation inputs, rebuilding `<name>_dev` and syncing the resulting
+   class/resource trees without rewriting unchanged files;
+4. marks a non-Java test-input update as a test-class change after a successful
+   Bazel rebuild so Quarkus automatically schedules an affected-test run.
+
+Quarkus then owns discovery, affected-test selection, console hotkeys, and the
+Dev UI result/failure rendering. This path is certified with source changes in
+the application package and a separate Bazel dependency package, test-resource
+changes, and extension-provided test code generation.
+
 ### Generated sources
 
 Code generation always runs through Bazel before the initial dev startup.
-The launcher watches the declared generator input directories and rebuilds the
-`<name>_dev` target before syncing classes, which keeps regeneration sandboxed
-and cacheable.
+The launcher watches the declared main and test generator input directories and
+rebuilds the `<name>_dev` target before syncing classes, which
+keeps regeneration sandboxed and cacheable.
 
 Dev mode regenerates under its own lifecycle: `deps` are configured through
 `dev_lifecycle_transition`, so `quarkus_codegen` runs with launch mode

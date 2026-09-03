@@ -37,9 +37,9 @@ import org.jboss.logging.Logger;
  *   <li>Windows: ReadDirectoryChangesW
  * </ul>
  *
- * <p>Monitors source directories for {@code .java} file changes, debounces rapid edits, invokes
- * {@code bazel build} via {@link ProcessBuilder}, and syncs resulting {@code .class} files to the
- * mutable classes directory that {@code RuntimeUpdatesProcessor} monitors.
+ * <p>Monitors Java sources, test resources, and code-generation inputs, debounces rapid edits,
+ * invokes {@code bazel build} via {@link ProcessBuilder}, and syncs resulting {@code .class} files
+ * to the mutable classes directory that {@code RuntimeUpdatesProcessor} monitors.
  *
  * <p>Runs as a daemon thread inside the quarkifier process in DEV mode. Implements {@link
  * Closeable} to ensure the {@link WatchService} and executor are properly released.
@@ -57,6 +57,7 @@ public final class BazelFileWatcher implements Closeable {
   private final AtomicBoolean buildInProgress = new AtomicBoolean(false);
   private final AtomicBoolean pendingBuild = new AtomicBoolean(false);
   private final AtomicBoolean staleOutputsWarned = new AtomicBoolean(false);
+  private final AtomicBoolean nonJavaInputChanged = new AtomicBoolean(false);
   private volatile ScheduledFuture<?> debounceTask;
   private final Map<Path, WatchKey> watchKeys = new ConcurrentHashMap<>();
   private final Path bazelLogPath;
@@ -69,6 +70,8 @@ public final class BazelFileWatcher implements Closeable {
    */
   private final List<Path> reloadableClassesOutputDirs;
 
+  private final List<Path> reloadableTestClassesOutputDirs;
+
   /**
    * Creates a new file watcher. The {@link WatchService} is created eagerly; call {@link #close()}
    * to release it.
@@ -79,6 +82,8 @@ public final class BazelFileWatcher implements Closeable {
   BazelFileWatcher(QuarkifierConfig config) throws IOException {
     this.config = config;
     this.reloadableClassesOutputDirs = ClassSyncer.excludeExtensionJars(config.classesOutputDirs());
+    this.reloadableTestClassesOutputDirs =
+        ClassSyncer.excludeExtensionJars(config.testClassesOutputDirs());
     this.watchService = FileSystems.getDefault().newWatchService();
     this.debounceExecutor =
         Executors.newSingleThreadScheduledExecutor(
@@ -118,10 +123,16 @@ public final class BazelFileWatcher implements Closeable {
       // Step 1: Populate initial classes FIRST (can take time, must complete before watching)
       LOGGER.debug("[hot-reload] Populating initial classes...");
       ClassSyncer.populateClassesDir(watcher.reloadableClassesOutputDirs, config.classesDir());
+      if (config.testClassesDir() != null) {
+        ClassSyncer.populateTestClassesDir(
+            watcher.reloadableTestClassesOutputDirs, config.testClassesDir());
+      }
       LOGGER.debug("[hot-reload] Initial classes populated");
 
       // Step 2: Register watchers on all source directories
       watcher.registerWatchers(config.sourceDirs());
+      watcher.registerWatchers(config.testSourceDirs());
+      watcher.registerWatchers(config.testResources());
       watcher.registerWatchers(config.codegenInputDirs());
       LOGGER.debug("[hot-reload] File watchers registered");
 
@@ -204,6 +215,7 @@ public final class BazelFileWatcher implements Closeable {
 
       if (kind == StandardWatchEventKinds.OVERFLOW) {
         LOGGER.warn("WatchService overflow detected, triggering full rebuild");
+        nonJavaInputChanged.set(true);
         rebuildNeeded = true;
         continue;
       }
@@ -221,7 +233,12 @@ public final class BazelFileWatcher implements Closeable {
         }
       }
 
-      if (changed.toString().endsWith(".java") || isCodegenInput(changed)) {
+      boolean testResource = isTestResource(changed);
+      boolean codegenInput = isCodegenInput(changed);
+      if (changed.toString().endsWith(".java") || testResource || codegenInput) {
+        if (testResource || codegenInput) {
+          nonJavaInputChanged.set(true);
+        }
         rebuildNeeded = true;
         LOGGER.debugf("Change detected: %s (%s)", changed, kind.name());
       }
@@ -249,6 +266,20 @@ public final class BazelFileWatcher implements Closeable {
     Path absolute = changed.toAbsolutePath().normalize();
     for (Path inputDir : config.codegenInputDirs()) {
       if (absolute.startsWith(inputDir.toAbsolutePath().normalize())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Reports whether {@code changed} belongs to a declared test resource directory. */
+  private boolean isTestResource(Path changed) {
+    if (isEditorScratchFile(changed.getFileName())) {
+      return false;
+    }
+    Path absolute = changed.toAbsolutePath().normalize();
+    for (Path resourceDir : config.testResources()) {
+      if (absolute.startsWith(resourceDir.toAbsolutePath().normalize())) {
         return true;
       }
     }
@@ -290,15 +321,19 @@ public final class BazelFileWatcher implements Closeable {
       try {
         do {
           pendingBuild.set(false);
+          boolean markTestsChanged = nonJavaInputChanged.getAndSet(false);
           long start = System.currentTimeMillis();
           boolean success = runBazelBuild(config.bazelTargets());
           long elapsed = System.currentTimeMillis() - start;
 
           if (success) {
             warnIfOutputsWentStale(start);
-            syncClasses();
+            if (!syncClasses(markTestsChanged)) {
+              nonJavaInputChanged.compareAndSet(false, markTestsChanged);
+            }
             LOGGER.debugf("[hot-reload] Build successful, classes synced (%dms)", elapsed);
           } else {
+            nonJavaInputChanged.compareAndSet(false, markTestsChanged);
             LOGGER.warn("[hot-reload] Build failed, skipping sync");
           }
         } while (pendingBuild.get()); // drain queued builds
@@ -393,7 +428,9 @@ public final class BazelFileWatcher implements Closeable {
       return;
     }
     long threshold = buildStartMillis - 2000; // slack for coarse mtime granularity
-    for (Path path : reloadableClassesOutputDirs) {
+    List<Path> allOutputs = new ArrayList<>(reloadableClassesOutputDirs);
+    allOutputs.addAll(reloadableTestClassesOutputDirs);
+    for (Path path : allOutputs) {
       try {
         if (Files.isDirectory(path)) {
           return; // cannot cheaply track directory freshness; assume OK
@@ -411,7 +448,7 @@ public final class BazelFileWatcher implements Closeable {
               + " If you launch dev mode with extra Bazel flags (e.g. --config, -c opt), set"
               + " dev_build_args on quarkus_app/quarkus_dev so hot-reload rebuilds use the same"
               + " configuration — otherwise code changes will not be picked up.",
-          reloadableClassesOutputDirs);
+          allOutputs);
     }
   }
 
@@ -434,12 +471,22 @@ public final class BazelFileWatcher implements Closeable {
    * Delegates to {@link ClassSyncer#syncClasses(List, Path)} to copy changed {@code .class} files
    * from bazel-bin output directories to the mutable classes directory.
    */
-  void syncClasses() {
+  boolean syncClasses(boolean markTestsChanged) {
     try {
       ClassSyncer.syncClasses(reloadableClassesOutputDirs, config.classesDir());
+      if (config.testClassesDir() != null) {
+        ClassSyncer.syncTestClasses(reloadableTestClassesOutputDirs, config.testClassesDir());
+        if (markTestsChanged) {
+          int changed = ClassSyncer.markTestClassesChanged(config.testClassesDir());
+          LOGGER.debugf(
+              "[hot-reload] Marked %d test classes changed after non-Java input rebuild", changed);
+        }
+      }
       LOGGER.debug("[hot-reload] Classes synced successfully");
+      return true;
     } catch (IOException e) {
       LOGGER.errorf("[hot-reload] Failed to sync classes: %s", e.getMessage());
+      return false;
     }
   }
 

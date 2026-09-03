@@ -12,6 +12,7 @@ Quarkus hot-reload.
 load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
+load("//quarkus:providers.bzl", "QuarkusContinuousTestInfo")
 load("//quarkus/private:application_model_aspect.bzl", "quarkus_application_model_aspect")
 load("//quarkus/private:build_properties.bzl", "write_build_properties")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_local_app_jars", "collect_resource_dir_paths", "collect_runtime_classpath", "collect_source_dir_paths", "is_local_artifact", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
@@ -89,8 +90,15 @@ def _quarkus_dev_impl(ctx):
         "dev",
         ctx.label.name.removesuffix("_dev"),
     )
-    codegen_input_dirs = collect_codegen_input_dirs(ctx.attr.deps).to_list()
     bazel_targets = _hot_reload_bazel_target(ctx)
+    continuous_test = single_transitioned_target(ctx.attr.continuous_test) if ctx.attr.continuous_test else None
+    continuous_test_info = continuous_test[QuarkusContinuousTestInfo] if continuous_test else None
+    codegen_input_dirs = depset(
+        transitive = [
+            collect_codegen_input_dirs(ctx.attr.deps),
+            continuous_test_info.codegen_input_dirs if continuous_test_info else depset(),
+        ],
+    ).to_list()
 
     # Classpath and hot-reload metadata files, read by the launcher at runtime
     # and resolved against the runfiles tree.
@@ -104,11 +112,27 @@ def _quarkus_dev_impl(ctx):
         bazel_targets = _write_csv_file(ctx, "_bazel_targets.txt", bazel_targets),
         classes_output_dirs = _write_csv_file(ctx, "_classes_output_dirs.txt", _collect_classes_output_dirs(ctx.attr.deps, runtime_classpath)),
         codegen_input_dirs = _write_csv_file(ctx, "_codegen_input_dirs.txt", codegen_input_dirs),
+        test_classes_output_dirs = _write_csv_file(
+            ctx,
+            "_test_classes_output_dirs.txt",
+            [file.path for file in continuous_test_info.classes_output_dirs.to_list()] if continuous_test_info else [],
+        ),
+        test_resource_dirs = _write_csv_file(
+            ctx,
+            "_test_resource_dirs.txt",
+            continuous_test_info.resource_dirs if continuous_test_info else [],
+        ),
+        test_source_dirs = _write_csv_file(
+            ctx,
+            "_test_source_dirs.txt",
+            continuous_test_info.source_dirs if continuous_test_info else [],
+        ),
     )
+    test_model = continuous_test_info.application_model if continuous_test_info else None
 
     tool_jar = ctx.file.quarkifier_tool
     java_runtime = ctx.attr._java_runtime[java_common.JavaRuntimeInfo]
-    launcher = _write_dev_launcher(ctx, tool_jar, files, model, java_runtime)
+    launcher = _write_dev_launcher(ctx, tool_jar, files, model, test_model, java_runtime)
 
     runfiles = ctx.runfiles(
         files = [
@@ -122,9 +146,18 @@ def _quarkus_dev_impl(ctx):
             files.bazel_targets,
             files.classes_output_dirs,
             files.codegen_input_dirs,
+            files.test_classes_output_dirs,
+            files.test_resource_dirs,
+            files.test_source_dirs,
             model,
-        ] + ctx.files.deployment_artifacts,
-        transitive_files = depset(transitive = [runtime_classpath, conditional_classpath, deployment_classpath, core_deployment_classpath, java_runtime.files]),
+        ] + ([test_model] if test_model else []) + ctx.files.deployment_artifacts,
+        transitive_files = depset(transitive = [
+            runtime_classpath,
+            conditional_classpath,
+            deployment_classpath,
+            core_deployment_classpath,
+            java_runtime.files,
+        ] + ([continuous_test_info.model_classpath] if continuous_test_info else [])),
     )
 
     return [
@@ -139,7 +172,7 @@ def _join_dev_build_args(args):
             fail("dev_build_args: commas are not supported (used as delimiter); got '{}'".format(arg))
     return ",".join(args)
 
-def _write_dev_launcher(ctx, tool_jar, files, model_file, java_runtime):
+def _write_dev_launcher(ctx, tool_jar, files, model_file, test_model_file, java_runtime):
     """Expands the dev launcher template with the metadata file locations."""
     launcher = ctx.actions.declare_file(ctx.label.name + "_dev.sh")
     ctx.actions.expand_template(
@@ -160,6 +193,10 @@ def _write_dev_launcher(ctx, tool_jar, files, model_file, java_runtime):
             "%{model_file}": model_file.short_path,
             "%{resource_dirs_file}": files.resource_dirs.short_path,
             "%{source_dirs_file}": files.source_dirs.short_path,
+            "%{test_classes_output_dirs_file}": files.test_classes_output_dirs.short_path,
+            "%{test_model_file}": test_model_file.short_path if test_model_file else "",
+            "%{test_resource_dirs_file}": files.test_resource_dirs.short_path,
+            "%{test_source_dirs_file}": files.test_source_dirs.short_path,
             "%{tool_jar}": tool_jar.short_path,
             "%{workspace}": ctx.workspace_name,
         },
@@ -179,6 +216,11 @@ quarkus_dev_rule = rule(
             mandatory = True,
             cfg = disable_coverage_transition,
             providers = [JavaInfo],
+        ),
+        "continuous_test": attr.label(
+            cfg = disable_coverage_transition,
+            providers = [QuarkusContinuousTestInfo],
+            doc = "Optional quarkus_test target used for continuous testing in dev mode.",
         ),
         "core_deployment_deps": attr.label(
             cfg = disable_coverage_transition,

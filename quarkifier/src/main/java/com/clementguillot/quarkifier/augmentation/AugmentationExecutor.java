@@ -53,12 +53,13 @@ public final class AugmentationExecutor {
 
       ClasspathPartition partition = LocalExtensionAppJars.reclassify(partitionClasspath(config));
       ApplicationModel appModel = buildModel(config);
+      ApplicationModel testAppModel = ContinuousTestApplicationModelLoader.load(config);
       List<Path> effectiveRuntimeJars = RuntimeJarSelector.select(partition, appModel);
 
       switch (config.mode()) {
           // DEV: delegate to DevModeLauncher which starts IsolatedDevModeMain
           // with full Dev UI and hot-reload support.
-        case DEV -> DevModeLauncher.launch(config, appModel);
+        case DEV -> DevModeLauncher.launch(config, appModel, testAppModel);
           // TEST: serialize the ApplicationModel for use by QuarkusTestExtension.
           // No augmentation is run — the test JVM handles that via QuarkusBootstrap.Mode.TEST.
         case TEST -> serializeTestModel(outputDir, appModel);

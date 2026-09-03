@@ -180,6 +180,33 @@ class DevModeLauncherTest {
         context.getApplicationRoot().getMain().getClassesPath());
   }
 
+  @Test
+  void buildDevModeContext_withContinuousTesting_setsTestModuleMetadata() {
+    var config =
+        devConfig(
+            "--test-application-model", "test-model.json",
+            "--test-source-dirs", "src/test/java",
+            "--test-classes-dir", "/tmp/test-classes",
+            "--test-classes-output-dirs", "bazel-bin/test.jar",
+            "--test-resources", "src/test/resources");
+
+    var module = DevModeLauncher.buildDevModeContext(config).getApplicationRoot();
+    var test = module.getTest().orElseThrow();
+
+    assertEquals(Path.of("/tmp/test-classes").toAbsolutePath().toString(), test.getClassesPath());
+    assertTrue(
+        test.getSourcePaths().stream()
+            .anyMatch(
+                path -> path.toAbsolutePath().equals(Path.of("src/test/java").toAbsolutePath())));
+    assertTrue(
+        test.getResourcePaths().stream()
+            .anyMatch(
+                path ->
+                    path.toAbsolutePath().equals(Path.of("src/test/resources").toAbsolutePath())));
+    assertEquals(
+        Path.of("/tmp/test-classes").toAbsolutePath().toString(), test.getResourcesOutputPath());
+  }
+
   /**
    * Regression: collectParentFirstRuntimeJars must return jars flagged CLASSLOADER_PARENT_FIRST
    * even though dep.getKey() has type="jar" (GACT strict equals).

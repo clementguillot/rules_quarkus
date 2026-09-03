@@ -109,6 +109,7 @@ quarkus_java_library(
 quarkus_app(
     name = "app",
     build_properties = _PACKAGING_BUILD_PROPERTIES,
+    continuous_test = ":test",
     version = "1.0.0-SNAPSHOT",
     deps = [":lib"],
 )

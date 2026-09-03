@@ -160,10 +160,80 @@ class ClassSyncerTest {
 
     ClassSyncer.syncClasses(List.of(outputDir), classesDir);
     java.util.Map<String, String> first = snapshot(classesDir);
+    Path unchangedClass = classesDir.resolve("com/example/Foo.class");
+    var sentinelTime = java.nio.file.attribute.FileTime.fromMillis(1_234_000);
+    Files.setLastModifiedTime(unchangedClass, sentinelTime);
     ClassSyncer.syncClasses(List.of(outputDir), classesDir);
 
     assertEquals(3, first.size());
     assertEquals(first, snapshot(classesDir), "second sync must not change the directory");
+    assertEquals(
+        sentinelTime,
+        Files.getLastModifiedTime(unchangedClass),
+        "unchanged class files must not be rewritten and trigger another reload");
+  }
+
+  @Test
+  void syncClasses_unchangedJarEntryKeepsTimestamp() throws IOException {
+    Path jar = tempDir.resolve("libtests.jar");
+    writeJar(jar, java.util.Map.of("org/acme/GreetingResourceTest.class", "bytecode"));
+    Path classesDir = Files.createDirectories(tempDir.resolve("test-classes"));
+
+    ClassSyncer.syncClasses(List.of(jar), classesDir);
+    Path testClass = classesDir.resolve("org/acme/GreetingResourceTest.class");
+    var sentinelTime = java.nio.file.attribute.FileTime.fromMillis(1_234_000);
+    Files.setLastModifiedTime(testClass, sentinelTime);
+    ClassSyncer.syncClasses(List.of(jar), classesDir);
+
+    assertEquals(sentinelTime, Files.getLastModifiedTime(testClass));
+  }
+
+  @Test
+  void syncTestClasses_copiesUpdatesAndRemovesResources() throws IOException {
+    Path jar = tempDir.resolve("libtests.jar");
+    writeJar(
+        jar,
+        java.util.Map.of(
+            "org/acme/GreetingResourceTest.class", "bytecode",
+            "continuous-test.txt", "resource-v1",
+            "obsolete.txt", "obsolete",
+            "META-INF/MANIFEST.MF", "Manifest-Version: 1.0"));
+    Path classesDir = Files.createDirectories(tempDir.resolve("test-classes"));
+
+    ClassSyncer.populateTestClassesDir(List.of(jar), classesDir);
+
+    assertEquals(
+        "bytecode", Files.readString(classesDir.resolve("org/acme/GreetingResourceTest.class")));
+    assertEquals("resource-v1", Files.readString(classesDir.resolve("continuous-test.txt")));
+    assertFalse(Files.exists(classesDir.resolve("META-INF/MANIFEST.MF")));
+
+    writeJar(
+        jar,
+        java.util.Map.of(
+            "org/acme/GreetingResourceTest.class", "bytecode",
+            "continuous-test.txt", "resource-v2"));
+    ClassSyncer.syncTestClasses(List.of(jar), classesDir);
+
+    assertEquals("resource-v2", Files.readString(classesDir.resolve("continuous-test.txt")));
+    assertFalse(Files.exists(classesDir.resolve("obsolete.txt")));
+  }
+
+  @Test
+  void markTestClassesChanged_advancesOnlyClassTimestamps() throws IOException {
+    Path classesDir = Files.createDirectories(tempDir.resolve("test-classes"));
+    Path testClass = classesDir.resolve("org/acme/GreetingResourceTest.class");
+    Path resource = classesDir.resolve("continuous-test.txt");
+    Files.createDirectories(testClass.getParent());
+    Files.writeString(testClass, "bytecode");
+    Files.writeString(resource, "resource");
+    var sentinelTime = java.nio.file.attribute.FileTime.fromMillis(1_234_000);
+    Files.setLastModifiedTime(testClass, sentinelTime);
+    Files.setLastModifiedTime(resource, sentinelTime);
+
+    assertEquals(1, ClassSyncer.markTestClassesChanged(classesDir));
+
+    assertTrue(Files.getLastModifiedTime(testClass).compareTo(sentinelTime) > 0);
+    assertEquals(sentinelTime, Files.getLastModifiedTime(resource));
   }
 
   @Test

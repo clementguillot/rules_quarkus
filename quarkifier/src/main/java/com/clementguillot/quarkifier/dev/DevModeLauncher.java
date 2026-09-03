@@ -6,13 +6,10 @@ import com.clementguillot.quarkifier.QuarkifierConfig;
 import com.clementguillot.quarkifier.maven.MavenCoordinateParser;
 import com.clementguillot.quarkifier.watcher.BazelFileWatcher;
 import io.quarkus.bootstrap.BootstrapConstants;
-import io.quarkus.bootstrap.app.QuarkusBootstrap;
 import io.quarkus.bootstrap.model.ApplicationModel;
 import io.quarkus.deployment.dev.DevModeContext;
 import io.quarkus.deployment.dev.DevModeMain;
-import io.quarkus.maven.dependency.ArtifactKey;
 import io.quarkus.maven.dependency.ResolvedDependency;
-import io.quarkus.paths.PathList;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
 import java.nio.file.Files;
@@ -52,9 +49,11 @@ public final class DevModeLauncher {
    *
    * @param config CLI configuration including source dirs, classpath, output dir
    * @param appModel the ApplicationModel built from classpath jars
+   * @param testAppModel the TEST-mode ApplicationModel used by continuous testing, or {@code null}
    * @throws AugmentationException if dev mode fails to start
    */
-  public static void launch(QuarkifierConfig config, ApplicationModel appModel)
+  public static void launch(
+      QuarkifierConfig config, ApplicationModel appModel, ApplicationModel testAppModel)
       throws AugmentationException {
     try {
       DevModeContext context = buildDevModeContext(config);
@@ -68,6 +67,7 @@ public final class DevModeLauncher {
       // - 3.33+: JSON format (ApplicationModelSerializer)
       AppModelSerializerStrategy serializer = new AppModelSerializerImpl();
       Path serializedModel = serializer.serialize(appModel);
+      Path serializedTestModel = testAppModel == null ? null : serializer.serialize(testAppModel);
 
       // Dev jar mirrors Maven's DevMojo / DevModeCommandLineBuilder.
       Path devJar = createDevJar(context, config, appModel);
@@ -76,7 +76,7 @@ public final class DevModeLauncher {
       BazelFileWatcher watcher = startWatcherIfConfigured(config);
       Process process = null;
       try {
-        process = startDevProcess(config, serializedModel, devJar);
+        process = startDevProcess(config, serializedModel, serializedTestModel, devJar);
 
         final Process devProcess = process;
         Runtime.getRuntime()
@@ -121,7 +121,8 @@ public final class DevModeLauncher {
   }
 
   /** Starts the child JVM running {@link DevModeMain} from the dev jar. */
-  private static Process startDevProcess(QuarkifierConfig config, Path serializedModel, Path devJar)
+  private static Process startDevProcess(
+      QuarkifierConfig config, Path serializedModel, Path serializedTestModel, Path devJar)
       throws Exception {
     List<String> cmd = new ArrayList<>();
     cmd.add(System.getProperty("java.home") + "/bin/java");
@@ -142,6 +143,13 @@ public final class DevModeLauncher {
     cmd.add("java.base/java.lang.invoke=ALL-UNNAMED");
     cmd.add(
         "-D" + BootstrapConstants.SERIALIZED_APP_MODEL + "=" + serializedModel.toAbsolutePath());
+    if (serializedTestModel != null) {
+      cmd.add(
+          "-D"
+              + BootstrapConstants.SERIALIZED_TEST_APP_MODEL
+              + "="
+              + serializedTestModel.toAbsolutePath());
+    }
     cmd.add("-jar");
     cmd.add(devJar.toAbsolutePath().toString());
 
@@ -158,7 +166,10 @@ public final class DevModeLauncher {
       throws Exception {
     if (config.classesDir() == null
         || config.bazelTargets().isEmpty()
-        || (config.sourceDirs().isEmpty() && config.codegenInputDirs().isEmpty())) {
+        || (config.sourceDirs().isEmpty()
+            && config.testSourceDirs().isEmpty()
+            && config.testResources().isEmpty()
+            && config.codegenInputDirs().isEmpty())) {
       return null;
     }
     LOGGER.debug("[hot-reload] Starting file watcher...");
@@ -264,56 +275,6 @@ public final class DevModeLauncher {
 
   /** Builds a {@link DevModeContext} configured for Bazel-managed dev mode. */
   static DevModeContext buildDevModeContext(QuarkifierConfig config) {
-    var context = new DevModeContext();
-    context.setAbortOnFailedStart(true);
-    context.setLocalProjectDiscovery(false);
-    context.setMode(QuarkusBootstrap.Mode.DEV);
-    context.setBaseName(config.appName() != null ? config.appName() : "quarkus-app");
-    context.setArgs(new String[0]);
-
-    // Use workspaceDir as the project root so the Dev UI "Workspace" tab
-    // displays the user's actual source tree instead of Bazel's output directory.
-    Path projectRoot = config.workspaceDir() != null ? config.workspaceDir() : config.outputDir();
-    if (config.workspaceDir() == null) {
-      LOGGER.warn(
-          "Workspace directory not set. Dev UI workspace tab will not show source files."
-              + " Use 'bazel run' to launch dev mode.");
-    }
-    context.setProjectDir(projectRoot.toAbsolutePath().toFile());
-
-    // Platform properties for SmallRye Config expression resolution
-    devBuildProperties(config)
-        .forEach((k, v) -> context.getBuildSystemProperties().put((String) k, (String) v));
-
-    context.setApplicationRoot(buildAppModuleInfo(config, projectRoot));
-    return context;
-  }
-
-  /** Builds the {@link DevModeContext.ModuleInfo} for the application root. */
-  private static DevModeContext.ModuleInfo buildAppModuleInfo(
-      QuarkifierConfig config, Path projectRoot) {
-    Path appJar = config.applicationClasspath().get(0);
-    var coords = MavenCoordinateParser.parse(appJar);
-
-    // Key: classesPath points to mutable directory when available, otherwise the jar
-    Path classesPath = config.classesDir() != null ? config.classesDir() : appJar;
-
-    // targetDir must be a child of projectRoot so that WorkspaceProcessor (which does
-    // targetDir.getParent() to find the project root) shows the correct source tree.
-    // We create the directory in launch() since Bazel workspaces don't have a target/ dir.
-    Path targetDir = projectRoot.resolve("target");
-    Path resourcesOutputPath = config.classesDir() != null ? config.classesDir() : targetDir;
-
-    return new DevModeContext.ModuleInfo.Builder()
-        .setArtifactKey(ArtifactKey.ga(coords.groupId(), coords.artifactId()))
-        .setName(config.appName() != null ? config.appName() : coords.artifactId())
-        .setProjectDirectory(projectRoot.toAbsolutePath().toString())
-        .setSourcePaths(PathList.from(config.sourceDirs()))
-        .setClassesPath(classesPath.toAbsolutePath().toString())
-        .setResourcePaths(PathList.from(config.resources()))
-        .setResourcesOutputPath(
-            config.resources().isEmpty() ? null : resourcesOutputPath.toAbsolutePath().toString())
-        .setTargetDir(targetDir.toAbsolutePath().toString())
-        .build();
+    return DevModeContextBuilder.build(config);
   }
 }
