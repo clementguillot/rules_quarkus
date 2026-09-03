@@ -78,6 +78,11 @@ public final class AugmentationCommand implements Callable<Integer> {
       description = "Validated quarkus-bazel-model-v1 JSON.")
   private Path applicationModel;
 
+  @Option(
+      names = "--test-application-model",
+      description = "Validated TEST-mode quarkus-bazel-model-v1 JSON for continuous testing.")
+  private Path testApplicationModel;
+
   // ---- Output ----
 
   @Option(
@@ -133,6 +138,29 @@ public final class AugmentationCommand implements Callable<Integer> {
 
   @Option(names = "--classes-dir", description = "Mutable directory for .class files in dev mode.")
   private Path classesDir;
+
+  @Option(
+      names = "--test-source-dirs",
+      description = "Comma-separated test source directories for continuous testing.",
+      split = ",")
+  private List<Path> testSourceDirs;
+
+  @Option(
+      names = "--test-classes-dir",
+      description = "Mutable directory for compiled test classes in dev mode.")
+  private Path testClassesDir;
+
+  @Option(
+      names = "--test-classes-output-dirs",
+      description = "Comma-separated bazel-bin outputs containing compiled test classes.",
+      split = ",")
+  private List<Path> testClassesOutputDirs;
+
+  @Option(
+      names = "--test-resources",
+      description = "Comma-separated test resource directories for continuous testing.",
+      split = ",")
+  private List<Path> testResources;
 
   @Option(
       names = "--bazel-targets",
@@ -242,6 +270,10 @@ public final class AugmentationCommand implements Callable<Integer> {
         nativeBuilderImage,
         orEmpty(sourceDirs),
         classesDir,
+        orEmpty(testSourceDirs),
+        testClassesDir,
+        orEmpty(testClassesOutputDirs),
+        orEmpty(testResources),
         orEmpty(bazelTargets),
         orEmpty(classesOutputDirs),
         workspaceDir,
@@ -251,7 +283,8 @@ public final class AugmentationCommand implements Callable<Integer> {
         orEmpty(codegenInputDirs),
         resolvedLocalJars,
         resolvedBuildProperties,
-        applicationModel);
+        applicationModel,
+        testApplicationModel);
   }
 
   // ---- internal helpers ----

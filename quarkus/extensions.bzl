@@ -1538,7 +1538,7 @@ def quarkus_java_library(name, srcs = [], resources = [], deps = [], codegen_src
         **java_kwargs
     )
 
-def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_container_build = False,
+def quarkus_app(name, dev = True, dev_build_args = [], continuous_test = None, native = False, native_container_build = False,
                 native_container_runtime = "auto", native_builder_image = _DEFAULT_BUILDER_IMAGE,
                 package_type = "fast-jar", build_properties = {{}}, **kwargs):
     \"\"\"Builds a Quarkus application with optional dev-mode and native targets.
@@ -1554,6 +1554,7 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
         dev_build_args: Extra flags for the hot-reload `bazel build` (e.g. ["--config=dev"]).
             Must match the flags you pass to `bazel run` for the dev target, otherwise
             rebuilt classes land in a different output tree and hot-reload syncs stale files.
+        continuous_test: Optional quarkus_test target whose tests run continuously in dev mode.
         native: If True, creates a <name>_native target using rules_graalvm (host compilation).
         native_container_build: If True, creates a <name>_native target using Docker/Podman (container compilation).
         native_container_runtime: Container runtime: 'auto' (default), 'docker', or 'podman'.
@@ -1606,8 +1607,10 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
     if dev:
         quarkus_dev_rule(
             name = name + "_dev",
+            continuous_test = continuous_test,
             core_deployment_deps = _CORE_DEPLOYMENT_DEPS,
             dev_build_args = dev_build_args,
+            testonly = bool(continuous_test) or kwargs.get("testonly", False),
             **common
         )
     if native:
@@ -1628,7 +1631,7 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
             **common
         )
 
-def _prepare_test_target(name, srcs, deps, test_packages, test_classes, jvm_flags, build_properties, kwargs):
+def _prepare_test_target(name, srcs, resources, deps, test_packages, test_classes, jvm_flags, build_properties, kwargs):
     test_deps = deps or []
     if srcs:
         compile_deps = []
@@ -1640,6 +1643,7 @@ def _prepare_test_target(name, srcs, deps, test_packages, test_classes, jvm_flag
         java_library(
             name = name + "_lib",
             srcs = srcs,
+            resources = resources,
             deps = compile_deps,
             testonly = True,
         )
@@ -1661,7 +1665,7 @@ def _prepare_test_target(name, srcs, deps, test_packages, test_classes, jvm_flag
         kwargs = test_kwargs,
     )
 
-def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_classes = None,
+def quarkus_test(name, srcs = None, resources = [], deps = None, test_packages = None, test_classes = None,
                  jvm_flags = None, build_properties = None, **kwargs):
     \"\"\"Runs @QuarkusTest-annotated JUnit 5 tests with full Quarkus augmentation.
 
@@ -1672,6 +1676,7 @@ def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_clas
     prepared = _prepare_test_target(
         name,
         srcs,
+        resources,
         deps,
         test_packages,
         test_classes,
@@ -1697,7 +1702,7 @@ def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_clas
         **prepared.kwargs
     )
 
-def quarkus_integration_test(name, app, srcs = None, deps = None, test_packages = None,
+def quarkus_integration_test(name, app, srcs = None, resources = [], deps = None, test_packages = None,
                              test_classes = None, jvm_flags = None, **kwargs):
     \"\"\"Runs @QuarkusIntegrationTest tests against a packaged application.
 
@@ -1716,6 +1721,7 @@ def quarkus_integration_test(name, app, srcs = None, deps = None, test_packages 
     prepared = _prepare_test_target(
         name,
         srcs,
+        resources,
         deps,
         test_packages,
         test_classes,

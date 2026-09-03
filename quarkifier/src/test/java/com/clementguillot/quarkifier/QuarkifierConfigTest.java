@@ -160,6 +160,51 @@ class QuarkifierConfigTest {
   }
 
   @Test
+  void parse_continuousTestingOptions() {
+    var config =
+        parse(
+            "--application-classpath",
+            "a.jar",
+            "--output-dir",
+            "/out",
+            "--test-application-model",
+            "test-model.json",
+            "--test-source-dirs",
+            "src/test/java,lib/src/test/java",
+            "--test-classes-dir",
+            "/tmp/test-classes",
+            "--test-classes-output-dirs",
+            "bazel-bin/test.jar,bazel-bin/other-tests.jar",
+            "--test-resources",
+            "src/test/resources,lib/src/test/resources");
+
+    assertEquals(Path.of("test-model.json"), config.testApplicationModel());
+    assertEquals(
+        List.of(Path.of("src/test/java"), Path.of("lib/src/test/java")), config.testSourceDirs());
+    assertEquals(Path.of("/tmp/test-classes"), config.testClassesDir());
+    assertEquals(
+        List.of(Path.of("bazel-bin/test.jar"), Path.of("bazel-bin/other-tests.jar")),
+        config.testClassesOutputDirs());
+    assertEquals(
+        List.of(Path.of("src/test/resources"), Path.of("lib/src/test/resources")),
+        config.testResources());
+  }
+
+  @Test
+  void parse_absentContinuousTestingOptionsDefaultToEmpty() {
+    var config =
+        parse(
+            "--application-classpath", "a.jar",
+            "--output-dir", "/out");
+
+    assertNull(config.testApplicationModel());
+    assertTrue(config.testSourceDirs().isEmpty());
+    assertNull(config.testClassesDir());
+    assertTrue(config.testClassesOutputDirs().isEmpty());
+    assertTrue(config.testResources().isEmpty());
+  }
+
+  @Test
   void parse_codegenInputDirs() {
     var config =
         parse(

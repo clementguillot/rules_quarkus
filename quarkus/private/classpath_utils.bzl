@@ -56,7 +56,7 @@ quarkus_extension_deployment_classpath_aspect = aspect(
 )
 
 # Maven-layout markers used to derive source/resource roots from package paths.
-_SOURCE_MARKERS = ["src/main/java", "src/test/java"]
+_SOURCE_MARKERS = ["src/main/java"]
 _RESOURCE_MARKERS = ["src/main/resources"]
 
 def short_path(f):
@@ -201,7 +201,7 @@ def _collect_marker_dir_paths(deps, runtime_classpath, markers):
     return dirs
 
 def collect_source_dir_paths(deps, runtime_classpath = None):
-    """Derives candidate source roots (src/main/java, src/test/java) from deps.
+    """Derives candidate main source roots (src/main/java) from deps.
 
     Args:
         deps: List of targets providing JavaInfo (direct deps).
@@ -211,6 +211,10 @@ def collect_source_dir_paths(deps, runtime_classpath = None):
         A deduplicated list of workspace-relative source directory path strings.
     """
     return _collect_marker_dir_paths(deps, runtime_classpath, _SOURCE_MARKERS)
+
+def collect_test_source_dir_paths(deps, runtime_classpath = None):
+    """Derives conventional src/test/java roots for continuous testing."""
+    return _collect_marker_dir_paths(deps, runtime_classpath, ["src/test/java"])
 
 def collect_resource_dir_paths(deps, runtime_classpath = None):
     """Derives candidate resource roots (src/main/resources) from deps.
@@ -223,6 +227,10 @@ def collect_resource_dir_paths(deps, runtime_classpath = None):
         A deduplicated list of workspace-relative resource directory path strings.
     """
     return _collect_marker_dir_paths(deps, runtime_classpath, _RESOURCE_MARKERS)
+
+def collect_test_resource_dir_paths(deps, runtime_classpath = None):
+    """Derives conventional src/test/resources roots for continuous testing."""
+    return _collect_marker_dir_paths(deps, runtime_classpath, ["src/test/resources"])
 
 def write_runfiles_paths_file(ctx, name_suffix, files, separator):
     """Writes the runfiles short_paths of `files`, joined by `separator`, to a file.

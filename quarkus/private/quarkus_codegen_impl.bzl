@@ -355,13 +355,12 @@ def _metadata_aspect_impl(target, ctx):
 
     if QuarkusCodeGenInfo in target:
         info = target[QuarkusCodeGenInfo]
-        if info.mode == "main":
-            input_dirs.append(depset(info.input_dirs))
+        input_dirs.append(depset(info.input_dirs))
 
-            # Resources from the synthetic application root and all of its
-            # dependencies can affect provider initialization or supply
-            # dependency-only generator inputs.
-            input_dirs.append(all_resource_dirs)
+        # Resources from the synthetic application root and all of its
+        # dependencies can affect provider initialization or supply
+        # dependency-only generator inputs in both main and test lifecycles.
+        input_dirs.append(all_resource_dirs)
     return [
         QuarkusCodeGenTransitiveInfo(
             input_dirs = depset(transitive = input_dirs),
@@ -375,7 +374,7 @@ quarkus_codegen_metadata_aspect = aspect(
 )
 
 def collect_codegen_input_dirs(deps):
-    """Collects transitive main CodeGenProvider input directories from deps.
+    """Collects transitive CodeGenProvider input directories from deps.
 
     Args:
         deps: List of targets carrying QuarkusCodeGenTransitiveInfo.

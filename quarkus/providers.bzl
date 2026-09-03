@@ -42,3 +42,15 @@ QuarkusCodeGenInfo = provider(
         "source_roots": "Workspace-relative CodeGenProvider source-parent paths.",
     },
 )
+
+QuarkusContinuousTestInfo = provider(
+    doc = "Test model and compiled outputs consumed by a quarkus_app dev target.",
+    fields = {
+        "application_model": "TEST-mode quarkus-bazel-model-v1 JSON File.",
+        "classes_output_dirs": "Depset of compiled test class jars/directories.",
+        "codegen_input_dirs": "Depset of workspace-relative test code-generation input directories.",
+        "model_classpath": "Depset of files referenced by the TEST-mode application model.",
+        "resource_dirs": "Workspace-relative test resource directory paths.",
+        "source_dirs": "Workspace-relative test Java source directory paths.",
+    },
+)

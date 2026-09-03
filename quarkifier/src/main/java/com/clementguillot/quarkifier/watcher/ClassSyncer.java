@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashSet;
@@ -24,6 +25,7 @@ import java.util.jar.JarFile;
  * java_library} rule produces class jars (e.g., {@code liblib-class.jar}), so jar extraction is the
  * primary mode.
  */
+@SuppressWarnings("PMD.TooManyMethods") // cohesive class/resource synchronization lifecycle
 public final class ClassSyncer {
 
   private ClassSyncer() {}
@@ -72,14 +74,25 @@ public final class ClassSyncer {
    */
   public static void populateClassesDir(List<Path> classesOutputPaths, Path classesDir)
       throws IOException {
-    for (Path outputPath : classesOutputPaths) {
+    populateOutputs(classesOutputPaths, classesDir, false);
+  }
+
+  /** Populates mutable test-classes with compiled tests and their packaged resources. */
+  public static void populateTestClassesDir(List<Path> testOutputPaths, Path testClassesDir)
+      throws IOException {
+    populateOutputs(testOutputPaths, testClassesDir, true);
+  }
+
+  private static void populateOutputs(
+      List<Path> outputPaths, Path classesDir, boolean includeResources) throws IOException {
+    for (Path outputPath : outputPaths) {
       if (!Files.exists(outputPath)) {
         continue;
       }
       if (Files.isDirectory(outputPath)) {
-        copyClassesFromDirectory(outputPath, classesDir, null);
+        copyOutputsFromDirectory(outputPath, classesDir, null, includeResources);
       } else if (outputPath.toString().endsWith(".jar")) {
-        extractClassesFromJar(outputPath, classesDir, null);
+        extractOutputsFromJar(outputPath, classesDir, null, includeResources);
       }
     }
   }
@@ -95,20 +108,60 @@ public final class ClassSyncer {
    */
   public static void syncClasses(List<Path> classesOutputPaths, Path classesDir)
       throws IOException {
+    syncOutputs(classesOutputPaths, classesDir, false);
+  }
+
+  /** Synchronizes compiled tests and test resources into a conventional test-classes directory. */
+  public static void syncTestClasses(List<Path> testOutputPaths, Path testClassesDir)
+      throws IOException {
+    syncOutputs(testOutputPaths, testClassesDir, true);
+  }
+
+  /**
+   * Advances every test class timestamp so Quarkus schedules a test run after a resource or
+   * code-generation input changed without changing bytecode.
+   *
+   * <p>Quarkus continuous testing notices arbitrary resources but only runs tests automatically for
+   * extension-declared restart resources or changed classes. Bazel owns compilation and resource
+   * packaging here, so advancing the synchronized test classes feeds that rebuild back through
+   * Quarkus's normal changed-class test selection.
+   *
+   * @return the number of test class files marked as changed
+   */
+  public static int markTestClassesChanged(Path testClassesDir) throws IOException {
+    if (!Files.isDirectory(testClassesDir)) {
+      return 0;
+    }
+    int changed = 0;
+    long now = System.currentTimeMillis();
+    try (var paths = Files.walk(testClassesDir)) {
+      for (Path path : paths.filter(Files::isRegularFile).toList()) {
+        if (path.toString().endsWith(".class")) {
+          long current = Files.getLastModifiedTime(path).toMillis();
+          Files.setLastModifiedTime(path, FileTime.fromMillis(Math.max(now, current + 1)));
+          changed++;
+        }
+      }
+    }
+    return changed;
+  }
+
+  private static void syncOutputs(List<Path> outputPaths, Path classesDir, boolean includeResources)
+      throws IOException {
     Set<Path> synced = new HashSet<>();
 
-    for (Path outputPath : classesOutputPaths) {
+    for (Path outputPath : outputPaths) {
       if (!Files.exists(outputPath)) {
         continue;
       }
       if (Files.isDirectory(outputPath)) {
-        copyClassesFromDirectory(outputPath, classesDir, synced);
+        copyOutputsFromDirectory(outputPath, classesDir, synced, includeResources);
       } else if (outputPath.toString().endsWith(".jar")) {
-        extractClassesFromJar(outputPath, classesDir, synced);
+        extractOutputsFromJar(outputPath, classesDir, synced, includeResources);
       }
     }
 
-    // Remove stale .class files not present in latest build output
+    // Remove stale synchronized files not present in the latest build output.
     if (Files.isDirectory(classesDir)) {
       Files.walkFileTree(
           classesDir,
@@ -116,11 +169,9 @@ public final class ClassSyncer {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
                 throws IOException {
-              if (file.toString().endsWith(".class")) {
-                Path relative = classesDir.relativize(file);
-                if (!synced.contains(relative)) {
-                  Files.delete(file);
-                }
+              Path relative = classesDir.relativize(file);
+              if (shouldSync(relative, includeResources) && !synced.contains(relative)) {
+                Files.delete(file);
               }
               return FileVisitResult.CONTINUE;
             }
@@ -130,7 +181,8 @@ public final class ClassSyncer {
 
   // ---- internal helpers ----
 
-  private static void copyClassesFromDirectory(Path outputDir, Path classesDir, Set<Path> synced)
+  private static void copyOutputsFromDirectory(
+      Path outputDir, Path classesDir, Set<Path> synced, boolean includeResources)
       throws IOException {
     Files.walkFileTree(
         outputDir,
@@ -138,11 +190,13 @@ public final class ClassSyncer {
           @Override
           public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
               throws IOException {
-            if (file.toString().endsWith(".class")) {
-              Path relative = outputDir.relativize(file);
+            Path relative = outputDir.relativize(file);
+            if (shouldSync(relative, includeResources)) {
               Path target = classesDir.resolve(relative);
               Files.createDirectories(target.getParent());
-              Files.copy(file, target, StandardCopyOption.REPLACE_EXISTING);
+              if (!Files.exists(target) || Files.mismatch(file, target) != -1) {
+                Files.copy(file, target, StandardCopyOption.REPLACE_EXISTING);
+              }
               if (synced != null) {
                 synced.add(relative);
               }
@@ -152,26 +206,63 @@ public final class ClassSyncer {
         });
   }
 
-  private static void extractClassesFromJar(Path jarPath, Path classesDir, Set<Path> synced)
+  private static void extractOutputsFromJar(
+      Path jarPath, Path classesDir, Set<Path> synced, boolean includeResources)
       throws IOException {
     try (JarFile jar = new JarFile(jarPath.toFile())) {
       Enumeration<JarEntry> entries = jar.entries();
       while (entries.hasMoreElements()) {
         JarEntry entry = entries.nextElement();
-        if (entry.isDirectory() || !entry.getName().endsWith(".class")) {
+        Path relative = Path.of(entry.getName());
+        if (entry.isDirectory() || !shouldSync(relative, includeResources)) {
           continue;
         }
-        Path relative = Path.of(entry.getName());
         Path target = classesDir.resolve(relative).normalize();
         if (!target.startsWith(classesDir)) {
           throw new IOException("Zip entry escapes target directory: " + entry.getName());
         }
         Files.createDirectories(target.getParent());
-        try (InputStream is = jar.getInputStream(entry)) {
-          Files.copy(is, target, StandardCopyOption.REPLACE_EXISTING);
+        if (!jarEntryMatches(jar, entry, target)) {
+          try (InputStream is = jar.getInputStream(entry)) {
+            Files.copy(is, target, StandardCopyOption.REPLACE_EXISTING);
+          }
         }
         if (synced != null) {
           synced.add(relative);
+        }
+      }
+    }
+  }
+
+  private static boolean shouldSync(Path relative, boolean includeResources) {
+    String name = relative.toString().replace('\\', '/');
+    return name.endsWith(".class")
+        || (includeResources && !"META-INF/MANIFEST.MF".equalsIgnoreCase(name));
+  }
+
+  private static boolean jarEntryMatches(JarFile jar, JarEntry entry, Path target)
+      throws IOException {
+    if (!Files.isRegularFile(target)
+        || (entry.getSize() >= 0 && entry.getSize() != Files.size(target))) {
+      return false;
+    }
+    try (InputStream expected = jar.getInputStream(entry);
+        InputStream actual = Files.newInputStream(target)) {
+      byte[] expectedBuffer = new byte[8192];
+      byte[] actualBuffer = new byte[8192];
+      while (true) {
+        int expectedRead = expected.read(expectedBuffer);
+        int actualRead = actual.read(actualBuffer);
+        if (expectedRead != actualRead) {
+          return false;
+        }
+        if (expectedRead < 0) {
+          return true;
+        }
+        for (int i = 0; i < expectedRead; i++) {
+          if (expectedBuffer[i] != actualBuffer[i]) {
+            return false;
+          }
         }
       }
     }

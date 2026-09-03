@@ -5,6 +5,7 @@ set -euo pipefail
 cleanup() {
     rm -rf "${OUTPUT_DIR:-}"
     rm -rf "${CLASSES_DIR:-}"
+    rm -rf "${TEST_CLASSES_ROOT:-}"
     rm -f "${ABS_APP_CP_FILE:-}" "${ABS_CORE_DEPLOY_CP_FILE:-}" "${ABS_LOCAL_APP_JARS_FILE:-}"
 }
 trap cleanup EXIT ERR TERM INT QUIT ABRT
@@ -20,6 +21,10 @@ CORE_DEPLOY_CP_FILE="${RUNFILES_DIR}/%{workspace}/%{core_deploy_cp_file}"
 LOCAL_APP_JARS_FILE="${RUNFILES_DIR}/%{workspace}/%{local_app_jars_file}"
 MODEL_FILE="${RUNFILES_DIR}/%{workspace}/%{model_file}"
 MAIN_CLASS=%{main_class}
+TEST_MODEL_FILE=""
+if [ -n "%{test_model_file}" ]; then
+    TEST_MODEL_FILE="${RUNFILES_DIR}/%{workspace}/%{test_model_file}"
+fi
 
 # Build absolute-path classpath files for quarkifier (avoids E2BIG on Linux).
 # Each entry in the source files is prefixed with the runfiles directory.
@@ -74,9 +79,30 @@ if [ -f "$CODEGEN_INPUT_DIRS_FILE" ]; then
     CODEGEN_INPUT_DIRS=$(cat "$CODEGEN_INPUT_DIRS_FILE")
 fi
 
+# Read continuous-testing source, resource, and compiled-output metadata.
+TEST_SOURCE_DIRS_FILE="${RUNFILES_DIR}/%{workspace}/%{test_source_dirs_file}"
+TEST_SOURCE_DIRS=""
+if [ -f "$TEST_SOURCE_DIRS_FILE" ]; then
+    TEST_SOURCE_DIRS=$(cat "$TEST_SOURCE_DIRS_FILE")
+fi
+
+TEST_RESOURCE_DIRS_FILE="${RUNFILES_DIR}/%{workspace}/%{test_resource_dirs_file}"
+TEST_RESOURCE_DIRS=""
+if [ -f "$TEST_RESOURCE_DIRS_FILE" ]; then
+    TEST_RESOURCE_DIRS=$(cat "$TEST_RESOURCE_DIRS_FILE")
+fi
+
+TEST_CLASSES_OUTPUT_DIRS_FILE="${RUNFILES_DIR}/%{workspace}/%{test_classes_output_dirs_file}"
+TEST_CLASSES_OUTPUT_DIRS=""
+if [ -f "$TEST_CLASSES_OUTPUT_DIRS_FILE" ]; then
+    TEST_CLASSES_OUTPUT_DIRS=$(cat "$TEST_CLASSES_OUTPUT_DIRS_FILE")
+fi
+
 # Create temp dirs with unique prefixes for security
 OUTPUT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/quarkus_dev_output_XXXXXX")
 CLASSES_DIR=""
+TEST_CLASSES_DIR=""
+TEST_CLASSES_ROOT=""
 
 # Resolve absolute paths for hot-reload if source dirs are available
 WORKSPACE_ROOT="${BUILD_WORKSPACE_DIRECTORY:-$(pwd)}"
@@ -98,6 +124,7 @@ esac
 HOT_RELOAD_ARGS=()
 RESOURCES_VALUE=""
 CODEGEN_INPUT_DIRS_VALUE=""
+TEST_RESOURCES_VALUE=""
 
 # Prefixing helper: accumulate into an array (O(1) append) and join once.
 # String accumulation in a loop is quadratic in bash and takes minutes on
@@ -131,8 +158,31 @@ if [ -n "$CODEGEN_INPUT_DIRS" ]; then
     CODEGEN_INPUT_DIRS_VALUE=$(_join_comma "${CG_ABS[@]}")
 fi
 
-if [ -n "$BAZEL_TARGETS" ] && { [ -n "$SOURCE_DIRS" ] || [ -n "$CODEGEN_INPUT_DIRS_VALUE" ]; }; then
+if [ -n "$TEST_RESOURCE_DIRS" ]; then
+    TRD_ABS=()
+    IFS=',' read -ra TRD_ENTRIES <<< "$TEST_RESOURCE_DIRS"
+    for trd in "${TRD_ENTRIES[@]}"; do
+        abs_trd="${WORKSPACE_ROOT}/${trd}"
+        if [ -d "$abs_trd" ]; then
+            TRD_ABS+=("$abs_trd")
+        fi
+    done
+    if [ "${#TRD_ABS[@]}" -gt 0 ]; then
+        TEST_RESOURCES_VALUE=$(_join_comma "${TRD_ABS[@]}")
+    fi
+fi
+
+if [ -n "$BAZEL_TARGETS" ] && { [ -n "$SOURCE_DIRS" ] || [ -n "$TEST_SOURCE_DIRS" ] || [ -n "$TEST_RESOURCES_VALUE" ] || [ -n "$CODEGEN_INPUT_DIRS_VALUE" ]; }; then
     CLASSES_DIR=$(mktemp -d "${TMPDIR:-/tmp}/quarkus_hotreload_classes_XXXXXX")
+    if [ -n "$TEST_MODEL_FILE" ]; then
+        # Quarkus' test framework recognizes conventional build-tool output
+        # suffixes when locating a loaded test class. Keep the mutable Bazel
+        # output under test-classes so this fallback also works for profiles
+        # and facade classloaders that do not retain workspace source metadata.
+        TEST_CLASSES_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/quarkus_continuous_test_XXXXXX")
+        TEST_CLASSES_DIR="${TEST_CLASSES_ROOT}/test-classes"
+        mkdir -p "$TEST_CLASSES_DIR"
+    fi
 
     # Resolve source dirs to absolute paths
     ABS_SOURCE_DIRS=""
@@ -143,6 +193,16 @@ if [ -n "$BAZEL_TARGETS" ] && { [ -n "$SOURCE_DIRS" ] || [ -n "$CODEGEN_INPUT_DI
             SD_ABS+=("${WORKSPACE_ROOT}/${sd}")
         done
         ABS_SOURCE_DIRS=$(_join_comma "${SD_ABS[@]}")
+    fi
+
+    ABS_TEST_SOURCE_DIRS=""
+    if [ -n "$TEST_SOURCE_DIRS" ]; then
+        TSD_ABS=()
+        IFS=',' read -ra TSD_ENTRIES <<< "$TEST_SOURCE_DIRS"
+        for tsd in "${TSD_ENTRIES[@]}"; do
+            TSD_ABS+=("${WORKSPACE_ROOT}/${tsd}")
+        done
+        ABS_TEST_SOURCE_DIRS=$(_join_comma "${TSD_ABS[@]}")
     fi
 
     # Resolve classes output dirs to absolute paths. Reading an empty value
@@ -157,6 +217,16 @@ if [ -n "$BAZEL_TARGETS" ] && { [ -n "$SOURCE_DIRS" ] || [ -n "$CODEGEN_INPUT_DI
         ABS_CLASSES_OUTPUT_DIRS=$(_join_comma "${COD_ABS[@]}")
     fi
 
+    ABS_TEST_CLASSES_OUTPUT_DIRS=""
+    if [ -n "$TEST_CLASSES_OUTPUT_DIRS" ]; then
+        TCOD_ABS=()
+        IFS=',' read -ra TCOD_ENTRIES <<< "$TEST_CLASSES_OUTPUT_DIRS"
+        for tcod in "${TCOD_ENTRIES[@]}"; do
+            TCOD_ABS+=("${MODEL_EXEC_ROOT}/${tcod}")
+        done
+        ABS_TEST_CLASSES_OUTPUT_DIRS=$(_join_comma "${TCOD_ABS[@]}")
+    fi
+
     HOT_RELOAD_ARGS=(
       "--classes-dir" "$CLASSES_DIR"
       "--bazel-targets" "$BAZEL_TARGETS"
@@ -166,6 +236,19 @@ if [ -n "$BAZEL_TARGETS" ] && { [ -n "$SOURCE_DIRS" ] || [ -n "$CODEGEN_INPUT_DI
     fi
     if [ -n "$ABS_SOURCE_DIRS" ]; then
         HOT_RELOAD_ARGS+=("--source-dirs" "$ABS_SOURCE_DIRS")
+    fi
+    if [ -n "$TEST_MODEL_FILE" ]; then
+        HOT_RELOAD_ARGS+=("--test-application-model" "$TEST_MODEL_FILE")
+        HOT_RELOAD_ARGS+=("--test-classes-dir" "$TEST_CLASSES_DIR")
+    fi
+    if [ -n "$ABS_TEST_CLASSES_OUTPUT_DIRS" ]; then
+        HOT_RELOAD_ARGS+=("--test-classes-output-dirs" "$ABS_TEST_CLASSES_OUTPUT_DIRS")
+    fi
+    if [ -n "$ABS_TEST_SOURCE_DIRS" ]; then
+        HOT_RELOAD_ARGS+=("--test-source-dirs" "$ABS_TEST_SOURCE_DIRS")
+    fi
+    if [ -n "$TEST_RESOURCES_VALUE" ]; then
+        HOT_RELOAD_ARGS+=("--test-resources" "$TEST_RESOURCES_VALUE")
     fi
 fi
 

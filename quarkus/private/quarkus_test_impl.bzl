@@ -14,12 +14,13 @@ that jar paths in the ApplicationModel match the actual runfiles locations.
 load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
-load("//quarkus:providers.bzl", "QuarkusAppInfo", "QuarkusNativeInfo")
-load("//quarkus/private:application_model_aspect.bzl", "has_maven_artifact", "quarkus_application_model_aspect")
+load("//quarkus:providers.bzl", "QuarkusAppInfo", "QuarkusContinuousTestInfo", "QuarkusNativeInfo")
+load("//quarkus/private:application_model_aspect.bzl", "collect_deployment_model_artifacts", "collect_model_artifacts", "has_maven_artifact", "quarkus_application_model_aspect")
 load("//quarkus/private:build_properties.bzl", "validate_build_property_keys")
-load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_extension_runtime_jars", "collect_local_app_jars", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
+load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_extension_runtime_jars", "collect_local_app_jars", "collect_runtime_classpath", "collect_test_resource_dir_paths", "collect_test_source_dir_paths", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
 load("//quarkus/private:coverage_transition.bzl", "disable_coverage_transition", "single_transitioned_target")
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
+load("//quarkus/private:quarkus_codegen_impl.bzl", "collect_codegen_input_dirs", "quarkus_codegen_metadata_aspect")
 
 def _regex_escape_class_name(class_name):
     return class_name.replace("\\", "\\\\").replace(".", "\\.").replace("$", "\\$")
@@ -61,6 +62,20 @@ def _build_property_jvm_flags(build_properties):
         shell.quote("-D{}={}".format(key, build_properties[key]))
         for key in sorted(build_properties)
     ]
+
+def _direct_class_outputs(deps):
+    """Returns compiled jars for the test libraries named directly by the test rule."""
+    outputs = []
+    seen = {}
+    for dep in deps:
+        if JavaInfo not in dep:
+            continue
+        for jar_output in dep[JavaInfo].outputs.jars:
+            class_jar = jar_output.class_jar
+            if class_jar.path not in seen:
+                seen[class_jar.path] = True
+                outputs.append(class_jar)
+    return outputs
 
 def _integration_version_error(rule_name, test_version, app_label, app_version):
     if test_version == app_version:
@@ -183,10 +198,29 @@ def _test_impl(ctx, integration):
     if coverage_runfiles:
         runfiles = runfiles.merge(coverage_runfiles)
 
-    return [
+    providers = [
         DefaultInfo(executable = launcher, runfiles = runfiles),
         OutputGroupInfo(quarkus_model = depset([model])),
     ]
+    if not integration:
+        providers.append(QuarkusContinuousTestInfo(
+            application_model = model,
+            classes_output_dirs = depset(_direct_class_outputs(ctx.attr.deps)),
+            codegen_input_dirs = collect_codegen_input_dirs(ctx.attr.deps),
+            model_classpath = depset(
+                [model],
+                transitive = [
+                    runtime_classpath,
+                    conditional_classpath,
+                    deploy_classpath,
+                    collect_model_artifacts(ctx.attr.deps),
+                    collect_deployment_model_artifacts(ctx.attr.deps),
+                ],
+            ),
+            resource_dirs = collect_test_resource_dir_paths(ctx.attr.deps, runtime_classpath),
+            source_dirs = collect_test_source_dir_paths(ctx.attr.deps, runtime_classpath),
+        ))
+    return providers
 
 def _quarkus_test_impl(ctx):
     return _test_impl(ctx, False)
@@ -228,6 +262,7 @@ def _test_attrs(integration = False):
             aspects = [
                 quarkus_extension_deployment_classpath_aspect,
                 quarkus_application_model_aspect,
+                quarkus_codegen_metadata_aspect,
             ],
             providers = [JavaInfo],
             doc = "Test java_library targets. Transitive deps (app code, quarkus-junit, etc.) are included automatically.",

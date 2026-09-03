@@ -21,6 +21,10 @@ import java.util.Map;
  *     platform.quarkus.native.builder-image} (may be {@code null})
  * @param sourceDirs source directories for hot-reload in dev mode
  * @param classesDir mutable directory for .class files in dev mode (may be {@code null})
+ * @param testSourceDirs test source directories for continuous testing in dev mode
+ * @param testClassesDir mutable directory for test .class files in dev mode (may be {@code null})
+ * @param testClassesOutputDirs bazel-bin outputs containing compiled test classes
+ * @param testResources test resource directories for continuous testing in dev mode
  * @param bazelTargets Bazel targets to rebuild on source changes
  * @param classesOutputDirs bazel-bin output directories containing .class files
  * @param workspaceDir Bazel workspace root directory for running bazel build (may be {@code null})
@@ -31,6 +35,7 @@ import java.util.Map;
  * @param localAppJars local workspace jars to use as application roots
  * @param buildProperties declared hermetic build-time configuration
  * @param applicationModel explicit validated Bazel model JSON
+ * @param testApplicationModel explicit validated TEST-mode Bazel model JSON (may be {@code null})
  */
 public record QuarkifierConfig(
     List<Path> applicationClasspath,
@@ -44,6 +49,10 @@ public record QuarkifierConfig(
     String nativeBuilderImage,
     List<Path> sourceDirs,
     Path classesDir,
+    List<Path> testSourceDirs,
+    Path testClassesDir,
+    List<Path> testClassesOutputDirs,
+    List<Path> testResources,
     List<String> bazelTargets,
     List<Path> classesOutputDirs,
     Path workspaceDir,
@@ -53,4 +62,5 @@ public record QuarkifierConfig(
     List<Path> codegenInputDirs,
     List<Path> localAppJars,
     Map<String, String> buildProperties,
-    Path applicationModel) {}
+    Path applicationModel,
+    Path testApplicationModel) {}
