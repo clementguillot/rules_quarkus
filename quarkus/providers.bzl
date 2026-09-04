@@ -52,5 +52,10 @@ QuarkusContinuousTestInfo = provider(
         "model_classpath": "Depset of files referenced by the TEST-mode application model.",
         "resource_dirs": "Workspace-relative test resource directory paths.",
         "source_dirs": "Workspace-relative test Java source directory paths.",
+        "package_dirs": "Local Bazel package directories to detect new glob inputs.",
+        "build_properties": "Declared test JVM system properties.",
+        "jvm_flags": "Declared flags for the shared dev/test child JVM.",
+        "test_classes": "Explicit class selectors.",
+        "test_packages": "Explicit package selectors.",
     },
 )

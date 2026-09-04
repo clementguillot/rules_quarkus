@@ -63,6 +63,12 @@ java -jar quarkifier_<minor>_deploy.jar \
 | `--native-builder-image` | No | `null` | Native builder image for `platform.quarkus.native.builder-image` |
 | `--source-dirs` | No | `[]` | Comma-separated source directories for dev mode hot-reload |
 | `--classes-dir` | No | `null` | Mutable directory for .class files in dev mode |
+| `--test-application-model` | No | — | Explicit TEST-mode model for continuous testing in DEV mode |
+| `--test-classes-dir` | No | — | Mutable test output directory; enables output-only Quarkus scanning |
+| `--test-classes-output-dirs` | No | `[]` | Comma-separated compiled test/helper outputs to synchronize |
+| `--test-source-dirs` / `--test-resources` | No | `[]` | Declared input parent directories watched by Bazel, not Quarkus |
+| `--watched-package-dirs` | No | `[]` | Bazel package directories watched for new continuous-test glob inputs |
+| `--test-jvm-arg` | No | `[]` | Repeatable shared dev/test JVM flag; use `--test-jvm-arg=-Dkey=value` |
 | `--bazel-targets` | No | `[]` | Comma-separated Bazel targets to rebuild on source changes |
 | `--classes-output-dirs` | No | `[]` | Comma-separated bazel-bin output directories containing .class files |
 | `--workspace-dir` | No | `null` | Bazel workspace root directory for running bazel build |

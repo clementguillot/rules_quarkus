@@ -632,14 +632,15 @@ public final class BazelApplicationModelAssembler {
     private record TestSelection(String testRootId, String applicationId) {}
 
     private static boolean hasMainSources(TargetFragment fragment) {
-      return java.util.stream.Stream.concat(
-              fragment.sources().stream(), fragment.resources().stream())
-          .map(FileReference::path)
-          .map(path -> path.replace('\\', '/'))
-          // Bazel libraries are not required to use Maven's src/main layout.
-          // A direct local dependency is a main candidate when it carries any
-          // non-test source/resource, including a generated source JAR.
-          .anyMatch(path -> !(path.contains("/src/test/") || path.startsWith("src/test/")));
+      return !fragment.testOnly()
+          && java.util.stream.Stream.concat(
+                  fragment.sources().stream(), fragment.resources().stream())
+              .map(FileReference::path)
+              .map(path -> path.replace('\\', '/'))
+              // Bazel libraries are not required to use Maven's src/main layout.
+              // A direct local dependency is a main candidate when it carries any
+              // non-test source/resource, including a generated source JAR.
+              .anyMatch(path -> !(path.contains("/src/test/") || path.startsWith("src/test/")));
     }
 
     private void collapseTestRoot(String testRootId, String applicationId) {

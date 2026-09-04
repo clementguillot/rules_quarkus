@@ -229,6 +229,7 @@ class BazelApplicationModelAssemblerTest {
             app.ruleKind(),
             app.buildFile(),
             app.neverlink(),
+            app.testOnly(),
             app.coordinates(),
             app.runtimeOutputJars(),
             app.outputDirectories(),
@@ -528,6 +529,13 @@ class BazelApplicationModelAssemblerTest {
 
     assertTrue(exception.getMessage().contains("independent local application library"));
     assertTrue(exception.getMessage().contains(SHARED));
+  }
+
+  @Test
+  void testOnlyHelperWithCustomLayoutDoesNotCompeteWithTheApplication() throws IOException {
+    var model = BazelApplicationModelAssembler.assemble(multiDependencyTestInputs(false, true));
+    assertEquals(APP, model.applicationId());
+    assertTrue(model.nodes().stream().anyMatch(node -> SHARED.equals(node.id())));
   }
 
   @Test
@@ -1050,6 +1058,7 @@ class BazelApplicationModelAssemblerTest {
         "java_library",
         "BUILD.bazel",
         false,
+        true,
         null,
         List.of(output),
         List.of(
@@ -1088,6 +1097,7 @@ class BazelApplicationModelAssemblerTest {
         "java_library",
         "BUILD.bazel",
         false,
+        false,
         coordinates,
         List.of(output),
         List.of(),
@@ -1107,6 +1117,7 @@ class BazelApplicationModelAssemblerTest {
         fragment.ruleKind(),
         fragment.buildFile(),
         fragment.neverlink(),
+        fragment.testOnly(),
         fragment.coordinates(),
         fragment.runtimeOutputJars(),
         List.of(new FileReference(outputPath, outputPath, fragment.targetId(), false)),
@@ -1124,6 +1135,11 @@ class BazelApplicationModelAssemblerTest {
    */
   private BazelApplicationModelAssembler.Inputs multiDependencyTestInputs(
       boolean applicationOwnsShared) throws IOException {
+    return multiDependencyTestInputs(applicationOwnsShared, false);
+  }
+
+  private BazelApplicationModelAssembler.Inputs multiDependencyTestInputs(
+      boolean applicationOwnsShared, boolean sharedIsTestOnly) throws IOException {
     var base = inputs(true, DEPLOYMENT);
     String testRoot = "@@//:multi_dep_test_lib";
     Path sharedJar = jar("contracts.jar", null);
@@ -1136,7 +1152,11 @@ class BazelApplicationModelAssemblerTest {
                   ? withEdges(fragment, List.of(edge(EXT), edge(SHARED)))
                   : fragment);
     }
-    fragments.add(fragment(SHARED, "", "contracts", sharedJar, List.of()));
+    fragments.add(
+        withSources(
+            fragment(SHARED, "", "contracts", sharedJar, List.of()),
+            "helper/Helper.java",
+            sharedIsTestOnly));
     fragments.add(testLocal(testRoot, testJar, List.of(edge(APP), edge(SHARED))));
     var runtimePaths = new java.util.HashSet<>(base.runtimeClasspathPaths());
     runtimePaths.add(sharedJar.toString());
@@ -1176,6 +1196,7 @@ class BazelApplicationModelAssemblerTest {
         fragment.ruleKind(),
         fragment.buildFile(),
         fragment.neverlink(),
+        fragment.testOnly(),
         fragment.coordinates(),
         fragment.runtimeOutputJars(),
         fragment.outputDirectories(),
@@ -1186,6 +1207,11 @@ class BazelApplicationModelAssemblerTest {
   }
 
   private static TargetFragment withSources(TargetFragment fragment, String sourcePath) {
+    return withSources(fragment, sourcePath, fragment.testOnly());
+  }
+
+  private static TargetFragment withSources(
+      TargetFragment fragment, String sourcePath, boolean testOnly) {
     return new TargetFragment(
         fragment.targetId(),
         fragment.bazelLabel(),
@@ -1195,6 +1221,7 @@ class BazelApplicationModelAssemblerTest {
         fragment.ruleKind(),
         fragment.buildFile(),
         fragment.neverlink(),
+        testOnly,
         fragment.coordinates(),
         fragment.runtimeOutputJars(),
         fragment.outputDirectories(),
@@ -1231,6 +1258,7 @@ class BazelApplicationModelAssemblerTest {
         targetName,
         "java_library",
         "BUILD.bazel",
+        false,
         false,
         null,
         List.of(output),

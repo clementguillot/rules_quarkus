@@ -194,15 +194,11 @@ class DevModeLauncherTest {
     var test = module.getTest().orElseThrow();
 
     assertEquals(Path.of("/tmp/test-classes").toAbsolutePath().toString(), test.getClassesPath());
+    assertEquals(List.of(config.reloadNotificationDir()), test.getSourcePaths().stream().toList());
+    assertTrue(test.getResourcePaths().isEmpty(), "Quarkus must not copy workspace resources");
     assertTrue(
-        test.getSourcePaths().stream()
-            .anyMatch(
-                path -> path.toAbsolutePath().equals(Path.of("src/test/java").toAbsolutePath())));
-    assertTrue(
-        test.getResourcePaths().stream()
-            .anyMatch(
-                path ->
-                    path.toAbsolutePath().equals(Path.of("src/test/resources").toAbsolutePath())));
+        module.getMain().getSourcePaths().isEmpty(), "Quarkus must not compile workspace sources");
+    assertTrue(module.getMain().getResourcePaths().isEmpty());
     assertEquals(
         Path.of("/tmp/test-classes").toAbsolutePath().toString(), test.getResourcesOutputPath());
   }

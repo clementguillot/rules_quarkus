@@ -529,8 +529,36 @@ sh_test(
     tags = ["no-sandbox"],
 )
 
+# --- Continuous testing through the Dev UI ---
+# These tests invoke real nested Bazel builds and mutate only disposable fixture
+# workspaces. They intentionally require a local checkout, Bazel and network/cache.
+[
+    sh_test(
+        name = "continuous_testing_" + minor + "_test",
+        size = "enormous",
+        srcs = ["continuous_testing_test.sh"],
+        args = [version],
+        data = [
+            "continuous_testing_test.py",
+            ":app_dev",
+        ] + glob(["continuous/**"]),
+        env_inherit = ["PATH"],
+        tags = [
+            "exclusive",
+            # The nested build reads the checkout, including the other version's
+            # adapter sources, so the outer test result must never be cached.
+            "external",
+            "no-remote",
+            "no-sandbox",
+        ],
+    )
+    for minor, version in [
+        ("3_27", "3.27.4"),
+        ("3_33", "3.33.2"),
+    ]
+]
+
 # --- fail_if_no_tests smoke tests (issue #125) ---
-#
 # EmptyTest.java is a @QuarkusTest with zero @Test methods.
 java_library(
     name = "empty_test_lib",

@@ -163,6 +163,15 @@ public final class AugmentationCommand implements Callable<Integer> {
   private List<Path> testResources;
 
   @Option(
+      names = "--watched-package-dirs",
+      split = ",",
+      description = "Bazel packages watched for newly declared continuous-test inputs.")
+  private List<Path> watchedPackageDirs;
+
+  @Option(names = "--test-jvm-arg", description = "JVM flag for the shared dev/test process.")
+  private List<String> testJvmArgs;
+
+  @Option(
       names = "--bazel-targets",
       description = "Comma-separated Bazel targets to rebuild on source changes.",
       split = ",")
@@ -284,7 +293,9 @@ public final class AugmentationCommand implements Callable<Integer> {
         resolvedLocalJars,
         resolvedBuildProperties,
         applicationModel,
-        testApplicationModel);
+        testApplicationModel,
+        orEmpty(watchedPackageDirs),
+        orEmpty(testJvmArgs));
   }
 
   // ---- internal helpers ----

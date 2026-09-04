@@ -122,6 +122,7 @@ public final class DevModeLauncher {
         .sorted()
         .map(name -> "-D" + name + "=" + buildProperties.getProperty(name))
         .forEach(cmd::add);
+    cmd.addAll(config.testJvmArgs());
     cmd.add("-Djava.util.logging.manager=org.jboss.logmanager.LogManager");
     // Required for jboss-threads on Java 24+
     cmd.add("--add-opens");
@@ -157,6 +158,7 @@ public final class DevModeLauncher {
         || (config.sourceDirs().isEmpty()
             && config.testSourceDirs().isEmpty()
             && config.testResources().isEmpty()
+            && config.watchedPackageDirs().isEmpty()
             && config.codegenInputDirs().isEmpty())) {
       return null;
     }

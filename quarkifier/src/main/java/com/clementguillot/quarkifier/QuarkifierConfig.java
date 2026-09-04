@@ -36,6 +36,8 @@ import java.util.Map;
  * @param buildProperties declared hermetic build-time configuration
  * @param applicationModel explicit validated Bazel model JSON
  * @param testApplicationModel explicit validated TEST-mode Bazel model JSON (may be {@code null})
+ * @param watchedPackageDirs Bazel packages watched for new continuous-test inputs
+ * @param testJvmArgs JVM flags for the shared dev/test child process
  */
 public record QuarkifierConfig(
     List<Path> applicationClasspath,
@@ -63,4 +65,14 @@ public record QuarkifierConfig(
     List<Path> localAppJars,
     Map<String, String> buildProperties,
     Path applicationModel,
-    Path testApplicationModel) {}
+    Path testApplicationModel,
+    List<Path> watchedPackageDirs,
+    List<String> testJvmArgs) {
+
+  /** Private, source-free directory used to notify Quarkus after a completed Bazel sync. */
+  public Path reloadNotificationDir() {
+    return testClassesDir == null
+        ? null
+        : testClassesDir.toAbsolutePath().getParent().resolve("reload-notifications");
+  }
+}

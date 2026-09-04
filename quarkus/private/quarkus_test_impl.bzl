@@ -15,9 +15,9 @@ load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusAppInfo", "QuarkusContinuousTestInfo", "QuarkusNativeInfo")
-load("//quarkus/private:application_model_aspect.bzl", "collect_deployment_model_artifacts", "collect_model_artifacts", "has_maven_artifact", "quarkus_application_model_aspect")
+load("//quarkus/private:application_model_aspect.bzl", "collect_deployment_model_artifacts", "collect_model_artifacts", "collect_watch_metadata", "has_maven_artifact", "quarkus_application_model_aspect")
 load("//quarkus/private:build_properties.bzl", "validate_build_property_keys")
-load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_extension_runtime_jars", "collect_local_app_jars", "collect_runtime_classpath", "collect_test_resource_dir_paths", "collect_test_source_dir_paths", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
+load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_extension_runtime_jars", "collect_local_app_jars", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
 load("//quarkus/private:coverage_transition.bzl", "disable_coverage_transition", "single_transitioned_target")
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
 load("//quarkus/private:quarkus_codegen_impl.bzl", "collect_codegen_input_dirs", "quarkus_codegen_metadata_aspect")
@@ -208,9 +208,14 @@ def _test_impl(ctx, integration):
         OutputGroupInfo(quarkus_model = depset([model])),
     ]
     if not integration:
+        metadata = collect_watch_metadata(ctx.attr.deps)
         providers.append(QuarkusContinuousTestInfo(
             application_model = model,
-            classes_output_dirs = depset(_direct_class_outputs(ctx.attr.deps)),
+            classes_output_dirs = depset(_direct_class_outputs(ctx.attr.deps), transitive = [metadata.test_outputs]),
+            build_properties = declared_build_properties,
+            jvm_flags = ctx.attr.jvm_flags,
+            test_classes = ctx.attr.test_classes,
+            test_packages = ctx.attr.test_packages,
             codegen_input_dirs = collect_codegen_input_dirs(ctx.attr.deps),
             model_classpath = depset(
                 [model],
@@ -222,8 +227,9 @@ def _test_impl(ctx, integration):
                     collect_deployment_model_artifacts(ctx.attr.deps),
                 ],
             ),
-            resource_dirs = collect_test_resource_dir_paths(ctx.attr.deps, runtime_classpath),
-            source_dirs = collect_test_source_dir_paths(ctx.attr.deps, runtime_classpath),
+            resource_dirs = metadata.resource_dirs,
+            source_dirs = metadata.source_dirs,
+            package_dirs = metadata.package_dirs,
         ))
     return providers
 
@@ -267,8 +273,7 @@ def _test_attrs(integration = False):
             aspects = [
                 quarkus_extension_deployment_classpath_aspect,
                 quarkus_application_model_aspect,
-                quarkus_codegen_metadata_aspect,
-            ],
+            ] + ([] if integration else [quarkus_codegen_metadata_aspect]),
             providers = [JavaInfo],
             doc = "Test java_library targets. Transitive deps (app code, quarkus-junit, etc.) are included automatically.",
         ),

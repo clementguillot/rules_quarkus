@@ -19,7 +19,7 @@ class BazelFileWatcherTest {
 
   @TempDir Path tempDir;
 
-  private QuarkifierConfig testConfig(Path outputDir, List<Path> sourceDirs) {
+  private QuarkifierConfig testConfig(Path outputDir, List<Path> sourceDirs, String... extra) {
     var args =
         new java.util.ArrayList<>(
             List.of(
@@ -39,6 +39,7 @@ class BazelFileWatcherTest {
               .map(Path::toString)
               .collect(java.util.stream.Collectors.joining(",")));
     }
+    args.addAll(List.of(extra));
     return TestQuarkifierConfig.parse(args.toArray(String[]::new));
   }
 
@@ -50,6 +51,71 @@ class BazelFileWatcherTest {
     watcher.close();
     // Second close should not throw
     assertDoesNotThrow(watcher::close);
+  }
+
+  @Test
+  void continuousSyncCopiesOnlyBazelOutputsAndNotifiesAfterSuccess() throws Exception {
+    Path main = Files.createDirectories(tempDir.resolve("compiled-main"));
+    Path tests = Files.createDirectories(tempDir.resolve("compiled-tests"));
+    Files.writeString(main.resolve("App.class"), "main");
+    Files.writeString(main.resolve("application.properties"), "key=value");
+    Files.writeString(tests.resolve("AppTest.class"), "test");
+    Files.writeString(tests.resolve("fixture.txt"), "packaged");
+    Path sourceResources = Files.createDirectories(tempDir.resolve("testdata"));
+    Files.writeString(sourceResources.resolve("undeclared.txt"), "must not leak");
+    var config =
+        testConfig(
+            tempDir.resolve("output"),
+            List.of(),
+            "--test-classes-dir",
+            tempDir.resolve("mutable/test-classes").toString(),
+            "--classes-output-dirs",
+            main.toString(),
+            "--test-classes-output-dirs",
+            tests.toString(),
+            "--test-resources",
+            sourceResources.toString());
+    Files.createDirectories(config.reloadNotificationDir());
+    try (var watcher = new BazelFileWatcher(config)) {
+      assertTrue(watcher.syncClasses(true));
+      assertEquals(
+          "key=value", Files.readString(config.classesDir().resolve("application.properties")));
+      assertEquals("packaged", Files.readString(config.testClassesDir().resolve("fixture.txt")));
+      assertFalse(Files.exists(config.testClassesDir().resolve("undeclared.txt")));
+      assertTrue(Files.exists(config.reloadNotificationDir().resolve("completed-build")));
+      Files.delete(tests.resolve("fixture.txt"));
+      assertTrue(watcher.syncClasses(true));
+      assertFalse(Files.exists(config.testClassesDir().resolve("fixture.txt")));
+    }
+  }
+
+  @Test
+  void failedBuildDoesNotPublishOrNotifyAndNextSuccessRecovers() throws Exception {
+    Path command = tempDir.resolve("fake-bazel");
+    Files.writeString(command, "#!/bin/sh\nexit 1\n");
+    assertTrue(command.toFile().setExecutable(true));
+    Path tests = Files.createDirectories(tempDir.resolve("compiled-tests"));
+    Files.writeString(tests.resolve("AppTest.class"), "last-good");
+    var config =
+        testConfig(
+            tempDir.resolve("output"),
+            List.of(),
+            "--test-classes-dir",
+            tempDir.resolve("mutable/test-classes").toString(),
+            "--test-classes-output-dirs",
+            tests.toString(),
+            "--bazel-command",
+            command.toString());
+    try (var watcher = BazelFileWatcher.startInBackground(config)) {
+      Files.writeString(tests.resolve("AppTest.class"), "new");
+      watcher.triggerBuildAndSync();
+      assertEquals("last-good", Files.readString(config.testClassesDir().resolve("AppTest.class")));
+      assertFalse(Files.exists(config.reloadNotificationDir().resolve("completed-build")));
+      Files.writeString(command, "#!/bin/sh\nexit 0\n");
+      watcher.triggerBuildAndSync();
+      assertEquals("new", Files.readString(config.testClassesDir().resolve("AppTest.class")));
+      assertTrue(Files.exists(config.reloadNotificationDir().resolve("completed-build")));
+    }
   }
 
   @Test

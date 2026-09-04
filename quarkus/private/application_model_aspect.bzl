@@ -17,6 +17,10 @@ QuarkusBazelTargetGraphInfo = provider(
         "root_ids": "Depset of graph node ids represented by this target.",
         "transitive_artifacts": "Runtime artifacts below the root, excluding its outputs.",
         "transitive_fragments": "Runtime fragments below the root, excluding its fragment.",
+        "watch_sources": "Depset of declared local Java source parent directories.",
+        "watch_resources": "Depset of declared local resource parent directories.",
+        "watch_packages": "Depset of local Java package directories, including empty resource globs.",
+        "test_outputs": "Depset of runtime jars owned by local testonly Java targets.",
     },
 )
 
@@ -128,6 +132,7 @@ def _target_fragment(ctx, target, edges, coordinates = None, output_jars = None,
         "coordinates": coordinates,
         "edges": sorted(edges, key = _edge_sort_key),
         "neverlink": getattr(ctx.rule.attr, "neverlink", False),
+        "testOnly": getattr(ctx.rule.attr, "testonly", False),
         "outputDirectories": [_file_record(file) for file in (output_directories or [])],
         "package": target.label.package,
         "resources": _files_attr(ctx, "resources"),
@@ -287,6 +292,22 @@ def _application_model_aspect_impl(target, ctx):
 
     return [
         QuarkusBazelTargetGraphInfo(
+            watch_sources = depset(
+                direct = _watch_dirs(ctx, "srcs", java_only = True),
+                transitive = [graph.watch_sources for graph in child_graphs],
+            ),
+            watch_resources = depset(
+                direct = _watch_dirs(ctx, "resources"),
+                transitive = [graph.watch_resources for graph in child_graphs],
+            ),
+            watch_packages = depset(
+                direct = [ctx.label.package or "."] if JavaInfo in target and not ctx.label.workspace_name else [],
+                transitive = [graph.watch_packages for graph in child_graphs],
+            ),
+            test_outputs = depset(
+                direct = target[JavaInfo].runtime_output_jars if JavaInfo in target and not ctx.label.workspace_name and getattr(ctx.rule.attr, "testonly", False) else [],
+                transitive = [graph.test_outputs for graph in child_graphs],
+            ),
             artifacts = depset(direct = direct_artifacts, transitive = transitive_artifacts),
             coordinate_keys = depset(direct = direct_coordinate_keys, transitive = transitive_coordinate_keys),
             deployment_artifacts = depset(transitive = deployment_artifacts),
@@ -300,6 +321,24 @@ def _application_model_aspect_impl(target, ctx):
             transitive_fragments = depset(transitive = transitive_fragments),
         ),
     ]
+
+def _watch_dirs(ctx, attribute, java_only = False):
+    if ctx.label.workspace_name or not hasattr(ctx.rule.files, attribute):
+        return []
+    return [
+        file.dirname or "."
+        for file in getattr(ctx.rule.files, attribute)
+        if file.is_source and not file.short_path.startswith("../") and (not java_only or file.extension == "java")
+    ]
+
+def collect_watch_metadata(deps):
+    """Exports Bazel-owned input locations and test-only helper outputs for dev testing."""
+    return struct(
+        source_dirs = _collect_graph_depset(deps, "watch_sources").to_list(),
+        resource_dirs = _collect_graph_depset(deps, "watch_resources").to_list(),
+        package_dirs = _collect_graph_depset(deps, "watch_packages").to_list(),
+        test_outputs = _collect_graph_depset(deps, "test_outputs"),
+    )
 
 quarkus_application_model_aspect = aspect(
     implementation = _application_model_aspect_impl,

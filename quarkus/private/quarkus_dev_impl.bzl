@@ -13,7 +13,7 @@ load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusContinuousTestInfo")
-load("//quarkus/private:application_model_aspect.bzl", "quarkus_application_model_aspect")
+load("//quarkus/private:application_model_aspect.bzl", "collect_watch_metadata", "quarkus_application_model_aspect")
 load("//quarkus/private:build_properties.bzl", "write_build_properties")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_local_app_jars", "collect_resource_dir_paths", "collect_runtime_classpath", "collect_source_dir_paths", "is_local_artifact", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
 load("//quarkus/private:coverage_transition.bzl", "dev_lifecycle_transition", "disable_coverage_transition", "single_transitioned_target")
@@ -93,6 +93,8 @@ def _quarkus_dev_impl(ctx):
     bazel_targets = _hot_reload_bazel_target(ctx)
     continuous_test = single_transitioned_target(ctx.attr.continuous_test) if ctx.attr.continuous_test else None
     continuous_test_info = continuous_test[QuarkusContinuousTestInfo] if continuous_test else None
+    watch_metadata = collect_watch_metadata(ctx.attr.deps)
+    app_owners = {file.owner: True for file in runtime_classpath.to_list()}
     codegen_input_dirs = depset(
         transitive = [
             collect_codegen_input_dirs(ctx.attr.deps),
@@ -104,18 +106,19 @@ def _quarkus_dev_impl(ctx):
     # and resolved against the runfiles tree.
     files = struct(
         app_cp = write_runfiles_paths_file(ctx, "_app_cp.txt", runtime_classpath, ":"),
-        build_properties = write_build_properties(ctx, ctx.attr.build_properties),
+        build_properties = write_build_properties(ctx, _continuous_build_properties(ctx.attr.build_properties, continuous_test_info)),
         local_app_jars = write_runfiles_paths_file(ctx, "_local_app_jars.txt", depset(collect_local_app_jars(ctx.attr.deps, runtime_classpath)), ":"),
         core_deploy_cp = write_runfiles_paths_file(ctx, "_core_deploy_cp.txt", core_deployment_classpath, ":"),
-        source_dirs = _write_csv_file(ctx, "_source_dirs.txt", collect_source_dir_paths(ctx.attr.deps, runtime_classpath)),
-        resource_dirs = _write_csv_file(ctx, "_resource_dirs.txt", collect_resource_dir_paths(ctx.attr.deps, runtime_classpath)),
+        source_dirs = _write_csv_file(ctx, "_source_dirs.txt", watch_metadata.source_dirs if continuous_test_info else collect_source_dir_paths(ctx.attr.deps, runtime_classpath)),
+        resource_dirs = _write_csv_file(ctx, "_resource_dirs.txt", watch_metadata.resource_dirs if continuous_test_info else collect_resource_dir_paths(ctx.attr.deps, runtime_classpath)),
+        package_dirs = _write_csv_file(ctx, "_package_dirs.txt", depset(watch_metadata.package_dirs + continuous_test_info.package_dirs).to_list() if continuous_test_info else []),
         bazel_targets = _write_csv_file(ctx, "_bazel_targets.txt", bazel_targets),
         classes_output_dirs = _write_csv_file(ctx, "_classes_output_dirs.txt", _collect_classes_output_dirs(ctx.attr.deps, runtime_classpath)),
         codegen_input_dirs = _write_csv_file(ctx, "_codegen_input_dirs.txt", codegen_input_dirs),
         test_classes_output_dirs = _write_csv_file(
             ctx,
             "_test_classes_output_dirs.txt",
-            [file.path for file in continuous_test_info.classes_output_dirs.to_list()] if continuous_test_info else [],
+            [file.path for file in continuous_test_info.classes_output_dirs.to_list() if file.owner not in app_owners] if continuous_test_info else [],
         ),
         test_resource_dirs = _write_csv_file(
             ctx,
@@ -132,7 +135,7 @@ def _quarkus_dev_impl(ctx):
 
     tool_jar = ctx.file.quarkifier_tool
     java_runtime = ctx.attr._java_runtime[java_common.JavaRuntimeInfo]
-    launcher = _write_dev_launcher(ctx, tool_jar, files, model, test_model, java_runtime)
+    launcher = _write_dev_launcher(ctx, tool_jar, files, model, test_model, java_runtime, continuous_test_info)
 
     runfiles = ctx.runfiles(
         files = [
@@ -149,6 +152,7 @@ def _quarkus_dev_impl(ctx):
             files.test_classes_output_dirs,
             files.test_resource_dirs,
             files.test_source_dirs,
+            files.package_dirs,
             model,
         ] + ([test_model] if test_model else []) + ctx.files.deployment_artifacts,
         transitive_files = depset(transitive = [
@@ -172,7 +176,27 @@ def _join_dev_build_args(args):
             fail("dev_build_args: commas are not supported (used as delimiter); got '{}'".format(arg))
     return ",".join(args)
 
-def _write_dev_launcher(ctx, tool_jar, files, model_file, test_model_file, java_runtime):
+def _continuous_build_properties(app_properties, test_info):
+    """Preserves test configuration without silently changing conflicting app settings."""
+    properties = dict(app_properties)
+    if not test_info:
+        return properties
+    for key, value in test_info.build_properties.items():
+        if key in properties and properties[key] != value:
+            fail("continuous_test: conflicting build_properties value for '{}'; dev and tests share one JVM".format(key))
+        properties[key] = value
+    selectors = ["^" + name.replace(".", "\\.").replace("$", "\\$") + "$" for name in test_info.test_classes]
+    selectors.extend(["^" + name.replace(".", "\\.").replace("$", "\\$") + "\\..*$" for name in test_info.test_packages])
+    if selectors:
+        selection = "(" + "|".join(selectors) + ")"
+        configured = properties.get("quarkus.test.include-pattern")
+        properties["quarkus.test.include-pattern"] = "(?=(?:" + configured + ")$)" + selection if configured else selection
+
+    # Match quarkus_test's exclusion of packaged integration tests.
+    properties["quarkus.test.exclude-pattern"] = "(" + properties.get("quarkus.test.exclude-pattern", "^$") + "|.*IT$)"
+    return properties
+
+def _write_dev_launcher(ctx, tool_jar, files, model_file, test_model_file, java_runtime, test_info):
     """Expands the dev launcher template with the metadata file locations."""
     launcher = ctx.actions.declare_file(ctx.label.name + "_dev.sh")
     ctx.actions.expand_template(
@@ -195,6 +219,8 @@ def _write_dev_launcher(ctx, tool_jar, files, model_file, test_model_file, java_
             "%{source_dirs_file}": files.source_dirs.short_path,
             "%{test_classes_output_dirs_file}": files.test_classes_output_dirs.short_path,
             "%{test_model_file}": test_model_file.short_path if test_model_file else "",
+            "%{package_dirs_file}": files.package_dirs.short_path,
+            "%{test_jvm_flags}": " ".join([shell.quote(flag) for flag in test_info.jvm_flags]) if test_info else "",
             "%{test_resource_dirs_file}": files.test_resource_dirs.short_path,
             "%{test_source_dirs_file}": files.test_source_dirs.short_path,
             "%{tool_jar}": tool_jar.short_path,
@@ -292,3 +318,5 @@ stale files. Flags containing commas are not supported.
         ),
     },
 )
+
+continuous_build_properties_for_test = _continuous_build_properties

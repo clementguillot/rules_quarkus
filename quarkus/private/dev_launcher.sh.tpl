@@ -97,6 +97,8 @@ TEST_CLASSES_OUTPUT_DIRS=""
 if [ -f "$TEST_CLASSES_OUTPUT_DIRS_FILE" ]; then
     TEST_CLASSES_OUTPUT_DIRS=$(cat "$TEST_CLASSES_OUTPUT_DIRS_FILE")
 fi
+PACKAGE_DIRS=$(cat "${RUNFILES_DIR}/%{workspace}/%{package_dirs_file}")
+TEST_JVM_FLAGS=(%{test_jvm_flags})
 
 # Create temp dirs with unique prefixes for security
 OUTPUT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/quarkus_dev_output_XXXXXX")
@@ -163,16 +165,14 @@ if [ -n "$TEST_RESOURCE_DIRS" ]; then
     IFS=',' read -ra TRD_ENTRIES <<< "$TEST_RESOURCE_DIRS"
     for trd in "${TRD_ENTRIES[@]}"; do
         abs_trd="${WORKSPACE_ROOT}/${trd}"
-        if [ -d "$abs_trd" ]; then
-            TRD_ABS+=("$abs_trd")
-        fi
+        TRD_ABS+=("$abs_trd")
     done
     if [ "${#TRD_ABS[@]}" -gt 0 ]; then
         TEST_RESOURCES_VALUE=$(_join_comma "${TRD_ABS[@]}")
     fi
 fi
 
-if [ -n "$BAZEL_TARGETS" ] && { [ -n "$SOURCE_DIRS" ] || [ -n "$TEST_SOURCE_DIRS" ] || [ -n "$TEST_RESOURCES_VALUE" ] || [ -n "$CODEGEN_INPUT_DIRS_VALUE" ]; }; then
+if [ -n "$BAZEL_TARGETS" ] && { [ -n "$TEST_MODEL_FILE" ] || [ -n "$SOURCE_DIRS" ] || [ -n "$CODEGEN_INPUT_DIRS_VALUE" ]; }; then
     CLASSES_DIR=$(mktemp -d "${TMPDIR:-/tmp}/quarkus_hotreload_classes_XXXXXX")
     if [ -n "$TEST_MODEL_FILE" ]; then
         # Quarkus' test framework recognizes conventional build-tool output
@@ -250,6 +250,17 @@ if [ -n "$BAZEL_TARGETS" ] && { [ -n "$SOURCE_DIRS" ] || [ -n "$TEST_SOURCE_DIRS
     if [ -n "$TEST_RESOURCES_VALUE" ]; then
         HOT_RELOAD_ARGS+=("--test-resources" "$TEST_RESOURCES_VALUE")
     fi
+    if [ -n "$PACKAGE_DIRS" ]; then
+        PD_ABS=()
+        IFS=',' read -ra PD_ENTRIES <<< "$PACKAGE_DIRS"
+        for pd in "${PD_ENTRIES[@]}"; do
+            PD_ABS+=("${WORKSPACE_ROOT}/${pd}")
+        done
+        HOT_RELOAD_ARGS+=("--watched-package-dirs" "$(_join_comma "${PD_ABS[@]}")")
+    fi
+    for flag in ${TEST_JVM_FLAGS[@]+"${TEST_JVM_FLAGS[@]}"}; do
+        HOT_RELOAD_ARGS+=("--test-jvm-arg=$flag")
+    done
 fi
 
 # Use a JDK @argfile to pass all java arguments, avoiding E2BIG.

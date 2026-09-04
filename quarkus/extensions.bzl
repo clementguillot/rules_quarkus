@@ -1538,9 +1538,9 @@ def quarkus_java_library(name, srcs = [], resources = [], deps = [], codegen_src
         **java_kwargs
     )
 
-def quarkus_app(name, dev = True, dev_build_args = [], continuous_test = None, native = False, native_container_build = False,
+def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_container_build = False,
                 native_container_runtime = "auto", native_builder_image = _DEFAULT_BUILDER_IMAGE,
-                package_type = "fast-jar", build_properties = {{}}, **kwargs):
+                package_type = "fast-jar", build_properties = {{}}, continuous_test = None, **kwargs):
     \"\"\"Builds a Quarkus application with optional dev-mode and native targets.
 
     Creates:
@@ -1665,8 +1665,8 @@ def _prepare_test_target(name, srcs, resources, deps, test_packages, test_classe
         kwargs = test_kwargs,
     )
 
-def quarkus_test(name, srcs = None, resources = [], deps = None, test_packages = None, test_classes = None,
-                 jvm_flags = None, build_properties = None, **kwargs):
+def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_classes = None,
+                 jvm_flags = None, build_properties = None, resources = [], **kwargs):
     \"\"\"Runs @QuarkusTest-annotated JUnit 5 tests with full Quarkus augmentation.
 
     If srcs is provided, a java_library is created internally to compile the
@@ -1709,7 +1709,7 @@ def quarkus_test(name, srcs = None, resources = [], deps = None, test_packages =
         **prepared.kwargs
     )
 
-def quarkus_integration_test(name, app, srcs = None, resources = [], deps = None, test_packages = None,
+def quarkus_integration_test(name, app, srcs = None, deps = None, test_packages = None,
                              test_classes = None, jvm_flags = None, **kwargs):
     \"\"\"Runs @QuarkusIntegrationTest tests against a packaged application.
 
@@ -1720,10 +1720,7 @@ def quarkus_integration_test(name, app, srcs = None, resources = [], deps = None
 
     If srcs is provided, a java_library is created internally to compile the
     test sources. If srcs is omitted, deps must include a pre-compiled
-    java_library containing the integration-test classes. With inline srcs,
-    declare `resources` here to package test resources. With precompiled tests,
-    declare resources on the supplied java_library targets instead; this macro's
-    `resources` attribute is ignored without srcs.
+    java_library containing the integration-test classes.
     \"\"\"
     if "build_properties" in kwargs:
         fail("quarkus_integration_test does not accept build_properties; declare build-time configuration on its app target")
@@ -1731,7 +1728,7 @@ def quarkus_integration_test(name, app, srcs = None, resources = [], deps = None
     prepared = _prepare_test_target(
         name,
         srcs,
-        resources,
+        [],
         deps,
         test_packages,
         test_classes,
