@@ -1,7 +1,6 @@
 package com.clementguillot.quarkifier.dev;
 
 import com.clementguillot.quarkifier.AugmentationException;
-import com.clementguillot.quarkifier.BuildProperties;
 import com.clementguillot.quarkifier.QuarkifierConfig;
 import com.clementguillot.quarkifier.maven.MavenCoordinateParser;
 import com.clementguillot.quarkifier.watcher.BazelFileWatcher;
@@ -109,17 +108,6 @@ public final class DevModeLauncher {
     }
   }
 
-  /**
-   * Merges the declared build configuration with the dev-lifecycle invariants.
-   *
-   * <p>Dev mode carries this same set over two channels — the child JVM's {@code -D} flags and the
-   * serialized {@link DevModeContext} build-system properties — so both must derive it here.
-   */
-  private static java.util.Properties devBuildProperties(QuarkifierConfig config) {
-    return BuildProperties.defaults(
-        config.buildProperties(), config.mainClass(), null, config.packageType());
-  }
-
   /** Starts the child JVM running {@link DevModeMain} from the dev jar. */
   private static Process startDevProcess(
       QuarkifierConfig config, Path serializedModel, Path serializedTestModel, Path devJar)
@@ -129,11 +117,12 @@ public final class DevModeLauncher {
     // Declared build properties come first so every launcher-owned setting
     // below wins any key conflict: the JVM keeps the last `-D` for a name.
     // This matches the ordering the test launcher pins.
-    var buildProperties = devBuildProperties(config);
+    var buildProperties = DevModeContextBuilder.devBuildProperties(config);
     buildProperties.stringPropertyNames().stream()
         .sorted()
         .map(name -> "-D" + name + "=" + buildProperties.getProperty(name))
         .forEach(cmd::add);
+    cmd.addAll(config.testJvmArgs());
     cmd.add("-Djava.util.logging.manager=org.jboss.logmanager.LogManager");
     // Required for jboss-threads on Java 24+
     cmd.add("--add-opens");
@@ -167,9 +156,10 @@ public final class DevModeLauncher {
     if (config.classesDir() == null
         || config.bazelTargets().isEmpty()
         || (config.sourceDirs().isEmpty()
-            && config.testSourceDirs().isEmpty()
-            && config.testResources().isEmpty()
-            && config.codegenInputDirs().isEmpty())) {
+            && config.resources().isEmpty()
+            && config.watchedInputs().isEmpty()
+            && config.watchedBuildFiles().isEmpty()
+            && config.codegenInputFiles().isEmpty())) {
       return null;
     }
     LOGGER.debug("[hot-reload] Starting file watcher...");

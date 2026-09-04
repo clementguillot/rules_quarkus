@@ -169,6 +169,10 @@ class DevModeLauncherTest {
     assertEquals(
         classesDir.toAbsolutePath().toString(),
         context.getApplicationRoot().getMain().getClassesPath());
+    assertTrue(
+        context.getApplicationRoot().getMain().getSourcePaths().stream()
+            .anyMatch(config.reloadNotificationDir()::equals),
+        "ordinary dev mode must watch the post-sync notification directory");
   }
 
   @Test
@@ -185,24 +189,18 @@ class DevModeLauncherTest {
     var config =
         devConfig(
             "--test-application-model", "test-model.json",
-            "--test-source-dirs", "src/test/java",
             "--test-classes-dir", "/tmp/test-classes",
-            "--test-classes-output-dirs", "bazel-bin/test.jar",
-            "--test-resources", "src/test/resources");
+            "--test-classes-output-dirs", "bazel-bin/test.jar");
 
     var module = DevModeLauncher.buildDevModeContext(config).getApplicationRoot();
     var test = module.getTest().orElseThrow();
 
     assertEquals(Path.of("/tmp/test-classes").toAbsolutePath().toString(), test.getClassesPath());
+    assertEquals(List.of(config.reloadNotificationDir()), test.getSourcePaths().stream().toList());
+    assertTrue(test.getResourcePaths().isEmpty(), "Quarkus must not copy workspace resources");
     assertTrue(
-        test.getSourcePaths().stream()
-            .anyMatch(
-                path -> path.toAbsolutePath().equals(Path.of("src/test/java").toAbsolutePath())));
-    assertTrue(
-        test.getResourcePaths().stream()
-            .anyMatch(
-                path ->
-                    path.toAbsolutePath().equals(Path.of("src/test/resources").toAbsolutePath())));
+        module.getMain().getSourcePaths().isEmpty(), "Quarkus must not compile workspace sources");
+    assertTrue(module.getMain().getResourcePaths().isEmpty());
     assertEquals(
         Path.of("/tmp/test-classes").toAbsolutePath().toString(), test.getResourcesOutputPath());
   }

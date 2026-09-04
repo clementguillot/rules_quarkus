@@ -473,31 +473,49 @@ def _build_quarkifier_from_source(rctx):
     additionally watched so edits invalidate this repository and trigger a
     refetch in the first place.
     """
-    src_workspace = str(rctx.path(rctx.attr.quarkifier_source_dir).dirname)
+    src_workspace = str(rctx.path(rctx.attr.quarkifier_source_dir).realpath.dirname)
 
     # Invalidate this repo when quarkifier sources change (Bazel 7.1+). The
     # watched subtree must not contain build outputs: watching the whole
-    # source workspace would self-invalidate on every nested build (it hosts
-    # .bazel-nested-build/ and the bazel-* convenience symlinks).
+    # source workspace would also include Bazel's convenience symlinks.
     if hasattr(rctx, "watch_tree"):
         rctx.watch_tree(src_workspace + "/quarkifier")
 
-    nested_output_base = src_workspace + "/.bazel-nested-build"
+    nested_environment = {}
+    nested_bazel_version = "workspace-default"
+    bazel_version_file = rctx.path(src_workspace + "/.bazelversion")
+    if bazel_version_file.exists:
+        pinned_bazel_version = rctx.read(bazel_version_file).split("\n")[0].strip()
+        if pinned_bazel_version:
+            nested_bazel_version = pinned_bazel_version
 
-    bin_result = rctx.execute(
-        ["bazel", "--output_base=" + nested_output_base, "info", "bazel-bin", "--lockfile_mode=off"],
-        working_directory = src_workspace,
-        timeout = 60,
-    )
-    bazel_bin = bin_result.stdout.strip() if bin_result.return_code == 0 else src_workspace + "/bazel-bin"
+            # Repository rules inherit USE_BAZEL_VERSION from the outer consumer. Build the local
+            # tool with the rules checkout's pinned version, in a version-specific output base, so
+            # consumers testing another Bazel release cannot corrupt its generated repositories.
+            nested_environment["USE_BAZEL_VERSION"] = pinned_bazel_version
+
+    # Batch mode avoids leaving a nested Bazel server behind when a consumer is interrupted. The
+    # pinned version and Bazel's output-base lock make this warm cache safe to share across local
+    # consumer workspaces.
+    nested_output_base = src_workspace + "/.bazel-nested-builds/" + nested_bazel_version + "-batch-v1"
+    nested_symlink_prefix = nested_output_base + "/workspace-"
 
     target = rctx.attr.quarkifier_build_target
-    deploy_jar = bazel_bin + "/" + target.lstrip("/").replace(":", "/")
+    deploy_jar = nested_symlink_prefix + "bin/" + target.lstrip("/").replace(":", "/")
 
     rctx.report_progress("Building {} from source".format(target))
     build_result = rctx.execute(
-        ["bazel", "--output_base=" + nested_output_base, "build", target, "--lockfile_mode=off"],
+        [
+            "bazel",
+            "--batch",
+            "--output_base=" + nested_output_base,
+            "build",
+            target,
+            "--lockfile_mode=off",
+            "--symlink_prefix=" + nested_symlink_prefix,
+        ],
         working_directory = src_workspace,
+        environment = nested_environment,
         # Generous: a cold nested build fetches the maven deps over the network.
         timeout = 600,
     )
@@ -1378,7 +1396,7 @@ load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_dev_impl.bzl", 
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_extension_impl.bzl", "quarkus_extension_runtime_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_native_app_impl.bzl", "quarkus_native_app_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_native_container_app_impl.bzl", "quarkus_native_container_app_rule")
-load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_test_impl.bzl", _quarkus_integration_test = "quarkus_integration_test", _quarkus_test = "quarkus_test")
+load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_test_impl.bzl", _quarkus_integration_test = "quarkus_integration_test", _quarkus_test = "quarkus_test", _test_resources_without_sources_error = "test_resources_without_sources_error")
 load("@com_clementguillot_rules_quarkus//quarkus/private:versions.bzl", "DEFAULT_NATIVE_BUILDER_IMAGE")
 load("@rules_java//java:java_library.bzl", "java_library")
 
@@ -1538,9 +1556,9 @@ def quarkus_java_library(name, srcs = [], resources = [], deps = [], codegen_src
         **java_kwargs
     )
 
-def quarkus_app(name, dev = True, dev_build_args = [], continuous_test = None, native = False, native_container_build = False,
+def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_container_build = False,
                 native_container_runtime = "auto", native_builder_image = _DEFAULT_BUILDER_IMAGE,
-                package_type = "fast-jar", build_properties = {{}}, **kwargs):
+                package_type = "fast-jar", build_properties = {{}}, continuous_test = None, **kwargs):
     \"\"\"Builds a Quarkus application with optional dev-mode and native targets.
 
     Creates:
@@ -1564,6 +1582,8 @@ def quarkus_app(name, dev = True, dev_build_args = [], continuous_test = None, n
         build_properties: Declared build-time properties shared by the JVM, dev, and native targets.
         **kwargs: Passed to the underlying quarkus_app_rule (deps, version, jvm_flags, etc.).
     \"\"\"
+    if continuous_test and not dev:
+        fail("continuous_test requires the dev target; it runs inside <name>_dev, but dev = False.")
     if native and native_container_build:
         fail("Cannot set both 'native' and 'native_container_build'. " +
              "Use 'native' for host-based compilation (rules_graalvm) or " +
@@ -1632,6 +1652,9 @@ def quarkus_app(name, dev = True, dev_build_args = [], continuous_test = None, n
         )
 
 def _prepare_test_target(name, srcs, resources, deps, test_packages, test_classes, jvm_flags, build_properties, kwargs):
+    resources_error = _test_resources_without_sources_error(srcs, resources)
+    if resources_error:
+        fail(resources_error)
     test_deps = deps or []
     if srcs:
         compile_deps = []
@@ -1665,13 +1688,20 @@ def _prepare_test_target(name, srcs, resources, deps, test_packages, test_classe
         kwargs = test_kwargs,
     )
 
-def quarkus_test(name, srcs = None, resources = [], deps = None, test_packages = None, test_classes = None,
-                 jvm_flags = None, build_properties = None, **kwargs):
+def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_classes = None,
+                 jvm_flags = None, build_properties = None, resources = [], **kwargs):
     \"\"\"Runs @QuarkusTest-annotated JUnit 5 tests with full Quarkus augmentation.
 
     If srcs is provided, a java_library is created internally to compile the
     test sources. If srcs is omitted, deps must include a pre-compiled
     java_library containing the test classes.
+
+    With inline srcs, declare `resources` here (e.g.
+    glob(["src/test/resources/**"], allow_empty = True)) to package test resources.
+    With precompiled tests, declare resources on the supplied java_library
+    targets instead; passing this macro's `resources` without srcs is rejected.
+    A dev target wired through `continuous_test` syncs those compiled test jars'
+    classes and packaged resources into its mutable test-classes directory.
     \"\"\"
     prepared = _prepare_test_target(
         name,
@@ -1702,7 +1732,7 @@ def quarkus_test(name, srcs = None, resources = [], deps = None, test_packages =
         **prepared.kwargs
     )
 
-def quarkus_integration_test(name, app, srcs = None, resources = [], deps = None, test_packages = None,
+def quarkus_integration_test(name, app, srcs = None, deps = None, test_packages = None,
                              test_classes = None, jvm_flags = None, **kwargs):
     \"\"\"Runs @QuarkusIntegrationTest tests against a packaged application.
 
@@ -1721,7 +1751,7 @@ def quarkus_integration_test(name, app, srcs = None, resources = [], deps = None
     prepared = _prepare_test_target(
         name,
         srcs,
-        resources,
+        [],
         deps,
         test_packages,
         test_classes,

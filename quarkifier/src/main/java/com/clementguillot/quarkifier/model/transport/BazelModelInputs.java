@@ -33,6 +33,7 @@ public final class BazelModelInputs {
       String ruleKind,
       String buildFile,
       boolean neverlink,
+      boolean testOnly,
       ArtifactCoordinates coordinates,
       List<FileReference> runtimeOutputJars,
       List<FileReference> outputDirectories,

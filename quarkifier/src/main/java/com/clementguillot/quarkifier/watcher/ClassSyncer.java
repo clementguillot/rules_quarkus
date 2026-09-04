@@ -1,7 +1,10 @@
 package com.clementguillot.quarkifier.watcher;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -10,9 +13,13 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -27,6 +34,8 @@ import java.util.jar.JarFile;
  */
 @SuppressWarnings("PMD.TooManyMethods") // cohesive class/resource synchronization lifecycle
 public final class ClassSyncer {
+
+  private static final int COMPARE_BUFFER_SIZE = 8192;
 
   private ClassSyncer() {}
 
@@ -77,24 +86,20 @@ public final class ClassSyncer {
     populateOutputs(classesOutputPaths, classesDir, false);
   }
 
-  /** Populates mutable test-classes with compiled tests and their packaged resources. */
-  public static void populateTestClassesDir(List<Path> testOutputPaths, Path testClassesDir)
+  /**
+   * Populates a mutable output tree with compiled classes <em>and</em> their packaged resources.
+   *
+   * <p>Used for both the application and the test tree under continuous testing: Quarkus is
+   * configured with no workspace resource paths there, so Bazel is the only writer of resources.
+   */
+  public static void populateClassesAndResources(List<Path> outputPaths, Path outputDir)
       throws IOException {
-    populateOutputs(testOutputPaths, testClassesDir, true);
+    populateOutputs(outputPaths, outputDir, true);
   }
 
   private static void populateOutputs(
       List<Path> outputPaths, Path classesDir, boolean includeResources) throws IOException {
-    for (Path outputPath : outputPaths) {
-      if (!Files.exists(outputPath)) {
-        continue;
-      }
-      if (Files.isDirectory(outputPath)) {
-        copyOutputsFromDirectory(outputPath, classesDir, null, includeResources);
-      } else if (outputPath.toString().endsWith(".jar")) {
-        extractOutputsFromJar(outputPath, classesDir, null, includeResources);
-      }
-    }
+    copyOutputs(outputPaths, classesDir, includeResources);
   }
 
   /**
@@ -108,58 +113,68 @@ public final class ClassSyncer {
    */
   public static void syncClasses(List<Path> classesOutputPaths, Path classesDir)
       throws IOException {
-    syncOutputs(classesOutputPaths, classesDir, false);
+    syncClasses(classesOutputPaths, classesDir, false);
   }
 
-  /** Synchronizes compiled tests and test resources into a conventional test-classes directory. */
-  public static void syncTestClasses(List<Path> testOutputPaths, Path testClassesDir)
+  static void syncClasses(
+      List<Path> classesOutputPaths, Path classesDir, boolean preserveStaleClasses)
       throws IOException {
-    syncOutputs(testOutputPaths, testClassesDir, true);
+    syncOutputs(classesOutputPaths, classesDir, false, preserveStaleClasses);
   }
 
   /**
-   * Advances every test class timestamp so Quarkus schedules a test run after a resource or
-   * code-generation input changed without changing bytecode.
+   * Synchronizes compiled classes and their packaged resources, deleting anything the latest build
+   * output no longer contains. The counterpart of {@link #populateClassesAndResources}.
+   */
+  public static void syncClassesAndResources(List<Path> outputPaths, Path outputDir)
+      throws IOException {
+    syncClassesAndResources(outputPaths, outputDir, false);
+  }
+
+  static void syncClassesAndResources(
+      List<Path> outputPaths, Path outputDir, boolean preserveStaleClasses) throws IOException {
+    syncOutputs(outputPaths, outputDir, true, preserveStaleClasses);
+  }
+
+  /**
+   * Advances every class timestamp so Quarkus observes a structural or non-Java rebuild even when
+   * surviving bytecode did not change.
    *
    * <p>Quarkus continuous testing notices arbitrary resources but only runs tests automatically for
    * extension-declared restart resources or changed classes. Bazel owns compilation and resource
    * packaging here, so advancing the synchronized test classes feeds that rebuild back through
    * Quarkus's normal changed-class test selection.
    *
-   * @return the number of test class files marked as changed
+   * @return the number of class files marked as changed
    */
-  public static int markTestClassesChanged(Path testClassesDir) throws IOException {
-    if (!Files.isDirectory(testClassesDir)) {
+  public static int markClassesChanged(Path classesDir) throws IOException {
+    if (!Files.isDirectory(classesDir)) {
       return 0;
     }
     int changed = 0;
     long now = System.currentTimeMillis();
-    try (var paths = Files.walk(testClassesDir)) {
-      for (Path path : paths.filter(Files::isRegularFile).toList()) {
-        if (path.toString().endsWith(".class")) {
-          long current = Files.getLastModifiedTime(path).toMillis();
-          Files.setLastModifiedTime(path, FileTime.fromMillis(Math.max(now, current + 1)));
-          changed++;
-        }
+    // The tree also holds every packaged test resource; filter in the stream so the
+    // walk stays lazy instead of materializing them all just to skip them.
+    try (var paths = Files.walk(classesDir)) {
+      for (Path path :
+          paths
+              .filter(path -> path.toString().endsWith(".class") && Files.isRegularFile(path))
+              .toList()) {
+        long current = Files.getLastModifiedTime(path).toMillis();
+        Files.setLastModifiedTime(path, FileTime.fromMillis(Math.max(now, current + 1)));
+        changed++;
       }
     }
     return changed;
   }
 
-  private static void syncOutputs(List<Path> outputPaths, Path classesDir, boolean includeResources)
+  private static void syncOutputs(
+      List<Path> outputPaths,
+      Path classesDir,
+      boolean includeResources,
+      boolean preserveStaleClasses)
       throws IOException {
-    Set<Path> synced = new HashSet<>();
-
-    for (Path outputPath : outputPaths) {
-      if (!Files.exists(outputPath)) {
-        continue;
-      }
-      if (Files.isDirectory(outputPath)) {
-        copyOutputsFromDirectory(outputPath, classesDir, synced, includeResources);
-      } else if (outputPath.toString().endsWith(".jar")) {
-        extractOutputsFromJar(outputPath, classesDir, synced, includeResources);
-      }
-    }
+    Set<Path> synced = copyOutputs(outputPaths, classesDir, includeResources);
 
     // Remove stale synchronized files not present in the latest build output.
     if (Files.isDirectory(classesDir)) {
@@ -170,7 +185,9 @@ public final class ClassSyncer {
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
                 throws IOException {
               Path relative = classesDir.relativize(file);
-              if (shouldSync(relative, includeResources) && !synced.contains(relative)) {
+              if (shouldSync(relative, includeResources)
+                  && !synced.contains(relative)
+                  && !(preserveStaleClasses && isClassFile(relative))) {
                 Files.delete(file);
               }
               return FileVisitResult.CONTINUE;
@@ -181,8 +198,42 @@ public final class ClassSyncer {
 
   // ---- internal helpers ----
 
+  /**
+   * Copies one flattened output tree while retaining Java classpath ordering semantics.
+   *
+   * <p>The first output containing an ordinary class or resource wins, just as it would on the
+   * original classpath. Service-provider configuration is the exception: {@link
+   * java.util.ServiceLoader} reads every {@code META-INF/services/*} resource, so those files are
+   * merged in classpath order with duplicate providers removed. Keeping collision state across the
+   * complete pass also prevents a lower-priority duplicate from rewriting the first entry on every
+   * synchronization.
+   */
+  private static Set<Path> copyOutputs(
+      List<Path> outputPaths, Path classesDir, boolean includeResources) throws IOException {
+    Set<Path> synced = new HashSet<>();
+    var serviceProviders = new ServiceProviders();
+
+    for (Path outputPath : outputPaths) {
+      if (!Files.exists(outputPath)) {
+        continue;
+      }
+      if (Files.isDirectory(outputPath)) {
+        copyOutputsFromDirectory(
+            outputPath, classesDir, synced, serviceProviders, includeResources);
+      } else if (outputPath.toString().endsWith(".jar")) {
+        extractOutputsFromJar(outputPath, classesDir, synced, serviceProviders, includeResources);
+      }
+    }
+    serviceProviders.writeTo(classesDir);
+    return synced;
+  }
+
   private static void copyOutputsFromDirectory(
-      Path outputDir, Path classesDir, Set<Path> synced, boolean includeResources)
+      Path outputDir,
+      Path classesDir,
+      Set<Path> synced,
+      ServiceProviders serviceProviders,
+      boolean includeResources)
       throws IOException {
     Files.walkFileTree(
         outputDir,
@@ -190,15 +241,22 @@ public final class ClassSyncer {
           @Override
           public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
               throws IOException {
-            Path relative = outputDir.relativize(file);
+            Path relative = outputDir.relativize(file).normalize();
             if (shouldSync(relative, includeResources)) {
               Path target = classesDir.resolve(relative);
+              if (isServiceProviderConfiguration(relative)) {
+                synced.add(relative);
+                try (InputStream input = Files.newInputStream(file)) {
+                  serviceProviders.collect(relative, input);
+                }
+                return FileVisitResult.CONTINUE;
+              }
+              if (!synced.add(relative)) {
+                return FileVisitResult.CONTINUE;
+              }
               Files.createDirectories(target.getParent());
               if (!Files.exists(target) || Files.mismatch(file, target) != -1) {
                 Files.copy(file, target, StandardCopyOption.REPLACE_EXISTING);
-              }
-              if (synced != null) {
-                synced.add(relative);
               }
             }
             return FileVisitResult.CONTINUE;
@@ -207,7 +265,11 @@ public final class ClassSyncer {
   }
 
   private static void extractOutputsFromJar(
-      Path jarPath, Path classesDir, Set<Path> synced, boolean includeResources)
+      Path jarPath,
+      Path classesDir,
+      Set<Path> synced,
+      ServiceProviders serviceProviders,
+      boolean includeResources)
       throws IOException {
     try (JarFile jar = new JarFile(jarPath.toFile())) {
       Enumeration<JarEntry> entries = jar.entries();
@@ -221,23 +283,45 @@ public final class ClassSyncer {
         if (!target.startsWith(classesDir)) {
           throw new IOException("Zip entry escapes target directory: " + entry.getName());
         }
+        // Record the path in the same normal form the stale sweep derives from the written file;
+        // an entry name with a redundant "." segment would otherwise never match.
+        Path normalizedRelative = classesDir.relativize(target);
+        if (isServiceProviderConfiguration(normalizedRelative)) {
+          synced.add(normalizedRelative);
+          try (InputStream input = jar.getInputStream(entry)) {
+            serviceProviders.collect(normalizedRelative, input);
+          }
+          continue;
+        }
+        if (!synced.add(normalizedRelative)) {
+          continue;
+        }
         Files.createDirectories(target.getParent());
         if (!jarEntryMatches(jar, entry, target)) {
           try (InputStream is = jar.getInputStream(entry)) {
             Files.copy(is, target, StandardCopyOption.REPLACE_EXISTING);
           }
         }
-        if (synced != null) {
-          synced.add(relative);
-        }
       }
     }
   }
 
+  private static boolean isServiceProviderConfiguration(Path relative) {
+    String name = relative.toString().replace('\\', '/');
+    String prefix = "META-INF/services/";
+    return name.startsWith(prefix)
+        && name.length() > prefix.length()
+        && name.indexOf('/', prefix.length()) < 0;
+  }
+
   private static boolean shouldSync(Path relative, boolean includeResources) {
     String name = relative.toString().replace('\\', '/');
-    return name.endsWith(".class")
+    return isClassFile(relative)
         || (includeResources && !"META-INF/MANIFEST.MF".equalsIgnoreCase(name));
+  }
+
+  private static boolean isClassFile(Path relative) {
+    return relative.toString().endsWith(".class");
   }
 
   private static boolean jarEntryMatches(JarFile jar, JarEntry entry, Path target)
@@ -248,21 +332,56 @@ public final class ClassSyncer {
     }
     try (InputStream expected = jar.getInputStream(entry);
         InputStream actual = Files.newInputStream(target)) {
-      byte[] expectedBuffer = new byte[8192];
-      byte[] actualBuffer = new byte[8192];
+      byte[] expectedBuffer = new byte[COMPARE_BUFFER_SIZE];
+      byte[] actualBuffer = new byte[COMPARE_BUFFER_SIZE];
       while (true) {
-        int expectedRead = expected.read(expectedBuffer);
-        int actualRead = actual.read(actualBuffer);
-        if (expectedRead != actualRead) {
+        // readNBytes fills the buffer unless the stream is exhausted. A plain
+        // read() may return a short count with bytes still pending — the jar
+        // inflater does exactly that once its compressed input buffer drains,
+        // which would make identical content compare as different and rewrite
+        // the target on every sync.
+        int expectedRead = expected.readNBytes(expectedBuffer, 0, COMPARE_BUFFER_SIZE);
+        int actualRead = actual.readNBytes(actualBuffer, 0, COMPARE_BUFFER_SIZE);
+        if (expectedRead != actualRead
+            || Arrays.mismatch(expectedBuffer, 0, expectedRead, actualBuffer, 0, actualRead) >= 0) {
           return false;
         }
-        if (expectedRead < 0) {
-          return true;
+        if (expectedRead < COMPARE_BUFFER_SIZE) {
+          return true; // both streams reached the end on the same byte count
         }
-        for (int i = 0; i < expectedRead; i++) {
-          if (expectedBuffer[i] != actualBuffer[i]) {
-            return false;
+      }
+    }
+  }
+
+  /** Accumulates the logical union of ServiceLoader configuration files in classpath order. */
+  private static final class ServiceProviders {
+    private final Map<Path, Set<String>> providersByPath = new LinkedHashMap<>();
+
+    private void collect(Path relative, InputStream input) throws IOException {
+      Set<String> providers =
+          providersByPath.computeIfAbsent(relative, ignored -> new LinkedHashSet<>());
+      try (var reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
+        String line = reader.readLine();
+        while (line != null) {
+          int comment = line.indexOf('#');
+          String provider = (comment < 0 ? line : line.substring(0, comment)).trim();
+          if (!provider.isEmpty()) {
+            providers.add(provider);
           }
+          line = reader.readLine();
+        }
+      }
+    }
+
+    private void writeTo(Path classesDir) throws IOException {
+      for (Map.Entry<Path, Set<String>> service : providersByPath.entrySet()) {
+        Path target = classesDir.resolve(service.getKey());
+        Files.createDirectories(target.getParent());
+        String content =
+            service.getValue().isEmpty() ? "" : String.join("\n", service.getValue()) + "\n";
+        byte[] expected = content.getBytes(StandardCharsets.UTF_8);
+        if (!Files.isRegularFile(target) || !Arrays.equals(expected, Files.readAllBytes(target))) {
+          Files.write(target, expected);
         }
       }
     }

@@ -73,30 +73,17 @@ if [ -f "$CLASSES_OUTPUT_DIRS_FILE" ]; then
     CLASSES_OUTPUT_DIRS=$(cat "$CLASSES_OUTPUT_DIRS_FILE")
 fi
 
-CODEGEN_INPUT_DIRS_FILE="${RUNFILES_DIR}/%{workspace}/%{codegen_input_dirs_file}"
-CODEGEN_INPUT_DIRS=""
-if [ -f "$CODEGEN_INPUT_DIRS_FILE" ]; then
-    CODEGEN_INPUT_DIRS=$(cat "$CODEGEN_INPUT_DIRS_FILE")
-fi
+CODEGEN_INPUT_FILES_FILE="${RUNFILES_DIR}/%{workspace}/%{codegen_input_files_file}"
+WATCHED_INPUTS_FILE="${RUNFILES_DIR}/%{workspace}/%{watched_inputs_file}"
+WATCHED_BUILD_FILES_FILE="${RUNFILES_DIR}/%{workspace}/%{watched_build_files_file}"
 
-# Read continuous-testing source, resource, and compiled-output metadata.
-TEST_SOURCE_DIRS_FILE="${RUNFILES_DIR}/%{workspace}/%{test_source_dirs_file}"
-TEST_SOURCE_DIRS=""
-if [ -f "$TEST_SOURCE_DIRS_FILE" ]; then
-    TEST_SOURCE_DIRS=$(cat "$TEST_SOURCE_DIRS_FILE")
-fi
-
-TEST_RESOURCE_DIRS_FILE="${RUNFILES_DIR}/%{workspace}/%{test_resource_dirs_file}"
-TEST_RESOURCE_DIRS=""
-if [ -f "$TEST_RESOURCE_DIRS_FILE" ]; then
-    TEST_RESOURCE_DIRS=$(cat "$TEST_RESOURCE_DIRS_FILE")
-fi
-
+# Read continuous-testing compiled-output metadata.
 TEST_CLASSES_OUTPUT_DIRS_FILE="${RUNFILES_DIR}/%{workspace}/%{test_classes_output_dirs_file}"
 TEST_CLASSES_OUTPUT_DIRS=""
 if [ -f "$TEST_CLASSES_OUTPUT_DIRS_FILE" ]; then
     TEST_CLASSES_OUTPUT_DIRS=$(cat "$TEST_CLASSES_OUTPUT_DIRS_FILE")
 fi
+TEST_JVM_FLAGS=(%{test_jvm_flags})
 
 # Create temp dirs with unique prefixes for security
 OUTPUT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/quarkus_dev_output_XXXXXX")
@@ -123,8 +110,9 @@ case "$MODEL_REAL" in
 esac
 HOT_RELOAD_ARGS=()
 RESOURCES_VALUE=""
-CODEGEN_INPUT_DIRS_VALUE=""
-TEST_RESOURCES_VALUE=""
+CODEGEN_INPUT_ARGS=()
+WATCHED_INPUT_ARGS=()
+WATCHED_BUILD_FILE_ARGS=()
 
 # Prefixing helper: accumulate into an array (O(1) append) and join once.
 # String accumulation in a loop is quadratic in bash and takes minutes on
@@ -149,30 +137,31 @@ if [ -n "$RESOURCE_DIRS" ]; then
     fi
 fi
 
-if [ -n "$CODEGEN_INPUT_DIRS" ]; then
-    CG_ABS=()
-    IFS=',' read -ra CG_ENTRIES <<< "$CODEGEN_INPUT_DIRS"
-    for cg in "${CG_ENTRIES[@]}"; do
-        CG_ABS+=("${WORKSPACE_ROOT}/${cg}")
-    done
-    CODEGEN_INPUT_DIRS_VALUE=$(_join_comma "${CG_ABS[@]}")
-fi
-
-if [ -n "$TEST_RESOURCE_DIRS" ]; then
-    TRD_ABS=()
-    IFS=',' read -ra TRD_ENTRIES <<< "$TEST_RESOURCE_DIRS"
-    for trd in "${TRD_ENTRIES[@]}"; do
-        abs_trd="${WORKSPACE_ROOT}/${trd}"
-        if [ -d "$abs_trd" ]; then
-            TRD_ABS+=("$abs_trd")
+if [ -f "$CODEGEN_INPUT_FILES_FILE" ]; then
+    while IFS= read -r input; do
+        if [ -n "$input" ]; then
+            CODEGEN_INPUT_ARGS+=("--codegen-input-file" "${WORKSPACE_ROOT}/${input}")
         fi
-    done
-    if [ "${#TRD_ABS[@]}" -gt 0 ]; then
-        TEST_RESOURCES_VALUE=$(_join_comma "${TRD_ABS[@]}")
-    fi
+    done < "$CODEGEN_INPUT_FILES_FILE"
 fi
 
-if [ -n "$BAZEL_TARGETS" ] && { [ -n "$SOURCE_DIRS" ] || [ -n "$TEST_SOURCE_DIRS" ] || [ -n "$TEST_RESOURCES_VALUE" ] || [ -n "$CODEGEN_INPUT_DIRS_VALUE" ]; }; then
+if [ -f "$WATCHED_INPUTS_FILE" ]; then
+    while IFS= read -r input; do
+        if [ -n "$input" ]; then
+            WATCHED_INPUT_ARGS+=("--watched-input" "${WORKSPACE_ROOT}/${input}")
+        fi
+    done < "$WATCHED_INPUTS_FILE"
+fi
+
+if [ -f "$WATCHED_BUILD_FILES_FILE" ]; then
+    while IFS= read -r build_file; do
+        if [ -n "$build_file" ]; then
+            WATCHED_BUILD_FILE_ARGS+=("--watched-build-file" "${WORKSPACE_ROOT}/${build_file}")
+        fi
+    done < "$WATCHED_BUILD_FILES_FILE"
+fi
+
+if [ -n "$BAZEL_TARGETS" ] && { [ -n "$TEST_MODEL_FILE" ] || [ -n "$SOURCE_DIRS" ] || [ "${#CODEGEN_INPUT_ARGS[@]}" -gt 0 ]; }; then
     CLASSES_DIR=$(mktemp -d "${TMPDIR:-/tmp}/quarkus_hotreload_classes_XXXXXX")
     if [ -n "$TEST_MODEL_FILE" ]; then
         # Quarkus' test framework recognizes conventional build-tool output
@@ -193,16 +182,6 @@ if [ -n "$BAZEL_TARGETS" ] && { [ -n "$SOURCE_DIRS" ] || [ -n "$TEST_SOURCE_DIRS
             SD_ABS+=("${WORKSPACE_ROOT}/${sd}")
         done
         ABS_SOURCE_DIRS=$(_join_comma "${SD_ABS[@]}")
-    fi
-
-    ABS_TEST_SOURCE_DIRS=""
-    if [ -n "$TEST_SOURCE_DIRS" ]; then
-        TSD_ABS=()
-        IFS=',' read -ra TSD_ENTRIES <<< "$TEST_SOURCE_DIRS"
-        for tsd in "${TSD_ENTRIES[@]}"; do
-            TSD_ABS+=("${WORKSPACE_ROOT}/${tsd}")
-        done
-        ABS_TEST_SOURCE_DIRS=$(_join_comma "${TSD_ABS[@]}")
     fi
 
     # Resolve classes output dirs to absolute paths. Reading an empty value
@@ -244,12 +223,12 @@ if [ -n "$BAZEL_TARGETS" ] && { [ -n "$SOURCE_DIRS" ] || [ -n "$TEST_SOURCE_DIRS
     if [ -n "$ABS_TEST_CLASSES_OUTPUT_DIRS" ]; then
         HOT_RELOAD_ARGS+=("--test-classes-output-dirs" "$ABS_TEST_CLASSES_OUTPUT_DIRS")
     fi
-    if [ -n "$ABS_TEST_SOURCE_DIRS" ]; then
-        HOT_RELOAD_ARGS+=("--test-source-dirs" "$ABS_TEST_SOURCE_DIRS")
-    fi
-    if [ -n "$TEST_RESOURCES_VALUE" ]; then
-        HOT_RELOAD_ARGS+=("--test-resources" "$TEST_RESOURCES_VALUE")
-    fi
+    HOT_RELOAD_ARGS+=("${CODEGEN_INPUT_ARGS[@]}")
+    HOT_RELOAD_ARGS+=("${WATCHED_INPUT_ARGS[@]}")
+    HOT_RELOAD_ARGS+=("${WATCHED_BUILD_FILE_ARGS[@]}")
+    for flag in ${TEST_JVM_FLAGS[@]+"${TEST_JVM_FLAGS[@]}"}; do
+        HOT_RELOAD_ARGS+=("--test-jvm-arg=$flag")
+    done
 fi
 
 # Use a JDK @argfile to pass all java arguments, avoiding E2BIG.
@@ -293,10 +272,6 @@ _JAVA_ARGFILE=$(mktemp "${OUTPUT_DIR}/quarkus_dev_args_XXXXXX")
   _q "$WORKSPACE_ROOT"
   echo "--bazel-command"
   _q "$BAZEL_BIN"
-  if [ -n "$CODEGEN_INPUT_DIRS_VALUE" ]; then
-    echo "--codegen-input-dirs"
-    _q "$CODEGEN_INPUT_DIRS_VALUE"
-  fi
   if [ -n "%{dev_build_args}" ]; then
     echo "--bazel-build-args"
     _q "%{dev_build_args}"

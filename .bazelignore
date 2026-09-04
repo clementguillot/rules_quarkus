@@ -1,3 +1,4 @@
 .bazel-nested-build/
+.bazel-nested-builds/
 e2e/
 examples/

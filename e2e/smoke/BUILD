@@ -1,6 +1,7 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@com_clementguillot_rules_quarkus//quarkus:defs.bzl", "quarkus_native_app_rule")
 load("@rules_java//java:java_library.bzl", "java_library")
+load("@rules_java//java:java_test.bzl", "java_test")
 load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_integration_test", "quarkus_java_library", "quarkus_test")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load(":assert_junit_xml.bzl", "assert_junit_xml_test")
@@ -529,8 +530,58 @@ sh_test(
     tags = ["no-sandbox"],
 )
 
+# --- Continuous testing through the Dev UI and dev console (Quarkus 3.33 only) ---
+# This invokes real nested Bazel builds and mutates only a disposable fixture
+# workspace. It intentionally requires a local checkout, Bazel and network/cache.
+sh_test(
+    name = "continuous_testing_test",
+    size = "enormous",
+    srcs = ["continuous_testing_test.sh"],
+    # prepare() assembles the fixture workspace from this package, so the module
+    # file, pinned lock and .bazelrc belong in the graph. It also copies ext/,
+    # which is its own Bazel package and therefore unreachable from a glob here;
+    # the test resolves it through the source tree, requiring "no-sandbox".
+    data = [
+        ".bazelrc",
+        "MODULE.bazel",
+        "continuous_testing_test.py",
+        "maven_install.json",
+        ":app_dev",
+    ] + glob(["continuous/**"]),
+    env_inherit = ["PATH"],
+    tags = [
+        "exclusive",
+        # The nested build reads repository sources, so the outer test result
+        # must never be cached.
+        "external",
+        "no-remote",
+        "no-sandbox",
+    ],
+)
+
+# Test-first source topology regression. The fixture declarations are Starlark;
+# a small JDK-only driver edits a disposable workspace while Quarkus is running.
+java_test(
+    name = "source_events_test",
+    size = "enormous",
+    srcs = ["SourceEventsTest.java"],
+    data = [
+        ".bazelrc",
+        "MODULE.bazel",
+        "maven_install.json",
+    ] + glob(["source_events/**"]),
+    env_inherit = ["PATH"],
+    main_class = "SourceEventsTest",
+    tags = [
+        "exclusive",
+        "external",
+        "no-remote",
+        "no-sandbox",
+    ],
+    use_testrunner = False,
+)
+
 # --- fail_if_no_tests smoke tests (issue #125) ---
-#
 # EmptyTest.java is a @QuarkusTest with zero @Test methods.
 java_library(
     name = "empty_test_lib",

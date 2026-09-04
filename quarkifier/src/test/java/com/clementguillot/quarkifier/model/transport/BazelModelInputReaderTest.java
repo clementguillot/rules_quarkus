@@ -1,6 +1,7 @@
 package com.clementguillot.quarkifier.model.transport;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -47,6 +48,25 @@ class BazelModelInputReaderTest {
                         .replace("\"targetId\":\"@@//:lib\"", "\"targetId\":\"other\"")));
 
     assertTrue(exception.getMessage().contains("must equal bazelLabel"));
+  }
+
+  @Test
+  void testOnlyMetadataIsRequiredAndStrictlyTyped() {
+    assertFalse(BazelModelInputReader.readTargetFragment(targetFragment()).testOnly());
+    assertTrue(
+        BazelModelInputReader.readTargetFragment(
+                targetFragment().replace("\"testOnly\":false", "\"testOnly\":true"))
+            .testOnly());
+    assertThrows(
+        BazelApplicationModelException.class,
+        () ->
+            BazelModelInputReader.readTargetFragment(
+                targetFragment().replace("\"testOnly\":false", "\"testOnly\":\"true\"")));
+    assertThrows(
+        BazelApplicationModelException.class,
+        () ->
+            BazelModelInputReader.readTargetFragment(
+                targetFragment().replace("\"testOnly\":false,", "")));
   }
 
   @Test
@@ -185,6 +205,7 @@ class BazelModelInputReaderTest {
           "ruleKind":"java_library",
           "buildFile":"BUILD.bazel",
           "neverlink":false,
+          "testOnly":false,
           "coordinates":null,
           "runtimeOutputJars":[{
             "path":"bazel-bin/lib.jar","shortPath":"lib.jar",\
