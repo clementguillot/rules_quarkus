@@ -188,6 +188,52 @@ class ClassSyncerTest {
     assertEquals(sentinelTime, Files.getLastModifiedTime(testClass));
   }
 
+  /**
+   * Regression: an entry large enough that the jar inflater returns short reads must still compare
+   * equal. Comparing raw {@code read()} chunk lengths reports identical content as changed, which
+   * rewrites the class on every sync and makes Quarkus rerun the suite after each rebuild.
+   */
+  @Test
+  void syncClasses_unchangedLargeJarEntryKeepsTimestamp() throws IOException {
+    Path jar = tempDir.resolve("libtests.jar");
+    String largeBytecode = largeTestBytecode();
+    writeJar(jar, java.util.Map.of("org/acme/BigTest.class", largeBytecode));
+    try (var archive = new java.util.jar.JarFile(jar.toFile())) {
+      assertTrue(
+          archive.getJarEntry("org/acme/BigTest.class").getCompressedSize() > 8192,
+          "compressed input must exceed the inflater buffer to exercise short reads");
+    }
+    Path classesDir = Files.createDirectories(tempDir.resolve("test-classes"));
+
+    ClassSyncer.syncClasses(List.of(jar), classesDir);
+    Path testClass = classesDir.resolve("org/acme/BigTest.class");
+    assertEquals(largeBytecode, Files.readString(testClass));
+    var sentinelTime = java.nio.file.attribute.FileTime.fromMillis(1_234_000);
+    Files.setLastModifiedTime(testClass, sentinelTime);
+    ClassSyncer.syncClasses(List.of(jar), classesDir);
+
+    assertEquals(
+        sentinelTime,
+        Files.getLastModifiedTime(testClass),
+        "unchanged large class files must not be rewritten and trigger another reload");
+  }
+
+  @Test
+  void syncClasses_changedLargeJarEntryIsRewritten() throws IOException {
+    Path jar = tempDir.resolve("libtests.jar");
+    String largeBytecode = largeTestBytecode();
+    writeJar(jar, java.util.Map.of("org/acme/BigTest.class", largeBytecode));
+    Path classesDir = Files.createDirectories(tempDir.resolve("test-classes"));
+    ClassSyncer.syncClasses(List.of(jar), classesDir);
+
+    // Same length, different content: only a byte comparison can tell them apart.
+    String updated = largeBytecode.substring(0, largeBytecode.length() - 1) + "Z";
+    writeJar(jar, java.util.Map.of("org/acme/BigTest.class", updated));
+    ClassSyncer.syncClasses(List.of(jar), classesDir);
+
+    assertEquals(updated, Files.readString(classesDir.resolve("org/acme/BigTest.class")));
+  }
+
   @Test
   void syncTestClasses_copiesUpdatesAndRemovesResources() throws IOException {
     Path jar = tempDir.resolve("libtests.jar");
@@ -270,6 +316,13 @@ class ClassSyncerTest {
     List<Path> reloadable = ClassSyncer.excludeExtensionJars(List.of(missingJar, notAJar));
 
     assertEquals(List.of(missingJar, notAJar), reloadable);
+  }
+
+  private static String largeTestBytecode() {
+    // Seeded random data stays reproducible without compressing into a single inflater buffer.
+    byte[] bytes = new byte[256 * 1024];
+    new java.util.Random(42).nextBytes(bytes);
+    return java.util.Base64.getEncoder().encodeToString(bytes);
   }
 
   private static void writeJar(Path jar, java.util.Map<String, String> entries) throws IOException {

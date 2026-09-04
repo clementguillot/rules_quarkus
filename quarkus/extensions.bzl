@@ -1672,6 +1672,13 @@ def quarkus_test(name, srcs = None, resources = [], deps = None, test_packages =
     If srcs is provided, a java_library is created internally to compile the
     test sources. If srcs is omitted, deps must include a pre-compiled
     java_library containing the test classes.
+
+    With inline srcs, declare `resources` here (e.g.
+    glob(["src/test/resources/**"], allow_empty = True)) to package test resources.
+    With precompiled tests, declare resources on the supplied java_library
+    targets instead; this macro's `resources` attribute is ignored without srcs.
+    A dev target wired through `continuous_test` syncs those compiled test jars'
+    classes and packaged resources into its mutable test-classes directory.
     \"\"\"
     prepared = _prepare_test_target(
         name,
@@ -1713,7 +1720,10 @@ def quarkus_integration_test(name, app, srcs = None, resources = [], deps = None
 
     If srcs is provided, a java_library is created internally to compile the
     test sources. If srcs is omitted, deps must include a pre-compiled
-    java_library containing the integration-test classes.
+    java_library containing the integration-test classes. With inline srcs,
+    declare `resources` here to package test resources. With precompiled tests,
+    declare resources on the supplied java_library targets instead; this macro's
+    `resources` attribute is ignored without srcs.
     \"\"\"
     if "build_properties" in kwargs:
         fail("quarkus_integration_test does not accept build_properties; declare build-time configuration on its app target")

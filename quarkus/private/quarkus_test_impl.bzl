@@ -64,11 +64,16 @@ def _build_property_jvm_flags(build_properties):
     ]
 
 def _direct_class_outputs(deps):
-    """Returns compiled jars for the test libraries named directly by the test rule."""
+    """Returns compiled jars for the test libraries named directly by the test rule.
+
+    External-repository deps are skipped: their jars are dependencies, not
+    reloadable test outputs, and the dev target extracts these into the mutable
+    test-classes directory together with their packaged resources.
+    """
     outputs = []
     seen = {}
     for dep in deps:
-        if JavaInfo not in dep:
+        if JavaInfo not in dep or dep.label.workspace_name:
             continue
         for jar_output in dep[JavaInfo].outputs.jars:
             class_jar = jar_output.class_jar

@@ -10,6 +10,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
@@ -27,6 +28,8 @@ import java.util.jar.JarFile;
  */
 @SuppressWarnings("PMD.TooManyMethods") // cohesive class/resource synchronization lifecycle
 public final class ClassSyncer {
+
+  private static final int COMPARE_BUFFER_SIZE = 8192;
 
   private ClassSyncer() {}
 
@@ -228,7 +231,10 @@ public final class ClassSyncer {
           }
         }
         if (synced != null) {
-          synced.add(relative);
+          // Record the path in the same normal form the stale sweep derives
+          // from the written file; an entry name with a redundant "." segment
+          // would otherwise never match and be deleted right after syncing.
+          synced.add(classesDir.relativize(target));
         }
       }
     }
@@ -248,21 +254,22 @@ public final class ClassSyncer {
     }
     try (InputStream expected = jar.getInputStream(entry);
         InputStream actual = Files.newInputStream(target)) {
-      byte[] expectedBuffer = new byte[8192];
-      byte[] actualBuffer = new byte[8192];
+      byte[] expectedBuffer = new byte[COMPARE_BUFFER_SIZE];
+      byte[] actualBuffer = new byte[COMPARE_BUFFER_SIZE];
       while (true) {
-        int expectedRead = expected.read(expectedBuffer);
-        int actualRead = actual.read(actualBuffer);
-        if (expectedRead != actualRead) {
+        // readNBytes fills the buffer unless the stream is exhausted. A plain
+        // read() may return a short count with bytes still pending — the jar
+        // inflater does exactly that once its compressed input buffer drains,
+        // which would make identical content compare as different and rewrite
+        // the target on every sync.
+        int expectedRead = expected.readNBytes(expectedBuffer, 0, COMPARE_BUFFER_SIZE);
+        int actualRead = actual.readNBytes(actualBuffer, 0, COMPARE_BUFFER_SIZE);
+        if (expectedRead != actualRead
+            || Arrays.mismatch(expectedBuffer, 0, expectedRead, actualBuffer, 0, actualRead) >= 0) {
           return false;
         }
-        if (expectedRead < 0) {
-          return true;
-        }
-        for (int i = 0; i < expectedRead; i++) {
-          if (expectedBuffer[i] != actualBuffer[i]) {
-            return false;
-          }
+        if (expectedRead < COMPARE_BUFFER_SIZE) {
+          return true; // both streams reached the end on the same byte count
         }
       }
     }

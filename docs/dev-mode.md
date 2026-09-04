@@ -86,7 +86,7 @@ the merged set over **two** channels:
    which Quarkus reads for SmallRye Config expression resolution during
    augmentation.
 
-Both channels derive from `DevModeLauncher.devBuildProperties(config)` so they
+Both channels derive from `DevModeContextBuilder.devBuildProperties(config)` so they
 cannot drift apart.
 
 Unlike the packaged JVM lifecycle — where the properties are scoped around
@@ -191,7 +191,29 @@ quarkus_app(
     continuous_test = ":test",
     deps = [":lib"],
 )
+
+quarkus_test(
+    name = "test",
+    srcs = glob(["src/test/java/**/*.java"]),
+    resources = glob(["src/test/resources/**"], allow_empty = True),
+    deps = [":lib"],
+)
 ```
+
+When `quarkus_test` compiles inline `srcs`, declare test resources through its
+`resources` attribute. When `srcs` is omitted and `deps` supplies precompiled
+test libraries, declare resources on those `java_library` targets instead;
+`quarkus_test.resources` is ignored in that form. The launcher syncs the
+compiled test jars, including their packaged resources.
+
+Declaring them is recommended, not mandatory. Because `DevModeContext` records
+the workspace `src/test/resources` roots as the test compilation unit's
+resource paths and the mutable `test-classes` directory as its resources output
+path, Quarkus' own `RuntimeUpdatesProcessor` also copies undeclared files there
+while continuous testing runs. Both writers then share that directory: the
+`ClassSyncer` stale sweep drops whatever the test jar does not contain, and
+Quarkus restores it on its next scan, so an undeclared resource briefly
+disappears around every rebuild.
 
 The test rule exports its TEST-mode application model, source/resource roots,
 compiled test jar, and every file referenced by the model. The dev launcher:
@@ -203,8 +225,10 @@ compiled test jar, and every file referenced by the model. The dev launcher:
 3. watches main and test Java sources, test resources, and both main and test
    code-generation inputs, rebuilding `<name>_dev` and syncing the resulting
    class/resource trees without rewriting unchanged files;
-4. marks a non-Java test-input update as a test-class change after a successful
-   Bazel rebuild so Quarkus automatically schedules an affected-test run.
+4. after a successful rebuild triggered by a non-Java input, timestamps every
+   synchronized test class forward. Quarkus only auto-runs tests for changed
+   classes, so this is deliberately coarse: a test-resource or code-generation
+   change reruns the whole suite, not a narrowed selection.
 
 Quarkus then owns discovery, affected-test selection, console hotkeys, and the
 Dev UI result/failure rendering. This path is certified with source changes in

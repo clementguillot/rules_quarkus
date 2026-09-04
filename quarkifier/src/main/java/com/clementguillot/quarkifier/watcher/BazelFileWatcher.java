@@ -72,6 +72,17 @@ public final class BazelFileWatcher implements Closeable {
 
   private final List<Path> reloadableTestClassesOutputDirs;
 
+  /** Application and test class outputs combined, for the stale-output freshness check. */
+  private final List<Path> allReloadableOutputDirs;
+
+  /**
+   * Watched input roots in absolute, normalized form. Prefix matching runs on every filesystem
+   * event, so the normalization is done once here rather than per event.
+   */
+  private final List<Path> normalizedCodegenInputDirs;
+
+  private final List<Path> normalizedTestResourceDirs;
+
   /**
    * Creates a new file watcher. The {@link WatchService} is created eagerly; call {@link #close()}
    * to release it.
@@ -84,6 +95,11 @@ public final class BazelFileWatcher implements Closeable {
     this.reloadableClassesOutputDirs = ClassSyncer.excludeExtensionJars(config.classesOutputDirs());
     this.reloadableTestClassesOutputDirs =
         ClassSyncer.excludeExtensionJars(config.testClassesOutputDirs());
+    List<Path> allOutputs = new ArrayList<>(reloadableClassesOutputDirs);
+    allOutputs.addAll(reloadableTestClassesOutputDirs);
+    this.allReloadableOutputDirs = List.copyOf(allOutputs);
+    this.normalizedCodegenInputDirs = normalize(config.codegenInputDirs());
+    this.normalizedTestResourceDirs = normalize(config.testResources());
     this.watchService = FileSystems.getDefault().newWatchService();
     this.debounceExecutor =
         Executors.newSingleThreadScheduledExecutor(
@@ -253,37 +269,44 @@ public final class BazelFileWatcher implements Closeable {
    * not to the enclosing source parent: a source parent is the whole {@code src/main} tree, so
    * matching on it would trigger a full Bazel rebuild whenever any resource or other non-Java file
    * below it is saved.
-   *
-   * <p>Editor scratch files created inside those directories are ignored. An input directory
-   * matches on location alone rather than on an extension, so without this a single {@code vim}
-   * save of one {@code .proto} would queue rebuilds for the {@code 4913} probe file, the {@code
-   * .swp} file, and the {@code ~} backup as well.
    */
   private boolean isCodegenInput(Path changed) {
-    if (isEditorScratchFile(changed.getFileName())) {
+    return isUnder(changed, normalizedCodegenInputDirs);
+  }
+
+  /** Reports whether {@code changed} belongs to a declared test resource directory. */
+  private boolean isTestResource(Path changed) {
+    return isUnder(changed, normalizedTestResourceDirs);
+  }
+
+  /**
+   * Reports whether {@code changed} sits below one of {@code roots}, which must already be absolute
+   * and normalized.
+   *
+   * <p>Editor scratch files are ignored. These roots match on location alone rather than on an
+   * extension, so without this a single {@code vim} save of one {@code .proto} would queue rebuilds
+   * for the {@code 4913} probe file, the {@code .swp} file, and the {@code ~} backup as well.
+   */
+  private static boolean isUnder(Path changed, List<Path> roots) {
+    if (roots.isEmpty() || isEditorScratchFile(changed.getFileName())) {
       return false;
     }
     Path absolute = changed.toAbsolutePath().normalize();
-    for (Path inputDir : config.codegenInputDirs()) {
-      if (absolute.startsWith(inputDir.toAbsolutePath().normalize())) {
+    for (Path root : roots) {
+      if (absolute.startsWith(root)) {
         return true;
       }
     }
     return false;
   }
 
-  /** Reports whether {@code changed} belongs to a declared test resource directory. */
-  private boolean isTestResource(Path changed) {
-    if (isEditorScratchFile(changed.getFileName())) {
-      return false;
+  /** Returns {@code dirs} in absolute, normalized form. */
+  private static List<Path> normalize(List<Path> dirs) {
+    List<Path> normalized = new ArrayList<>(dirs.size());
+    for (Path dir : dirs) {
+      normalized.add(dir.toAbsolutePath().normalize());
     }
-    Path absolute = changed.toAbsolutePath().normalize();
-    for (Path resourceDir : config.testResources()) {
-      if (absolute.startsWith(resourceDir.toAbsolutePath().normalize())) {
-        return true;
-      }
-    }
-    return false;
+    return List.copyOf(normalized);
   }
 
   /** Reports whether {@code fileName} is an editor temporary, backup, or probe file. */
@@ -428,9 +451,7 @@ public final class BazelFileWatcher implements Closeable {
       return;
     }
     long threshold = buildStartMillis - 2000; // slack for coarse mtime granularity
-    List<Path> allOutputs = new ArrayList<>(reloadableClassesOutputDirs);
-    allOutputs.addAll(reloadableTestClassesOutputDirs);
-    for (Path path : allOutputs) {
+    for (Path path : allReloadableOutputDirs) {
       try {
         if (Files.isDirectory(path)) {
           return; // cannot cheaply track directory freshness; assume OK
@@ -448,7 +469,7 @@ public final class BazelFileWatcher implements Closeable {
               + " If you launch dev mode with extra Bazel flags (e.g. --config, -c opt), set"
               + " dev_build_args on quarkus_app/quarkus_dev so hot-reload rebuilds use the same"
               + " configuration — otherwise code changes will not be picked up.",
-          allOutputs);
+          allReloadableOutputDirs);
     }
   }
 
@@ -468,8 +489,14 @@ public final class BazelFileWatcher implements Closeable {
   }
 
   /**
-   * Delegates to {@link ClassSyncer#syncClasses(List, Path)} to copy changed {@code .class} files
-   * from bazel-bin output directories to the mutable classes directory.
+   * Copies changed {@code .class} files from the bazel-bin output paths to the mutable classes
+   * directory, and — when continuous testing is configured — the compiled tests and their packaged
+   * resources to the mutable test-classes directory.
+   *
+   * @param markTestsChanged whether the rebuild was triggered by a non-Java input, in which case
+   *     the synchronized test classes are timestamped forward so Quarkus schedules a test run
+   * @return {@code true} if everything synchronized; {@code false} lets the caller restore the
+   *     pending non-Java change so the next successful build still schedules that test run
    */
   boolean syncClasses(boolean markTestsChanged) {
     try {

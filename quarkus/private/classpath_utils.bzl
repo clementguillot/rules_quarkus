@@ -58,6 +58,8 @@ quarkus_extension_deployment_classpath_aspect = aspect(
 # Maven-layout markers used to derive source/resource roots from package paths.
 _SOURCE_MARKERS = ["src/main/java"]
 _RESOURCE_MARKERS = ["src/main/resources"]
+_TEST_SOURCE_MARKERS = ["src/test/java"]
+_TEST_RESOURCE_MARKERS = ["src/test/resources"]
 
 def short_path(f):
     """Returns the short_path of a File, for use with args.add_joined(map_each=...)."""
@@ -214,7 +216,7 @@ def collect_source_dir_paths(deps, runtime_classpath = None):
 
 def collect_test_source_dir_paths(deps, runtime_classpath = None):
     """Derives conventional src/test/java roots for continuous testing."""
-    return _collect_marker_dir_paths(deps, runtime_classpath, ["src/test/java"])
+    return _collect_marker_dir_paths(deps, runtime_classpath, _TEST_SOURCE_MARKERS)
 
 def collect_resource_dir_paths(deps, runtime_classpath = None):
     """Derives candidate resource roots (src/main/resources) from deps.
@@ -230,7 +232,7 @@ def collect_resource_dir_paths(deps, runtime_classpath = None):
 
 def collect_test_resource_dir_paths(deps, runtime_classpath = None):
     """Derives conventional src/test/resources roots for continuous testing."""
-    return _collect_marker_dir_paths(deps, runtime_classpath, ["src/test/resources"])
+    return _collect_marker_dir_paths(deps, runtime_classpath, _TEST_RESOURCE_MARKERS)
 
 def write_runfiles_paths_file(ctx, name_suffix, files, separator):
     """Writes the runfiles short_paths of `files`, joined by `separator`, to a file.
