@@ -235,7 +235,7 @@ class ClassSyncerTest {
   }
 
   @Test
-  void syncTestClasses_copiesUpdatesAndRemovesResources() throws IOException {
+  void syncClassesAndResources_copiesUpdatesAndRemovesResources() throws IOException {
     Path jar = tempDir.resolve("libtests.jar");
     writeJar(
         jar,
@@ -246,7 +246,7 @@ class ClassSyncerTest {
             "META-INF/MANIFEST.MF", "Manifest-Version: 1.0"));
     Path classesDir = Files.createDirectories(tempDir.resolve("test-classes"));
 
-    ClassSyncer.populateTestClassesDir(List.of(jar), classesDir);
+    ClassSyncer.populateClassesAndResources(List.of(jar), classesDir);
 
     assertEquals(
         "bytecode", Files.readString(classesDir.resolve("org/acme/GreetingResourceTest.class")));
@@ -258,7 +258,7 @@ class ClassSyncerTest {
         java.util.Map.of(
             "org/acme/GreetingResourceTest.class", "bytecode",
             "continuous-test.txt", "resource-v2"));
-    ClassSyncer.syncTestClasses(List.of(jar), classesDir);
+    ClassSyncer.syncClassesAndResources(List.of(jar), classesDir);
 
     assertEquals("resource-v2", Files.readString(classesDir.resolve("continuous-test.txt")));
     assertFalse(Files.exists(classesDir.resolve("obsolete.txt")));

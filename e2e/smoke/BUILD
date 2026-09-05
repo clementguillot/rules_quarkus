@@ -538,8 +538,16 @@ sh_test(
         size = "enormous",
         srcs = ["continuous_testing_test.sh"],
         args = [version],
+        # prepare() assembles the fixture workspace from this package, so the
+        # module file, the pinned lock and the .bazelrc belong in the graph.
+        # It also copies ext/, which is its own Bazel package and therefore
+        # unreachable from a glob here; the test resolves it through the source
+        # tree, which is why "no-sandbox" is required.
         data = [
+            ".bazelrc",
+            "MODULE.bazel",
             "continuous_testing_test.py",
+            "maven_install.json",
             ":app_dev",
         ] + glob(["continuous/**"]),
         env_inherit = ["PATH"],

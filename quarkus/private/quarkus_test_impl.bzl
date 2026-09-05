@@ -22,8 +22,18 @@ load("//quarkus/private:coverage_transition.bzl", "disable_coverage_transition",
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
 load("//quarkus/private:quarkus_codegen_impl.bzl", "collect_codegen_input_dirs", "quarkus_codegen_metadata_aspect")
 
-def _regex_escape_class_name(class_name):
+def regex_escape_class_name(class_name):
+    """Escapes a Java class or package name for use inside a regular expression.
+
+    Args:
+      class_name: Fully-qualified class or package name.
+
+    Returns:
+      The name with regex metacharacters valid in Java identifiers escaped.
+    """
     return class_name.replace("\\", "\\\\").replace(".", "\\.").replace("$", "\\$")
+
+_regex_escape_class_name = regex_escape_class_name
 
 def _build_test_args(test_packages, test_classes, fail_if_no_tests, integration = False):
     """Builds JUnit ConsoleLauncher CLI arguments."""

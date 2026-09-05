@@ -19,6 +19,7 @@ load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "c
 load("//quarkus/private:coverage_transition.bzl", "dev_lifecycle_transition", "disable_coverage_transition", "single_transitioned_target")
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
 load("//quarkus/private:quarkus_codegen_impl.bzl", "collect_codegen_input_dirs", "quarkus_codegen_metadata_aspect")
+load("//quarkus/private:quarkus_test_impl.bzl", "regex_escape_class_name")
 
 def _hot_reload_bazel_target(ctx):
     """Returns the label the file watcher rebuilds on a source change.
@@ -185,8 +186,8 @@ def _continuous_build_properties(app_properties, test_info):
         if key in properties and properties[key] != value:
             fail("continuous_test: conflicting build_properties value for '{}'; dev and tests share one JVM".format(key))
         properties[key] = value
-    selectors = ["^" + name.replace(".", "\\.").replace("$", "\\$") + "$" for name in test_info.test_classes]
-    selectors.extend(["^" + name.replace(".", "\\.").replace("$", "\\$") + "\\..*$" for name in test_info.test_packages])
+    selectors = ["^" + regex_escape_class_name(name) + "$" for name in test_info.test_classes]
+    selectors.extend(["^" + regex_escape_class_name(name) + "\\..*$" for name in test_info.test_packages])
     if selectors:
         selection = "(" + "|".join(selectors) + ")"
         configured = properties.get("quarkus.test.include-pattern")

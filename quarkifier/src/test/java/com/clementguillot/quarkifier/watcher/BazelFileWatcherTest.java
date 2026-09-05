@@ -125,7 +125,7 @@ class BazelFileWatcherTest {
 
     var config = testConfig(tempDir.resolve("output"), List.of(sourceDir));
     var watcher = new BazelFileWatcher(config);
-    watcher.registerWatchers(config.sourceDirs());
+    watcher.registerWatchers(config.sourceDirs(), false);
 
     watcher.close();
 
@@ -139,7 +139,7 @@ class BazelFileWatcherTest {
     var watcher = new BazelFileWatcher(config);
 
     // Should not throw, just log a warning
-    assertDoesNotThrow(() -> watcher.registerWatchers(config.sourceDirs()));
+    assertDoesNotThrow(() -> watcher.registerWatchers(config.sourceDirs(), false));
     watcher.close();
   }
 
@@ -150,7 +150,7 @@ class BazelFileWatcherTest {
 
     var config = testConfig(tempDir.resolve("output"), List.of(tempDir.resolve("src/main/java")));
     var watcher = new BazelFileWatcher(config);
-    watcher.registerWatchers(config.sourceDirs());
+    watcher.registerWatchers(config.sourceDirs(), false);
 
     // Watcher should be functional (close without error proves registration worked)
     assertDoesNotThrow(watcher::close);
@@ -158,11 +158,11 @@ class BazelFileWatcherTest {
 
   @Test
   void versionControlDirectoriesAreExcludedWithoutExcludingDeclaredDotDirectories() {
-    assertTrue(BazelFileWatcher.isVersionControlDirectory(Path.of("workspace/.git")));
-    assertTrue(BazelFileWatcher.isVersionControlDirectory(Path.of("workspace/.hg")));
-    assertTrue(BazelFileWatcher.isVersionControlDirectory(Path.of("workspace/.svn")));
-    assertFalse(BazelFileWatcher.isVersionControlDirectory(Path.of("workspace/.schemas")));
-    assertFalse(BazelFileWatcher.isVersionControlDirectory(Path.of("workspace/proto")));
+    assertTrue(WatchedPaths.isVersionControlDirectory(Path.of("workspace/.git")));
+    assertTrue(WatchedPaths.isVersionControlDirectory(Path.of("workspace/.hg")));
+    assertTrue(WatchedPaths.isVersionControlDirectory(Path.of("workspace/.svn")));
+    assertFalse(WatchedPaths.isVersionControlDirectory(Path.of("workspace/.schemas")));
+    assertFalse(WatchedPaths.isVersionControlDirectory(Path.of("workspace/proto")));
   }
 
   @Test
@@ -205,7 +205,7 @@ class BazelFileWatcherTest {
 
     var config = testConfig(tempDir.resolve("output"), List.of(sourceDir));
     var watcher = new BazelFileWatcher(config);
-    watcher.registerWatchers(config.sourceDirs());
+    watcher.registerWatchers(config.sourceDirs(), false);
 
     CountDownLatch started = new CountDownLatch(1);
     CountDownLatch finished = new CountDownLatch(1);

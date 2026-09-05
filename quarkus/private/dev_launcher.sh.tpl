@@ -97,7 +97,11 @@ TEST_CLASSES_OUTPUT_DIRS=""
 if [ -f "$TEST_CLASSES_OUTPUT_DIRS_FILE" ]; then
     TEST_CLASSES_OUTPUT_DIRS=$(cat "$TEST_CLASSES_OUTPUT_DIRS_FILE")
 fi
-PACKAGE_DIRS=$(cat "${RUNFILES_DIR}/%{workspace}/%{package_dirs_file}")
+PACKAGE_DIRS_FILE="${RUNFILES_DIR}/%{workspace}/%{package_dirs_file}"
+PACKAGE_DIRS=""
+if [ -f "$PACKAGE_DIRS_FILE" ]; then
+    PACKAGE_DIRS=$(cat "$PACKAGE_DIRS_FILE")
+fi
 TEST_JVM_FLAGS=(%{test_jvm_flags})
 
 # Create temp dirs with unique prefixes for security

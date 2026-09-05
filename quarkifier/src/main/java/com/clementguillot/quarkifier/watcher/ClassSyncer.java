@@ -80,10 +80,15 @@ public final class ClassSyncer {
     populateOutputs(classesOutputPaths, classesDir, false);
   }
 
-  /** Populates mutable test-classes with compiled tests and their packaged resources. */
-  public static void populateTestClassesDir(List<Path> testOutputPaths, Path testClassesDir)
+  /**
+   * Populates a mutable output tree with compiled classes <em>and</em> their packaged resources.
+   *
+   * <p>Used for both the application and the test tree under continuous testing: Quarkus is
+   * configured with no workspace resource paths there, so Bazel is the only writer of resources.
+   */
+  public static void populateClassesAndResources(List<Path> outputPaths, Path outputDir)
       throws IOException {
-    populateOutputs(testOutputPaths, testClassesDir, true);
+    populateOutputs(outputPaths, outputDir, true);
   }
 
   private static void populateOutputs(
@@ -114,10 +119,13 @@ public final class ClassSyncer {
     syncOutputs(classesOutputPaths, classesDir, false);
   }
 
-  /** Synchronizes compiled tests and test resources into a conventional test-classes directory. */
-  public static void syncTestClasses(List<Path> testOutputPaths, Path testClassesDir)
+  /**
+   * Synchronizes compiled classes and their packaged resources, deleting anything the latest build
+   * output no longer contains. The counterpart of {@link #populateClassesAndResources}.
+   */
+  public static void syncClassesAndResources(List<Path> outputPaths, Path outputDir)
       throws IOException {
-    syncOutputs(testOutputPaths, testClassesDir, true);
+    syncOutputs(outputPaths, outputDir, true);
   }
 
   /**
@@ -137,13 +145,16 @@ public final class ClassSyncer {
     }
     int changed = 0;
     long now = System.currentTimeMillis();
+    // The tree also holds every packaged test resource; filter in the stream so the
+    // walk stays lazy instead of materializing them all just to skip them.
     try (var paths = Files.walk(testClassesDir)) {
-      for (Path path : paths.filter(Files::isRegularFile).toList()) {
-        if (path.toString().endsWith(".class")) {
-          long current = Files.getLastModifiedTime(path).toMillis();
-          Files.setLastModifiedTime(path, FileTime.fromMillis(Math.max(now, current + 1)));
-          changed++;
-        }
+      for (Path path :
+          paths
+              .filter(path -> path.toString().endsWith(".class") && Files.isRegularFile(path))
+              .toList()) {
+        long current = Files.getLastModifiedTime(path).toMillis();
+        Files.setLastModifiedTime(path, FileTime.fromMillis(Math.max(now, current + 1)));
+        changed++;
       }
     }
     return changed;
