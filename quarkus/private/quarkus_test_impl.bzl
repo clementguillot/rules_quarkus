@@ -15,12 +15,12 @@ load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusAppInfo", "QuarkusContinuousTestInfo", "QuarkusNativeInfo")
-load("//quarkus/private:application_model_aspect.bzl", "collect_deployment_model_artifacts", "collect_model_artifacts", "collect_watch_metadata", "has_maven_artifact", "quarkus_application_model_aspect")
+load("//quarkus/private:application_model_aspect.bzl", "collect_deployment_model_artifacts", "collect_direct_model_dependency_ids", "collect_model_artifacts", "collect_watch_metadata", "has_maven_artifact", "quarkus_application_model_aspect")
 load("//quarkus/private:build_properties.bzl", "validate_build_property_keys")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_extension_runtime_jars", "collect_local_app_jars", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
 load("//quarkus/private:coverage_transition.bzl", "disable_coverage_transition", "single_transitioned_target")
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
-load("//quarkus/private:quarkus_codegen_impl.bzl", "collect_codegen_input_dirs", "quarkus_codegen_metadata_aspect")
+load("//quarkus/private:quarkus_codegen_impl.bzl", "collect_codegen_input_files", "quarkus_codegen_metadata_aspect")
 
 def regex_escape_class_name(class_name):
     """Escapes a Java class or package name for use inside a regular expression.
@@ -33,7 +33,11 @@ def regex_escape_class_name(class_name):
     """
     return class_name.replace("\\", "\\\\").replace(".", "\\.").replace("$", "\\$")
 
-_regex_escape_class_name = regex_escape_class_name
+def test_resources_without_sources_error(srcs, resources):
+    """Returns an actionable error for resources the public macro would ignore."""
+    if resources and not srcs:
+        return "quarkus_test resources require inline srcs; declare resources on the precompiled java_library instead"
+    return ""
 
 def _build_test_args(test_packages, test_classes, fail_if_no_tests, integration = False):
     """Builds JUnit ConsoleLauncher CLI arguments."""
@@ -45,7 +49,7 @@ def _build_test_args(test_packages, test_classes, fail_if_no_tests, integration 
     for cls in test_classes:
         args.append("--select-class=" + cls)
     if integration:
-        include_patterns = [".*IT$"] + ["^" + _regex_escape_class_name(cls) + "$" for cls in test_classes]
+        include_patterns = [".*IT$"] + ["^" + regex_escape_class_name(cls) + "$" for cls in test_classes]
         args.append("--include-classname=(" + "|".join(include_patterns) + ")")
     else:
         args.append("--exclude-classname=.*IT$")
@@ -91,6 +95,20 @@ def _direct_class_outputs(deps):
                 seen[class_jar.path] = True
                 outputs.append(class_jar)
     return outputs
+
+def _ordered_continuous_test_outputs(deps, runtime_classpath, test_outputs):
+    """Orders reloadable test outputs exactly like the test runtime classpath."""
+    candidates = {
+        file.path: True
+        for file in _direct_class_outputs(deps) + test_outputs.to_list()
+    }
+    ordered = []
+    seen = {}
+    for file in runtime_classpath.to_list():
+        if file.path in candidates and file.path not in seen:
+            seen[file.path] = True
+            ordered.append(file)
+    return ordered
 
 def _integration_version_error(rule_name, test_version, app_label, app_version):
     if test_version == app_version:
@@ -220,13 +238,16 @@ def _test_impl(ctx, integration):
     if not integration:
         metadata = collect_watch_metadata(ctx.attr.deps)
         providers.append(QuarkusContinuousTestInfo(
+            application_dependency_ids = depset(collect_direct_model_dependency_ids(ctx.attr.deps)),
             application_model = model,
-            classes_output_dirs = depset(_direct_class_outputs(ctx.attr.deps), transitive = [metadata.test_outputs]),
+            build_files = metadata.build_files,
+            classes_output_dirs = _ordered_continuous_test_outputs(ctx.attr.deps, runtime_classpath, metadata.test_outputs),
             build_properties = declared_build_properties,
             jvm_flags = ctx.attr.jvm_flags,
             test_classes = ctx.attr.test_classes,
             test_packages = ctx.attr.test_packages,
-            codegen_input_dirs = collect_codegen_input_dirs(ctx.attr.deps),
+            codegen_input_files = collect_codegen_input_files(ctx.attr.deps),
+            input_files = metadata.input_files,
             model_classpath = depset(
                 [model],
                 transitive = [
@@ -237,9 +258,6 @@ def _test_impl(ctx, integration):
                     collect_deployment_model_artifacts(ctx.attr.deps),
                 ],
             ),
-            resource_dirs = metadata.resource_dirs,
-            source_dirs = metadata.source_dirs,
-            package_dirs = metadata.package_dirs,
         ))
     return providers
 

@@ -529,42 +529,34 @@ sh_test(
     tags = ["no-sandbox"],
 )
 
-# --- Continuous testing through the Dev UI ---
-# These tests invoke real nested Bazel builds and mutate only disposable fixture
-# workspaces. They intentionally require a local checkout, Bazel and network/cache.
-[
-    sh_test(
-        name = "continuous_testing_" + minor + "_test",
-        size = "enormous",
-        srcs = ["continuous_testing_test.sh"],
-        args = [version],
-        # prepare() assembles the fixture workspace from this package, so the
-        # module file, the pinned lock and the .bazelrc belong in the graph.
-        # It also copies ext/, which is its own Bazel package and therefore
-        # unreachable from a glob here; the test resolves it through the source
-        # tree, which is why "no-sandbox" is required.
-        data = [
-            ".bazelrc",
-            "MODULE.bazel",
-            "continuous_testing_test.py",
-            "maven_install.json",
-            ":app_dev",
-        ] + glob(["continuous/**"]),
-        env_inherit = ["PATH"],
-        tags = [
-            "exclusive",
-            # The nested build reads the checkout, including the other version's
-            # adapter sources, so the outer test result must never be cached.
-            "external",
-            "no-remote",
-            "no-sandbox",
-        ],
-    )
-    for minor, version in [
-        ("3_27", "3.27.4"),
-        ("3_33", "3.33.2"),
-    ]
-]
+# --- Continuous testing through the Dev UI and dev console (Quarkus 3.33 only) ---
+# This invokes real nested Bazel builds and mutates only a disposable fixture
+# workspace. It intentionally requires a local checkout, Bazel and network/cache.
+sh_test(
+    name = "continuous_testing_test",
+    size = "enormous",
+    srcs = ["continuous_testing_test.sh"],
+    # prepare() assembles the fixture workspace from this package, so the module
+    # file, pinned lock and .bazelrc belong in the graph. It also copies ext/,
+    # which is its own Bazel package and therefore unreachable from a glob here;
+    # the test resolves it through the source tree, requiring "no-sandbox".
+    data = [
+        ".bazelrc",
+        "MODULE.bazel",
+        "continuous_testing_test.py",
+        "maven_install.json",
+        ":app_dev",
+    ] + glob(["continuous/**"]),
+    env_inherit = ["PATH"],
+    tags = [
+        "exclusive",
+        # The nested build reads repository sources, so the outer test result
+        # must never be cached.
+        "external",
+        "no-remote",
+        "no-sandbox",
+    ],
+)
 
 # --- fail_if_no_tests smoke tests (issue #125) ---
 # EmptyTest.java is a @QuarkusTest with zero @Test methods.

@@ -4,9 +4,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.clementguillot.quarkifier.QuarkifierConfig;
 import com.clementguillot.quarkifier.TestQuarkifierConfig;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -61,20 +65,18 @@ class BazelFileWatcherTest {
     Files.writeString(main.resolve("application.properties"), "key=value");
     Files.writeString(tests.resolve("AppTest.class"), "test");
     Files.writeString(tests.resolve("fixture.txt"), "packaged");
-    Path sourceResources = Files.createDirectories(tempDir.resolve("testdata"));
-    Files.writeString(sourceResources.resolve("undeclared.txt"), "must not leak");
     var config =
         testConfig(
             tempDir.resolve("output"),
             List.of(),
+            "--test-application-model",
+            tempDir.resolve("test-model.json").toString(),
             "--test-classes-dir",
             tempDir.resolve("mutable/test-classes").toString(),
             "--classes-output-dirs",
             main.toString(),
             "--test-classes-output-dirs",
-            tests.toString(),
-            "--test-resources",
-            sourceResources.toString());
+            tests.toString());
     Files.createDirectories(config.reloadNotificationDir());
     try (var watcher = new BazelFileWatcher(config)) {
       assertTrue(watcher.syncClasses(true));
@@ -100,6 +102,8 @@ class BazelFileWatcherTest {
         testConfig(
             tempDir.resolve("output"),
             List.of(),
+            "--test-application-model",
+            tempDir.resolve("test-model.json").toString(),
             "--test-classes-dir",
             tempDir.resolve("mutable/test-classes").toString(),
             "--test-classes-output-dirs",
@@ -125,7 +129,7 @@ class BazelFileWatcherTest {
 
     var config = testConfig(tempDir.resolve("output"), List.of(sourceDir));
     var watcher = new BazelFileWatcher(config);
-    watcher.registerWatchers(config.sourceDirs(), false);
+    watcher.registerWatchers(config.sourceDirs());
 
     watcher.close();
 
@@ -139,7 +143,7 @@ class BazelFileWatcherTest {
     var watcher = new BazelFileWatcher(config);
 
     // Should not throw, just log a warning
-    assertDoesNotThrow(() -> watcher.registerWatchers(config.sourceDirs(), false));
+    assertDoesNotThrow(() -> watcher.registerWatchers(config.sourceDirs()));
     watcher.close();
   }
 
@@ -150,19 +154,88 @@ class BazelFileWatcherTest {
 
     var config = testConfig(tempDir.resolve("output"), List.of(tempDir.resolve("src/main/java")));
     var watcher = new BazelFileWatcher(config);
-    watcher.registerWatchers(config.sourceDirs(), false);
+    watcher.registerWatchers(config.sourceDirs());
 
     // Watcher should be functional (close without error proves registration worked)
     assertDoesNotThrow(watcher::close);
   }
 
   @Test
-  void versionControlDirectoriesAreExcludedWithoutExcludingDeclaredDotDirectories() {
-    assertTrue(WatchedPaths.isVersionControlDirectory(Path.of("workspace/.git")));
-    assertTrue(WatchedPaths.isVersionControlDirectory(Path.of("workspace/.hg")));
-    assertTrue(WatchedPaths.isVersionControlDirectory(Path.of("workspace/.svn")));
-    assertFalse(WatchedPaths.isVersionControlDirectory(Path.of("workspace/.schemas")));
-    assertFalse(WatchedPaths.isVersionControlDirectory(Path.of("workspace/proto")));
+  void exactInputsDoNotMatchUndeclaredSiblings() {
+    Path javaInput = tempDir.resolve("src/main/java/App.java");
+    Path resourceInput = tempDir.resolve("src/test/resources/fixture.tmp");
+    Path codegenInput = tempDir.resolve("src/main/proto/schema.proto");
+    Path buildFile = tempDir.resolve("BUILD.bazel");
+    var config =
+        testConfig(
+            tempDir.resolve("output"),
+            List.of(),
+            "--test-application-model",
+            tempDir.resolve("test-model.json").toString(),
+            "--test-classes-dir",
+            tempDir.resolve("mutable/test-classes").toString(),
+            "--watched-input",
+            javaInput.toString(),
+            "--watched-input",
+            resourceInput.toString(),
+            "--codegen-input-file",
+            codegenInput.toString(),
+            "--watched-build-file",
+            buildFile.toString());
+    var paths = new WatchedPaths(config);
+
+    assertTrue(paths.isExactInput(javaInput));
+    assertTrue(paths.isExactInput(resourceInput), "declared .tmp files must remain valid inputs");
+    assertTrue(paths.isExactInput(codegenInput));
+    assertFalse(paths.isExactInput(javaInput.resolveSibling("Undeclared.java")));
+    assertFalse(paths.isExactInput(resourceInput.resolveSibling("undeclared.txt")));
+    assertTrue(paths.isBuildFile(buildFile));
+    assertFalse(paths.isBuildFile(tempDir.resolve("other/BUILD.bazel")));
+    assertTrue(paths.isExactWatchAncestor(javaInput.getParent()));
+    assertFalse(paths.isExactWatchAncestor(tempDir.resolve("unrelated")));
+    assertFalse(paths.isNonJavaInput(javaInput));
+    assertTrue(paths.isNonJavaInput(resourceInput));
+    assertTrue(paths.isNonJavaInput(codegenInput));
+  }
+
+  @Test
+  void buildFileChangePrintsRestartWarningWithoutRebuilding() throws Exception {
+    Path buildFile = tempDir.resolve("helper/BUILD.bazel");
+    Files.createDirectories(buildFile.getParent());
+    Files.writeString(buildFile, "# initial\n");
+    Path outputDir = tempDir.resolve("output");
+    var config =
+        testConfig(
+            outputDir,
+            List.of(),
+            "--test-application-model",
+            tempDir.resolve("test-model.json").toString(),
+            "--test-classes-dir",
+            tempDir.resolve("mutable/test-classes").toString(),
+            "--watched-build-file",
+            buildFile.toString());
+    PrintStream originalError = System.err;
+    var warningOutput = new ByteArrayOutputStream();
+    try (var capturedError = new PrintStream(warningOutput, true, StandardCharsets.UTF_8)) {
+      System.setErr(capturedError);
+      try (var watcher = BazelFileWatcher.startInBackground(config)) {
+        Files.writeString(
+            buildFile, "# changed\n", StandardOpenOption.APPEND, StandardOpenOption.WRITE);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (!warningOutput.toString(StandardCharsets.UTF_8).contains("Restart dev mode")
+            && System.nanoTime() < deadline) {
+          Thread.sleep(25);
+        }
+        assertTrue(
+            warningOutput.toString(StandardCharsets.UTF_8).contains("Restart dev mode"),
+            warningOutput.toString(StandardCharsets.UTF_8));
+        assertEquals(
+            "[hot-reload] Bazel build log\n",
+            Files.readString(outputDir.resolve("bazel-hot-reload.log")));
+      }
+    } finally {
+      System.setErr(originalError);
+    }
   }
 
   @Test
@@ -205,7 +278,7 @@ class BazelFileWatcherTest {
 
     var config = testConfig(tempDir.resolve("output"), List.of(sourceDir));
     var watcher = new BazelFileWatcher(config);
-    watcher.registerWatchers(config.sourceDirs(), false);
+    watcher.registerWatchers(config.sourceDirs());
 
     CountDownLatch started = new CountDownLatch(1);
     CountDownLatch finished = new CountDownLatch(1);

@@ -1,7 +1,10 @@
 package com.clementguillot.quarkifier.watcher;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,7 +16,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -93,16 +99,7 @@ public final class ClassSyncer {
 
   private static void populateOutputs(
       List<Path> outputPaths, Path classesDir, boolean includeResources) throws IOException {
-    for (Path outputPath : outputPaths) {
-      if (!Files.exists(outputPath)) {
-        continue;
-      }
-      if (Files.isDirectory(outputPath)) {
-        copyOutputsFromDirectory(outputPath, classesDir, null, includeResources);
-      } else if (outputPath.toString().endsWith(".jar")) {
-        extractOutputsFromJar(outputPath, classesDir, null, includeResources);
-      }
-    }
+    copyOutputs(outputPaths, classesDir, includeResources);
   }
 
   /**
@@ -162,18 +159,7 @@ public final class ClassSyncer {
 
   private static void syncOutputs(List<Path> outputPaths, Path classesDir, boolean includeResources)
       throws IOException {
-    Set<Path> synced = new HashSet<>();
-
-    for (Path outputPath : outputPaths) {
-      if (!Files.exists(outputPath)) {
-        continue;
-      }
-      if (Files.isDirectory(outputPath)) {
-        copyOutputsFromDirectory(outputPath, classesDir, synced, includeResources);
-      } else if (outputPath.toString().endsWith(".jar")) {
-        extractOutputsFromJar(outputPath, classesDir, synced, includeResources);
-      }
-    }
+    Set<Path> synced = copyOutputs(outputPaths, classesDir, includeResources);
 
     // Remove stale synchronized files not present in the latest build output.
     if (Files.isDirectory(classesDir)) {
@@ -195,8 +181,42 @@ public final class ClassSyncer {
 
   // ---- internal helpers ----
 
+  /**
+   * Copies one flattened output tree while retaining Java classpath ordering semantics.
+   *
+   * <p>The first output containing an ordinary class or resource wins, just as it would on the
+   * original classpath. Service-provider configuration is the exception: {@link
+   * java.util.ServiceLoader} reads every {@code META-INF/services/*} resource, so those files are
+   * merged in classpath order with duplicate providers removed. Keeping collision state across the
+   * complete pass also prevents a lower-priority duplicate from rewriting the first entry on every
+   * synchronization.
+   */
+  private static Set<Path> copyOutputs(
+      List<Path> outputPaths, Path classesDir, boolean includeResources) throws IOException {
+    Set<Path> synced = new HashSet<>();
+    var serviceProviders = new ServiceProviders();
+
+    for (Path outputPath : outputPaths) {
+      if (!Files.exists(outputPath)) {
+        continue;
+      }
+      if (Files.isDirectory(outputPath)) {
+        copyOutputsFromDirectory(
+            outputPath, classesDir, synced, serviceProviders, includeResources);
+      } else if (outputPath.toString().endsWith(".jar")) {
+        extractOutputsFromJar(outputPath, classesDir, synced, serviceProviders, includeResources);
+      }
+    }
+    serviceProviders.writeTo(classesDir);
+    return synced;
+  }
+
   private static void copyOutputsFromDirectory(
-      Path outputDir, Path classesDir, Set<Path> synced, boolean includeResources)
+      Path outputDir,
+      Path classesDir,
+      Set<Path> synced,
+      ServiceProviders serviceProviders,
+      boolean includeResources)
       throws IOException {
     Files.walkFileTree(
         outputDir,
@@ -204,15 +224,22 @@ public final class ClassSyncer {
           @Override
           public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
               throws IOException {
-            Path relative = outputDir.relativize(file);
+            Path relative = outputDir.relativize(file).normalize();
             if (shouldSync(relative, includeResources)) {
               Path target = classesDir.resolve(relative);
+              if (isServiceProviderConfiguration(relative)) {
+                synced.add(relative);
+                try (InputStream input = Files.newInputStream(file)) {
+                  serviceProviders.collect(relative, input);
+                }
+                return FileVisitResult.CONTINUE;
+              }
+              if (!synced.add(relative)) {
+                return FileVisitResult.CONTINUE;
+              }
               Files.createDirectories(target.getParent());
               if (!Files.exists(target) || Files.mismatch(file, target) != -1) {
                 Files.copy(file, target, StandardCopyOption.REPLACE_EXISTING);
-              }
-              if (synced != null) {
-                synced.add(relative);
               }
             }
             return FileVisitResult.CONTINUE;
@@ -221,7 +248,11 @@ public final class ClassSyncer {
   }
 
   private static void extractOutputsFromJar(
-      Path jarPath, Path classesDir, Set<Path> synced, boolean includeResources)
+      Path jarPath,
+      Path classesDir,
+      Set<Path> synced,
+      ServiceProviders serviceProviders,
+      boolean includeResources)
       throws IOException {
     try (JarFile jar = new JarFile(jarPath.toFile())) {
       Enumeration<JarEntry> entries = jar.entries();
@@ -235,20 +266,35 @@ public final class ClassSyncer {
         if (!target.startsWith(classesDir)) {
           throw new IOException("Zip entry escapes target directory: " + entry.getName());
         }
+        // Record the path in the same normal form the stale sweep derives from the written file;
+        // an entry name with a redundant "." segment would otherwise never match.
+        Path normalizedRelative = classesDir.relativize(target);
+        if (isServiceProviderConfiguration(normalizedRelative)) {
+          synced.add(normalizedRelative);
+          try (InputStream input = jar.getInputStream(entry)) {
+            serviceProviders.collect(normalizedRelative, input);
+          }
+          continue;
+        }
+        if (!synced.add(normalizedRelative)) {
+          continue;
+        }
         Files.createDirectories(target.getParent());
         if (!jarEntryMatches(jar, entry, target)) {
           try (InputStream is = jar.getInputStream(entry)) {
             Files.copy(is, target, StandardCopyOption.REPLACE_EXISTING);
           }
         }
-        if (synced != null) {
-          // Record the path in the same normal form the stale sweep derives
-          // from the written file; an entry name with a redundant "." segment
-          // would otherwise never match and be deleted right after syncing.
-          synced.add(classesDir.relativize(target));
-        }
       }
     }
+  }
+
+  private static boolean isServiceProviderConfiguration(Path relative) {
+    String name = relative.toString().replace('\\', '/');
+    String prefix = "META-INF/services/";
+    return name.startsWith(prefix)
+        && name.length() > prefix.length()
+        && name.indexOf('/', prefix.length()) < 0;
   }
 
   private static boolean shouldSync(Path relative, boolean includeResources) {
@@ -281,6 +327,40 @@ public final class ClassSyncer {
         }
         if (expectedRead < COMPARE_BUFFER_SIZE) {
           return true; // both streams reached the end on the same byte count
+        }
+      }
+    }
+  }
+
+  /** Accumulates the logical union of ServiceLoader configuration files in classpath order. */
+  private static final class ServiceProviders {
+    private final Map<Path, Set<String>> providersByPath = new LinkedHashMap<>();
+
+    private void collect(Path relative, InputStream input) throws IOException {
+      Set<String> providers =
+          providersByPath.computeIfAbsent(relative, ignored -> new LinkedHashSet<>());
+      try (var reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
+        String line = reader.readLine();
+        while (line != null) {
+          int comment = line.indexOf('#');
+          String provider = (comment < 0 ? line : line.substring(0, comment)).trim();
+          if (!provider.isEmpty()) {
+            providers.add(provider);
+          }
+          line = reader.readLine();
+        }
+      }
+    }
+
+    private void writeTo(Path classesDir) throws IOException {
+      for (Map.Entry<Path, Set<String>> service : providersByPath.entrySet()) {
+        Path target = classesDir.resolve(service.getKey());
+        Files.createDirectories(target.getParent());
+        String content =
+            service.getValue().isEmpty() ? "" : String.join("\n", service.getValue()) + "\n";
+        byte[] expected = content.getBytes(StandardCharsets.UTF_8);
+        if (!Files.isRegularFile(target) || !Arrays.equals(expected, Files.readAllBytes(target))) {
+          Files.write(target, expected);
         }
       }
     }

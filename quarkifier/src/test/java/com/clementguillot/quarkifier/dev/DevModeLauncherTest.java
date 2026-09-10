@@ -185,10 +185,8 @@ class DevModeLauncherTest {
     var config =
         devConfig(
             "--test-application-model", "test-model.json",
-            "--test-source-dirs", "src/test/java",
             "--test-classes-dir", "/tmp/test-classes",
-            "--test-classes-output-dirs", "bazel-bin/test.jar",
-            "--test-resources", "src/test/resources");
+            "--test-classes-output-dirs", "bazel-bin/test.jar");
 
     var module = DevModeLauncher.buildDevModeContext(config).getApplicationRoot();
     var test = module.getTest().orElseThrow();

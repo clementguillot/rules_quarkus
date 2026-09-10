@@ -539,6 +539,73 @@ class BazelApplicationModelAssemblerTest {
   }
 
   @Test
+  void testModeAcceptsATestOnlyApplicationWhenItIsTheOnlyMainCandidate() throws IOException {
+    var base = inputs(true, DEPLOYMENT);
+    String testRoot = "@@//:testonly_app_test_lib";
+    String testHelper = "@@//:test_codegen";
+    Path testJar = jar("testonly-app-test-lib.jar", null);
+    Path testHelperJar = jar("test-codegen.jar", null);
+    var fragments = new java.util.ArrayList<>(base.targetFragments());
+    fragments.replaceAll(
+        fragment ->
+            APP.equals(fragment.targetId())
+                ? withSources(fragment, "custom/app/App.java", true)
+                : fragment);
+    fragments.add(testLocal(testHelper, testHelperJar, List.of(edge(APP))));
+    fragments.add(testLocal(testRoot, testJar, List.of(edge(APP), edge(testHelper))));
+    var runtimePaths = new java.util.HashSet<>(base.runtimeClasspathPaths());
+    runtimePaths.add(testJar.toString());
+    runtimePaths.add(testHelperJar.toString());
+    var deploymentPaths = new java.util.HashSet<>(base.deploymentClasspathPaths());
+    deploymentPaths.add(testJar.toString());
+    deploymentPaths.add(testHelperJar.toString());
+    var testInputs =
+        new BazelApplicationModelAssembler.Inputs(
+            new Roots("@@//:testonly_app_test", List.of(testRoot)),
+            fragments,
+            base.runtimeCatalog(),
+            emptyConditionalCatalog(),
+            base.deploymentCatalog(),
+            base.platformCatalog(),
+            base.localDeployments(),
+            base.localRuntimeAliases(),
+            Map.of(),
+            base.deploymentPaths(),
+            base.platformPropertyPaths(),
+            runtimePaths,
+            deploymentPaths,
+            Set.of(),
+            base.quarkusVersion(),
+            Mode.TEST,
+            "testonly_app_test",
+            "ignored-test-version",
+            base.producerVersion());
+
+    BazelApplicationModel model = BazelApplicationModelAssembler.assemble(testInputs);
+
+    assertEquals(APP, model.applicationId());
+    assertFalse(node(model, APP).classpath().reloadable());
+    assertTrue(node(model, testHelper).classpath().reloadable());
+    assertTrue(
+        node(model, testHelper).dependencies().stream()
+            .noneMatch(dependency -> APP.equals(dependency.targetId())));
+  }
+
+  @Test
+  void testModeRejectsAmbiguousIndependentTestOnlyApplicationCandidates() throws IOException {
+    var testInputs = multiDependencyTestInputs(false, true, true);
+
+    BazelApplicationModelException exception =
+        assertThrows(
+            BazelApplicationModelException.class,
+            () -> BazelApplicationModelAssembler.assemble(testInputs));
+
+    assertTrue(exception.getMessage().contains("exactly one independent candidate"));
+    assertTrue(exception.getMessage().contains(APP));
+    assertTrue(exception.getMessage().contains(SHARED));
+  }
+
+  @Test
   void testModePromotesMainLibraryAndAttachesTestSources() throws IOException {
     var base = inputs(true, DEPLOYMENT);
     String testRoot = "@@//:test_lib";
@@ -1140,11 +1207,21 @@ class BazelApplicationModelAssemblerTest {
 
   private BazelApplicationModelAssembler.Inputs multiDependencyTestInputs(
       boolean applicationOwnsShared, boolean sharedIsTestOnly) throws IOException {
+    return multiDependencyTestInputs(applicationOwnsShared, sharedIsTestOnly, false);
+  }
+
+  private BazelApplicationModelAssembler.Inputs multiDependencyTestInputs(
+      boolean applicationOwnsShared, boolean sharedIsTestOnly, boolean applicationIsTestOnly)
+      throws IOException {
     var base = inputs(true, DEPLOYMENT);
     String testRoot = "@@//:multi_dep_test_lib";
     Path sharedJar = jar("contracts.jar", null);
     Path testJar = jar("multi-dep-test-lib.jar", null);
     var fragments = new java.util.ArrayList<>(base.targetFragments());
+    if (applicationIsTestOnly) {
+      fragments.replaceAll(
+          fragment -> APP.equals(fragment.targetId()) ? withTestOnly(fragment) : fragment);
+    }
     if (applicationOwnsShared) {
       fragments.replaceAll(
           fragment ->
@@ -1184,6 +1261,26 @@ class BazelApplicationModelAssemblerTest {
         "multi_dep_test",
         "ignored-test-version",
         base.producerVersion());
+  }
+
+  private static TargetFragment withTestOnly(TargetFragment fragment) {
+    return new TargetFragment(
+        fragment.targetId(),
+        fragment.bazelLabel(),
+        fragment.workspaceName(),
+        fragment.packageName(),
+        fragment.targetName(),
+        fragment.ruleKind(),
+        fragment.buildFile(),
+        fragment.neverlink(),
+        true,
+        fragment.coordinates(),
+        fragment.runtimeOutputJars(),
+        fragment.outputDirectories(),
+        fragment.sourceJars(),
+        fragment.sources(),
+        fragment.resources(),
+        fragment.edges());
   }
 
   private static TargetFragment withEdges(TargetFragment fragment, List<TargetEdge> edges) {

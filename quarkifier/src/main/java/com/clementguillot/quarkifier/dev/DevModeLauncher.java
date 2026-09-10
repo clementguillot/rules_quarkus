@@ -156,10 +156,10 @@ public final class DevModeLauncher {
     if (config.classesDir() == null
         || config.bazelTargets().isEmpty()
         || (config.sourceDirs().isEmpty()
-            && config.testSourceDirs().isEmpty()
-            && config.testResources().isEmpty()
-            && config.watchedPackageDirs().isEmpty()
-            && config.codegenInputDirs().isEmpty())) {
+            && config.resources().isEmpty()
+            && config.watchedInputs().isEmpty()
+            && config.watchedBuildFiles().isEmpty()
+            && config.codegenInputFiles().isEmpty())) {
       return null;
     }
     LOGGER.debug("[hot-reload] Starting file watcher...");

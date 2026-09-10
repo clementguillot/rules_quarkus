@@ -265,6 +265,82 @@ class ClassSyncerTest {
   }
 
   @Test
+  void duplicateOutputsKeepFirstClasspathEntryWithoutRepeatedRewrites() throws IOException {
+    Path first = tempDir.resolve("first.jar");
+    Path second = tempDir.resolve("second.jar");
+    writeJar(
+        first,
+        java.util.Map.of(
+            "duplicate.txt", "first-resource", "org/acme/Duplicate.class", "first-class"));
+    writeJar(
+        second,
+        java.util.Map.of(
+            "duplicate.txt", "second-resource", "org/acme/Duplicate.class", "second-class"));
+    Path classesDir = Files.createDirectories(tempDir.resolve("classes"));
+
+    ClassSyncer.populateClassesAndResources(List.of(first, second), classesDir);
+
+    Path resource = classesDir.resolve("duplicate.txt");
+    Path duplicateClass = classesDir.resolve("org/acme/Duplicate.class");
+    assertEquals("first-resource", Files.readString(resource));
+    assertEquals("first-class", Files.readString(duplicateClass));
+    var resourceTime = java.nio.file.attribute.FileTime.fromMillis(1_234_000);
+    var classTime = java.nio.file.attribute.FileTime.fromMillis(1_235_000);
+    Files.setLastModifiedTime(resource, resourceTime);
+    Files.setLastModifiedTime(duplicateClass, classTime);
+
+    // A changed lower-priority duplicate must neither win nor rewrite the selected entry.
+    writeJar(
+        second,
+        java.util.Map.of(
+            "duplicate.txt", "changed-second", "org/acme/Duplicate.class", "changed-second"));
+    ClassSyncer.syncClassesAndResources(List.of(first, second), classesDir);
+
+    assertEquals("first-resource", Files.readString(resource));
+    assertEquals("first-class", Files.readString(duplicateClass));
+    assertEquals(resourceTime, Files.getLastModifiedTime(resource));
+    assertEquals(classTime, Files.getLastModifiedTime(duplicateClass));
+  }
+
+  @Test
+  void serviceProviderFilesMergeInClasspathOrderAndRemainStable() throws IOException {
+    String service = "META-INF/services/com.example.Greeting";
+    Path first = tempDir.resolve("first.jar");
+    Path second = tempDir.resolve("second.jar");
+    writeJar(
+        first,
+        java.util.Map.of(
+            service, "# first module\ncom.example.First\ncom.example.Shared # inline comment\n"));
+    writeJar(
+        second,
+        java.util.Map.of(
+            service, "com.example.Shared\n\ncom.example.Second\ncom.example.Second\n"));
+    Path classesDir = Files.createDirectories(tempDir.resolve("classes"));
+
+    ClassSyncer.populateClassesAndResources(List.of(first, second), classesDir);
+
+    Path merged = classesDir.resolve(service);
+    assertEquals(
+        "com.example.First\ncom.example.Shared\ncom.example.Second\n", Files.readString(merged));
+    var sentinelTime = java.nio.file.attribute.FileTime.fromMillis(1_234_000);
+    Files.setLastModifiedTime(merged, sentinelTime);
+    ClassSyncer.syncClassesAndResources(List.of(first, second), classesDir);
+
+    assertEquals(
+        sentinelTime,
+        Files.getLastModifiedTime(merged),
+        "an unchanged merged service file must not be rewritten on every sync");
+
+    writeJar(
+        second,
+        java.util.Map.of(service, "com.example.Shared\ncom.example.Second\ncom.example.Third\n"));
+    ClassSyncer.syncClassesAndResources(List.of(first, second), classesDir);
+    assertEquals(
+        "com.example.First\ncom.example.Shared\ncom.example.Second\ncom.example.Third\n",
+        Files.readString(merged));
+  }
+
+  @Test
   void markTestClassesChanged_advancesOnlyClassTimestamps() throws IOException {
     Path classesDir = Files.createDirectories(tempDir.resolve("test-classes"));
     Path testClass = classesDir.resolve("org/acme/GreetingResourceTest.class");

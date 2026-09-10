@@ -56,7 +56,7 @@ quarkus_extension_deployment_classpath_aspect = aspect(
 )
 
 # Maven-layout markers used to derive source/resource roots from package paths.
-_SOURCE_MARKERS = ["src/main/java"]
+_SOURCE_MARKERS = ["src/main/java", "src/test/java"]
 _RESOURCE_MARKERS = ["src/main/resources"]
 
 def short_path(f):
@@ -201,7 +201,7 @@ def _collect_marker_dir_paths(deps, runtime_classpath, markers):
     return dirs
 
 def collect_source_dir_paths(deps, runtime_classpath = None):
-    """Derives candidate main source roots (src/main/java) from deps.
+    """Derives candidate source roots (src/main/java, src/test/java) from deps.
 
     Args:
         deps: List of targets providing JavaInfo (direct deps).

@@ -52,14 +52,17 @@ public final class AugmentationExecutor {
       }
 
       ClasspathPartition partition = LocalExtensionAppJars.reclassify(partitionClasspath(config));
-      ApplicationModel appModel = buildModel(config);
+      LoadedApplicationModel loadedModel = buildModel(config);
+      ApplicationModel appModel = loadedModel.applicationModel();
       List<Path> effectiveRuntimeJars = RuntimeJarSelector.select(partition, appModel);
 
       switch (config.mode()) {
           // DEV: delegate to DevModeLauncher which starts IsolatedDevModeMain
           // with full Dev UI and hot-reload support.
         case DEV -> DevModeLauncher.launch(
-            config, appModel, ContinuousTestApplicationModelLoader.load(config));
+            config,
+            appModel,
+            ContinuousTestApplicationModelLoader.load(config, loadedModel.explicitModel()));
           // TEST: serialize the ApplicationModel for use by QuarkusTestExtension.
           // No augmentation is run — the test JVM handles that via QuarkusBootstrap.Mode.TEST.
         case TEST -> serializeTestModel(outputDir, appModel);
@@ -84,15 +87,19 @@ public final class AugmentationExecutor {
     }
   }
 
-  private static ApplicationModel buildModel(QuarkifierConfig config) throws Exception {
+  private static LoadedApplicationModel buildModel(QuarkifierConfig config) throws Exception {
     if (config.applicationModel() == null) {
       throw new AugmentationException("--application-model is required");
     }
     var explicitModel = BazelApplicationModelReader.read(config.applicationModel());
     validateModelCompatibility(config.mode(), explicitModel);
     config.packageType().validateCompatibility(config.mode(), explicitModel.quarkusVersion());
-    return ExplicitApplicationModelBuilder.build(explicitModel);
+    return new LoadedApplicationModel(
+        explicitModel, ExplicitApplicationModelBuilder.build(explicitModel));
   }
+
+  private record LoadedApplicationModel(
+      BazelApplicationModel explicitModel, ApplicationModel applicationModel) {}
 
   static void validateModelCompatibility(AugmentationMode mode, BazelApplicationModel explicitModel)
       throws AugmentationException {
