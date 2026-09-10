@@ -180,6 +180,27 @@ class DevModeLauncherTest {
         context.getApplicationRoot().getMain().getClassesPath());
   }
 
+  @Test
+  void buildDevModeContext_withContinuousTesting_setsTestModuleMetadata() {
+    var config =
+        devConfig(
+            "--test-application-model", "test-model.json",
+            "--test-classes-dir", "/tmp/test-classes",
+            "--test-classes-output-dirs", "bazel-bin/test.jar");
+
+    var module = DevModeLauncher.buildDevModeContext(config).getApplicationRoot();
+    var test = module.getTest().orElseThrow();
+
+    assertEquals(Path.of("/tmp/test-classes").toAbsolutePath().toString(), test.getClassesPath());
+    assertEquals(List.of(config.reloadNotificationDir()), test.getSourcePaths().stream().toList());
+    assertTrue(test.getResourcePaths().isEmpty(), "Quarkus must not copy workspace resources");
+    assertTrue(
+        module.getMain().getSourcePaths().isEmpty(), "Quarkus must not compile workspace sources");
+    assertTrue(module.getMain().getResourcePaths().isEmpty());
+    assertEquals(
+        Path.of("/tmp/test-classes").toAbsolutePath().toString(), test.getResourcesOutputPath());
+  }
+
   /**
    * Regression: collectParentFirstRuntimeJars must return jars flagged CLASSLOADER_PARENT_FIRST
    * even though dep.getKey() has type="jar" (GACT strict equals).

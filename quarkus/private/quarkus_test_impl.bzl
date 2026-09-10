@@ -14,15 +14,30 @@ that jar paths in the ApplicationModel match the actual runfiles locations.
 load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
-load("//quarkus:providers.bzl", "QuarkusAppInfo", "QuarkusNativeInfo")
-load("//quarkus/private:application_model_aspect.bzl", "has_maven_artifact", "quarkus_application_model_aspect")
+load("//quarkus:providers.bzl", "QuarkusAppInfo", "QuarkusContinuousTestInfo", "QuarkusNativeInfo")
+load("//quarkus/private:application_model_aspect.bzl", "collect_deployment_model_artifacts", "collect_direct_model_dependency_ids", "collect_model_artifacts", "collect_watch_metadata", "has_maven_artifact", "quarkus_application_model_aspect")
 load("//quarkus/private:build_properties.bzl", "validate_build_property_keys")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_extension_runtime_jars", "collect_local_app_jars", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
 load("//quarkus/private:coverage_transition.bzl", "disable_coverage_transition", "single_transitioned_target")
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
+load("//quarkus/private:quarkus_codegen_impl.bzl", "collect_codegen_input_files", "quarkus_codegen_metadata_aspect")
 
-def _regex_escape_class_name(class_name):
+def regex_escape_class_name(class_name):
+    """Escapes a Java class or package name for use inside a regular expression.
+
+    Args:
+      class_name: Fully-qualified class or package name.
+
+    Returns:
+      The name with regex metacharacters valid in Java identifiers escaped.
+    """
     return class_name.replace("\\", "\\\\").replace(".", "\\.").replace("$", "\\$")
+
+def test_resources_without_sources_error(srcs, resources):
+    """Returns an actionable error for resources the public macro would ignore."""
+    if resources and not srcs:
+        return "quarkus_test resources require inline srcs; declare resources on the precompiled java_library instead"
+    return ""
 
 def _build_test_args(test_packages, test_classes, fail_if_no_tests, integration = False):
     """Builds JUnit ConsoleLauncher CLI arguments."""
@@ -34,7 +49,7 @@ def _build_test_args(test_packages, test_classes, fail_if_no_tests, integration 
     for cls in test_classes:
         args.append("--select-class=" + cls)
     if integration:
-        include_patterns = [".*IT$"] + ["^" + _regex_escape_class_name(cls) + "$" for cls in test_classes]
+        include_patterns = [".*IT$"] + ["^" + regex_escape_class_name(cls) + "$" for cls in test_classes]
         args.append("--include-classname=(" + "|".join(include_patterns) + ")")
     else:
         args.append("--exclude-classname=.*IT$")
@@ -61,6 +76,39 @@ def _build_property_jvm_flags(build_properties):
         shell.quote("-D{}={}".format(key, build_properties[key]))
         for key in sorted(build_properties)
     ]
+
+def _direct_class_outputs(deps):
+    """Returns compiled jars for the test libraries named directly by the test rule.
+
+    External-repository deps are skipped: their jars are dependencies, not
+    reloadable test outputs, and the dev target extracts these into the mutable
+    test-classes directory together with their packaged resources.
+    """
+    outputs = []
+    seen = {}
+    for dep in deps:
+        if JavaInfo not in dep or dep.label.workspace_name:
+            continue
+        for jar_output in dep[JavaInfo].outputs.jars:
+            class_jar = jar_output.class_jar
+            if class_jar.path not in seen:
+                seen[class_jar.path] = True
+                outputs.append(class_jar)
+    return outputs
+
+def _ordered_continuous_test_outputs(deps, runtime_classpath, test_outputs):
+    """Orders reloadable test outputs exactly like the test runtime classpath."""
+    candidates = {
+        file.path: True
+        for file in _direct_class_outputs(deps) + test_outputs.to_list()
+    }
+    ordered = []
+    seen = {}
+    for file in runtime_classpath.to_list():
+        if file.path in candidates and file.path not in seen:
+            seen[file.path] = True
+            ordered.append(file)
+    return ordered
 
 def _integration_version_error(rule_name, test_version, app_label, app_version):
     if test_version == app_version:
@@ -183,10 +231,35 @@ def _test_impl(ctx, integration):
     if coverage_runfiles:
         runfiles = runfiles.merge(coverage_runfiles)
 
-    return [
+    providers = [
         DefaultInfo(executable = launcher, runfiles = runfiles),
         OutputGroupInfo(quarkus_model = depset([model])),
     ]
+    if not integration:
+        metadata = collect_watch_metadata(ctx.attr.deps)
+        providers.append(QuarkusContinuousTestInfo(
+            application_dependency_ids = depset(collect_direct_model_dependency_ids(ctx.attr.deps)),
+            application_model = model,
+            build_files = metadata.build_files,
+            classes_output_dirs = _ordered_continuous_test_outputs(ctx.attr.deps, runtime_classpath, metadata.test_outputs),
+            build_properties = declared_build_properties,
+            jvm_flags = ctx.attr.jvm_flags,
+            test_classes = ctx.attr.test_classes,
+            test_packages = ctx.attr.test_packages,
+            codegen_input_files = collect_codegen_input_files(ctx.attr.deps),
+            input_files = metadata.input_files,
+            model_classpath = depset(
+                [model],
+                transitive = [
+                    runtime_classpath,
+                    conditional_classpath,
+                    deploy_classpath,
+                    collect_model_artifacts(ctx.attr.deps),
+                    collect_deployment_model_artifacts(ctx.attr.deps),
+                ],
+            ),
+        ))
+    return providers
 
 def _quarkus_test_impl(ctx):
     return _test_impl(ctx, False)
@@ -228,7 +301,7 @@ def _test_attrs(integration = False):
             aspects = [
                 quarkus_extension_deployment_classpath_aspect,
                 quarkus_application_model_aspect,
-            ],
+            ] + ([] if integration else [quarkus_codegen_metadata_aspect]),
             providers = [JavaInfo],
             doc = "Test java_library targets. Transitive deps (app code, quarkus-junit, etc.) are included automatically.",
         ),

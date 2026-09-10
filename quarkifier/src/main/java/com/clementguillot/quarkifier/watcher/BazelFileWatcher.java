@@ -31,15 +31,10 @@ import org.jboss.logging.Logger;
  *
  * <p>Uses {@link java.nio.file.WatchService} for native OS-level file watching:
  *
- * <ul>
- *   <li>macOS: kqueue
- *   <li>Linux: inotify
- *   <li>Windows: ReadDirectoryChangesW
- * </ul>
- *
- * <p>Monitors source directories for {@code .java} file changes, debounces rapid edits, invokes
- * {@code bazel build} via {@link ProcessBuilder}, and syncs resulting {@code .class} files to the
- * mutable classes directory that {@code RuntimeUpdatesProcessor} monitors.
+ * <p>Monitors the exact Bazel inputs captured during analysis. The {@link WatchService} still
+ * registers directories, as required by its API, but sibling filesystem events are filtered against
+ * that input set. Changes to a BUILD file require restarting dev mode because the running child
+ * retains its initial application models and watch metadata.
  *
  * <p>Runs as a daemon thread inside the quarkifier process in DEV mode. Implements {@link
  * Closeable} to ensure the {@link WatchService} and executor are properly released.
@@ -57,6 +52,8 @@ public final class BazelFileWatcher implements Closeable {
   private final AtomicBoolean buildInProgress = new AtomicBoolean(false);
   private final AtomicBoolean pendingBuild = new AtomicBoolean(false);
   private final AtomicBoolean staleOutputsWarned = new AtomicBoolean(false);
+  private final AtomicBoolean nonJavaInputChanged = new AtomicBoolean(false);
+  private final AtomicBoolean buildFileChangeWarned = new AtomicBoolean(false);
   private volatile ScheduledFuture<?> debounceTask;
   private final Map<Path, WatchKey> watchKeys = new ConcurrentHashMap<>();
   private final Path bazelLogPath;
@@ -69,6 +66,14 @@ public final class BazelFileWatcher implements Closeable {
    */
   private final List<Path> reloadableClassesOutputDirs;
 
+  private final List<Path> reloadableTestClassesOutputDirs;
+
+  /** Application and test class outputs combined, for the stale-output freshness check. */
+  private final List<Path> allReloadableOutputDirs;
+
+  /** Path policy: which filesystem paths this watcher cares about. */
+  private final WatchedPaths paths;
+
   /**
    * Creates a new file watcher. The {@link WatchService} is created eagerly; call {@link #close()}
    * to release it.
@@ -79,6 +84,12 @@ public final class BazelFileWatcher implements Closeable {
   BazelFileWatcher(QuarkifierConfig config) throws IOException {
     this.config = config;
     this.reloadableClassesOutputDirs = ClassSyncer.excludeExtensionJars(config.classesOutputDirs());
+    this.reloadableTestClassesOutputDirs =
+        ClassSyncer.excludeExtensionJars(config.testClassesOutputDirs());
+    List<Path> allOutputs = new ArrayList<>(reloadableClassesOutputDirs);
+    allOutputs.addAll(reloadableTestClassesOutputDirs);
+    this.allReloadableOutputDirs = List.copyOf(allOutputs);
+    this.paths = new WatchedPaths(config);
     this.watchService = FileSystems.getDefault().newWatchService();
     this.debounceExecutor =
         Executors.newSingleThreadScheduledExecutor(
@@ -117,12 +128,22 @@ public final class BazelFileWatcher implements Closeable {
     try {
       // Step 1: Populate initial classes FIRST (can take time, must complete before watching)
       LOGGER.debug("[hot-reload] Populating initial classes...");
-      ClassSyncer.populateClassesDir(watcher.reloadableClassesOutputDirs, config.classesDir());
+      if (config.testClassesDir() != null) {
+        Files.createDirectories(config.reloadNotificationDir());
+        ClassSyncer.populateClassesAndResources(
+            watcher.reloadableClassesOutputDirs, config.classesDir());
+        ClassSyncer.populateClassesAndResources(
+            watcher.reloadableTestClassesOutputDirs, config.testClassesDir());
+      } else {
+        ClassSyncer.populateClassesDir(watcher.reloadableClassesOutputDirs, config.classesDir());
+      }
       LOGGER.debug("[hot-reload] Initial classes populated");
 
-      // Step 2: Register watchers on all source directories
+      // Ordinary dev mode still gives Quarkus source/resource roots. Continuous testing instead
+      // supplies exact Bazel inputs and BUILD files; only their parent directories are registered.
       watcher.registerWatchers(config.sourceDirs());
-      watcher.registerWatchers(config.codegenInputDirs());
+      watcher.registerWatchers(config.resources());
+      watcher.registerExactWatchers(watcher.paths.exactWatchPaths());
       LOGGER.debug("[hot-reload] File watchers registered");
 
       // Step 3: Start watcher thread AFTER population is complete
@@ -139,21 +160,21 @@ public final class BazelFileWatcher implements Closeable {
   }
 
   /**
-   * Recursively registers all directories under each source directory with the {@link WatchService}
-   * for {@code ENTRY_CREATE}, {@code ENTRY_MODIFY}, and {@code ENTRY_DELETE} events.
+   * Recursively registers all directories under each watched root with the {@link WatchService} for
+   * {@code ENTRY_CREATE}, {@code ENTRY_MODIFY}, and {@code ENTRY_DELETE} events.
    *
-   * @param sourceDirs source directories to watch
+   * @param roots source or resource roots used by ordinary dev mode
    */
-  void registerWatchers(List<Path> sourceDirs) {
-    for (Path sourceDir : sourceDirs) {
-      if (!Files.isDirectory(sourceDir)) {
-        LOGGER.warnf("Source directory does not exist, skipping: %s", sourceDir);
+  void registerWatchers(List<Path> roots) {
+    for (Path root : roots) {
+      if (!Files.isDirectory(root)) {
+        LOGGER.warnf("Watched directory does not exist, skipping: %s", root);
         continue;
       }
       try {
-        registerRecursive(sourceDir);
+        registerRecursive(root);
       } catch (IOException e) {
-        LOGGER.errorv(e, "Failed to register watcher on %s: %s", sourceDir);
+        LOGGER.errorv(e, "Failed to register watcher on %s: %s", root);
       }
     }
   }
@@ -204,6 +225,7 @@ public final class BazelFileWatcher implements Closeable {
 
       if (kind == StandardWatchEventKinds.OVERFLOW) {
         LOGGER.warn("WatchService overflow detected, triggering full rebuild");
+        nonJavaInputChanged.set(true);
         rebuildNeeded = true;
         continue;
       }
@@ -211,17 +233,39 @@ public final class BazelFileWatcher implements Closeable {
       @SuppressWarnings("unchecked")
       WatchEvent<Path> pathEvent = (WatchEvent<Path>) event;
       Path changed = ((Path) key.watchable()).resolve(pathEvent.context());
-
+      if (paths.isBuildFile(changed)) {
+        warnRestartRequired(changed);
+        continue;
+      }
+      if (paths.isExactInput(changed)) {
+        if (paths.isNonJavaInput(changed) || kind == StandardWatchEventKinds.ENTRY_DELETE) {
+          nonJavaInputChanged.set(true);
+        }
+        rebuildNeeded = true;
+        LOGGER.debugf("Change detected: %s (%s)", changed, kind.name());
+        continue;
+      }
+      if (kind == StandardWatchEventKinds.ENTRY_DELETE && paths.isExactWatchAncestor(changed)) {
+        warnRestartRequired(changed);
+        continue;
+      }
       if (kind == StandardWatchEventKinds.ENTRY_CREATE && Files.isDirectory(changed)) {
         try {
-          registerRecursive(changed);
-          LOGGER.debugf("[hot-reload] Registered new directory: %s", changed);
+          if (paths.isDirectoryWatchPath(changed)) {
+            registerRecursive(changed);
+            LOGGER.debugf("[hot-reload] Registered new directory: %s", changed);
+          } else if (paths.isExactWatchAncestor(changed)) {
+            registerExactWatchers(paths.exactWatchPaths());
+          }
         } catch (IOException e) {
           LOGGER.errorv(e, "[hot-reload] Failed to register new directory %s", changed);
         }
       }
 
-      if (changed.toString().endsWith(".java") || isCodegenInput(changed)) {
+      if (paths.isDirectoryInput(changed) && !paths.isIncidentalScratchFile(changed)) {
+        if (paths.isNonJavaInput(changed) || kind == StandardWatchEventKinds.ENTRY_DELETE) {
+          nonJavaInputChanged.set(true);
+        }
         rebuildNeeded = true;
         LOGGER.debugf("Change detected: %s (%s)", changed, kind.name());
       }
@@ -229,44 +273,19 @@ public final class BazelFileWatcher implements Closeable {
     return rebuildNeeded;
   }
 
-  /**
-   * Reports whether {@code changed} is a code-generation input.
-   *
-   * <p>Matching is scoped to the generator input directories (for example {@code src/main/proto}),
-   * not to the enclosing source parent: a source parent is the whole {@code src/main} tree, so
-   * matching on it would trigger a full Bazel rebuild whenever any resource or other non-Java file
-   * below it is saved.
-   *
-   * <p>Editor scratch files created inside those directories are ignored. An input directory
-   * matches on location alone rather than on an extension, so without this a single {@code vim}
-   * save of one {@code .proto} would queue rebuilds for the {@code 4913} probe file, the {@code
-   * .swp} file, and the {@code ~} backup as well.
-   */
-  private boolean isCodegenInput(Path changed) {
-    if (isEditorScratchFile(changed.getFileName())) {
-      return false;
+  /** Warns once when watch metadata can no longer be updated safely in the running session. */
+  private void warnRestartRequired(Path changed) {
+    if (buildFileChangeWarned.compareAndSet(false, true)) {
+      String warning =
+          "[hot-reload] "
+              + changed
+              + " changed. Restart dev mode so Bazel declarations, application models, and the"
+              + " exact watch set are reloaded.";
+      LOGGER.warn(warning);
+      // Quarkus reconfigures the logging manager after the watcher starts. Keep this lifecycle
+      // warning visible even when that removes the parent process's logger handler.
+      System.err.println(warning);
     }
-    Path absolute = changed.toAbsolutePath().normalize();
-    for (Path inputDir : config.codegenInputDirs()) {
-      if (absolute.startsWith(inputDir.toAbsolutePath().normalize())) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /** Reports whether {@code fileName} is an editor temporary, backup, or probe file. */
-  private static boolean isEditorScratchFile(Path fileName) {
-    if (fileName == null) {
-      return true;
-    }
-    String name = fileName.toString();
-    return name.isEmpty()
-        || name.startsWith(".")
-        || name.endsWith("~")
-        || name.endsWith(".swp")
-        || name.endsWith(".swx")
-        || name.endsWith(".tmp");
   }
 
   /** Cancels any pending scheduled build and schedules a new one after the debounce delay. */
@@ -290,15 +309,19 @@ public final class BazelFileWatcher implements Closeable {
       try {
         do {
           pendingBuild.set(false);
+          boolean markTestsChanged = nonJavaInputChanged.getAndSet(false);
           long start = System.currentTimeMillis();
           boolean success = runBazelBuild(config.bazelTargets());
           long elapsed = System.currentTimeMillis() - start;
 
           if (success) {
             warnIfOutputsWentStale(start);
-            syncClasses();
+            if (!syncClasses(markTestsChanged)) {
+              nonJavaInputChanged.compareAndSet(false, markTestsChanged);
+            }
             LOGGER.debugf("[hot-reload] Build successful, classes synced (%dms)", elapsed);
           } else {
+            nonJavaInputChanged.compareAndSet(false, markTestsChanged);
             LOGGER.warn("[hot-reload] Build failed, skipping sync");
           }
         } while (pendingBuild.get()); // drain queued builds
@@ -393,7 +416,7 @@ public final class BazelFileWatcher implements Closeable {
       return;
     }
     long threshold = buildStartMillis - 2000; // slack for coarse mtime granularity
-    for (Path path : reloadableClassesOutputDirs) {
+    for (Path path : allReloadableOutputDirs) {
       try {
         if (Files.isDirectory(path)) {
           return; // cannot cheaply track directory freshness; assume OK
@@ -411,7 +434,7 @@ public final class BazelFileWatcher implements Closeable {
               + " If you launch dev mode with extra Bazel flags (e.g. --config, -c opt), set"
               + " dev_build_args on quarkus_app/quarkus_dev so hot-reload rebuilds use the same"
               + " configuration — otherwise code changes will not be picked up.",
-          reloadableClassesOutputDirs);
+          allReloadableOutputDirs);
     }
   }
 
@@ -431,15 +454,40 @@ public final class BazelFileWatcher implements Closeable {
   }
 
   /**
-   * Delegates to {@link ClassSyncer#syncClasses(List, Path)} to copy changed {@code .class} files
-   * from bazel-bin output directories to the mutable classes directory.
+   * Copies changed {@code .class} files from the bazel-bin output paths to the mutable classes
+   * directory, and — when continuous testing is configured — the compiled tests and their packaged
+   * resources to the mutable test-classes directory.
+   *
+   * @param markTestsChanged whether the rebuild was triggered by a non-Java input, in which case
+   *     the synchronized test classes are timestamped forward so Quarkus schedules a test run
+   * @return {@code true} if everything synchronized; {@code false} lets the caller restore the
+   *     pending non-Java change so the next successful build still schedules that test run
    */
-  void syncClasses() {
+  boolean syncClasses(boolean markTestsChanged) {
     try {
-      ClassSyncer.syncClasses(reloadableClassesOutputDirs, config.classesDir());
+      if (config.testClassesDir() != null) {
+        ClassSyncer.syncClassesAndResources(reloadableClassesOutputDirs, config.classesDir());
+        ClassSyncer.syncClassesAndResources(
+            reloadableTestClassesOutputDirs, config.testClassesDir());
+        if (markTestsChanged) {
+          int changed = ClassSyncer.markTestClassesChanged(config.testClassesDir());
+          LOGGER.debugf(
+              "[hot-reload] Marked %d test classes changed after non-Java input rebuild", changed);
+        }
+        // The notification contains no compilable source or application resource.
+        // Linux's event-driven test scanner sees it only after both trees are ready.
+        Path notificationDir = config.reloadNotificationDir();
+        Files.createDirectories(notificationDir);
+        Files.writeString(
+            notificationDir.resolve("completed-build"), Long.toString(System.nanoTime()));
+      } else {
+        ClassSyncer.syncClasses(reloadableClassesOutputDirs, config.classesDir());
+      }
       LOGGER.debug("[hot-reload] Classes synced successfully");
+      return true;
     } catch (IOException e) {
       LOGGER.errorf("[hot-reload] Failed to sync classes: %s", e.getMessage());
+      return false;
     }
   }
 
@@ -480,7 +528,8 @@ public final class BazelFileWatcher implements Closeable {
           @Override
           public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
               throws IOException {
-            if (isVersionControlDirectory(dir)) {
+            if (watchKeys.containsKey(dir)) {
+              // An earlier, narrower root already registered this whole subtree.
               return FileVisitResult.SKIP_SUBTREE;
             }
             WatchKey key =
@@ -496,22 +545,28 @@ public final class BazelFileWatcher implements Closeable {
         });
   }
 
-  /**
-   * Reports whether {@code dir} is version-control metadata that must never be watched.
-   *
-   * <p>A watched root can legitimately widen to the whole workspace: a source root of {@code "."},
-   * or a resource declared directly at the workspace root, both collapse to it. Registering every
-   * directory below such a root would put a watch on {@code .git}, whose constant churn during any
-   * ordinary git operation would then queue a full rebuild, and on Linux would burn the per-user
-   * inotify watch budget. Other dot-directories remain eligible because they may contain explicitly
-   * declared generator inputs.
-   */
-  static boolean isVersionControlDirectory(Path dir) {
-    Path name = dir.getFileName();
-    if (name == null) {
-      return false;
+  /** Registers existing parent directories for exact input and BUILD-file watches. */
+  private void registerExactWatchers(List<Path> watchedPaths) throws IOException {
+    Path boundary =
+        config.workspaceDir() == null ? null : config.workspaceDir().toAbsolutePath().normalize();
+    for (Path watchedPath : watchedPaths) {
+      Path directory = watchedPath.toAbsolutePath().normalize().getParent();
+      while (directory != null && (boundary == null || directory.startsWith(boundary))) {
+        if (Files.isDirectory(directory) && !watchKeys.containsKey(directory)) {
+          WatchKey key =
+              directory.register(
+                  watchService,
+                  StandardWatchEventKinds.ENTRY_CREATE,
+                  StandardWatchEventKinds.ENTRY_MODIFY,
+                  StandardWatchEventKinds.ENTRY_DELETE);
+          watchKeys.put(directory, key);
+          LOGGER.debugf("[hot-reload] Registered exact-input parent: %s", directory);
+        }
+        if (boundary == null || directory.equals(boundary)) {
+          break;
+        }
+        directory = directory.getParent();
+      }
     }
-    String value = name.toString();
-    return ".git".equals(value) || ".hg".equals(value) || ".svn".equals(value);
   }
 }

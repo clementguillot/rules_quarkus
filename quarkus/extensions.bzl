@@ -473,7 +473,7 @@ def _build_quarkifier_from_source(rctx):
     additionally watched so edits invalidate this repository and trigger a
     refetch in the first place.
     """
-    src_workspace = str(rctx.path(rctx.attr.quarkifier_source_dir).dirname)
+    src_workspace = str(rctx.path(rctx.attr.quarkifier_source_dir).realpath.dirname)
 
     # Invalidate this repo when quarkifier sources change (Bazel 7.1+). The
     # watched subtree must not contain build outputs: watching the whole
@@ -1378,7 +1378,7 @@ load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_dev_impl.bzl", 
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_extension_impl.bzl", "quarkus_extension_runtime_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_native_app_impl.bzl", "quarkus_native_app_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_native_container_app_impl.bzl", "quarkus_native_container_app_rule")
-load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_test_impl.bzl", _quarkus_integration_test = "quarkus_integration_test", _quarkus_test = "quarkus_test")
+load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_test_impl.bzl", _quarkus_integration_test = "quarkus_integration_test", _quarkus_test = "quarkus_test", _test_resources_without_sources_error = "test_resources_without_sources_error")
 load("@com_clementguillot_rules_quarkus//quarkus/private:versions.bzl", "DEFAULT_NATIVE_BUILDER_IMAGE")
 load("@rules_java//java:java_library.bzl", "java_library")
 
@@ -1540,7 +1540,7 @@ def quarkus_java_library(name, srcs = [], resources = [], deps = [], codegen_src
 
 def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_container_build = False,
                 native_container_runtime = "auto", native_builder_image = _DEFAULT_BUILDER_IMAGE,
-                package_type = "fast-jar", build_properties = {{}}, **kwargs):
+                package_type = "fast-jar", build_properties = {{}}, continuous_test = None, **kwargs):
     \"\"\"Builds a Quarkus application with optional dev-mode and native targets.
 
     Creates:
@@ -1554,6 +1554,7 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
         dev_build_args: Extra flags for the hot-reload `bazel build` (e.g. ["--config=dev"]).
             Must match the flags you pass to `bazel run` for the dev target, otherwise
             rebuilt classes land in a different output tree and hot-reload syncs stale files.
+        continuous_test: Optional quarkus_test target whose tests run continuously in dev mode.
         native: If True, creates a <name>_native target using rules_graalvm (host compilation).
         native_container_build: If True, creates a <name>_native target using Docker/Podman (container compilation).
         native_container_runtime: Container runtime: 'auto' (default), 'docker', or 'podman'.
@@ -1563,6 +1564,8 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
         build_properties: Declared build-time properties shared by the JVM, dev, and native targets.
         **kwargs: Passed to the underlying quarkus_app_rule (deps, version, jvm_flags, etc.).
     \"\"\"
+    if continuous_test and not dev:
+        fail("continuous_test requires the dev target; it runs inside <name>_dev, but dev = False.")
     if native and native_container_build:
         fail("Cannot set both 'native' and 'native_container_build'. " +
              "Use 'native' for host-based compilation (rules_graalvm) or " +
@@ -1606,8 +1609,10 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
     if dev:
         quarkus_dev_rule(
             name = name + "_dev",
+            continuous_test = continuous_test,
             core_deployment_deps = _CORE_DEPLOYMENT_DEPS,
             dev_build_args = dev_build_args,
+            testonly = bool(continuous_test) or kwargs.get("testonly", False),
             **common
         )
     if native:
@@ -1628,7 +1633,10 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
             **common
         )
 
-def _prepare_test_target(name, srcs, deps, test_packages, test_classes, jvm_flags, build_properties, kwargs):
+def _prepare_test_target(name, srcs, resources, deps, test_packages, test_classes, jvm_flags, build_properties, kwargs):
+    resources_error = _test_resources_without_sources_error(srcs, resources)
+    if resources_error:
+        fail(resources_error)
     test_deps = deps or []
     if srcs:
         compile_deps = []
@@ -1640,6 +1648,7 @@ def _prepare_test_target(name, srcs, deps, test_packages, test_classes, jvm_flag
         java_library(
             name = name + "_lib",
             srcs = srcs,
+            resources = resources,
             deps = compile_deps,
             testonly = True,
         )
@@ -1662,16 +1671,24 @@ def _prepare_test_target(name, srcs, deps, test_packages, test_classes, jvm_flag
     )
 
 def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_classes = None,
-                 jvm_flags = None, build_properties = None, **kwargs):
+                 jvm_flags = None, build_properties = None, resources = [], **kwargs):
     \"\"\"Runs @QuarkusTest-annotated JUnit 5 tests with full Quarkus augmentation.
 
     If srcs is provided, a java_library is created internally to compile the
     test sources. If srcs is omitted, deps must include a pre-compiled
     java_library containing the test classes.
+
+    With inline srcs, declare `resources` here (e.g.
+    glob(["src/test/resources/**"], allow_empty = True)) to package test resources.
+    With precompiled tests, declare resources on the supplied java_library
+    targets instead; passing this macro's `resources` without srcs is rejected.
+    A dev target wired through `continuous_test` syncs those compiled test jars'
+    classes and packaged resources into its mutable test-classes directory.
     \"\"\"
     prepared = _prepare_test_target(
         name,
         srcs,
+        resources,
         deps,
         test_packages,
         test_classes,
@@ -1716,6 +1733,7 @@ def quarkus_integration_test(name, app, srcs = None, deps = None, test_packages 
     prepared = _prepare_test_target(
         name,
         srcs,
+        [],
         deps,
         test_packages,
         test_classes,

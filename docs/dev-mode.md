@@ -13,7 +13,8 @@ The solution follows Maven's `DevMojo` pattern: a **separate JVM process** is st
 Unlike production augmentation (which runs in-process), dev mode uses a **separate JVM process**:
 
 1. `AugmentationExecutor.execute()` detects `mode == DEV` and delegates to `DevModeLauncher.launch()`
-2. `DevModeLauncher` serializes the `ApplicationModel` to a temp file
+2. `DevModeLauncher` serializes the DEV `ApplicationModel` and, when configured,
+   the TEST `ApplicationModel` to temp files
 3. `DevModeLauncher` creates a minimal "dev jar" with a serialized `DevModeContext` and a precisely scoped manifest classpath
 4. A child `java -jar dev.jar` process is started with `ProcessBuilder`
 5. The child process runs `DevModeMain.main()` → `IsolatedDevModeMain` inside a clean augment classloader
@@ -85,7 +86,7 @@ the merged set over **two** channels:
    which Quarkus reads for SmallRye Config expression resolution during
    augmentation.
 
-Both channels derive from `DevModeLauncher.devBuildProperties(config)` so they
+Both channels derive from `DevModeContextBuilder.devBuildProperties(config)` so they
 cannot drift apart.
 
 Unlike the packaged JVM lifecycle — where the properties are scoped around
@@ -169,21 +170,122 @@ inference paths have been removed.
 
 ## Source Directory Flow
 
-1. `_collect_java_source_dirs()` in the Starlark rule finds `src/main/java` markers in dep source files
+Without `continuous_test`, the existing dev flow is unchanged:
+
+1. `_collect_java_source_dirs()` in the Starlark rule finds conventional
+   `src/main/java` and `src/test/java` markers in dependency source files
 2. Source dirs are written to a runfiles file and passed via `--source-dirs`
 3. `DevModeLauncher` sets them as `sourcePaths` in `DevModeContext.ModuleInfo`
 4. `IsolatedDevModeMain` creates a `RuntimeUpdatesProcessor` that watches these directories
 
-When both source dirs and code-generation input dirs are empty, hot-reload is
+When both source dirs and exact code-generation input files are empty, hot-reload is
 disabled but the Dev UI still works. Declared code-generation inputs keep the
 rebuild watcher active even when there are no Java source dirs.
+With continuous testing enabled, Bazel watches declared inputs and Quarkus
+watches only synchronized outputs and a private notification directory, as
+described below.
+
+## Continuous Testing
+
+Continuous testing is opt-in because dev mode needs the test-only dependency
+graph and compiled test outputs. Point `continuous_test` at a `quarkus_test`
+target:
+
+```starlark
+quarkus_app(
+    name = "app",
+    continuous_test = ":test",
+    deps = [":lib"],
+)
+
+quarkus_test(
+    name = "test",
+    srcs = glob(["src/test/java/**/*.java"]),
+    resources = glob(["src/test/resources/**"], allow_empty = True),
+    deps = [":lib"],
+)
+```
+
+When `quarkus_test` compiles inline `srcs`, declare test resources through its
+`resources` attribute. When `srcs` is omitted and `deps` supplies precompiled
+test libraries, declare resources on those `java_library` targets instead;
+passing `quarkus_test.resources` in that form fails analysis rather than
+silently ignoring declared inputs. The launcher syncs the
+compiled test jars, including their packaged resources.
+
+Resources must be declared. Only resources packaged by Bazel enter the mutable
+output trees; undeclared workspace files are never copied by Quarkus. Bazel's
+`resource_strip_prefix` mapping is preserved, including non-Maven layouts.
+
+The referenced target's `build_properties`, `jvm_flags`, `test_classes`, and
+`test_packages` are retained. Class and package selectors are combined as a
+union; packaged `*IT` tests remain excluded. Dev mode and continuous tests share
+one child JVM. A configured `quarkus.test.include-pattern` further restricts
+that selection. Test JVM flags and system properties also affect the running
+dev application. Conflicting app/test `build_properties` values fail analysis
+instead of silently choosing one. JVM flags follow declared properties; logging,
+model paths, and other launcher-owned JVM flags follow both and retain priority.
+`fail_if_no_tests` is a one-shot Bazel test exit policy, not a continuous-session
+exit policy: an empty selection remains an idle, usable dev session.
+
+The test rule exports its TEST-mode application model, exact declared
+source/resource files, compiled test jars, and every file referenced by the
+model. The dev launcher:
+
+1. serializes both DEV and TEST application models and supplies Quarkus'
+   `SERIALIZED_TEST_APP_MODEL` system property;
+2. populates mutable main and `test-classes` output trees, including test-only
+   helper modules, without exposing workspace source/resource paths to Quarkus;
+3. watches main and test Java sources, test resources, and both main and test
+   code-generation inputs, rebuilding `<name>_dev` and syncing the resulting
+   class/resource trees without rewriting unchanged files;
+4. after a successful rebuild triggered by a non-Java input or deletion,
+   timestamps synchronized test classes forward, then writes a notification in a
+   private source-free directory watched by Quarkus. This wakes Linux's
+   event-driven scanner as well as supporting the polling used on other hosts.
+   Resource/codegen changes deliberately rerun the selected suite, rather than
+   relying on bytecode changes or narrowed affected-test selection.
+
+The dev target verifies during analysis that the test model directly names the
+same application root, and the Quarkifier repeats that check against the two
+validated models before starting Quarkus. A test target rooted at another app
+therefore fails with both Bazel labels instead of combining unrelated models.
+
+The model aspect exports the exact declared source/resource files and the BUILD
+files for the local target graph. Its target fragments also carry Bazel's
+`testonly` flag so custom-layout test helpers do not compete with the application
+root during TEST-model assembly. The watcher registers parent directories only
+because `WatchService` is directory-based, then filters every event against the
+exact input set. An undeclared sibling therefore cannot trigger a rebuild.
+
+Bazel exposes the files produced by a `glob`, not the glob expression itself. A
+new file that would match a glob is consequently not part of the running
+session's watch set. Changing a watched BUILD file emits a restart warning so
+Bazel can re-analyze declarations and regenerate the application models. Changes
+to the dependency graph, selectors, JVM flags, or build configuration likewise
+require restarting the dev session; the running child retains its initial models
+and launch configuration.
+
+A failed Bazel build does not sync outputs or emit a notification. Quarkus has
+no workspace Java sources to compile independently, so tests retain the last
+successful outputs until a later successful rebuild. No Maven/Gradle command or
+upstream Quarkus patch is involved.
+
+Quarkus then owns discovery, affected-test selection, console hotkeys, and the
+Dev UI result/failure rendering. The `e2e/smoke` continuous-testing test
+exercises both interfaces, source edits across packages, test-only helper edits,
+custom resource layouts, exact resource inputs, unrelated-sibling filtering,
+main/test codegen, failed-build recovery, selectors, pause/resume and manual
+reruns in a disposable workspace. It intentionally runs once against Quarkus
+3.33.2, the latest supported version, rather than maintaining a Quarkus-version
+matrix.
 
 ### Generated sources
 
 Code generation always runs through Bazel before the initial dev startup.
-The launcher watches the declared generator input directories and rebuilds the
-`<name>_dev` target before syncing classes, which keeps regeneration sandboxed
-and cacheable.
+The launcher watches the declared main and test generator input files and
+rebuilds the `<name>_dev` target before syncing classes, which keeps regeneration
+sandboxed and cacheable.
 
 Dev mode regenerates under its own lifecycle: `deps` are configured through
 `dev_lifecycle_transition`, so `quarkus_codegen` runs with launch mode

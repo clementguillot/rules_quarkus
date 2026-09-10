@@ -160,14 +160,129 @@ class QuarkifierConfigTest {
   }
 
   @Test
-  void parse_codegenInputDirs() {
+  void parse_continuousTestingOptions() {
+    var config =
+        parse(
+            "--application-classpath",
+            "a.jar",
+            "--output-dir",
+            "/out",
+            "--mode",
+            "dev",
+            "--test-application-model",
+            "test-model.json",
+            "--test-classes-dir",
+            "/tmp/test-classes",
+            "--test-classes-output-dirs",
+            "bazel-bin/test.jar,bazel-bin/other-tests.jar",
+            "--watched-input",
+            "src/test/java/AppTest.java",
+            "--watched-input",
+            "src/test/resources/fixture.txt",
+            "--watched-build-file",
+            "BUILD.bazel");
+
+    assertEquals(Path.of("test-model.json"), config.testApplicationModel());
+    assertEquals(Path.of("/tmp/test-classes"), config.testClassesDir());
+    assertEquals(
+        List.of(Path.of("bazel-bin/test.jar"), Path.of("bazel-bin/other-tests.jar")),
+        config.testClassesOutputDirs());
+    assertEquals(
+        List.of(Path.of("src/test/java/AppTest.java"), Path.of("src/test/resources/fixture.txt")),
+        config.watchedInputs());
+    assertEquals(List.of(Path.of("BUILD.bazel")), config.watchedBuildFiles());
+  }
+
+  @Test
+  void parse_absentContinuousTestingOptionsDefaultToEmpty() {
+    var config =
+        parse(
+            "--application-classpath", "a.jar",
+            "--output-dir", "/out");
+
+    assertNull(config.testApplicationModel());
+    assertNull(config.testClassesDir());
+    assertTrue(config.testClassesOutputDirs().isEmpty());
+    assertTrue(config.watchedInputs().isEmpty());
+    assertTrue(config.watchedBuildFiles().isEmpty());
+  }
+
+  @Test
+  void parse_continuousTestingOptionsRequireDevMode() {
+    for (List<String> option :
+        List.of(
+            List.of("--test-application-model", "test-model.json"),
+            List.of("--test-classes-dir", "/tmp/test-classes"),
+            List.of("--test-classes-output-dirs", "bazel-bin/test.jar"),
+            List.of("--watched-input", "src/test/java/AppTest.java"),
+            List.of("--watched-build-file", "BUILD.bazel"),
+            List.of("--test-jvm-arg=-Dtest.flag=true"))) {
+      var args =
+          new ArrayList<>(List.of("--application-classpath", "a.jar", "--output-dir", "/out"));
+      args.addAll(option);
+
+      var exception =
+          assertThrows(
+              CommandLine.ParameterException.class,
+              () -> parse(args.toArray(String[]::new)),
+              option.get(0));
+
+      assertTrue(exception.getMessage().contains("require --mode dev"), option.get(0));
+    }
+  }
+
+  @Test
+  void parse_devModeRequiresContinuousTestingModelAndClassesDirectoryTogether() {
+    for (List<String> option :
+        List.of(
+            List.of("--test-application-model", "test-model.json"),
+            List.of("--test-classes-dir", "/tmp/test-classes"))) {
+      var args =
+          new ArrayList<>(
+              List.of("--application-classpath", "a.jar", "--output-dir", "/out", "--mode", "dev"));
+      args.addAll(option);
+
+      var exception =
+          assertThrows(
+              CommandLine.ParameterException.class,
+              () -> parse(args.toArray(String[]::new)),
+              option.get(0));
+
+      assertTrue(exception.getMessage().contains("must be provided together"), option.get(0));
+    }
+  }
+
+  @Test
+  void parse_devModeRejectsAncillaryTestOptionsWithoutRequiredPair() {
+    var exception =
+        assertThrows(
+            CommandLine.ParameterException.class,
+            () ->
+                parse(
+                    "--application-classpath",
+                    "a.jar",
+                    "--output-dir",
+                    "/out",
+                    "--mode",
+                    "dev",
+                    "--watched-input",
+                    "src/test/java/AppTest.java"));
+
+    assertTrue(exception.getMessage().contains("require --test-application-model"));
+    assertTrue(exception.getMessage().contains("--test-classes-dir"));
+  }
+
+  @Test
+  void parse_codegenInputFiles() {
     var config =
         parse(
             "--application-classpath", "a.jar",
             "--output-dir", "/out",
-            "--codegen-input-dirs", "src/main,schemas/src/main");
+            "--codegen-input-file", "src/main/schema.proto",
+            "--codegen-input-file", "schemas/src/main/schema.avsc");
     assertEquals(
-        List.of(Path.of("src/main"), Path.of("schemas/src/main")), config.codegenInputDirs());
+        List.of(Path.of("src/main/schema.proto"), Path.of("schemas/src/main/schema.avsc")),
+        config.codegenInputFiles());
   }
 
   @Test

@@ -38,6 +38,7 @@ quarkus_java_library(
 
 quarkus_app(
     name = "app",
+    continuous_test = ":test",
     package_type = "fast-jar",  # default; see docs for every JVM layout
     version = "1.0.0-SNAPSHOT",
     deps = [":lib"],
@@ -57,7 +58,7 @@ quarkus_integration_test(
 
 ```bash
 bazel run //:app       # Production mode
-bazel run //:app_dev   # Dev mode (hot-reload + Dev UI)
+bazel run //:app_dev   # Dev mode (hot-reload + Dev UI + continuous tests)
 bazel test //:test     # @QuarkusTest
 bazel test //:integration_test # @QuarkusIntegrationTest against the selected package
 bazel coverage //:test # Bazel LCOV coverage

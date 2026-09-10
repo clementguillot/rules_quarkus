@@ -327,6 +327,34 @@ This launches Quarkus in dev mode with:
 - **Dev UI** at `http://localhost:8080/q/dev-ui`
 - **Hot-reload** watching your source directories for changes
 
+To enable Quarkus continuous testing in the same session, connect the app to a
+`quarkus_test` target. Forward labels are supported, so declaration order does
+not matter:
+
+```starlark
+quarkus_app(
+    name = "helloworld",
+    continuous_test = ":test",
+    deps = [":lib"],
+)
+
+quarkus_test(
+    name = "test",
+    srcs = glob(["src/test/java/**/*.java"]),
+    deps = [
+        ":lib",
+        "@maven//:io_quarkus_quarkus_junit",
+        "@maven//:org_junit_jupiter_junit_jupiter",
+    ],
+)
+```
+
+Start `<name>_dev`, open the **Continuous Testing** page in Dev UI, and click
+**Start**. The same controls are available from the terminal (`r` starts or
+reruns tests and `o` toggles test output). Java source, test resource, and main
+or test code-generation input changes rebuild the dev target through Bazel,
+sync the affected outputs, and publish the result and failure output to Dev UI.
+
 Dev mode runs in a separate JVM process. Press `Ctrl+C` to stop.
 
 To opt out of the dev target, pass `dev = False` to `quarkus_app`:
@@ -380,6 +408,7 @@ workflow. Selecting `aot-jar` with Quarkus 3.27 fails during Bazel analysis.
 | `package_type` | `string` | `"fast-jar"` | JVM package layout; see the table above |
 | `dev` | `bool` | `True` | Also create the `<name>_dev` target |
 | `dev_build_args` | `string_list` | `[]` | Extra Bazel flags reused by hot-reload builds |
+| `continuous_test` | `label` | `None` | Optional `quarkus_test` target used for continuous testing in dev mode |
 | `native` | `bool` | `False` | Also create `<name>_native` using `rules_graalvm` |
 | `native_container_build` | `bool` | `False` | Also create `<name>_native` using Docker or Podman |
 

@@ -25,7 +25,12 @@ import picocli.CommandLine.Spec;
     name = "augmentation",
     description = "Run Quarkus build-time augmentation to produce an application package.",
     mixinStandardHelpOptions = true)
-@SuppressWarnings({"PMD.AvoidPrintStackTrace", "PMD.TooManyFields", "PMD.TooManyMethods"})
+@SuppressWarnings({
+  "PMD.AvoidPrintStackTrace",
+  "PMD.GodClass",
+  "PMD.TooManyFields",
+  "PMD.TooManyMethods"
+})
 // picocli pattern — one field per CLI option; not worth splitting
 public final class AugmentationCommand implements Callable<Integer> {
 
@@ -77,6 +82,11 @@ public final class AugmentationCommand implements Callable<Integer> {
       required = true,
       description = "Validated quarkus-bazel-model-v1 JSON.")
   private Path applicationModel;
+
+  @Option(
+      names = "--test-application-model",
+      description = "Validated TEST-mode quarkus-bazel-model-v1 JSON for continuous testing.")
+  private Path testApplicationModel;
 
   // ---- Output ----
 
@@ -135,6 +145,30 @@ public final class AugmentationCommand implements Callable<Integer> {
   private Path classesDir;
 
   @Option(
+      names = "--test-classes-dir",
+      description = "Mutable directory for compiled test classes in dev mode.")
+  private Path testClassesDir;
+
+  @Option(
+      names = "--test-classes-output-dirs",
+      description = "Comma-separated bazel-bin outputs containing compiled test classes.",
+      split = ",")
+  private List<Path> testClassesOutputDirs;
+
+  @Option(
+      names = "--watched-input",
+      description = "Exact declared workspace input watched during continuous testing.")
+  private List<Path> watchedInputs;
+
+  @Option(
+      names = "--watched-build-file",
+      description = "BUILD file whose change requires restarting the dev session.")
+  private List<Path> watchedBuildFiles;
+
+  @Option(names = "--test-jvm-arg", description = "JVM flag for the shared dev/test process.")
+  private List<String> testJvmArgs;
+
+  @Option(
       names = "--bazel-targets",
       description = "Comma-separated Bazel targets to rebuild on source changes.",
       split = ",")
@@ -170,10 +204,9 @@ public final class AugmentationCommand implements Callable<Integer> {
   private List<String> bazelBuildArgs;
 
   @Option(
-      names = "--codegen-input-dirs",
-      description = "Comma-separated directories holding CodeGenProvider inputs.",
-      split = ",")
-  private List<Path> codegenInputDirs;
+      names = "--codegen-input-file",
+      description = "Exact declared CodeGenProvider input watched in dev mode.")
+  private List<Path> codegenInputFiles;
 
   // ---- Execution ----
 
@@ -209,6 +242,16 @@ public final class AugmentationCommand implements Callable<Integer> {
         resolveClasspath(coreDeploymentClasspath, coreDeploymentClasspathFile);
     List<Path> resolvedLocalJars = resolveClasspath(localAppJars, localAppJarsFile);
     AugmentationMode resolvedMode = parseMode(mode);
+    List<Path> resolvedTestClassesOutputDirs = orEmpty(testClassesOutputDirs);
+    List<Path> resolvedWatchedInputs = orEmpty(watchedInputs);
+    List<Path> resolvedWatchedBuildFiles = orEmpty(watchedBuildFiles);
+    List<String> resolvedTestJvmArgs = orEmpty(testJvmArgs);
+    validateContinuousTestingOptions(
+        resolvedMode,
+        resolvedTestClassesOutputDirs,
+        resolvedWatchedInputs,
+        resolvedWatchedBuildFiles,
+        resolvedTestJvmArgs);
     if (resolvedMode == AugmentationMode.TEST && buildPropertiesFile != null) {
       throw parameterException(
           "--build-properties-file is not supported in TEST mode; pass test augmentation"
@@ -242,16 +285,22 @@ public final class AugmentationCommand implements Callable<Integer> {
         nativeBuilderImage,
         orEmpty(sourceDirs),
         classesDir,
+        testClassesDir,
+        resolvedTestClassesOutputDirs,
         orEmpty(bazelTargets),
         orEmpty(classesOutputDirs),
         workspaceDir,
         bazelBuildTimeoutSeconds,
         bazelCommand,
         orEmpty(bazelBuildArgs),
-        orEmpty(codegenInputDirs),
+        orEmpty(codegenInputFiles),
         resolvedLocalJars,
         resolvedBuildProperties,
-        applicationModel);
+        applicationModel,
+        testApplicationModel,
+        resolvedWatchedInputs,
+        resolvedWatchedBuildFiles,
+        resolvedTestJvmArgs);
   }
 
   // ---- internal helpers ----
@@ -284,6 +333,34 @@ public final class AugmentationCommand implements Callable<Integer> {
       return List.of();
     }
     return list.stream().filter(e -> !e.toString().isBlank()).toList();
+  }
+
+  private void validateContinuousTestingOptions(
+      AugmentationMode resolvedMode,
+      List<Path> resolvedTestClassesOutputDirs,
+      List<Path> resolvedWatchedInputs,
+      List<Path> resolvedWatchedBuildFiles,
+      List<String> resolvedTestJvmArgs) {
+    boolean hasTestOptions =
+        testApplicationModel != null
+            || testClassesDir != null
+            || !resolvedTestClassesOutputDirs.isEmpty()
+            || !resolvedWatchedInputs.isEmpty()
+            || !resolvedWatchedBuildFiles.isEmpty()
+            || !resolvedTestJvmArgs.isEmpty();
+    if (hasTestOptions && resolvedMode != AugmentationMode.DEV) {
+      throw parameterException("Continuous-testing options require --mode dev");
+    }
+    if (resolvedMode == AugmentationMode.DEV
+        && ((testApplicationModel == null) != (testClassesDir == null))) {
+      throw parameterException(
+          "--test-application-model and --test-classes-dir must be provided together");
+    }
+    if (resolvedMode == AugmentationMode.DEV && hasTestOptions && testApplicationModel == null) {
+      throw parameterException(
+          "Continuous-testing options require --test-application-model and"
+              + " --test-classes-dir");
+    }
   }
 
   private CommandLine.ParameterException parameterException(String message) {
