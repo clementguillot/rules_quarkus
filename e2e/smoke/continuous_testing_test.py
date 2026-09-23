@@ -114,6 +114,12 @@ def prepare(workspace):
             f'java_library(name="{name}", srcs=["{source}.java"], testonly={testonly}, '
             f'{resource_attributes}'
             'visibility=["//visibility:public"])\n')
+    submodule = workspace / "submodule"
+    submodule_test_source = submodule / "src/test/java/selected/SubmoduleTest.java"
+    submodule_test_source.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(fixture / "SubmoduleService.java", submodule / "SubmoduleService.java")
+    shutil.copyfile(fixture / "SubmoduleTest.java", submodule_test_source)
+    shutil.copyfile(fixture / "Submodule.BUILD.bazel.tpl", submodule / "BUILD.bazel")
     unrelated = workspace / "unrelated"
     unrelated.mkdir(exist_ok=True)
     (unrelated / "BUILD.bazel").write_text('exports_files(["ignored.txt"])\n')
@@ -263,6 +269,9 @@ def certify(workspace, log_path):
             subprocess.run([bazel, "build", "//:positional_test", "//:without_tests"],
                            cwd=workspace, env=environment, stdout=log,
                            stderr=subprocess.STDOUT, check=True, timeout=600)
+            subprocess.run([bazel, "test", "//submodule:test", "--test_output=errors"],
+                           cwd=workspace, env=environment, stdout=log,
+                           stderr=subprocess.STDOUT, check=True, timeout=600)
             invalid_dev = subprocess.run(
                 [bazel, "build", "//invalid_dev:app"],
                 cwd=workspace,
@@ -297,16 +306,18 @@ def certify(workspace, log_path):
 
             # Continuous testing starts paused. Use the ordinary console command for
             # the first activation, then prove the Dev UI sees it as already active.
+            expected_tests = 3
             assert ui.call("stop") is False
             send_console("r")
             status = eventually(lambda: completed(0, 0))
-            assert status["testsPassed"] == 2, status
+            assert status["testsPassed"] == expected_tests, status
+            assert "SubmoduleTest" in json.dumps(ui.call("getResults"))
             assert ui.call("start") is False
             previous = status["lastRun"]
             send_console("r")
-            status = eventually(lambda: completed(previous, 0, 2))
+            status = eventually(lambda: completed(previous, 0, expected_tests))
             print(
-                "PASS: console start/rerun, Dev UI status, selectors, properties, JVM flags and resources",
+                "PASS: console start/rerun, Dev UI aggregates application and submodule tests",
                 flush=True,
             )
 
@@ -326,7 +337,7 @@ def certify(workspace, log_path):
             source.write_text(original)
             status = eventually(lambda: completed(status["lastRun"], 0))
 
-            def edit_and_wait(relative, before, after, failures):
+            def edit_and_wait(relative, before, after, failures, result_marker="observesBazelOutputs"):
                 nonlocal status
                 file = workspace / relative
                 text = file.read_text()
@@ -335,7 +346,7 @@ def certify(workspace, log_path):
                 status = eventually(lambda: completed(status["lastRun"], failures))
                 if failures:
                     results = ui.call("getResults")
-                    assert "observesBazelOutputs" in json.dumps(results), results
+                    assert result_marker in json.dumps(results), results
                 print(f"PASS: {relative} -> {after!r}, failures={failures}", flush=True)
 
             for relative, old, new in [("dep/Value.java", "value-v1", "value-v2"),
@@ -348,6 +359,51 @@ def certify(workspace, log_path):
                                        ("tests/FlatTest.java", '"value-v1/main-v1"', '"deliberate-failure"')]:
                 edit_and_wait(relative, old, new, 1)
                 edit_and_wait(relative, new, old, 0)
+
+            # A dependency module owns a standalone quarkus_test target while its compiled test
+            # library is explicitly aggregated by the application test target. Main changes
+            # affect that module's test; test-only changes do not require an application edit.
+            edit_and_wait(
+                "submodule/SubmoduleService.java",
+                "module-v1",
+                "module-v2",
+                1,
+                "SubmoduleTest",
+            )
+            edit_and_wait("submodule/SubmoduleService.java", "module-v2", "module-v1", 0)
+            edit_and_wait(
+                "submodule/src/test/java/selected/SubmoduleTest.java",
+                'assertEquals("module-v1", service.value())',
+                'assertEquals("deliberate-failure", service.value())',
+                1,
+                "SubmoduleTest",
+            )
+            edit_and_wait(
+                "submodule/src/test/java/selected/SubmoduleTest.java",
+                'assertEquals("deliberate-failure", service.value())',
+                'assertEquals("module-v1", service.value())',
+                0,
+            )
+
+            added_test = workspace / "submodule/src/test/java/selected/AddedSubmoduleTest.java"
+            added_test.write_text(
+                "package selected;\n"
+                "import static org.junit.jupiter.api.Assertions.assertNotNull;\n"
+                "import io.quarkus.test.junit.QuarkusTest;\n"
+                "import jakarta.inject.Inject;\n"
+                "import org.junit.jupiter.api.Test;\n"
+                "import submodule.SubmoduleService;\n"
+                "@QuarkusTest class AddedSubmoduleTest {\n"
+                "  @Inject SubmoduleService service;\n"
+                "  @Test void serviceIsInjected() { assertNotNull(service); }\n"
+                "}\n"
+            )
+            status = eventually(lambda: completed(status["lastRun"], 0, expected_tests + 1))
+            assert "AddedSubmoduleTest" in json.dumps(ui.call("getResults"))
+            added_test.unlink()
+            status = eventually(lambda: completed(status["lastRun"], 0, expected_tests))
+            assert "AddedSubmoduleTest" not in json.dumps(ui.call("getResults"))
+            print("PASS: submodule test creation/removal updates Dev UI results", flush=True)
 
             # Parent directories are registered because WatchService cannot watch individual
             # files, but an undeclared sibling must not trigger a Bazel rebuild.
@@ -399,7 +455,7 @@ def certify(workspace, log_path):
             )
             assert ui.call("getStatus")["lastRun"] == previous, "deleted input published stale outputs"
             helper_resource.write_text("added-v1")
-            status = eventually(lambda: completed(previous, 0, 2))
+            status = eventually(lambda: completed(previous, 0, expected_tests))
 
             # The running application model cannot absorb declaration changes. A watched BUILD
             # file therefore warns and stays idle until the user restarts dev mode.

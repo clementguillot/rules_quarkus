@@ -266,7 +266,7 @@ quarkus_dev_rule = rule(
         "continuous_test": attr.label(
             cfg = disable_coverage_transition,
             providers = [QuarkusContinuousTestInfo],
-            doc = "Optional quarkus_test target used for continuous testing in dev mode.",
+            doc = "Optional single-test or aggregated continuous-test provider used in dev mode.",
         ),
         "core_deployment_deps": attr.label(
             cfg = disable_coverage_transition,

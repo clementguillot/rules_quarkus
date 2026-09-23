@@ -463,18 +463,66 @@ def collect_local_runtime_aliases(deps):
     """Collects raw local runtime to packaged extension target aliases."""
     return _collect_unique_mappings(deps, "local_runtime_aliases", "rawTargetId", "targetId", "local runtime target")
 
-def write_model_roots_file(ctx, deps):
-    """Writes direct dependency ids, preserving the public deps order.
+def write_synthetic_test_root_fragment(ctx, application_root_ids, test_root_ids, test_outputs):
+    """Writes one test-only root joining an application to several test roots.
+
+    Args:
+        ctx: Rule context used to declare and write the fragment.
+        application_root_ids: Ordered application dependency root ids.
+        test_root_ids: Ordered roots exported by the selected test targets.
+        test_outputs: Ordered compiled test outputs exposed by the aggregate.
+
+    Returns:
+        The synthetic target-fragment JSON file.
+    """
+    target_id = str(ctx.label)
+    edges = []
+    seen = {}
+    for dependency_id in application_root_ids + test_root_ids:
+        if dependency_id in seen:
+            continue
+        seen[dependency_id] = True
+        edges.append({
+            "exclusions": [],
+            "optional": False,
+            "relation": "deps",
+            "scope": "compile",
+            "targetId": dependency_id,
+        })
+    output = ctx.actions.declare_file(ctx.label.name + ".quarkus-target-v1.json")
+    content = json.encode({
+        "bazelLabel": target_id,
+        "buildFile": _build_file_path(ctx),
+        "coordinates": None,
+        "edges": sorted(edges, key = _edge_sort_key),
+        "neverlink": False,
+        "testOnly": True,
+        "outputDirectories": [_file_record(file) for file in test_outputs],
+        "package": ctx.label.package,
+        "resources": [],
+        "ruleKind": "quarkus_continuous_test_aggregate",
+        "runtimeOutputJars": [_file_record(file) for file in test_outputs],
+        "schemaVersion": "quarkus-bazel-target-v1",
+        "sourceJars": [],
+        "sources": [],
+        "targetId": target_id,
+        "targetName": ctx.label.name,
+        "workspaceName": ctx.label.workspace_name,
+    }) + "\n"
+    ctx.actions.write(output = output, content = content)
+    return output
+
+def write_model_root_ids_file(ctx, root_ids):
+    """Writes already-collected model root ids in their declared order.
 
     Args:
         ctx: Rule context used to declare and write the roots file.
-        deps: Ordered direct dependencies carrying application-model graph providers.
+        root_ids: Ordered, deduplicated graph root ids.
 
     Returns:
         The declared application-model roots JSON file.
     """
     output = ctx.actions.declare_file(ctx.label.name + ".quarkus-roots-v1.json")
-    root_ids = collect_model_root_ids(deps)
     content = json.encode({
         "applicationLabel": str(ctx.label),
         "rootIds": root_ids,
@@ -482,3 +530,7 @@ def write_model_roots_file(ctx, deps):
     }) + "\n"
     ctx.actions.write(output = output, content = content)
     return output
+
+def write_model_roots_file(ctx, deps):
+    """Writes direct dependency ids, preserving the public deps order."""
+    return write_model_root_ids_file(ctx, collect_model_root_ids(deps))

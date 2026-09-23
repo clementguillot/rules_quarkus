@@ -8,6 +8,7 @@ quarkus_java_library(
     deps = [
         "//dep:value",
         "//ext/runtime",
+        "//submodule:lib",
         "@maven//:io_quarkus_quarkus_rest",
     ],
 )
@@ -51,7 +52,10 @@ quarkus_test(
 
 quarkus_app(
     name = "app",
-    continuous_test = ":test",
+    continuous_test = [
+        ":test",
+        "//submodule:test",
+    ],
     dev_build_args = ["--define=continuous_fixture=true"],
     deps = [":lib"],
 )

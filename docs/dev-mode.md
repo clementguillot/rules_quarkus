@@ -195,8 +195,8 @@ outputs and a private notification directory, as described below.
 ## Continuous Testing
 
 Continuous testing is opt-in because dev mode needs the test-only dependency
-graph and compiled test outputs. Point `continuous_test` at a `quarkus_test`
-target:
+graph and compiled test outputs. Point `continuous_test` at one `quarkus_test`
+target, or at a list of independently executable targets:
 
 ```starlark
 quarkus_app(
@@ -213,6 +213,65 @@ quarkus_test(
 )
 ```
 
+In a multi-module application, a library may own its own `quarkus_test` so it
+can start a Quarkus DI context when tested independently. The application lists
+those test targets directly instead of adding their test libraries to another
+`quarkus_test`:
+
+```starlark
+# //libs/service:BUILD.bazel
+java_library(
+    name = "tests",
+    testonly = True,
+    srcs = glob(["src/test/java/**/*.java"]),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":service",
+        "@maven//:io_quarkus_quarkus_junit",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+quarkus_test(
+    name = "test",
+    deps = [":tests"],
+    visibility = ["//visibility:public"],
+)
+
+# //:BUILD.bazel
+quarkus_test(
+    name = "test",
+    srcs = glob(["src/test/java/**/*.java"]),
+    deps = [":lib"],
+)
+
+quarkus_app(
+    name = "app",
+    continuous_test = [
+        ":test",
+        "//libs/service:test",
+    ],
+    deps = [":lib"],
+)
+```
+
+Each target remains part of Bazel's test universe, so `bazel test //...` runs
+the application and module tests exactly once. For dev mode, the macro creates
+a hidden non-test aggregation target. It combines the test graphs into one
+application-rooted TEST model because Quarkus runs one shared dev/test JVM; it
+does not select one module's model or pass several serialized models to
+Quarkus. Conflicting `build_properties` fail analysis, while JVM flags and
+class/package selectors are combined in target-list order. As with any
+cross-package Bazel dependency, module test targets listed by the application
+must grant it visibility.
+
+Production-source changes in an aggregated module hot-reload the application
+and can rerun its affected tests. Module test-source changes rebuild and rerun
+continuous tests without changing application behavior. Creating or deleting a
+Java file under an existing declared `glob()` is picked up in the same way.
+Adding a new source declaration, dependency, selector, or other BUILD metadata
+still requires restarting dev mode.
+
 When `quarkus_test` compiles inline `srcs`, declare test resources through its
 `resources` attribute. When `srcs` is omitted and `deps` supplies precompiled
 test libraries, declare resources on those `java_library` targets instead;
@@ -224,20 +283,21 @@ Resources must be declared. Only resources packaged by Bazel enter the mutable
 output trees; undeclared workspace files are never copied by Quarkus. Bazel's
 `resource_strip_prefix` mapping is preserved, including non-Maven layouts.
 
-The referenced target's `build_properties`, `jvm_flags`, `test_classes`, and
+The referenced targets' `build_properties`, `jvm_flags`, `test_classes`, and
 `test_packages` are retained. Class and package selectors are combined as a
 union; packaged `*IT` tests remain excluded. Dev mode and continuous tests share
 one child JVM. A configured `quarkus.test.include-pattern` further restricts
 that selection. Test JVM flags and system properties also affect the running
-dev application. Conflicting app/test `build_properties` values fail analysis
-instead of silently choosing one. JVM flags follow declared properties; logging,
-model paths, and other launcher-owned JVM flags follow both and retain priority.
+dev application. Conflicting app/test or test/test `build_properties` values
+fail analysis instead of silently choosing one. JVM flags follow declared
+properties; logging, model paths, and other launcher-owned JVM flags follow
+both and retain priority.
 `fail_if_no_tests` is a one-shot Bazel test exit policy, not a continuous-session
 exit policy: an empty selection remains an idle, usable dev session.
 
-The test rule exports its TEST-mode application model, exact declared
-source/resource files, compiled test jars, and every file referenced by the
-model. The dev launcher:
+Each test rule exports its TEST graph inputs, exact declared source/resource
+files, compiled test jars, and every referenced artifact. The hidden aggregate
+assembles one TEST-mode application model from their union. The dev launcher:
 
 1. serializes both DEV and TEST application models and supplies Quarkus'
    `SERIALIZED_TEST_APP_MODEL` system property;

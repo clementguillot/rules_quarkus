@@ -1396,7 +1396,7 @@ load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_dev_impl.bzl", 
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_extension_impl.bzl", "quarkus_extension_runtime_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_native_app_impl.bzl", "quarkus_native_app_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_native_container_app_impl.bzl", "quarkus_native_container_app_rule")
-load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_test_impl.bzl", _quarkus_integration_test = "quarkus_integration_test", _quarkus_test = "quarkus_test", _test_resources_without_sources_error = "test_resources_without_sources_error")
+load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_test_impl.bzl", _quarkus_continuous_test_aggregate = "quarkus_continuous_test_aggregate", _quarkus_integration_test = "quarkus_integration_test", _quarkus_test = "quarkus_test", _test_resources_without_sources_error = "test_resources_without_sources_error")
 load("@com_clementguillot_rules_quarkus//quarkus/private:versions.bzl", "DEFAULT_NATIVE_BUILDER_IMAGE")
 load("@rules_java//java:java_library.bzl", "java_library")
 
@@ -1572,7 +1572,8 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
         dev_build_args: Extra flags for the hot-reload `bazel build` (e.g. ["--config=dev"]).
             Must match the flags you pass to `bazel run` for the dev target, otherwise
             rebuilt classes land in a different output tree and hot-reload syncs stale files.
-        continuous_test: Optional quarkus_test target whose tests run continuously in dev mode.
+        continuous_test: Optional quarkus_test target, or list of targets, whose tests run
+            continuously together in one dev-mode session.
         native: If True, creates a <name>_native target using rules_graalvm (host compilation).
         native_container_build: If True, creates a <name>_native target using Docker/Podman (container compilation).
         native_container_runtime: Container runtime: 'auto' (default), 'docker', or 'podman'.
@@ -1606,6 +1607,32 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
         **kwargs
     )
 
+    continuous_test_target = continuous_test
+    if type(continuous_test) == "list":
+        if len(continuous_test) == 0:
+            continuous_test_target = None
+        elif len(continuous_test) == 1:
+            continuous_test_target = continuous_test[0]
+        else:
+            aggregate_name = name + "_continuous_tests"
+            _quarkus_continuous_test_aggregate(
+                name = aggregate_name,
+                application_deps = kwargs.get("deps", []),
+                tests = continuous_test,
+                quarkus_version = _QUARKUS_VERSION,
+                quarkifier_tool = _QUARKIFIER_TOOL,
+                deployment_artifacts = _DEPLOYMENT_ARTIFACTS,
+                conditional_catalog = _CONDITIONAL_CATALOG,
+                deployment_catalog = _DEPLOYMENT_CATALOG,
+                model_private_deps = _TEST_INFRASTRUCTURE_DEPS,
+                platform_catalog = _PLATFORM_CATALOG,
+                platform_properties = _PLATFORM_PROPERTIES,
+                runtime_catalog = _RUNTIME_CATALOG,
+                testonly = True,
+                visibility = ["//visibility:private"],
+            )
+            continuous_test_target = ":" + aggregate_name
+
     # Attrs shared by the secondary (_dev / _native) targets.
     main_class = kwargs.get("main_class", "")
     common = dict(
@@ -1627,10 +1654,10 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
     if dev:
         quarkus_dev_rule(
             name = name + "_dev",
-            continuous_test = continuous_test,
+            continuous_test = continuous_test_target,
             core_deployment_deps = _CORE_DEPLOYMENT_DEPS,
             dev_build_args = dev_build_args,
-            testonly = bool(continuous_test) or kwargs.get("testonly", False),
+            testonly = bool(continuous_test_target) or kwargs.get("testonly", False),
             **common
         )
     if native:

@@ -19,6 +19,10 @@ java_library(
 
 quarkus_app(
     name = "demoapp",
+    continuous_test = [
+        ":test",
+        "//libs/todo-service:test",
+    ],
     version = "1.0.0",
     deps = [":lib"],
 )

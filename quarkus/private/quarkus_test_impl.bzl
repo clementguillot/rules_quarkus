@@ -15,11 +15,11 @@ load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusAppInfo", "QuarkusContinuousTestInfo", "QuarkusNativeInfo")
-load("//quarkus/private:application_model_aspect.bzl", "collect_deployment_model_artifacts", "collect_direct_model_dependency_ids", "collect_model_artifacts", "collect_watch_metadata", "has_maven_artifact", "quarkus_application_model_aspect")
+load("//quarkus/private:application_model_aspect.bzl", "collect_deployment_model_artifacts", "collect_deployment_model_fragments", "collect_direct_model_dependency_ids", "collect_local_deployments", "collect_local_runtime_aliases", "collect_model_artifacts", "collect_model_fragments", "collect_model_root_ids", "collect_watch_metadata", "has_maven_artifact", "quarkus_application_model_aspect", "write_synthetic_test_root_fragment")
 load("//quarkus/private:build_properties.bzl", "validate_build_property_keys")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_extension_runtime_jars", "collect_local_app_jars", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
 load("//quarkus/private:coverage_transition.bzl", "disable_coverage_transition", "single_transitioned_target")
-load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
+load("//quarkus/private:model_assembly.bzl", "assemble_application_model", "assemble_application_model_from_parts")
 load("//quarkus/private:quarkus_codegen_impl.bzl", "collect_codegen_input_files", "quarkus_codegen_metadata_aspect")
 
 def regex_escape_class_name(class_name):
@@ -109,6 +109,144 @@ def _ordered_continuous_test_outputs(deps, runtime_classpath, test_outputs):
             seen[file.path] = True
             ordered.append(file)
     return ordered
+
+def _ordered_unique_strings(groups):
+    result = []
+    seen = {}
+    for group in groups:
+        for value in group:
+            if value not in seen:
+                seen[value] = True
+                result.append(value)
+    return result
+
+def _ordered_unique_files(groups):
+    result = []
+    seen = {}
+    for group in groups:
+        for file in group:
+            if file.path not in seen:
+                seen[file.path] = True
+                result.append(file)
+    return result
+
+def _merge_continuous_properties(targets, infos):
+    properties = {}
+    owners = {}
+    for index in range(len(infos)):
+        for key, value in infos[index].build_properties.items():
+            if key in properties and properties[key] != value:
+                fail("continuous_test targets '{}' and '{}' declare conflicting build_properties value for '{}'".format(
+                    owners[key],
+                    targets[index].label,
+                    key,
+                ))
+            properties[key] = value
+            owners[key] = targets[index].label
+    return properties
+
+def _merge_continuous_mappings(infos, field, key_field, value_field, label):
+    result = []
+    seen = {}
+    for info in infos:
+        for item in getattr(info, field):
+            key = item[key_field]
+            value = item[value_field]
+            if key in seen and seen[key] != value:
+                fail("continuous_test {} '{}' maps to multiple targets".format(label, key))
+            if key not in seen:
+                seen[key] = value
+                result.append(item)
+    return result
+
+def _continuous_test_aggregate_impl(ctx):
+    if len(ctx.attr.tests) < 2:
+        fail("continuous test aggregation requires at least two quarkus_test targets")
+
+    infos = [target[QuarkusContinuousTestInfo] for target in ctx.attr.tests]
+    application_root_ids = collect_model_root_ids(ctx.attr.application_deps)
+    if not application_root_ids:
+        fail("continuous test aggregation requires at least one application dependency")
+    test_root_ids = _ordered_unique_strings([info.root_ids for info in infos])
+    classes_output_dirs = _ordered_unique_files([info.classes_output_dirs for info in infos])
+    synthetic_root = write_synthetic_test_root_fragment(
+        ctx,
+        application_root_ids,
+        test_root_ids,
+        classes_output_dirs,
+    )
+    model_fragments = depset(
+        [synthetic_root],
+        transitive = [info.model_fragments for info in infos],
+    )
+    model_artifacts = depset(transitive = [info.model_artifacts for info in infos])
+    deployment_model_fragments = depset(transitive = [info.deployment_model_fragments for info in infos])
+    deployment_model_artifacts = depset(transitive = [info.deployment_model_artifacts for info in infos])
+    local_deployments = _merge_continuous_mappings(
+        infos,
+        "local_deployments",
+        "coordinate",
+        "targetId",
+        "local deployment coordinate",
+    )
+    local_runtime_aliases = _merge_continuous_mappings(
+        infos,
+        "local_runtime_aliases",
+        "rawTargetId",
+        "targetId",
+        "local runtime target",
+    )
+    runtime_classpath = depset(transitive = [info.runtime_classpath for info in infos])
+    conditional_classpath = depset(transitive = [info.conditional_classpath for info in infos])
+    deployment_classpath = depset(transitive = [info.deployment_classpath for info in infos])
+    model = assemble_application_model_from_parts(
+        ctx,
+        [str(ctx.label)],
+        model_fragments,
+        model_artifacts,
+        deployment_model_fragments,
+        deployment_model_artifacts,
+        local_deployments,
+        local_runtime_aliases,
+        runtime_classpath,
+        conditional_classpath,
+        deployment_classpath,
+        "test",
+    )
+
+    return [
+        DefaultInfo(files = depset([model])),
+        OutputGroupInfo(quarkus_model = depset([model])),
+        QuarkusContinuousTestInfo(
+            application_dependency_ids = depset(
+                application_root_ids,
+                transitive = [info.application_dependency_ids for info in infos],
+            ),
+            application_model = model,
+            build_files = depset(transitive = [info.build_files for info in infos]),
+            build_properties = _merge_continuous_properties(ctx.attr.tests, infos),
+            classes_output_dirs = classes_output_dirs,
+            codegen_input_files = depset(transitive = [info.codegen_input_files for info in infos]),
+            conditional_classpath = conditional_classpath,
+            deployment_classpath = deployment_classpath,
+            deployment_model_artifacts = deployment_model_artifacts,
+            deployment_model_fragments = deployment_model_fragments,
+            input_files = depset(transitive = [info.input_files for info in infos]),
+            jvm_flags = _ordered_unique_strings([info.jvm_flags for info in infos]),
+            local_deployments = local_deployments,
+            local_runtime_aliases = local_runtime_aliases,
+            model_artifacts = model_artifacts,
+            model_classpath = depset(
+                [model],
+                transitive = [info.model_classpath for info in infos],
+            ),
+            model_fragments = model_fragments,
+            root_ids = [str(ctx.label)],
+            runtime_classpath = runtime_classpath,
+            test_classes = _ordered_unique_strings([info.test_classes for info in infos]),
+            test_packages = _ordered_unique_strings([info.test_packages for info in infos]),
+        ),
+    ]
 
 def _integration_version_error(rule_name, test_version, app_label, app_version):
     if test_version == app_version:
@@ -237,6 +375,10 @@ def _test_impl(ctx, integration):
     ]
     if not integration:
         metadata = collect_watch_metadata(ctx.attr.deps)
+        model_fragments = collect_model_fragments(ctx.attr.deps)
+        model_artifacts = collect_model_artifacts(ctx.attr.deps)
+        deployment_model_fragments = collect_deployment_model_fragments(ctx.attr.deps)
+        deployment_model_artifacts = collect_deployment_model_artifacts(ctx.attr.deps)
         providers.append(QuarkusContinuousTestInfo(
             application_dependency_ids = depset(collect_direct_model_dependency_ids(ctx.attr.deps)),
             application_model = model,
@@ -247,17 +389,27 @@ def _test_impl(ctx, integration):
             test_classes = ctx.attr.test_classes,
             test_packages = ctx.attr.test_packages,
             codegen_input_files = collect_codegen_input_files(ctx.attr.deps),
+            conditional_classpath = conditional_classpath,
+            deployment_classpath = deploy_classpath,
+            deployment_model_artifacts = deployment_model_artifacts,
+            deployment_model_fragments = deployment_model_fragments,
             input_files = metadata.input_files,
+            local_deployments = collect_local_deployments(ctx.attr.deps),
+            local_runtime_aliases = collect_local_runtime_aliases(ctx.attr.deps),
+            model_artifacts = model_artifacts,
             model_classpath = depset(
                 [model],
                 transitive = [
                     runtime_classpath,
                     conditional_classpath,
                     deploy_classpath,
-                    collect_model_artifacts(ctx.attr.deps),
-                    collect_deployment_model_artifacts(ctx.attr.deps),
+                    model_artifacts,
+                    deployment_model_artifacts,
                 ],
             ),
+            model_fragments = model_fragments,
+            root_ids = collect_model_root_ids(ctx.attr.deps),
+            runtime_classpath = runtime_classpath,
         ))
     return providers
 
@@ -385,6 +537,40 @@ At test time, the quarkifier serializes an ApplicationModel from the actual
 runfiles jar paths, then QuarkusTestExtension uses it to bootstrap the
 application in Mode.TEST.
 """,
+)
+
+quarkus_continuous_test_aggregate = rule(
+    implementation = _continuous_test_aggregate_impl,
+    attrs = {
+        "application_deps": attr.label_list(
+            mandatory = True,
+            aspects = [quarkus_application_model_aspect],
+            providers = [JavaInfo],
+            doc = "Application dependencies used to identify the TEST model root.",
+        ),
+        "tests": attr.label_list(
+            mandatory = True,
+            cfg = disable_coverage_transition,
+            providers = [QuarkusContinuousTestInfo],
+            doc = "Independently executable quarkus_test targets combined for one dev session.",
+        ),
+        "conditional_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
+        "deployment_artifacts": attr.label(mandatory = True),
+        "deployment_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
+        "model_private_deps": attr.label_list(
+            cfg = disable_coverage_transition,
+            providers = [JavaInfo],
+        ),
+        "platform_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
+        "platform_properties": attr.label(mandatory = True),
+        "quarkifier_tool": attr.label(allow_single_file = [".jar"], mandatory = True),
+        "quarkus_version": attr.string(mandatory = True),
+        "runtime_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
+        "_java_runtime": attr.label(
+            default = "@bazel_tools//tools/jdk:current_java_runtime",
+        ),
+    },
+    doc = "Internal non-test rule that combines quarkus_test providers for dev mode.",
 )
 
 quarkus_integration_test = rule(
