@@ -77,6 +77,23 @@ def _build_property_jvm_flags(build_properties):
         for key in sorted(build_properties)
     ]
 
+_QuarkusTestModelPartsInfo = provider(
+    doc = """Graph parts of one quarkus_test TEST model. Only the continuous-test aggregate
+    reads them, to re-assemble several tests into one model without reading lossy model files.""",
+    fields = {
+        "conditional_classpath": "Depset of conditional dependency candidates.",
+        "deployment_classpath": "Depset of deployment artifacts.",
+        "deployment_model_artifacts": "Depset of artifacts referenced by local deployment fragments.",
+        "deployment_model_fragments": "Depset of local-extension deployment graph fragments.",
+        "local_deployments": "Local extension deployment coordinate-to-target mappings.",
+        "local_runtime_aliases": "Raw-to-packaged local extension runtime target mappings.",
+        "model_artifacts": "Depset of artifacts referenced by runtime model fragments.",
+        "model_fragments": "Depset of runtime target model fragments.",
+        "root_ids": "Ordered graph root ids of the test.",
+        "runtime_classpath": "Depset of runtime artifacts.",
+    },
+)
+
 def _direct_class_outputs(deps):
     """Returns compiled jars for the test libraries named directly by the test rule.
 
@@ -185,6 +202,7 @@ def _continuous_test_aggregate_impl(ctx):
         fail("continuous test aggregation requires at least two quarkus_test targets")
 
     infos = [target[QuarkusContinuousTestInfo] for target in ctx.attr.tests]
+    parts = [target[_QuarkusTestModelPartsInfo] for target in ctx.attr.tests]
     selection_error = continuous_selection_error(
         [target.label for target in ctx.attr.tests],
         [len(info.test_classes) + len(info.test_packages) for info in infos],
@@ -194,50 +212,25 @@ def _continuous_test_aggregate_impl(ctx):
     application_root_ids = collect_model_root_ids(ctx.attr.application_deps)
     if not application_root_ids:
         fail("continuous test aggregation requires at least one application dependency")
-    test_root_ids = _ordered_unique_strings([info.root_ids for info in infos])
     classes_output_dirs = _ordered_unique_files([info.classes_output_dirs for info in infos])
     synthetic_root = write_synthetic_test_root_fragment(
         ctx,
         application_root_ids,
-        test_root_ids,
+        _ordered_unique_strings([part.root_ids for part in parts]),
         classes_output_dirs,
     )
-    model_fragments = depset(
-        [synthetic_root],
-        transitive = [info.model_fragments for info in infos],
-    )
-    model_artifacts = depset(transitive = [info.model_artifacts for info in infos])
-    deployment_model_fragments = depset(transitive = [info.deployment_model_fragments for info in infos])
-    deployment_model_artifacts = depset(transitive = [info.deployment_model_artifacts for info in infos])
-    local_deployments = _merge_continuous_mappings(
-        infos,
-        "local_deployments",
-        "coordinate",
-        "targetId",
-        "local deployment coordinate",
-    )
-    local_runtime_aliases = _merge_continuous_mappings(
-        infos,
-        "local_runtime_aliases",
-        "rawTargetId",
-        "targetId",
-        "local runtime target",
-    )
-    runtime_classpath = depset(transitive = [info.runtime_classpath for info in infos])
-    conditional_classpath = depset(transitive = [info.conditional_classpath for info in infos])
-    deployment_classpath = depset(transitive = [info.deployment_classpath for info in infos])
     model = assemble_application_model_from_parts(
         ctx,
         [str(ctx.label)],
-        model_fragments,
-        model_artifacts,
-        deployment_model_fragments,
-        deployment_model_artifacts,
-        local_deployments,
-        local_runtime_aliases,
-        runtime_classpath,
-        conditional_classpath,
-        deployment_classpath,
+        depset([synthetic_root], transitive = [part.model_fragments for part in parts]),
+        depset(transitive = [part.model_artifacts for part in parts]),
+        depset(transitive = [part.deployment_model_fragments for part in parts]),
+        depset(transitive = [part.deployment_model_artifacts for part in parts]),
+        _merge_continuous_mappings(parts, "local_deployments", "coordinate", "targetId", "local deployment coordinate"),
+        _merge_continuous_mappings(parts, "local_runtime_aliases", "rawTargetId", "targetId", "local runtime target"),
+        depset(transitive = [part.runtime_classpath for part in parts]),
+        depset(transitive = [part.conditional_classpath for part in parts]),
+        depset(transitive = [part.deployment_classpath for part in parts]),
         "test",
     )
 
@@ -254,23 +247,13 @@ def _continuous_test_aggregate_impl(ctx):
             build_properties = _merge_continuous_properties(ctx.attr.tests, infos),
             classes_output_dirs = classes_output_dirs,
             codegen_input_files = depset(transitive = [info.codegen_input_files for info in infos]),
-            conditional_classpath = conditional_classpath,
-            deployment_classpath = deployment_classpath,
-            deployment_model_artifacts = deployment_model_artifacts,
-            deployment_model_fragments = deployment_model_fragments,
             input_files = depset(transitive = [info.input_files for info in infos]),
             # Concatenate rather than de-duplicate: flags such as --add-opens take a separate value.
             jvm_flags = [flag for info in infos for flag in info.jvm_flags],
-            local_deployments = local_deployments,
-            local_runtime_aliases = local_runtime_aliases,
-            model_artifacts = model_artifacts,
             model_classpath = depset(
                 [model],
                 transitive = [info.model_classpath for info in infos],
             ),
-            model_fragments = model_fragments,
-            root_ids = [str(ctx.label)],
-            runtime_classpath = runtime_classpath,
             test_classes = _ordered_unique_strings([info.test_classes for info in infos]),
             test_packages = _ordered_unique_strings([info.test_packages for info in infos]),
         ),
@@ -403,28 +386,17 @@ def _test_impl(ctx, integration):
     ]
     if not integration:
         metadata = collect_watch_metadata(ctx.attr.deps)
-        model_fragments = collect_model_fragments(ctx.attr.deps)
         model_artifacts = collect_model_artifacts(ctx.attr.deps)
-        deployment_model_fragments = collect_deployment_model_fragments(ctx.attr.deps)
         deployment_model_artifacts = collect_deployment_model_artifacts(ctx.attr.deps)
         providers.append(QuarkusContinuousTestInfo(
             application_dependency_ids = depset(collect_direct_model_dependency_ids(ctx.attr.deps)),
             application_model = model,
             build_files = metadata.build_files,
-            classes_output_dirs = _ordered_continuous_test_outputs(ctx.attr.deps, runtime_classpath, metadata.test_outputs),
             build_properties = declared_build_properties,
-            jvm_flags = ctx.attr.jvm_flags,
-            test_classes = ctx.attr.test_classes,
-            test_packages = ctx.attr.test_packages,
+            classes_output_dirs = _ordered_continuous_test_outputs(ctx.attr.deps, runtime_classpath, metadata.test_outputs),
             codegen_input_files = collect_codegen_input_files(ctx.attr.deps),
-            conditional_classpath = conditional_classpath,
-            deployment_classpath = deploy_classpath,
-            deployment_model_artifacts = deployment_model_artifacts,
-            deployment_model_fragments = deployment_model_fragments,
             input_files = metadata.input_files,
-            local_deployments = collect_local_deployments(ctx.attr.deps),
-            local_runtime_aliases = collect_local_runtime_aliases(ctx.attr.deps),
-            model_artifacts = model_artifacts,
+            jvm_flags = ctx.attr.jvm_flags,
             model_classpath = depset(
                 [model],
                 transitive = [
@@ -435,7 +407,18 @@ def _test_impl(ctx, integration):
                     deployment_model_artifacts,
                 ],
             ),
-            model_fragments = model_fragments,
+            test_classes = ctx.attr.test_classes,
+            test_packages = ctx.attr.test_packages,
+        ))
+        providers.append(_QuarkusTestModelPartsInfo(
+            conditional_classpath = conditional_classpath,
+            deployment_classpath = deploy_classpath,
+            deployment_model_artifacts = deployment_model_artifacts,
+            deployment_model_fragments = collect_deployment_model_fragments(ctx.attr.deps),
+            local_deployments = collect_local_deployments(ctx.attr.deps),
+            local_runtime_aliases = collect_local_runtime_aliases(ctx.attr.deps),
+            model_artifacts = model_artifacts,
+            model_fragments = collect_model_fragments(ctx.attr.deps),
             root_ids = collect_model_root_ids(ctx.attr.deps),
             runtime_classpath = runtime_classpath,
         ))
@@ -579,7 +562,7 @@ quarkus_continuous_test_aggregate = rule(
         "tests": attr.label_list(
             mandatory = True,
             cfg = disable_coverage_transition,
-            providers = [QuarkusContinuousTestInfo],
+            providers = [QuarkusContinuousTestInfo, _QuarkusTestModelPartsInfo],
             doc = "Independently executable quarkus_test targets combined for one dev session.",
         ),
         "conditional_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
