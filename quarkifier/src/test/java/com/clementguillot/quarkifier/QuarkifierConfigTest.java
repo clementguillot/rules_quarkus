@@ -265,24 +265,26 @@ class QuarkifierConfigTest {
                     "/out",
                     "--mode",
                     "dev",
-                    "--watched-input",
-                    "src/test/java/AppTest.java"));
+                    "--watched-build-file",
+                    "BUILD.bazel"));
 
     assertTrue(exception.getMessage().contains("require --test-application-model"));
     assertTrue(exception.getMessage().contains("--test-classes-dir"));
   }
 
   @Test
-  void parse_codegenInputFiles() {
+  void parse_watchedInputsWithoutContinuousTesting() {
     var config =
         parse(
             "--application-classpath", "a.jar",
             "--output-dir", "/out",
-            "--codegen-input-file", "src/main/schema.proto",
-            "--codegen-input-file", "schemas/src/main/schema.avsc");
+            "--mode", "dev",
+            "--watched-input", "src/main/schema.proto",
+            "--watched-input", "schemas/src/main/schema.avsc");
     assertEquals(
         List.of(Path.of("src/main/schema.proto"), Path.of("schemas/src/main/schema.avsc")),
-        config.codegenInputFiles());
+        config.watchedInputs());
+    assertNull(config.testApplicationModel());
   }
 
   @Test

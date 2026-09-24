@@ -29,12 +29,12 @@ import java.util.Map;
  * @param bazelBuildTimeoutSeconds timeout in seconds for bazel build process (default: 600)
  * @param bazelCommand bazel binary to invoke for hot-reload builds (default: {@code bazel})
  * @param bazelBuildArgs extra flags for the hot-reload {@code bazel build}
- * @param codegenInputFiles exact declared CodeGenProvider inputs
  * @param localAppJars local workspace jars to use as application roots
  * @param buildProperties declared hermetic build-time configuration
  * @param applicationModel explicit validated Bazel model JSON
  * @param testApplicationModel explicit validated TEST-mode Bazel model JSON (may be {@code null})
- * @param watchedInputs exact source, resource, and generator inputs for continuous testing
+ * @param watchedInputs exact declared inputs watched in dev mode: generator inputs, plus every
+ *     source and resource input under continuous testing
  * @param watchedBuildFiles BUILD files whose changes require a dev-mode restart
  * @param testJvmArgs JVM flags for the shared dev/test child process
  */
@@ -58,7 +58,6 @@ public record QuarkifierConfig(
     long bazelBuildTimeoutSeconds,
     String bazelCommand,
     List<String> bazelBuildArgs,
-    List<Path> codegenInputFiles,
     List<Path> localAppJars,
     Map<String, String> buildProperties,
     Path applicationModel,

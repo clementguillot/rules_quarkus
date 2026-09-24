@@ -170,7 +170,9 @@ inference paths have been removed.
 
 ## Source Directory Flow
 
-Without `continuous_test`, ordinary dev mode uses directory-based source/resource roots:
+Without `continuous_test`, ordinary dev mode uses directory-based source/resource roots.
+Quarkus watches the resource roots itself: resource edits are served or trigger a
+restart exactly as in Maven/Gradle dev mode, without a Bazel rebuild.
 
 1. `_collect_java_source_dirs()` in the Starlark rule finds conventional
    `src/main/java` and `src/test/java` markers in dependency source files
@@ -187,9 +189,11 @@ Without `continuous_test`, ordinary dev mode uses directory-based source/resourc
 
 When both source dirs and exact code-generation input files are empty, hot-reload is
 disabled but the Dev UI still works. Declared code-generation inputs keep the
-rebuild watcher active even when there are no Java source dirs.
+rebuild watcher active even when there are no Java source dirs; a new file next
+to them (for example another `.proto` under `src/main/proto`) is picked up as
+a glob candidate, as described under [Continuous Testing](#continuous-testing).
 With continuous testing enabled, Bazel watches declared inputs and candidate
-Java source roots derived from those inputs. Quarkus watches only synchronized
+roots derived from those inputs. Quarkus watches only synchronized
 outputs and a private notification directory, as described below.
 
 ## Continuous Testing
@@ -260,15 +264,20 @@ the application and module tests exactly once. For dev mode, the macro creates
 a hidden non-test aggregation target. It combines the test graphs into one
 application-rooted TEST model because Quarkus runs one shared dev/test JVM; it
 does not select one module's model or pass several serialized models to
-Quarkus. Conflicting `build_properties` fail analysis, while JVM flags and
-class/package selectors are combined in target-list order. As with any
+Quarkus. Conflicting `build_properties` fail analysis, while JVM flags are
+concatenated and class/package selectors are combined in target-list order.
+Either every listed target declares `test_classes`/`test_packages` or none
+does: Quarkus applies one class-name pattern to the shared session, which
+cannot express "all tests of one target, selected tests of another", so a mix
+fails analysis. As with any
 cross-package Bazel dependency, module test targets listed by the application
 must grant it visibility.
 
 Production-source changes in an aggregated module hot-reload the application
 and can rerun its affected tests. Module test-source changes rebuild and rerun
 continuous tests without changing application behavior. Creating or deleting a
-Java file under an existing declared `glob()` is picked up in the same way.
+source, resource, or code-generation input file under an existing declared
+`glob()` is picked up in the same way.
 Adding a new source declaration, dependency, selector, or other BUILD metadata
 still requires restarting dev mode.
 
@@ -285,7 +294,8 @@ output trees; undeclared workspace files are never copied by Quarkus. Bazel's
 
 The referenced targets' `build_properties`, `jvm_flags`, `test_classes`, and
 `test_packages` are retained. Class and package selectors are combined as a
-union; packaged `*IT` tests remain excluded. Dev mode and continuous tests share
+union (see above for mixing selective and unselective targets); packaged `*IT`
+tests remain excluded. Dev mode and continuous tests share
 one child JVM. A configured `quarkus.test.include-pattern` further restricts
 that selection. Test JVM flags and system properties also affect the running
 dev application. Conflicting app/test or test/test `build_properties` values
@@ -304,8 +314,8 @@ assembles one TEST-mode application model from their union. The dev launcher:
 2. populates mutable main and `test-classes` output trees, including test-only
    helper modules, without exposing workspace source/resource paths to Quarkus;
 3. watches declared main and test Java sources, test resources, and both main and
-   test code-generation inputs. It also watches candidate Java source roots so
-   newly created files can cause Bazel to re-evaluate `glob()` expressions;
+   test code-generation inputs. It also watches candidate roots so newly
+   created files can cause Bazel to re-evaluate `glob()` expressions;
    Bazel still decides which files belong to `srcs`. The watcher rebuilds
    `<name>_dev` and syncs the resulting class/resource trees without rewriting
    unchanged files;
@@ -327,11 +337,15 @@ The model aspect exports the exact declared source/resource files and the BUILD
 files for the local target graph. Its target fragments also carry Bazel's
 `testonly` flag so custom-layout test helpers do not compete with the application
 root during TEST-model assembly. Bazel exposes the files produced by a `glob`,
-not the glob expression itself. The watcher therefore discovers candidate Java
-files under conventional `src/main/java` and `src/test/java` roots inferred from
-declared inputs (or their parent directory for a nonstandard layout). Candidate
-events may cause a Bazel rebuild, but only files selected by the current `srcs`
-are compiled and synchronized. Non-Java inputs remain exact-file watches.
+not the glob expression itself. The watcher therefore infers a candidate root
+for each declared input: its `src/main/<dir>` or `src/test/<dir>` directory
+(`src/main/java`, `src/test/resources`, `src/main/proto`, ...), or its parent
+directory for a nonstandard layout. A new file below that root with the same
+extension as a declared input there causes a Bazel rebuild, but only files
+selected by the current `srcs`/`resources`/`codegen_srcs` are compiled, packaged,
+and synchronized. A new matching file that no glob selects still costs one
+(cached) Bazel build and a test rerun. Editor scratch files are ignored. The same
+discovery applies in ordinary dev mode to declared code-generation inputs.
 
 Changing a watched BUILD file emits a restart warning so Bazel can re-analyze
 declarations and regenerate the application models. Changes to the dependency

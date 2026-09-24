@@ -2,7 +2,7 @@
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load(":quarkus_dev_impl.bzl", "continuous_build_properties_for_test", "continuous_test_application_error_for_test")
-load(":quarkus_test_impl.bzl", "build_property_jvm_flags_for_test", "build_test_args_for_test", "integration_version_error_for_test", "quarkus_jacoco_present_for_test", "test_resources_without_sources_error")
+load(":quarkus_test_impl.bzl", "build_property_jvm_flags_for_test", "build_test_args_for_test", "continuous_selection_error", "integration_version_error_for_test", "quarkus_jacoco_present_for_test", "test_resources_without_sources_error")
 
 def _continuous_configuration_test_impl(ctx):
     env = unittest.begin(ctx)
@@ -44,6 +44,18 @@ def _continuous_application_test_impl(ctx):
     return unittest.end(env)
 
 continuous_application_test = unittest.make(_continuous_application_test_impl)
+
+def _continuous_selection_test_impl(ctx):
+    env = unittest.begin(ctx)
+    asserts.equals(env, "", continuous_selection_error(["//:a", "//m:b"], [0, 0]))
+    asserts.equals(env, "", continuous_selection_error(["//:a", "//m:b"], [2, 1]))
+    mixed = continuous_selection_error(["//:a", "//m:b"], [2, 0])
+    asserts.true(env, "//m:b" in mixed)
+    asserts.false(env, "//:a" in mixed)
+    asserts.true(env, "single test selection" in mixed)
+    return unittest.end(env)
+
+continuous_selection_test = unittest.make(_continuous_selection_test_impl)
 
 def _test_resources_validation_test_impl(ctx):
     env = unittest.begin(ctx)
@@ -138,6 +150,7 @@ def quarkus_test_impl_test_suite(name = "quarkus_test_impl_tests"):
         build_property_jvm_flags_test,
         continuous_application_test,
         continuous_configuration_test,
+        continuous_selection_test,
         integration_test_args_test,
         integration_version_test,
         quarkus_jacoco_present_test,

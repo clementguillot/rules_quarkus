@@ -24,8 +24,17 @@ java_library(
     ],
 )
 
+# Its own package, selected independently from the application test's selectors.
 quarkus_test(
     name = "test",
+    test_packages = ["submodule"],
+    deps = [":tests"],
+    visibility = ["//visibility:public"],
+)
+
+# No selectors: aggregating it with a selective target must fail analysis.
+quarkus_test(
+    name = "unselected_test",
     deps = [":tests"],
     visibility = ["//visibility:public"],
 )

@@ -115,7 +115,7 @@ def prepare(workspace):
             f'{resource_attributes}'
             'visibility=["//visibility:public"])\n')
     submodule = workspace / "submodule"
-    submodule_test_source = submodule / "src/test/java/selected/SubmoduleTest.java"
+    submodule_test_source = submodule / "src/test/java/submodule/SubmoduleTest.java"
     submodule_test_source.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(fixture / "SubmoduleService.java", submodule / "SubmoduleService.java")
     shutil.copyfile(fixture / "SubmoduleTest.java", submodule_test_source)
@@ -124,12 +124,18 @@ def prepare(workspace):
     unrelated.mkdir(exist_ok=True)
     (unrelated / "BUILD.bazel").write_text('exports_files(["ignored.txt"])\n')
     (unrelated / "ignored.txt").write_text("ignored-v1")
-    invalid_dev = workspace / "invalid_dev"
-    invalid_dev.mkdir(exist_ok=True)
-    (invalid_dev / "BUILD.bazel").write_text(
-        'load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app")\n'
-        'quarkus_app(name="app", dev=False, continuous_test="//:test")\n'
-    )
+    for package, arguments in {
+        "invalid_dev": 'dev=False, continuous_test="//:test"',
+        "invalid_selection": (
+            'deps=["//submodule:lib"], '
+            'continuous_test=["//submodule:test", "//submodule:unselected_test"]'
+        ),
+    }.items():
+        (workspace / package).mkdir(exist_ok=True)
+        (workspace / package / "BUILD.bazel").write_text(
+            'load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app")\n'
+            f'quarkus_app(name="app", {arguments})\n'
+        )
     (workspace / "tests").mkdir(exist_ok=True)
     for name in ("FlatTest", "SelectedTest", "ExcludedTest"):
         shutil.copyfile(fixture / f"{name}.java", workspace / "tests" / f"{name}.java")
@@ -180,6 +186,18 @@ def request(port, path):
         return error.code, error.read().decode()
 
 
+def resource_source(package, path, value):
+    return (
+        f"package {package};\n"
+        "import jakarta.ws.rs.GET;\n"
+        "import jakarta.ws.rs.Path;\n"
+        f'@Path("/{path}")\n'
+        f"public class {package.capitalize()}Resource {{\n"
+        f'  @GET public String value() {{ return "{value}"; }}\n'
+        "}\n"
+    )
+
+
 def certify_hot_reload_topology(workspace, bazel, environment, log_path):
     command = [bazel, "run", "//:hot_reload_app_dev"]
     with log_path.open("w") as log:
@@ -196,15 +214,11 @@ def certify_hot_reload_topology(workspace, bazel, environment, log_path):
             assert request(port, "/dynamic")[0] == 404
             dynamic_source = workspace / "src/main/java/dynamic/DynamicResource.java"
             dynamic_source.parent.mkdir()
-            dynamic_source.write_text(
-                "package dynamic;\n"
-                "import jakarta.ws.rs.GET;\n"
-                "import jakarta.ws.rs.Path;\n"
-                '@Path("/dynamic")\n'
-                "public class DynamicResource {\n"
-                '  @GET public String value() { return "created"; }\n'
-                "}\n"
-            )
+            dynamic_source.write_text(resource_source("dynamic", "dynamic", "created"))
+            eventually(lambda: request(port, "/dynamic") == (200, "created"))
+            dynamic_source.write_text(dynamic_source.read_text().replace('"created"', '"updated"'))
+            eventually(lambda: request(port, "/dynamic") == (200, "updated"))
+            dynamic_source.write_text(dynamic_source.read_text().replace('"updated"', '"created"'))
             eventually(lambda: request(port, "/dynamic") == (200, "created"))
 
             # Delete the original class first, leaving DynamicResource as the sole application
@@ -234,7 +248,7 @@ def certify_hot_reload_topology(workspace, bazel, environment, log_path):
                 and log_path.read_text().count("Restarting quarkus due to changes") > restarts
             )
             print(
-                "PASS: ordinary hot reload observes first/last Bazel class creation and deletion",
+                "PASS: ordinary hot reload observes edits and first/last Bazel class creation and deletion",
                 flush=True,
             )
         except Exception as error:
@@ -257,6 +271,9 @@ def certify(workspace, log_path):
         environment["TMPDIR"] = runtime
         hot_reload_log = log_path.with_name("ordinary-hot-reload.log")
         certify_hot_reload_topology(workspace, bazel, environment, hot_reload_log)
+        probe_source = workspace / "src/main/java/probe/ProbeResource.java"
+        probe_source.parent.mkdir(parents=True, exist_ok=True)
+        probe_source.write_text(resource_source("probe", "probe", "declared"))
         process = subprocess.Popen(command, cwd=workspace, env=environment, stdout=log,
                                    stderr=subprocess.STDOUT, stdin=subprocess.PIPE, start_new_session=True)
         try:
@@ -272,20 +289,24 @@ def certify(workspace, log_path):
             subprocess.run([bazel, "test", "//submodule:test", "--test_output=errors"],
                            cwd=workspace, env=environment, stdout=log,
                            stderr=subprocess.STDOUT, check=True, timeout=600)
-            invalid_dev = subprocess.run(
-                [bazel, "build", "//invalid_dev:app"],
-                cwd=workspace,
-                env=environment,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=600,
-                check=False,
-            )
-            log.write("\nExpected invalid-dev analysis output:\n" + invalid_dev.stdout)
-            log.flush()
-            assert invalid_dev.returncode != 0, "dev=False unexpectedly accepted continuous_test"
-            assert "continuous_test requires the dev target" in invalid_dev.stdout, invalid_dev.stdout
+            for target, message in [
+                ("//invalid_dev:app", "continuous_test requires the dev target"),
+                ("//invalid_selection:app_dev", "one dev session applies a single test selection"),
+            ]:
+                invalid = subprocess.run(
+                    [bazel, "build", target],
+                    cwd=workspace,
+                    env=environment,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    timeout=600,
+                    check=False,
+                )
+                log.write(f"\nExpected {target} analysis failure:\n" + invalid.stdout)
+                log.flush()
+                assert invalid.returncode != 0, f"{target} unexpectedly built"
+                assert message in invalid.stdout, invalid.stdout
 
             def send_console(key):
                 assert process.stdin is not None
@@ -372,27 +393,26 @@ def certify(workspace, log_path):
             )
             edit_and_wait("submodule/SubmoduleService.java", "module-v2", "module-v1", 0)
             edit_and_wait(
-                "submodule/src/test/java/selected/SubmoduleTest.java",
+                "submodule/src/test/java/submodule/SubmoduleTest.java",
                 'assertEquals("module-v1", service.value())',
                 'assertEquals("deliberate-failure", service.value())',
                 1,
                 "SubmoduleTest",
             )
             edit_and_wait(
-                "submodule/src/test/java/selected/SubmoduleTest.java",
+                "submodule/src/test/java/submodule/SubmoduleTest.java",
                 'assertEquals("deliberate-failure", service.value())',
                 'assertEquals("module-v1", service.value())',
                 0,
             )
 
-            added_test = workspace / "submodule/src/test/java/selected/AddedSubmoduleTest.java"
+            added_test = workspace / "submodule/src/test/java/submodule/AddedSubmoduleTest.java"
             added_test.write_text(
-                "package selected;\n"
+                "package submodule;\n"
                 "import static org.junit.jupiter.api.Assertions.assertNotNull;\n"
                 "import io.quarkus.test.junit.QuarkusTest;\n"
                 "import jakarta.inject.Inject;\n"
                 "import org.junit.jupiter.api.Test;\n"
-                "import submodule.SubmoduleService;\n"
                 "@QuarkusTest class AddedSubmoduleTest {\n"
                 "  @Inject SubmoduleService service;\n"
                 "  @Test void serviceIsInjected() { assertNotNull(service); }\n"
@@ -400,10 +420,38 @@ def certify(workspace, log_path):
             )
             status = eventually(lambda: completed(status["lastRun"], 0, expected_tests + 1))
             assert "AddedSubmoduleTest" in json.dumps(ui.call("getResults"))
+            # Delete and restore a declared test while the added one keeps the glob non-empty.
+            submodule_test = workspace / "submodule/src/test/java/submodule/SubmoduleTest.java"
+            submodule_test_contents = submodule_test.read_text()
+            submodule_test.unlink()
+            status = eventually(lambda: completed(status["lastRun"], 0, expected_tests))
+            submodule_test.write_text(submodule_test_contents)
+            status = eventually(lambda: completed(status["lastRun"], 0, expected_tests + 1))
             added_test.unlink()
             status = eventually(lambda: completed(status["lastRun"], 0, expected_tests))
             assert "AddedSubmoduleTest" not in json.dumps(ui.call("getResults"))
-            print("PASS: submodule test creation/removal updates Dev UI results", flush=True)
+            print("PASS: submodule test creation, declared deletion/restore and removal", flush=True)
+
+            # Deleting and restoring declared sources, and creating/removing an application
+            # source, must reach both the running application and the continuous-test results.
+            def change_and_wait(change, passed, path=None, response=None):
+                nonlocal status
+                previous = status["lastRun"]
+                change()
+                status = eventually(lambda: completed(previous, 0, passed))
+                if path is not None:
+                    eventually(lambda: request(port, path)[0] == response)
+
+            port = ui.port
+            probe_contents = probe_source.read_text()
+            change_and_wait(probe_source.unlink, expected_tests, "/probe", 404)
+            change_and_wait(lambda: probe_source.write_text(probe_contents), expected_tests, "/probe", 200)
+            dynamic_source = workspace / "src/main/java/dynamic/DynamicResource.java"
+            dynamic_source.parent.mkdir(exist_ok=True)
+            change_and_wait(lambda: dynamic_source.write_text(resource_source("dynamic", "dynamic", "created")),
+                            expected_tests, "/dynamic", 200)
+            change_and_wait(dynamic_source.unlink, expected_tests, "/dynamic", 404)
+            print("PASS: declared/new application source deletion and creation", flush=True)
 
             # Parent directories are registered because WatchService cannot watch individual
             # files, but an undeclared sibling must not trigger a Bazel rebuild.
@@ -414,14 +462,22 @@ def certify(workspace, log_path):
             assert ui.call("getStatus")["lastRun"] == previous, "nested package edit triggered a rebuild"
             print("PASS: declared .tmp resource wins; undeclared sibling is ignored", flush=True)
 
-            # Non-Java inputs remain exact-file watches; a new glob match is not part of this
-            # session's declared input set until dev mode is restarted.
+            # A new file matching a non-Java glob is discovered like a new Java source: Bazel
+            # re-evaluates the glob, packages the resource, and the sync publishes or removes it.
+            new_glob_match = workspace / "helper/late-data/glob-added.txt"
+
+            def synced_run(previous, present):
+                run = completed(previous, 0)
+                synced = any(Path(runtime).glob("quarkus_continuous_test_*/test-classes/glob-added.txt"))
+                return run if synced == present else None
+
             previous = status["lastRun"]
-            new_glob_match = workspace / "helper/late-data/glob-not-an-input-yet.txt"
-            new_glob_match.write_text("requires-reanalysis")
-            time.sleep(5)
-            assert ui.call("getStatus")["lastRun"] == previous, "new glob match triggered a stale-model run"
+            new_glob_match.write_text("discovered")
+            status = eventually(lambda: synced_run(previous, True))
+            previous = status["lastRun"]
             new_glob_match.unlink()
+            status = eventually(lambda: synced_run(previous, False))
+            print("PASS: a new non-Java glob match is packaged and removed", flush=True)
 
             # A source edit rejected by Bazel must never be independently compiled by Quarkus.
             source.write_text(original + "\nnot valid java\n")

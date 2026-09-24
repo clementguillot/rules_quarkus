@@ -71,67 +71,32 @@ public final class ClassSyncer {
   }
 
   /**
-   * Initial population: extract/copy all {@code .class} files from bazel-bin output paths to {@code
-   * classesDir} preserving package directory structure.
+   * Synchronizes {@code .class} files from bazel-bin output paths into {@code classesDir}: copies
+   * changed classes, then deletes classes the latest build output no longer contains. On an empty
+   * directory this is the initial population.
    *
    * <p>Each output path can be either a directory (walked recursively) or a jar file (entries
    * extracted).
    *
    * @param classesOutputPaths bazel-bin output paths (directories or jar files)
    * @param classesDir mutable target directory
+   * @param preserveStaleClasses keep classes missing from the build output, so that Quarkus can
+   *     associate them with a deleted source and remove them itself
    * @throws IOException if a file operation fails
    */
-  public static void populateClassesDir(List<Path> classesOutputPaths, Path classesDir)
-      throws IOException {
-    populateOutputs(classesOutputPaths, classesDir, false);
-  }
-
-  /**
-   * Populates a mutable output tree with compiled classes <em>and</em> their packaged resources.
-   *
-   * <p>Used for both the application and the test tree under continuous testing: Quarkus is
-   * configured with no workspace resource paths there, so Bazel is the only writer of resources.
-   */
-  public static void populateClassesAndResources(List<Path> outputPaths, Path outputDir)
-      throws IOException {
-    populateOutputs(outputPaths, outputDir, true);
-  }
-
-  private static void populateOutputs(
-      List<Path> outputPaths, Path classesDir, boolean includeResources) throws IOException {
-    copyOutputs(outputPaths, classesDir, includeResources);
-  }
-
-  /**
-   * Incremental sync: extract/copy {@code .class} files from bazel-bin output paths, track synced
-   * relative paths, then walk {@code classesDir} and delete stale {@code .class} files not in the
-   * synced set.
-   *
-   * @param classesOutputPaths bazel-bin output paths (directories or jar files)
-   * @param classesDir mutable target directory
-   * @throws IOException if a file operation fails
-   */
-  public static void syncClasses(List<Path> classesOutputPaths, Path classesDir)
-      throws IOException {
-    syncClasses(classesOutputPaths, classesDir, false);
-  }
-
-  static void syncClasses(
+  public static void syncClasses(
       List<Path> classesOutputPaths, Path classesDir, boolean preserveStaleClasses)
       throws IOException {
     syncOutputs(classesOutputPaths, classesDir, false, preserveStaleClasses);
   }
 
   /**
-   * Synchronizes compiled classes and their packaged resources, deleting anything the latest build
-   * output no longer contains. The counterpart of {@link #populateClassesAndResources}.
+   * Like {@link #syncClasses}, but also synchronizes packaged resources.
+   *
+   * <p>Used for both the application and the test tree under continuous testing: Quarkus is
+   * configured with no workspace resource paths there, so Bazel is the only writer of resources.
    */
-  public static void syncClassesAndResources(List<Path> outputPaths, Path outputDir)
-      throws IOException {
-    syncClassesAndResources(outputPaths, outputDir, false);
-  }
-
-  static void syncClassesAndResources(
+  public static void syncClassesAndResources(
       List<Path> outputPaths, Path outputDir, boolean preserveStaleClasses) throws IOException {
     syncOutputs(outputPaths, outputDir, true, preserveStaleClasses);
   }

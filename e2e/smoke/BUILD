@@ -1,7 +1,6 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@com_clementguillot_rules_quarkus//quarkus:defs.bzl", "quarkus_native_app_rule")
 load("@rules_java//java:java_library.bzl", "java_library")
-load("@rules_java//java:java_test.bzl", "java_test")
 load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_integration_test", "quarkus_java_library", "quarkus_test")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load(":assert_junit_xml.bzl", "assert_junit_xml_test")
@@ -559,29 +558,8 @@ sh_test(
     ],
 )
 
-# Test-first source topology regression. The fixture declarations are Starlark;
-# a small JDK-only driver edits a disposable workspace while Quarkus is running.
-java_test(
-    name = "source_events_test",
-    size = "enormous",
-    srcs = ["SourceEventsTest.java"],
-    data = [
-        ".bazelrc",
-        "MODULE.bazel",
-        "maven_install.json",
-    ] + glob(["source_events/**"]),
-    env_inherit = ["PATH"],
-    main_class = "SourceEventsTest",
-    tags = [
-        "exclusive",
-        "external",
-        "no-remote",
-        "no-sandbox",
-    ],
-    use_testrunner = False,
-)
-
 # --- fail_if_no_tests smoke tests (issue #125) ---
+#
 # EmptyTest.java is a @QuarkusTest with zero @Test methods.
 java_library(
     name = "empty_test_lib",

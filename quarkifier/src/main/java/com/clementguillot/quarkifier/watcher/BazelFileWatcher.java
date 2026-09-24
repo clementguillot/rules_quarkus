@@ -130,21 +130,13 @@ public final class BazelFileWatcher implements Closeable {
       // Step 1: Populate initial classes FIRST (can take time, must complete before watching)
       LOGGER.debug("[hot-reload] Populating initial classes...");
       Files.createDirectories(config.reloadNotificationDir());
-      if (config.testClassesDir() != null) {
-        ClassSyncer.populateClassesAndResources(
-            watcher.reloadableClassesOutputDirs, config.classesDir());
-        ClassSyncer.populateClassesAndResources(
-            watcher.reloadableTestClassesOutputDirs, config.testClassesDir());
-      } else {
-        ClassSyncer.populateClassesDir(watcher.reloadableClassesOutputDirs, config.classesDir());
-      }
+      watcher.syncOutputs(false);
       LOGGER.debug("[hot-reload] Initial classes populated");
 
-      // Continuous testing also watches candidate Java source roots to discover files added to
-      // Bazel globs. Bazel remains responsible for deciding whether a candidate is a real input.
+      // Ordinary dev mode's Java source roots, plus candidate roots that reveal files added to
+      // Bazel globs. Quarkus watches resource roots itself; Bazel decides what is an input.
       watcher.registerWatchers(config.sourceDirs());
-      watcher.registerWatchers(config.resources());
-      watcher.registerWatchers(watcher.paths.candidateSourceDirs());
+      watcher.registerWatchers(watcher.paths.candidateRoots());
       watcher.registerExactWatchers(watcher.paths.exactWatchPaths());
       LOGGER.debug("[hot-reload] File watchers registered");
 
@@ -241,7 +233,7 @@ public final class BazelFileWatcher implements Closeable {
         continue;
       }
       if (paths.isExactInput(changed)) {
-        if (paths.isNonJavaInput(changed) || kind != StandardWatchEventKinds.ENTRY_MODIFY) {
+        if (WatchedPaths.isNonJavaInput(changed) || kind != StandardWatchEventKinds.ENTRY_MODIFY) {
           fullReloadNeeded.set(true);
         }
         if (kind == StandardWatchEventKinds.ENTRY_DELETE && changed.toString().endsWith(".java")) {
@@ -282,9 +274,9 @@ public final class BazelFileWatcher implements Closeable {
         }
       }
 
-      if ((paths.isDirectoryInput(changed) || paths.isCandidateSource(changed))
+      if ((paths.isDirectoryInput(changed) || paths.isCandidateInput(changed))
           && !paths.isIncidentalScratchFile(changed)) {
-        if (paths.isNonJavaInput(changed) || kind != StandardWatchEventKinds.ENTRY_MODIFY) {
+        if (WatchedPaths.isNonJavaInput(changed) || kind != StandardWatchEventKinds.ENTRY_MODIFY) {
           fullReloadNeeded.set(true);
         }
         if (kind == StandardWatchEventKinds.ENTRY_DELETE && changed.toString().endsWith(".java")) {
@@ -298,6 +290,7 @@ public final class BazelFileWatcher implements Closeable {
   }
 
   /** Warns once when watch metadata can no longer be updated safely in the running session. */
+  @SuppressWarnings("PMD.SystemPrintln") // must survive Quarkus replacing the log handlers
   private void warnRestartRequired(Path changed) {
     if (buildFileChangeWarned.compareAndSet(false, true)) {
       String warning =
@@ -504,28 +497,13 @@ public final class BazelFileWatcher implements Closeable {
    */
   boolean syncClasses(boolean forceReload, boolean preserveStaleClasses) {
     try {
-      if (config.testClassesDir() != null) {
-        ClassSyncer.syncClassesAndResources(
-            reloadableClassesOutputDirs, config.classesDir(), preserveStaleClasses);
-        ClassSyncer.syncClassesAndResources(
-            reloadableTestClassesOutputDirs, config.testClassesDir(), preserveStaleClasses);
-        if (forceReload) {
-          int applicationChanged = ClassSyncer.markClassesChanged(config.classesDir());
-          int testChanged = ClassSyncer.markClassesChanged(config.testClassesDir());
-          LOGGER.debugf(
-              "[hot-reload] Marked %d application and %d test classes changed after structural"
-                  + " rebuild",
-              applicationChanged, testChanged);
+      syncOutputs(preserveStaleClasses);
+      if (forceReload) {
+        int changed = ClassSyncer.markClassesChanged(config.classesDir());
+        if (config.testClassesDir() != null) {
+          changed += ClassSyncer.markClassesChanged(config.testClassesDir());
         }
-      } else {
-        ClassSyncer.syncClasses(
-            reloadableClassesOutputDirs, config.classesDir(), preserveStaleClasses);
-        if (forceReload) {
-          int changed = ClassSyncer.markClassesChanged(config.classesDir());
-          LOGGER.debugf(
-              "[hot-reload] Marked %d application classes changed after structural rebuild",
-              changed);
-        }
+        LOGGER.debugf("[hot-reload] Marked %d classes changed after structural rebuild", changed);
       }
       // The notification contains no compilable source or application resource. It is published
       // only after every mutable output is ready, making class creation and deletion observable to
@@ -540,6 +518,22 @@ public final class BazelFileWatcher implements Closeable {
       LOGGER.errorf("[hot-reload] Failed to sync classes: %s", e.getMessage());
       return false;
     }
+  }
+
+  /**
+   * Mirrors the Bazel outputs into the mutable trees. Under continuous testing Quarkus has no
+   * workspace resource paths, so packaged resources are synchronized too.
+   */
+  private void syncOutputs(boolean preserveStaleClasses) throws IOException {
+    if (config.testClassesDir() == null) {
+      ClassSyncer.syncClasses(
+          reloadableClassesOutputDirs, config.classesDir(), preserveStaleClasses);
+      return;
+    }
+    ClassSyncer.syncClassesAndResources(
+        reloadableClassesOutputDirs, config.classesDir(), preserveStaleClasses);
+    ClassSyncer.syncClassesAndResources(
+        reloadableTestClassesOutputDirs, config.testClassesDir(), preserveStaleClasses);
   }
 
   /** Closes the {@link WatchService} and shuts down the {@link ScheduledExecutorService}. */

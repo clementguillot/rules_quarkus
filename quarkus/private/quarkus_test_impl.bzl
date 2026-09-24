@@ -145,6 +145,27 @@ def _merge_continuous_properties(targets, infos):
             owners[key] = targets[index].label
     return properties
 
+def continuous_selection_error(labels, selector_counts):
+    """Returns an error when only some aggregated targets narrow their test selection.
+
+    Quarkus applies one include-pattern to the shared dev/test JVM. A target without
+    selectors runs every test in its jars, which a class-name pattern cannot express
+    next to another target's selectors.
+
+    Args:
+      labels: Labels of the aggregated quarkus_test targets.
+      selector_counts: Number of test_classes plus test_packages for each target.
+
+    Returns:
+      An actionable error message, or an empty string.
+    """
+    unselected = [str(labels[i]) for i in range(len(labels)) if not selector_counts[i]]
+    if not unselected or len(unselected) == len(labels):
+        return ""
+    return ("continuous_test: {} declare no test_classes/test_packages while other targets do; " +
+            "one dev session applies a single test selection, so add selectors to these targets " +
+            "or remove them from the others").format(unselected)
+
 def _merge_continuous_mappings(infos, field, key_field, value_field, label):
     result = []
     seen = {}
@@ -164,6 +185,12 @@ def _continuous_test_aggregate_impl(ctx):
         fail("continuous test aggregation requires at least two quarkus_test targets")
 
     infos = [target[QuarkusContinuousTestInfo] for target in ctx.attr.tests]
+    selection_error = continuous_selection_error(
+        [target.label for target in ctx.attr.tests],
+        [len(info.test_classes) + len(info.test_packages) for info in infos],
+    )
+    if selection_error:
+        fail(selection_error)
     application_root_ids = collect_model_root_ids(ctx.attr.application_deps)
     if not application_root_ids:
         fail("continuous test aggregation requires at least one application dependency")
@@ -232,7 +259,8 @@ def _continuous_test_aggregate_impl(ctx):
             deployment_model_artifacts = deployment_model_artifacts,
             deployment_model_fragments = deployment_model_fragments,
             input_files = depset(transitive = [info.input_files for info in infos]),
-            jvm_flags = _ordered_unique_strings([info.jvm_flags for info in infos]),
+            # Concatenate rather than de-duplicate: flags such as --add-opens take a separate value.
+            jvm_flags = [flag for info in infos for flag in info.jvm_flags],
             local_deployments = local_deployments,
             local_runtime_aliases = local_runtime_aliases,
             model_artifacts = model_artifacts,

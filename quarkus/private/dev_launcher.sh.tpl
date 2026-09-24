@@ -73,7 +73,6 @@ if [ -f "$CLASSES_OUTPUT_DIRS_FILE" ]; then
     CLASSES_OUTPUT_DIRS=$(cat "$CLASSES_OUTPUT_DIRS_FILE")
 fi
 
-CODEGEN_INPUT_FILES_FILE="${RUNFILES_DIR}/%{workspace}/%{codegen_input_files_file}"
 WATCHED_INPUTS_FILE="${RUNFILES_DIR}/%{workspace}/%{watched_inputs_file}"
 WATCHED_BUILD_FILES_FILE="${RUNFILES_DIR}/%{workspace}/%{watched_build_files_file}"
 
@@ -110,7 +109,6 @@ case "$MODEL_REAL" in
 esac
 HOT_RELOAD_ARGS=()
 RESOURCES_VALUE=""
-CODEGEN_INPUT_ARGS=()
 WATCHED_INPUT_ARGS=()
 WATCHED_BUILD_FILE_ARGS=()
 
@@ -137,14 +135,6 @@ if [ -n "$RESOURCE_DIRS" ]; then
     fi
 fi
 
-if [ -f "$CODEGEN_INPUT_FILES_FILE" ]; then
-    while IFS= read -r input; do
-        if [ -n "$input" ]; then
-            CODEGEN_INPUT_ARGS+=("--codegen-input-file" "${WORKSPACE_ROOT}/${input}")
-        fi
-    done < "$CODEGEN_INPUT_FILES_FILE"
-fi
-
 if [ -f "$WATCHED_INPUTS_FILE" ]; then
     while IFS= read -r input; do
         if [ -n "$input" ]; then
@@ -161,7 +151,7 @@ if [ -f "$WATCHED_BUILD_FILES_FILE" ]; then
     done < "$WATCHED_BUILD_FILES_FILE"
 fi
 
-if [ -n "$BAZEL_TARGETS" ] && { [ -n "$TEST_MODEL_FILE" ] || [ -n "$SOURCE_DIRS" ] || [ "${#CODEGEN_INPUT_ARGS[@]}" -gt 0 ]; }; then
+if [ -n "$BAZEL_TARGETS" ] && { [ -n "$TEST_MODEL_FILE" ] || [ -n "$SOURCE_DIRS" ] || [ "${#WATCHED_INPUT_ARGS[@]}" -gt 0 ]; }; then
     CLASSES_DIR=$(mktemp -d "${TMPDIR:-/tmp}/quarkus_hotreload_classes_XXXXXX")
     if [ -n "$TEST_MODEL_FILE" ]; then
         # Quarkus' test framework recognizes conventional build-tool output
@@ -223,9 +213,9 @@ if [ -n "$BAZEL_TARGETS" ] && { [ -n "$TEST_MODEL_FILE" ] || [ -n "$SOURCE_DIRS"
     if [ -n "$ABS_TEST_CLASSES_OUTPUT_DIRS" ]; then
         HOT_RELOAD_ARGS+=("--test-classes-output-dirs" "$ABS_TEST_CLASSES_OUTPUT_DIRS")
     fi
-    HOT_RELOAD_ARGS+=("${CODEGEN_INPUT_ARGS[@]}")
-    HOT_RELOAD_ARGS+=("${WATCHED_INPUT_ARGS[@]}")
-    HOT_RELOAD_ARGS+=("${WATCHED_BUILD_FILE_ARGS[@]}")
+    # The ${arr[@]+...} form keeps empty arrays safe under `set -u` on bash 3.2 (macOS).
+    HOT_RELOAD_ARGS+=(${WATCHED_INPUT_ARGS[@]+"${WATCHED_INPUT_ARGS[@]}"})
+    HOT_RELOAD_ARGS+=(${WATCHED_BUILD_FILE_ARGS[@]+"${WATCHED_BUILD_FILE_ARGS[@]}"})
     for flag in ${TEST_JVM_FLAGS[@]+"${TEST_JVM_FLAGS[@]}"}; do
         HOT_RELOAD_ARGS+=("--test-jvm-arg=$flag")
     done

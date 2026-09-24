@@ -214,7 +214,7 @@ class BazelFileWatcherTest {
             javaInput.toString(),
             "--watched-input",
             resourceInput.toString(),
-            "--codegen-input-file",
+            "--watched-input",
             codegenInput.toString(),
             "--watched-build-file",
             buildFile.toString());
@@ -224,19 +224,49 @@ class BazelFileWatcherTest {
     assertTrue(paths.isExactInput(resourceInput), "declared .tmp files must remain valid inputs");
     assertTrue(paths.isExactInput(codegenInput));
     assertFalse(paths.isExactInput(javaInput.resolveSibling("Undeclared.java")));
-    assertEquals(List.of(tempDir.resolve("src/main/java")), paths.candidateSourceDirs());
-    assertTrue(paths.isCandidateSource(javaInput.resolveSibling("Undeclared.java")));
-    assertTrue(paths.isCandidateSource(tempDir.resolve("src/main/java/newpkg/Added.java")));
-    assertFalse(paths.isCandidateSource(tempDir.resolve("src/other/java/Added.java")));
-    assertFalse(paths.isCandidateSource(resourceInput));
+    assertEquals(
+        List.of(
+            tempDir.resolve("src/main/java"),
+            tempDir.resolve("src/test/resources"),
+            tempDir.resolve("src/main/proto")),
+        paths.candidateRoots());
+    assertTrue(paths.isCandidateInput(javaInput.resolveSibling("Undeclared.java")));
+    assertTrue(paths.isCandidateInput(tempDir.resolve("src/main/java/newpkg/Added.java")));
+    assertTrue(paths.isCandidateInput(tempDir.resolve("src/main/proto/v2/added.proto")));
+    assertFalse(paths.isCandidateInput(tempDir.resolve("src/main/proto/notes.txt")));
+    assertFalse(paths.isCandidateInput(tempDir.resolve("src/other/java/Added.java")));
+    assertFalse(
+        paths.isCandidateInput(resourceInput.resolveSibling("scratch.tmp")),
+        "editor scratch files are never candidates");
     assertFalse(paths.isExactInput(resourceInput.resolveSibling("undeclared.txt")));
     assertTrue(paths.isBuildFile(buildFile));
     assertFalse(paths.isBuildFile(tempDir.resolve("other/BUILD.bazel")));
     assertTrue(paths.isExactWatchAncestor(javaInput.getParent()));
     assertFalse(paths.isExactWatchAncestor(tempDir.resolve("unrelated")));
-    assertFalse(paths.isNonJavaInput(javaInput));
-    assertTrue(paths.isNonJavaInput(resourceInput));
-    assertTrue(paths.isNonJavaInput(codegenInput));
+    assertTrue(paths.isSourceDirectoryWatchPath(tempDir.resolve("src/main/java/pkg")));
+    assertFalse(paths.isSourceDirectoryWatchPath(tempDir.resolve("src/main/proto/v1")));
+    assertFalse(WatchedPaths.isNonJavaInput(javaInput));
+    assertTrue(WatchedPaths.isNonJavaInput(resourceInput));
+    assertTrue(WatchedPaths.isNonJavaInput(codegenInput));
+  }
+
+  @Test
+  void ordinaryModeDiscoversGlobCandidatesButLeavesResourcesToQuarkus() {
+    Path codegenInput = tempDir.resolve("pkg/src/main/proto/schema.proto");
+    var config =
+        testConfig(
+            tempDir.resolve("output"),
+            List.of(),
+            "--resources",
+            tempDir.resolve("pkg/src/main/resources").toString(),
+            "--watched-input",
+            codegenInput.toString());
+    var paths = new WatchedPaths(config);
+
+    assertEquals(List.of(tempDir.resolve("pkg/src/main/proto")), paths.candidateRoots());
+    assertTrue(paths.isCandidateInput(tempDir.resolve("pkg/src/main/proto/added.proto")));
+    assertFalse(paths.isDirectoryWatchPath(tempDir.resolve("pkg/src/main/resources/index.html")));
+    assertFalse(paths.isDirectoryInput(tempDir.resolve("pkg/src/main/resources/index.html")));
   }
 
   @Test

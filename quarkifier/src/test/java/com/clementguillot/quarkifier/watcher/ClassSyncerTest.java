@@ -15,7 +15,7 @@ class ClassSyncerTest {
   @TempDir Path tempDir;
 
   @Test
-  void populateClassesDir_copiesClassFilesWithCorrectStructure() throws IOException {
+  void initialSync_copiesClassFilesWithCorrectStructure() throws IOException {
     // Set up a fake bazel-bin output directory
     Path outputDir = tempDir.resolve("bazel-bin/pkg/lib");
     Path classFile = outputDir.resolve("com/example/Foo.class");
@@ -29,7 +29,7 @@ class ClassSyncerTest {
     Path classesDir = tempDir.resolve("classes");
     Files.createDirectories(classesDir);
 
-    ClassSyncer.populateClassesDir(List.of(outputDir), classesDir);
+    ClassSyncer.syncClasses(List.of(outputDir), classesDir, false);
 
     assertEquals(
         "fake-bytecode-foo", Files.readString(classesDir.resolve("com/example/Foo.class")));
@@ -38,7 +38,7 @@ class ClassSyncerTest {
   }
 
   @Test
-  void populateClassesDir_ignoresNonClassFiles() throws IOException {
+  void initialSync_ignoresNonClassFiles() throws IOException {
     Path outputDir = tempDir.resolve("bazel-bin/pkg/lib");
     Path classFile = outputDir.resolve("com/example/Foo.class");
     Files.createDirectories(classFile.getParent());
@@ -53,7 +53,7 @@ class ClassSyncerTest {
     Path classesDir = tempDir.resolve("classes");
     Files.createDirectories(classesDir);
 
-    ClassSyncer.populateClassesDir(List.of(outputDir), classesDir);
+    ClassSyncer.syncClasses(List.of(outputDir), classesDir, false);
 
     assertTrue(Files.exists(classesDir.resolve("com/example/Foo.class")));
     assertFalse(Files.exists(classesDir.resolve("com/example/Foo.java")));
@@ -61,13 +61,13 @@ class ClassSyncerTest {
   }
 
   @Test
-  void populateClassesDir_skipsNonExistentOutputDir() throws IOException {
+  void initialSync_skipsNonExistentOutputDir() throws IOException {
     Path nonExistent = tempDir.resolve("does-not-exist");
     Path classesDir = tempDir.resolve("classes");
     Files.createDirectories(classesDir);
 
     // Should not throw
-    ClassSyncer.populateClassesDir(List.of(nonExistent), classesDir);
+    ClassSyncer.syncClasses(List.of(nonExistent), classesDir, false);
 
     // classesDir should remain empty (no files copied)
     try (var stream = Files.walk(classesDir)) {
@@ -96,7 +96,7 @@ class ClassSyncerTest {
     Path outputNew = outputDir.resolve("com/example/New.class");
     Files.writeString(outputNew, "new-bytecode");
 
-    ClassSyncer.syncClasses(List.of(outputDir), classesDir);
+    ClassSyncer.syncClasses(List.of(outputDir), classesDir, false);
 
     // Foo.class should be updated
     assertEquals("updated-foo", Files.readString(classesDir.resolve("com/example/Foo.class")));
@@ -134,7 +134,7 @@ class ClassSyncerTest {
     Path outputDir = tempDir.resolve("bazel-bin/pkg/lib");
     Files.createDirectories(outputDir);
 
-    ClassSyncer.syncClasses(List.of(outputDir), classesDir);
+    ClassSyncer.syncClasses(List.of(outputDir), classesDir, false);
 
     // Stale file should be removed
     assertFalse(Files.exists(staleClass));
@@ -157,7 +157,7 @@ class ClassSyncerTest {
     Files.createDirectories(class2.getParent());
     Files.writeString(class2, "bytecode-b");
 
-    ClassSyncer.syncClasses(List.of(outputDir1, outputDir2), classesDir);
+    ClassSyncer.syncClasses(List.of(outputDir1, outputDir2), classesDir, false);
 
     assertEquals("bytecode-a", Files.readString(classesDir.resolve("com/example/A.class")));
     assertEquals("bytecode-b", Files.readString(classesDir.resolve("com/other/B.class")));
@@ -174,12 +174,12 @@ class ClassSyncerTest {
     }
     Path classesDir = Files.createDirectories(tempDir.resolve("classes"));
 
-    ClassSyncer.syncClasses(List.of(outputDir), classesDir);
+    ClassSyncer.syncClasses(List.of(outputDir), classesDir, false);
     java.util.Map<String, String> first = snapshot(classesDir);
     Path unchangedClass = classesDir.resolve("com/example/Foo.class");
     var sentinelTime = java.nio.file.attribute.FileTime.fromMillis(1_234_000);
     Files.setLastModifiedTime(unchangedClass, sentinelTime);
-    ClassSyncer.syncClasses(List.of(outputDir), classesDir);
+    ClassSyncer.syncClasses(List.of(outputDir), classesDir, false);
 
     assertEquals(3, first.size());
     assertEquals(first, snapshot(classesDir), "second sync must not change the directory");
@@ -195,11 +195,11 @@ class ClassSyncerTest {
     writeJar(jar, java.util.Map.of("org/acme/GreetingResourceTest.class", "bytecode"));
     Path classesDir = Files.createDirectories(tempDir.resolve("test-classes"));
 
-    ClassSyncer.syncClasses(List.of(jar), classesDir);
+    ClassSyncer.syncClasses(List.of(jar), classesDir, false);
     Path testClass = classesDir.resolve("org/acme/GreetingResourceTest.class");
     var sentinelTime = java.nio.file.attribute.FileTime.fromMillis(1_234_000);
     Files.setLastModifiedTime(testClass, sentinelTime);
-    ClassSyncer.syncClasses(List.of(jar), classesDir);
+    ClassSyncer.syncClasses(List.of(jar), classesDir, false);
 
     assertEquals(sentinelTime, Files.getLastModifiedTime(testClass));
   }
@@ -221,12 +221,12 @@ class ClassSyncerTest {
     }
     Path classesDir = Files.createDirectories(tempDir.resolve("test-classes"));
 
-    ClassSyncer.syncClasses(List.of(jar), classesDir);
+    ClassSyncer.syncClasses(List.of(jar), classesDir, false);
     Path testClass = classesDir.resolve("org/acme/BigTest.class");
     assertEquals(largeBytecode, Files.readString(testClass));
     var sentinelTime = java.nio.file.attribute.FileTime.fromMillis(1_234_000);
     Files.setLastModifiedTime(testClass, sentinelTime);
-    ClassSyncer.syncClasses(List.of(jar), classesDir);
+    ClassSyncer.syncClasses(List.of(jar), classesDir, false);
 
     assertEquals(
         sentinelTime,
@@ -240,12 +240,12 @@ class ClassSyncerTest {
     String largeBytecode = largeTestBytecode();
     writeJar(jar, java.util.Map.of("org/acme/BigTest.class", largeBytecode));
     Path classesDir = Files.createDirectories(tempDir.resolve("test-classes"));
-    ClassSyncer.syncClasses(List.of(jar), classesDir);
+    ClassSyncer.syncClasses(List.of(jar), classesDir, false);
 
     // Same length, different content: only a byte comparison can tell them apart.
     String updated = largeBytecode.substring(0, largeBytecode.length() - 1) + "Z";
     writeJar(jar, java.util.Map.of("org/acme/BigTest.class", updated));
-    ClassSyncer.syncClasses(List.of(jar), classesDir);
+    ClassSyncer.syncClasses(List.of(jar), classesDir, false);
 
     assertEquals(updated, Files.readString(classesDir.resolve("org/acme/BigTest.class")));
   }
@@ -262,7 +262,7 @@ class ClassSyncerTest {
             "META-INF/MANIFEST.MF", "Manifest-Version: 1.0"));
     Path classesDir = Files.createDirectories(tempDir.resolve("test-classes"));
 
-    ClassSyncer.populateClassesAndResources(List.of(jar), classesDir);
+    ClassSyncer.syncClassesAndResources(List.of(jar), classesDir, false);
 
     assertEquals(
         "bytecode", Files.readString(classesDir.resolve("org/acme/GreetingResourceTest.class")));
@@ -274,7 +274,7 @@ class ClassSyncerTest {
         java.util.Map.of(
             "org/acme/GreetingResourceTest.class", "bytecode",
             "continuous-test.txt", "resource-v2"));
-    ClassSyncer.syncClassesAndResources(List.of(jar), classesDir);
+    ClassSyncer.syncClassesAndResources(List.of(jar), classesDir, false);
 
     assertEquals("resource-v2", Files.readString(classesDir.resolve("continuous-test.txt")));
     assertFalse(Files.exists(classesDir.resolve("obsolete.txt")));
@@ -294,7 +294,7 @@ class ClassSyncerTest {
             "duplicate.txt", "second-resource", "org/acme/Duplicate.class", "second-class"));
     Path classesDir = Files.createDirectories(tempDir.resolve("classes"));
 
-    ClassSyncer.populateClassesAndResources(List.of(first, second), classesDir);
+    ClassSyncer.syncClassesAndResources(List.of(first, second), classesDir, false);
 
     Path resource = classesDir.resolve("duplicate.txt");
     Path duplicateClass = classesDir.resolve("org/acme/Duplicate.class");
@@ -310,7 +310,7 @@ class ClassSyncerTest {
         second,
         java.util.Map.of(
             "duplicate.txt", "changed-second", "org/acme/Duplicate.class", "changed-second"));
-    ClassSyncer.syncClassesAndResources(List.of(first, second), classesDir);
+    ClassSyncer.syncClassesAndResources(List.of(first, second), classesDir, false);
 
     assertEquals("first-resource", Files.readString(resource));
     assertEquals("first-class", Files.readString(duplicateClass));
@@ -333,14 +333,14 @@ class ClassSyncerTest {
             service, "com.example.Shared\n\ncom.example.Second\ncom.example.Second\n"));
     Path classesDir = Files.createDirectories(tempDir.resolve("classes"));
 
-    ClassSyncer.populateClassesAndResources(List.of(first, second), classesDir);
+    ClassSyncer.syncClassesAndResources(List.of(first, second), classesDir, false);
 
     Path merged = classesDir.resolve(service);
     assertEquals(
         "com.example.First\ncom.example.Shared\ncom.example.Second\n", Files.readString(merged));
     var sentinelTime = java.nio.file.attribute.FileTime.fromMillis(1_234_000);
     Files.setLastModifiedTime(merged, sentinelTime);
-    ClassSyncer.syncClassesAndResources(List.of(first, second), classesDir);
+    ClassSyncer.syncClassesAndResources(List.of(first, second), classesDir, false);
 
     assertEquals(
         sentinelTime,
@@ -350,7 +350,7 @@ class ClassSyncerTest {
     writeJar(
         second,
         java.util.Map.of(service, "com.example.Shared\ncom.example.Second\ncom.example.Third\n"));
-    ClassSyncer.syncClassesAndResources(List.of(first, second), classesDir);
+    ClassSyncer.syncClassesAndResources(List.of(first, second), classesDir, false);
     assertEquals(
         "com.example.First\ncom.example.Shared\ncom.example.Second\ncom.example.Third\n",
         Files.readString(merged));

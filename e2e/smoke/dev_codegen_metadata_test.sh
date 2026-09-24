@@ -4,7 +4,7 @@ set -euo pipefail
 runfiles_root="${TEST_SRCDIR}/${TEST_WORKSPACE}"
 targets_file=$(find "$runfiles_root" -name 'app_dev_bazel_targets.txt' -print -quit)
 input_files_file=$(find "$runfiles_root" -name 'app_dev_watched_inputs.txt' -print -quit)
-dependency_input_files_file=$(find "$runfiles_root" -name 'dependency_only_codegen_app_dev_codegen_input_files.txt' -print -quit)
+dependency_input_files_file=$(find "$runfiles_root" -name 'dependency_only_codegen_app_dev_watched_inputs.txt' -print -quit)
 
 if [[ -z "$targets_file" || -z "$input_files_file" || -z "$dependency_input_files_file" ]]; then
   echo "dev codegen metadata was not present in runfiles" >&2

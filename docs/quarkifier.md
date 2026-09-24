@@ -43,7 +43,6 @@ java -jar quarkifier_<minor>_deploy.jar \
   [--bazel-build-timeout-seconds <seconds>] \
   [--bazel-command <path>] \
   [--bazel-build-args <flag,flag,...>] \
-  [--codegen-input-file <path>]... \
   [--local-app-jars <jar:jar:...>] \
   [--local-app-jars-file <path>] \
   [--build-properties-file <path>] \
@@ -73,7 +72,7 @@ java -jar quarkifier_<minor>_deploy.jar \
 | `--test-application-model` | No | — | Explicit TEST-mode model for continuous testing in DEV mode |
 | `--test-classes-dir` | No | — | Mutable test output directory; enables output-only Quarkus scanning |
 | `--test-classes-output-dirs` | No | `[]` | Comma-separated compiled test/helper outputs to synchronize |
-| `--watched-input` | No | `[]` | Repeatable exact declared source, resource, or generator input watched during continuous testing |
+| `--watched-input` | No | `[]` | Repeatable exact declared input watched in dev mode: CodeGenProvider inputs, plus every source and resource input during continuous testing |
 | `--watched-build-file` | No | `[]` | Repeatable BUILD file watched to warn that the dev session must be restarted |
 | `--test-jvm-arg` | No | `[]` | Repeatable shared dev/test JVM flag; use `--test-jvm-arg=-Dkey=value` |
 | `--bazel-targets` | No | `[]` | Comma-separated Bazel targets to rebuild on source changes |
@@ -82,7 +81,6 @@ java -jar quarkifier_<minor>_deploy.jar \
 | `--bazel-build-timeout-seconds` | No | `600` | Timeout in seconds for bazel build process |
 | `--bazel-command` | No | `bazel` | Bazel binary to invoke for hot-reload builds |
 | `--bazel-build-args` | No | `[]` | Comma-separated extra flags for the hot-reload bazel build |
-| `--codegen-input-file` | No | `[]` | Repeatable exact declared CodeGenProvider input watched by Bazel in dev mode |
 | `--local-app-jars` | No | `[]` | Colon-separated local workspace jars to use as application roots |
 | `--local-app-jars-file` | No | — | File containing local app jars (alternative to `--local-app-jars`) |
 | `--build-properties-file` | No | — | UTF-8 `.properties` file containing declared build-system configuration; names must be non-empty and cannot contain `=`; accepted by normal, dev, and native augmentation and rejected in TEST mode, where augmentation occurs in the test JVM |
@@ -92,10 +90,10 @@ java -jar quarkifier_<minor>_deploy.jar \
 
 *Either the inline flag or the `-file` variant must be provided. The `-file` variants read the classpath from a file (one line, colon-separated paths) to avoid "Argument list too long" errors on Linux when the classpath is very long. When both inline and file are provided, the file variant takes precedence regardless of argument order.
 
-Continuous-testing options are accepted only in `--mode dev`.
-`--test-application-model` and `--test-classes-dir` must be supplied together;
-the other test inputs, JVM flags, and exact watched paths require that
-pair. Before launch, the TEST model must identify exactly the same Bazel
+Continuous-testing options and `--watched-input` are accepted only in
+`--mode dev`. `--test-application-model` and `--test-classes-dir` must be
+supplied together; the other test outputs, JVM flags, and watched BUILD files
+require that pair. Before launch, the TEST model must identify exactly the same Bazel
 application root as the DEV model.
 
 ### Extension enrichment
@@ -194,7 +192,6 @@ public record QuarkifierConfig(
     long bazelBuildTimeoutSeconds,
     String bazelCommand,
     List<String> bazelBuildArgs,
-    List<Path> codegenInputFiles,
     List<Path> localAppJars,
     Map<String, String> buildProperties,
     Path applicationModel,

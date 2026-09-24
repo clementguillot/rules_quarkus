@@ -10,6 +10,7 @@ quarkus_java_library(
         "//ext/runtime",
         "//submodule:lib",
         "@maven//:io_quarkus_quarkus_rest",
+        "@maven//:jakarta_ws_rs_jakarta_ws_rs_api",
     ],
 )
 

@@ -108,18 +108,16 @@ def _quarkus_dev_impl(ctx):
             fail(relationship_error)
     watch_metadata = collect_watch_metadata(ctx.attr.deps)
     app_owners = {file.owner: True for file in runtime_classpath.to_list()}
-    codegen_input_files = depset(
-        transitive = [
-            collect_codegen_input_files(ctx.attr.deps),
-            continuous_test_info.codegen_input_files if continuous_test_info else depset(),
-        ],
-    )
+
+    # Ordinary dev mode watches source/resource directories plus exact codegen inputs;
+    # continuous testing watches every exact declared input of the DEV and TEST graphs.
     watched_inputs = depset(
-        transitive = [
+        transitive = [collect_codegen_input_files(ctx.attr.deps)] + ([
             watch_metadata.input_files,
-            codegen_input_files,
-        ] + ([continuous_test_info.input_files] if continuous_test_info else []),
-    ).to_list() if continuous_test_info else []
+            continuous_test_info.codegen_input_files,
+            continuous_test_info.input_files,
+        ] if continuous_test_info else []),
+    ).to_list()
     watched_build_files = depset(
         transitive = [watch_metadata.build_files] + ([continuous_test_info.build_files] if continuous_test_info else []),
     ).to_list() if continuous_test_info else []
@@ -135,7 +133,6 @@ def _quarkus_dev_impl(ctx):
         resource_dirs = _write_csv_file(ctx, "_resource_dirs.txt", [] if continuous_test_info else collect_resource_dir_paths(ctx.attr.deps, runtime_classpath)),
         bazel_targets = _write_csv_file(ctx, "_bazel_targets.txt", bazel_targets),
         classes_output_dirs = _write_csv_file(ctx, "_classes_output_dirs.txt", _collect_classes_output_dirs(ctx.attr.deps, runtime_classpath)),
-        codegen_input_files = _write_lines_file(ctx, "_codegen_input_files.txt", [] if continuous_test_info else codegen_input_files.to_list()),
         test_classes_output_dirs = _write_csv_file(
             ctx,
             "_test_classes_output_dirs.txt",
@@ -161,7 +158,6 @@ def _quarkus_dev_impl(ctx):
             files.resource_dirs,
             files.bazel_targets,
             files.classes_output_dirs,
-            files.codegen_input_files,
             files.test_classes_output_dirs,
             files.watched_build_files,
             files.watched_inputs,
@@ -230,7 +226,6 @@ def _write_dev_launcher(ctx, tool_jar, files, model_file, test_model_file, java_
             "%{build_properties_file}": files.build_properties.short_path,
             "%{dev_build_args}": _join_dev_build_args(ctx.attr.dev_build_args),
             "%{classes_output_dirs_file}": files.classes_output_dirs.short_path,
-            "%{codegen_input_files_file}": files.codegen_input_files.short_path,
             "%{core_deploy_cp_file}": files.core_deploy_cp.short_path,
             "%{java_home}": java_runtime.java_home_runfiles_path,
             "%{local_app_jars_file}": files.local_app_jars.short_path,

@@ -157,7 +157,8 @@ public final class AugmentationCommand implements Callable<Integer> {
 
   @Option(
       names = "--watched-input",
-      description = "Exact declared workspace input watched during continuous testing.")
+      description =
+          "Exact declared workspace input (e.g. a CodeGenProvider input) watched in dev mode.")
   private List<Path> watchedInputs;
 
   @Option(
@@ -202,11 +203,6 @@ public final class AugmentationCommand implements Callable<Integer> {
       description = "Comma-separated extra flags for the hot-reload bazel build.",
       split = ",")
   private List<String> bazelBuildArgs;
-
-  @Option(
-      names = "--codegen-input-file",
-      description = "Exact declared CodeGenProvider input watched in dev mode.")
-  private List<Path> codegenInputFiles;
 
   // ---- Execution ----
 
@@ -293,7 +289,6 @@ public final class AugmentationCommand implements Callable<Integer> {
         bazelBuildTimeoutSeconds,
         bazelCommand,
         orEmpty(bazelBuildArgs),
-        orEmpty(codegenInputFiles),
         resolvedLocalJars,
         resolvedBuildProperties,
         applicationModel,
@@ -345,11 +340,11 @@ public final class AugmentationCommand implements Callable<Integer> {
         testApplicationModel != null
             || testClassesDir != null
             || !resolvedTestClassesOutputDirs.isEmpty()
-            || !resolvedWatchedInputs.isEmpty()
             || !resolvedWatchedBuildFiles.isEmpty()
             || !resolvedTestJvmArgs.isEmpty();
-    if (hasTestOptions && resolvedMode != AugmentationMode.DEV) {
-      throw parameterException("Continuous-testing options require --mode dev");
+    if ((hasTestOptions || !resolvedWatchedInputs.isEmpty())
+        && resolvedMode != AugmentationMode.DEV) {
+      throw parameterException("Continuous-testing and watch options require --mode dev");
     }
     if (resolvedMode == AugmentationMode.DEV
         && ((testApplicationModel == null) != (testClassesDir == null))) {

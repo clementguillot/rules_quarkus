@@ -1,11 +1,10 @@
-package selected;
+package submodule;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
-import submodule.SubmoduleService;
 
 @QuarkusTest
 class SubmoduleTest {
