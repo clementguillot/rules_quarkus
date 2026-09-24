@@ -129,7 +129,6 @@ public final class BazelFileWatcher implements Closeable {
     try {
       // Step 1: Populate initial classes FIRST (can take time, must complete before watching)
       LOGGER.debug("[hot-reload] Populating initial classes...");
-      Files.createDirectories(config.reloadNotificationDir());
       watcher.syncOutputs(false);
       LOGGER.debug("[hot-reload] Initial classes populated");
 
@@ -505,13 +504,15 @@ public final class BazelFileWatcher implements Closeable {
         }
         LOGGER.debugf("[hot-reload] Marked %d classes changed after structural rebuild", changed);
       }
-      // The notification contains no compilable source or application resource. It is published
-      // only after every mutable output is ready, making class creation and deletion observable to
-      // ordinary hot reload as well as waking continuous testing's event-driven scanner on Linux.
+      // Continuous testing gives Quarkus no source paths, so on Linux its event-driven test
+      // scanner would never wake up. This source-free marker is written only after every mutable
+      // output is ready; Quarkus then rescans the synchronized trees (other hosts poll them).
       Path notificationDir = config.reloadNotificationDir();
-      Files.createDirectories(notificationDir);
-      Files.writeString(
-          notificationDir.resolve("completed-build"), Long.toString(System.nanoTime()));
+      if (notificationDir != null) {
+        Files.createDirectories(notificationDir);
+        Files.writeString(
+            notificationDir.resolve("completed-build"), Long.toString(System.nanoTime()));
+      }
       LOGGER.debug("[hot-reload] Classes synced successfully");
       return true;
     } catch (IOException e) {

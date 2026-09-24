@@ -177,12 +177,10 @@ restart exactly as in Maven/Gradle dev mode, without a Bazel rebuild.
 1. `_collect_java_source_dirs()` in the Starlark rule finds conventional
    `src/main/java` and `src/test/java` markers in dependency source files
 2. Source dirs are written to a runfiles file and passed via `--source-dirs`
-3. `DevModeLauncher` sets them as `sourcePaths` in `DevModeContext.ModuleInfo`, together with a
-   private source-free notification directory
+3. `DevModeLauncher` sets them as `sourcePaths` in `DevModeContext.ModuleInfo`
 4. `IsolatedDevModeMain` creates a `RuntimeUpdatesProcessor` that watches these directories
-5. after every successful Bazel rebuild and class-tree synchronization, the watcher updates the
-   private notification marker. For creation, deletion, non-Java input, and overflow events it also
-   advances synchronized class timestamps. Stale outputs are normally removed immediately. After
+5. after every successful Bazel rebuild the watcher synchronizes the class tree. For creation,
+   deletion, non-Java input, and overflow events it also advances synchronized class timestamps. Stale outputs are normally removed immediately. After
    a Java source deletion, stale classes remain for Quarkus's next scan so it can associate them
    with deleted sources, classify the deletion, and remove them itself. This also works when the
    deleted source produced the last application class.

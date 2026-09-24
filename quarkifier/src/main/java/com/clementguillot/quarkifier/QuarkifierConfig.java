@@ -66,12 +66,13 @@ public record QuarkifierConfig(
     List<Path> watchedBuildFiles,
     List<String> testJvmArgs) {
 
-  /** Private, source-free directory used to notify Quarkus after a completed Bazel sync. */
+  /**
+   * Private, source-free test source directory used to wake Quarkus continuous testing after a
+   * completed Bazel sync, or {@code null} when continuous testing is not configured.
+   */
   public Path reloadNotificationDir() {
-    Path mutableOutput = testClassesDir != null ? testClassesDir : classesDir;
-    if (mutableOutput == null) {
-      return null;
-    }
-    return mutableOutput.toAbsolutePath().getParent().resolve("reload-notifications");
+    return testClassesDir == null
+        ? null
+        : testClassesDir.toAbsolutePath().getParent().resolve("reload-notifications");
   }
 }

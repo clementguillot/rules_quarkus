@@ -8,7 +8,6 @@ import io.quarkus.deployment.dev.DevModeContext;
 import io.quarkus.maven.dependency.ArtifactKey;
 import io.quarkus.paths.PathList;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Properties;
 import org.jboss.logging.Logger;
 
@@ -71,20 +70,13 @@ final class DevModeContextBuilder {
     // We create the directory in DevModeLauncher.launch() since Bazel workspaces have no target/.
     Path targetDir = projectRoot.resolve("target");
     Path resourcesOutputPath = config.classesDir() != null ? config.classesDir() : targetDir;
-    var sourcePaths = new ArrayList<>(config.sourceDirs());
-    if (config.reloadNotificationDir() != null && config.testClassesDir() == null) {
-      // Quarkus reliably notices modifications to existing classes, but some filesystem scanners
-      // miss class-tree topology changes. A private source-free path receives a marker only after
-      // Bazel has rebuilt and the complete mutable output tree has been synchronized.
-      sourcePaths.add(config.reloadNotificationDir());
-    }
 
     var builder =
         new DevModeContext.ModuleInfo.Builder()
             .setArtifactKey(ArtifactKey.ga(coords.groupId(), coords.artifactId()))
             .setName(config.appName() != null ? config.appName() : coords.artifactId())
             .setProjectDirectory(projectRoot.toAbsolutePath().toString())
-            .setSourcePaths(PathList.from(sourcePaths))
+            .setSourcePaths(PathList.from(config.sourceDirs()))
             .setClassesPath(classesPath.toAbsolutePath().toString())
             .setResourcePaths(PathList.from(config.resources()))
             .setResourcesOutputPath(

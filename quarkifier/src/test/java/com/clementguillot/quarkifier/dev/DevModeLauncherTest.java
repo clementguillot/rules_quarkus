@@ -169,10 +169,10 @@ class DevModeLauncherTest {
     assertEquals(
         classesDir.toAbsolutePath().toString(),
         context.getApplicationRoot().getMain().getClassesPath());
-    assertTrue(
-        context.getApplicationRoot().getMain().getSourcePaths().stream()
-            .anyMatch(config.reloadNotificationDir()::equals),
-        "ordinary dev mode must watch the post-sync notification directory");
+    assertEquals(
+        List.of(Path.of("src/main/java")),
+        context.getApplicationRoot().getMain().getSourcePaths().stream().toList(),
+        "ordinary dev mode exposes only workspace source roots to Quarkus");
   }
 
   @Test

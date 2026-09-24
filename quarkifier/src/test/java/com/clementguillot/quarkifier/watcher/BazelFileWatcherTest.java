@@ -94,7 +94,8 @@ class BazelFileWatcherTest {
   }
 
   @Test
-  void ordinarySyncPreservesDeletedClassAndNotifiesAfterStructuralChange() throws Exception {
+  void ordinarySyncPreservesDeletedClassAndAdvancesTimestampsAfterStructuralChange()
+      throws Exception {
     Path compiled = Files.createDirectories(tempDir.resolve("compiled-main"));
     var config =
         testConfig(
@@ -102,7 +103,7 @@ class BazelFileWatcherTest {
             List.of(tempDir.resolve("src/main/java")),
             "--classes-output-dirs",
             compiled.toString());
-    Files.createDirectories(config.reloadNotificationDir());
+    assertNull(config.reloadNotificationDir(), "only continuous testing needs a notification");
     try (var watcher = new BazelFileWatcher(config)) {
       Path compiledClass = compiled.resolve("fixture/Added.class");
       Files.createDirectories(compiledClass.getParent());
@@ -111,8 +112,6 @@ class BazelFileWatcherTest {
       Files.writeString(survivingClass, "surviving");
 
       assertTrue(watcher.syncClasses(false, false));
-      Path notification = config.reloadNotificationDir().resolve("completed-build");
-      String afterCreation = Files.readString(notification);
       Path synchronizedSurviving = config.classesDir().resolve("fixture/Surviving.class");
       long survivingTimestamp = Files.getLastModifiedTime(synchronizedSurviving).toMillis();
       assertEquals("added", Files.readString(config.classesDir().resolve("fixture/Added.class")));
@@ -122,7 +121,6 @@ class BazelFileWatcherTest {
       assertTrue(
           Files.exists(config.classesDir().resolve("fixture/Added.class")),
           "Quarkus needs the stale class to associate it with the deleted source and remove it");
-      assertNotEquals(afterCreation, Files.readString(notification));
       assertTrue(Files.getLastModifiedTime(synchronizedSurviving).toMillis() > survivingTimestamp);
     }
   }
