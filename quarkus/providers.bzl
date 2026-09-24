@@ -44,9 +44,8 @@ QuarkusCodeGenInfo = provider(
 )
 
 QuarkusContinuousTestInfo = provider(
-    doc = "Test model and compiled outputs consumed by a quarkus_app dev target.",
+    doc = "Aggregated continuous-test model and outputs consumed by a quarkus_app dev target.",
     fields = {
-        "application_dependency_ids": "Direct model dependency ids from which the TEST application is selected.",
         "application_model": "TEST-mode quarkus-bazel-model-v1 JSON File.",
         "build_files": "Depset of BUILD files whose changes require restarting dev mode.",
         "classes_output_dirs": "Ordered list of compiled test class jars/directories in runtime classpath order.",

@@ -157,6 +157,7 @@ public final class DevModeLauncher {
         || config.bazelTargets().isEmpty()
         || (config.sourceDirs().isEmpty()
             && config.watchedInputs().isEmpty()
+            && config.watchedTestInputs().isEmpty()
             && config.watchedBuildFiles().isEmpty())) {
       return null;
     }

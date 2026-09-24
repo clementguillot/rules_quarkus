@@ -52,7 +52,8 @@ public final class BazelFileWatcher implements Closeable {
   private final AtomicBoolean buildInProgress = new AtomicBoolean(false);
   private final AtomicBoolean pendingBuild = new AtomicBoolean(false);
   private final AtomicBoolean staleOutputsWarned = new AtomicBoolean(false);
-  private final AtomicBoolean fullReloadNeeded = new AtomicBoolean(false);
+  private final AtomicBoolean applicationReloadNeeded = new AtomicBoolean(false);
+  private final AtomicBoolean testReloadNeeded = new AtomicBoolean(false);
   private final AtomicBoolean javaDeletionPending = new AtomicBoolean(false);
   private final AtomicBoolean buildFileChangeWarned = new AtomicBoolean(false);
   private volatile ScheduledFuture<?> debounceTask;
@@ -135,7 +136,9 @@ public final class BazelFileWatcher implements Closeable {
       // Ordinary dev mode's Java source roots, plus candidate roots that reveal files added to
       // Bazel globs. Quarkus watches resource roots itself; Bazel decides what is an input.
       watcher.registerWatchers(config.sourceDirs());
-      watcher.registerWatchers(watcher.paths.candidateRoots());
+      // Conventional roots of packages without such sources yet are registered once created.
+      watcher.registerWatchers(
+          watcher.paths.candidateRoots().stream().filter(Files::isDirectory).toList());
       watcher.registerExactWatchers(watcher.paths.exactWatchPaths());
       LOGGER.debug("[hot-reload] File watchers registered");
 
@@ -218,7 +221,7 @@ public final class BazelFileWatcher implements Closeable {
 
       if (kind == StandardWatchEventKinds.OVERFLOW) {
         LOGGER.warn("WatchService overflow detected, triggering full rebuild");
-        fullReloadNeeded.set(true);
+        requestReload(WatchedPaths.Scope.APPLICATION);
         javaDeletionPending.set(true);
         rebuildNeeded = true;
         continue;
@@ -231,61 +234,98 @@ public final class BazelFileWatcher implements Closeable {
         warnRestartRequired(changed);
         continue;
       }
-      if (paths.isExactInput(changed)) {
-        if (WatchedPaths.isNonJavaInput(changed) || kind != StandardWatchEventKinds.ENTRY_MODIFY) {
-          fullReloadNeeded.set(true);
-        }
-        if (kind == StandardWatchEventKinds.ENTRY_DELETE && changed.toString().endsWith(".java")) {
-          javaDeletionPending.set(true);
-        }
-        rebuildNeeded = true;
-        LOGGER.debugf("Change detected: %s (%s)", changed, kind.name());
-        continue;
-      }
       if (kind == StandardWatchEventKinds.ENTRY_DELETE
-          && watchKeys.containsKey(changed.toAbsolutePath().normalize())
-          && paths.isDirectoryWatchPath(changed)) {
-        // Recursive directory removal is not guaranteed to deliver a delete event for every
-        // contained file. The registered-directory event is enough to request one Bazel rebuild.
-        fullReloadNeeded.set(true);
+          && watchKeys.containsKey(changed.toAbsolutePath().normalize())) {
+        // A registered directory was removed. Recursive removal is not guaranteed to deliver a
+        // delete event for every contained file, so this event alone requests one Bazel rebuild.
+        WatchedPaths.Scope scope = paths.treeScope(changed);
+        if (scope == WatchedPaths.Scope.NONE) {
+          if (paths.isExactWatchAncestor(changed)) {
+            warnRestartRequired(changed);
+          }
+          continue;
+        }
+        requestReload(scope);
         if (paths.isSourceDirectoryWatchPath(changed)) {
           javaDeletionPending.set(true);
         }
         rebuildNeeded = true;
         continue;
       }
-      if (kind == StandardWatchEventKinds.ENTRY_DELETE && paths.isExactWatchAncestor(changed)) {
-        warnRestartRequired(changed);
+      if (kind == StandardWatchEventKinds.ENTRY_CREATE && Files.isDirectory(changed)) {
+        rebuildNeeded |= onDirectoryCreated(changed);
         continue;
       }
-      if (kind == StandardWatchEventKinds.ENTRY_CREATE && Files.isDirectory(changed)) {
-        try {
-          if (paths.isDirectoryWatchPath(changed)) {
-            registerRecursive(changed);
-            fullReloadNeeded.set(true);
-            rebuildNeeded = true;
-            LOGGER.debugf("[hot-reload] Registered new directory: %s", changed);
-          } else if (paths.isExactWatchAncestor(changed)) {
-            registerExactWatchers(paths.exactWatchPaths());
-          }
-        } catch (IOException e) {
-          LOGGER.errorv(e, "[hot-reload] Failed to register new directory %s", changed);
-        }
-      }
 
-      if ((paths.isDirectoryInput(changed) || paths.isCandidateInput(changed))
-          && !paths.isIncidentalScratchFile(changed)) {
-        if (WatchedPaths.isNonJavaInput(changed) || kind != StandardWatchEventKinds.ENTRY_MODIFY) {
-          fullReloadNeeded.set(true);
+      WatchedPaths.Scope scope = paths.inputScope(changed);
+      if (scope == WatchedPaths.Scope.NONE) {
+        if (kind == StandardWatchEventKinds.ENTRY_DELETE && paths.isExactWatchAncestor(changed)) {
+          warnRestartRequired(changed);
         }
-        if (kind == StandardWatchEventKinds.ENTRY_DELETE && changed.toString().endsWith(".java")) {
-          javaDeletionPending.set(true);
-        }
-        rebuildNeeded = true;
-        LOGGER.debugf("Change detected: %s (%s)", changed, kind.name());
+        continue;
       }
+      if (forcesReload(kind, changed)) {
+        requestReload(scope);
+      }
+      if (kind == StandardWatchEventKinds.ENTRY_DELETE && changed.toString().endsWith(".java")) {
+        javaDeletionPending.set(true);
+      }
+      rebuildNeeded = true;
+      LOGGER.debugf("Change detected: %s (%s)", changed, kind.name());
     }
     return rebuildNeeded;
+  }
+
+  /**
+   * Reports whether an input change must mark synchronized classes changed. Creation and deletion
+   * change the class-tree topology, which Quarkus may not notice by itself. Continuous testing also
+   * reruns tests for non-Java inputs whose bytecode may be unchanged; ordinary dev mode leaves
+   * resource edits to Quarkus, and regenerated classes are detected when their bytecode changes.
+   */
+  boolean forcesReload(WatchEvent.Kind<?> kind, Path changed) {
+    return kind != StandardWatchEventKinds.ENTRY_MODIFY
+        || (config.testClassesDir() != null && WatchedPaths.isNonJavaInput(changed));
+  }
+
+  /** Returns the key currently registered for {@code directory}, or {@code null}. */
+  WatchKey registeredKey(Path directory) {
+    return watchKeys.get(directory);
+  }
+
+  /**
+   * Registers a new directory below, or on the way to, a watch root, and requests a rebuild: files
+   * created together with the directory may predate its registration.
+   *
+   * @return whether a rebuild is needed
+   */
+  private boolean onDirectoryCreated(Path directory) {
+    try {
+      WatchedPaths.Scope scope = paths.treeScope(directory);
+      if (scope != WatchedPaths.Scope.NONE) {
+        registerRecursive(directory);
+        requestReload(scope);
+        LOGGER.debugf("[hot-reload] Registered new directory: %s", directory);
+        return true;
+      }
+      if (paths.isExactWatchAncestor(directory)) {
+        registerExactWatchers(paths.exactWatchPaths());
+      }
+    } catch (IOException e) {
+      LOGGER.errorv(e, "[hot-reload] Failed to register new directory %s", directory);
+    }
+    return false;
+  }
+
+  /**
+   * Marks the synchronized trees a change affects as changed after the next successful rebuild.
+   * Application changes rerun the tests that use the application too; test-only changes rerun tests
+   * without restarting the running application.
+   */
+  private void requestReload(WatchedPaths.Scope scope) {
+    if (scope == WatchedPaths.Scope.APPLICATION) {
+      applicationReloadNeeded.set(true);
+    }
+    testReloadNeeded.set(true);
   }
 
   /** Warns once when watch metadata can no longer be updated safely in the running session. */
@@ -325,7 +365,8 @@ public final class BazelFileWatcher implements Closeable {
       try {
         do {
           pendingBuild.set(false);
-          boolean forceReload = fullReloadNeeded.getAndSet(false);
+          boolean reloadApplication = applicationReloadNeeded.getAndSet(false);
+          boolean reloadTests = testReloadNeeded.getAndSet(false);
           // Ordinary dev mode lets Quarkus correlate a deleted source with its previous class.
           // Continuous testing has no source roots, so retaining that class would keep it live.
           boolean preserveStaleClasses =
@@ -336,13 +377,15 @@ public final class BazelFileWatcher implements Closeable {
 
           if (success) {
             warnIfOutputsWentStale(start);
-            if (!syncClasses(forceReload, preserveStaleClasses)) {
-              restorePending(fullReloadNeeded, forceReload);
+            if (!syncClasses(reloadApplication, reloadTests, preserveStaleClasses)) {
+              restorePending(applicationReloadNeeded, reloadApplication);
+              restorePending(testReloadNeeded, reloadTests);
               restorePending(javaDeletionPending, preserveStaleClasses);
             }
             LOGGER.debugf("[hot-reload] Build successful, classes synced (%dms)", elapsed);
           } else {
-            restorePending(fullReloadNeeded, forceReload);
+            restorePending(applicationReloadNeeded, reloadApplication);
+            restorePending(testReloadNeeded, reloadTests);
             restorePending(javaDeletionPending, preserveStaleClasses);
             LOGGER.warn("[hot-reload] Build failed, skipping sync");
           }
@@ -486,22 +529,24 @@ public final class BazelFileWatcher implements Closeable {
    * directory, and — when continuous testing is configured — the compiled tests and their packaged
    * resources to the mutable test-classes directory.
    *
-   * @param forceReload whether the rebuild was triggered by a non-Java input or filesystem topology
-   *     change, in which case synchronized classes are timestamped forward so Quarkus observes the
-   *     rebuild even if no surviving bytecode changed
+   * @param reloadApplication whether a non-Java input or topology change affected the application,
+   *     in which case synchronized application classes are timestamped forward so Quarkus observes
+   *     the rebuild even if no surviving bytecode changed
+   * @param reloadTests the same for the synchronized test classes under continuous testing
    * @param preserveStaleClasses whether a Java deletion requires stale bytecode to remain long
    *     enough for Quarkus to associate it with the deleted source and remove it
    * @return {@code true} if everything synchronized; {@code false} lets the caller restore the
    *     pending change so the next successful build still schedules that reload or test run
    */
-  boolean syncClasses(boolean forceReload, boolean preserveStaleClasses) {
+  boolean syncClasses(
+      boolean reloadApplication, boolean reloadTests, boolean preserveStaleClasses) {
     try {
       syncOutputs(preserveStaleClasses);
-      if (forceReload) {
-        int changed = ClassSyncer.markClassesChanged(config.classesDir());
-        if (config.testClassesDir() != null) {
-          changed += ClassSyncer.markClassesChanged(config.testClassesDir());
-        }
+      int changed = reloadApplication ? ClassSyncer.markClassesChanged(config.classesDir()) : 0;
+      if (reloadTests && config.testClassesDir() != null) {
+        changed += ClassSyncer.markClassesChanged(config.testClassesDir());
+      }
+      if (changed > 0) {
         LOGGER.debugf("[hot-reload] Marked %d classes changed after structural rebuild", changed);
       }
       // Continuous testing gives Quarkus no source paths, so on Linux its event-driven test
@@ -574,10 +619,11 @@ public final class BazelFileWatcher implements Closeable {
           @Override
           public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
               throws IOException {
-            if (watchKeys.containsKey(dir)) {
-              // Exact-input registration may have watched this directory, but not its children.
-              return FileVisitResult.CONTINUE;
+            if (isVersionControlDirectory(dir)) {
+              return FileVisitResult.SKIP_SUBTREE;
             }
+            // Registering again is harmless (a live key is returned as is) and replaces the stale
+            // key of a directory that was deleted and recreated before its key was drained.
             WatchKey key =
                 dir.register(
                     watchService,
@@ -598,7 +644,7 @@ public final class BazelFileWatcher implements Closeable {
     for (Path watchedPath : watchedPaths) {
       Path directory = watchedPath.toAbsolutePath().normalize().getParent();
       while (directory != null && (boundary == null || directory.startsWith(boundary))) {
-        if (Files.isDirectory(directory) && !watchKeys.containsKey(directory)) {
+        if (Files.isDirectory(directory)) {
           WatchKey key =
               directory.register(
                   watchService,
@@ -606,7 +652,6 @@ public final class BazelFileWatcher implements Closeable {
                   StandardWatchEventKinds.ENTRY_MODIFY,
                   StandardWatchEventKinds.ENTRY_DELETE);
           watchKeys.put(directory, key);
-          LOGGER.debugf("[hot-reload] Registered exact-input parent: %s", directory);
         }
         if (boundary == null || directory.equals(boundary)) {
           break;
@@ -614,5 +659,19 @@ public final class BazelFileWatcher implements Closeable {
         directory = directory.getParent();
       }
     }
+  }
+
+  /**
+   * Returns true for version-control metadata directories. A candidate root can be a package or the
+   * workspace itself, and watching repository metadata would waste watches on files Bazel never
+   * reads.
+   */
+  static boolean isVersionControlDirectory(Path dir) {
+    Path name = dir.getFileName();
+    if (name == null) {
+      return false;
+    }
+    String value = name.toString();
+    return ".git".equals(value) || ".hg".equals(value) || ".svn".equals(value);
   }
 }

@@ -162,6 +162,11 @@ public final class AugmentationCommand implements Callable<Integer> {
   private List<Path> watchedInputs;
 
   @Option(
+      names = "--watched-test-input",
+      description = "Exact input only the continuous-test graph declares, watched in dev mode.")
+  private List<Path> watchedTestInputs;
+
+  @Option(
       names = "--watched-build-file",
       description = "BUILD file whose change requires restarting the dev session.")
   private List<Path> watchedBuildFiles;
@@ -240,12 +245,14 @@ public final class AugmentationCommand implements Callable<Integer> {
     AugmentationMode resolvedMode = parseMode(mode);
     List<Path> resolvedTestClassesOutputDirs = orEmpty(testClassesOutputDirs);
     List<Path> resolvedWatchedInputs = orEmpty(watchedInputs);
+    List<Path> resolvedWatchedTestInputs = orEmpty(watchedTestInputs);
     List<Path> resolvedWatchedBuildFiles = orEmpty(watchedBuildFiles);
     List<String> resolvedTestJvmArgs = orEmpty(testJvmArgs);
     validateContinuousTestingOptions(
         resolvedMode,
         resolvedTestClassesOutputDirs,
         resolvedWatchedInputs,
+        resolvedWatchedTestInputs,
         resolvedWatchedBuildFiles,
         resolvedTestJvmArgs);
     if (resolvedMode == AugmentationMode.TEST && buildPropertiesFile != null) {
@@ -294,6 +301,7 @@ public final class AugmentationCommand implements Callable<Integer> {
         applicationModel,
         testApplicationModel,
         resolvedWatchedInputs,
+        resolvedWatchedTestInputs,
         resolvedWatchedBuildFiles,
         resolvedTestJvmArgs);
   }
@@ -334,12 +342,14 @@ public final class AugmentationCommand implements Callable<Integer> {
       AugmentationMode resolvedMode,
       List<Path> resolvedTestClassesOutputDirs,
       List<Path> resolvedWatchedInputs,
+      List<Path> resolvedWatchedTestInputs,
       List<Path> resolvedWatchedBuildFiles,
       List<String> resolvedTestJvmArgs) {
     boolean hasTestOptions =
         testApplicationModel != null
             || testClassesDir != null
             || !resolvedTestClassesOutputDirs.isEmpty()
+            || !resolvedWatchedTestInputs.isEmpty()
             || !resolvedWatchedBuildFiles.isEmpty()
             || !resolvedTestJvmArgs.isEmpty();
     if ((hasTestOptions || !resolvedWatchedInputs.isEmpty())

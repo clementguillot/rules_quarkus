@@ -516,6 +516,9 @@ public final class BazelApplicationModelAssembler {
         applicationId = selection.applicationId();
         collapseTestRoot(testRootId, applicationId);
       } else {
+        if (inputs.roots().testApplicationId() != null) {
+          fail("testApplicationId is only valid for a TEST-mode model");
+        }
         applicationId = inputs.roots().rootIds().get(0);
       }
       MutableNode application = nodes.get(applicationId);
@@ -558,6 +561,23 @@ public final class BazelApplicationModelAssembler {
     }
 
     private TestSelection selectTestApplication() {
+      String explicitApplication = inputs.roots().testApplicationId();
+      if (explicitApplication != null) {
+        // A continuous-test aggregate joins the application and several test graphs under one
+        // root; like DEV mode, it names the application instead of letting candidates compete.
+        String testRootId = inputs.roots().rootIds().get(0);
+        MutableNode testRoot = nodes.get(testRootId);
+        if (testRoot == null
+            || testRoot.edges.values().stream()
+                .noneMatch(edge -> explicitApplication.equals(edge.targetId()))) {
+          fail(
+              "TEST application "
+                  + explicitApplication
+                  + " is not a direct dependency of test root "
+                  + testRootId);
+        }
+        return new TestSelection(testRootId, explicitApplication);
+      }
       List<TestSelection> candidates = new ArrayList<>();
       for (String rootId : inputs.roots().rootIds()) {
         MutableNode testRoot = nodes.get(rootId);

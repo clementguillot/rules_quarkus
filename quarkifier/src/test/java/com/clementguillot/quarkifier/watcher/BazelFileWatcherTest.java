@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.StandardWatchEventKinds;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -79,7 +80,7 @@ class BazelFileWatcherTest {
             tests.toString());
     Files.createDirectories(config.reloadNotificationDir());
     try (var watcher = new BazelFileWatcher(config)) {
-      assertTrue(watcher.syncClasses(true, false));
+      assertTrue(watcher.syncClasses(true, true, false));
       assertEquals(
           "key=value", Files.readString(config.classesDir().resolve("application.properties")));
       assertEquals("packaged", Files.readString(config.testClassesDir().resolve("fixture.txt")));
@@ -87,7 +88,7 @@ class BazelFileWatcherTest {
       assertTrue(Files.exists(config.reloadNotificationDir().resolve("completed-build")));
       Files.writeString(config.testClassesDir().resolve("Stale.class"), "stale");
       Files.delete(tests.resolve("fixture.txt"));
-      assertTrue(watcher.syncClasses(true, false));
+      assertTrue(watcher.syncClasses(true, true, false));
       assertFalse(Files.exists(config.testClassesDir().resolve("fixture.txt")));
       assertFalse(Files.exists(config.testClassesDir().resolve("Stale.class")));
     }
@@ -111,13 +112,13 @@ class BazelFileWatcherTest {
       Path survivingClass = compiled.resolve("fixture/Surviving.class");
       Files.writeString(survivingClass, "surviving");
 
-      assertTrue(watcher.syncClasses(false, false));
+      assertTrue(watcher.syncClasses(false, false, false));
       Path synchronizedSurviving = config.classesDir().resolve("fixture/Surviving.class");
       long survivingTimestamp = Files.getLastModifiedTime(synchronizedSurviving).toMillis();
       assertEquals("added", Files.readString(config.classesDir().resolve("fixture/Added.class")));
 
       Files.delete(compiledClass);
-      assertTrue(watcher.syncClasses(true, true));
+      assertTrue(watcher.syncClasses(true, false, true));
       assertTrue(
           Files.exists(config.classesDir().resolve("fixture/Added.class")),
           "Quarkus needs the stale class to associate it with the deleted source and remove it");
@@ -211,32 +212,46 @@ class BazelFileWatcherTest {
             "--watched-input",
             javaInput.toString(),
             "--watched-input",
-            resourceInput.toString(),
-            "--watched-input",
             codegenInput.toString(),
+            "--watched-test-input",
+            resourceInput.toString(),
             "--watched-build-file",
             buildFile.toString());
     var paths = new WatchedPaths(config);
 
-    assertTrue(paths.isExactInput(javaInput));
-    assertTrue(paths.isExactInput(resourceInput), "declared .tmp files must remain valid inputs");
-    assertTrue(paths.isExactInput(codegenInput));
-    assertFalse(paths.isExactInput(javaInput.resolveSibling("Undeclared.java")));
+    assertEquals(WatchedPaths.Scope.APPLICATION, paths.inputScope(javaInput));
+    assertEquals(WatchedPaths.Scope.APPLICATION, paths.inputScope(codegenInput));
+    assertEquals(
+        WatchedPaths.Scope.TESTS,
+        paths.inputScope(resourceInput),
+        "declared .tmp files remain valid, test-only inputs");
     assertEquals(
         List.of(
             tempDir.resolve("src/main/java"),
+            tempDir.resolve("src/main/proto"),
             tempDir.resolve("src/test/resources"),
-            tempDir.resolve("src/main/proto")),
+            tempDir.resolve("src/test/java")),
         paths.candidateRoots());
-    assertTrue(paths.isCandidateInput(javaInput.resolveSibling("Undeclared.java")));
-    assertTrue(paths.isCandidateInput(tempDir.resolve("src/main/java/newpkg/Added.java")));
-    assertTrue(paths.isCandidateInput(tempDir.resolve("src/main/proto/v2/added.proto")));
-    assertFalse(paths.isCandidateInput(tempDir.resolve("src/main/proto/notes.txt")));
-    assertFalse(paths.isCandidateInput(tempDir.resolve("src/other/java/Added.java")));
-    assertFalse(
-        paths.isCandidateInput(resourceInput.resolveSibling("scratch.tmp")),
-        "editor scratch files are never candidates");
-    assertFalse(paths.isExactInput(resourceInput.resolveSibling("undeclared.txt")));
+    assertEquals(
+        WatchedPaths.Scope.APPLICATION,
+        paths.inputScope(tempDir.resolve("src/main/java/newpkg/Added.java")));
+    assertEquals(
+        WatchedPaths.Scope.APPLICATION,
+        paths.inputScope(tempDir.resolve("src/main/proto/v2/added.proto")));
+    assertEquals(
+        WatchedPaths.Scope.NONE, paths.inputScope(tempDir.resolve("src/main/proto/notes.txt")));
+    assertEquals(
+        WatchedPaths.Scope.NONE, paths.inputScope(tempDir.resolve("src/other/java/Added.java")));
+    assertEquals(
+        WatchedPaths.Scope.TESTS,
+        paths.inputScope(resourceInput.resolveSibling("added.tmp")),
+        "an extension declared by an input is eligible even if editors also use it");
+    assertEquals(
+        WatchedPaths.Scope.NONE,
+        paths.inputScope(tempDir.resolve("src/main/java/.#App.java")),
+        "editor lock files are never candidates");
+    assertEquals(
+        WatchedPaths.Scope.NONE, paths.inputScope(resourceInput.resolveSibling("notes.txt")));
     assertTrue(paths.isBuildFile(buildFile));
     assertFalse(paths.isBuildFile(tempDir.resolve("other/BUILD.bazel")));
     assertTrue(paths.isExactWatchAncestor(javaInput.getParent()));
@@ -245,11 +260,62 @@ class BazelFileWatcherTest {
     assertFalse(paths.isSourceDirectoryWatchPath(tempDir.resolve("src/main/proto/v1")));
     assertFalse(WatchedPaths.isNonJavaInput(javaInput));
     assertTrue(WatchedPaths.isNonJavaInput(resourceInput));
-    assertTrue(WatchedPaths.isNonJavaInput(codegenInput));
   }
 
   @Test
-  void ordinaryModeDiscoversGlobCandidatesButLeavesResourcesToQuarkus() {
+  void firstFileOfAnInitiallyEmptyTestGlobIsACandidate() {
+    Path appInput = tempDir.resolve("app/src/main/java/App.java");
+    Path moduleBuild = tempDir.resolve("module/BUILD.bazel");
+    var config =
+        testConfig(
+            tempDir.resolve("output"),
+            List.of(),
+            "--test-application-model",
+            tempDir.resolve("test-model.json").toString(),
+            "--test-classes-dir",
+            tempDir.resolve("mutable/test-classes").toString(),
+            "--watched-input",
+            appInput.toString(),
+            "--watched-build-file",
+            moduleBuild.toString());
+    var paths = new WatchedPaths(config);
+
+    Path firstTest = tempDir.resolve("module/src/test/java/pkg/FirstTest.java");
+    assertEquals(WatchedPaths.Scope.TESTS, paths.inputScope(firstTest));
+    assertEquals(
+        WatchedPaths.Scope.APPLICATION,
+        paths.inputScope(tempDir.resolve("module/src/main/java/pkg/First.java")));
+    assertEquals(WatchedPaths.Scope.TESTS, paths.treeScope(tempDir.resolve("module/src/test")));
+    assertEquals(WatchedPaths.Scope.APPLICATION, paths.treeScope(tempDir.resolve("module/src")));
+    assertEquals(WatchedPaths.Scope.NONE, paths.treeScope(tempDir.resolve("module/docs")));
+  }
+
+  @Test
+  void firstHandwrittenSourceOfACodegenOnlyLibraryIsAnApplicationCandidate() {
+    Path codegenInput = tempDir.resolve("pkg/src/main/proto/schema.proto");
+    var config =
+        testConfig(
+            tempDir.resolve("output"),
+            List.of(),
+            "--test-application-model",
+            tempDir.resolve("test-model.json").toString(),
+            "--test-classes-dir",
+            tempDir.resolve("mutable/test-classes").toString(),
+            "--watched-input",
+            codegenInput.toString(),
+            "--watched-build-file",
+            tempDir.resolve("pkg/BUILD.bazel").toString());
+    var paths = new WatchedPaths(config);
+
+    // The library already builds from generated sources, so its empty handwritten glob is live.
+    assertEquals(
+        WatchedPaths.Scope.APPLICATION,
+        paths.inputScope(tempDir.resolve("pkg/src/main/java/pkg/First.java")));
+    assertEquals(WatchedPaths.Scope.APPLICATION, paths.treeScope(tempDir.resolve("pkg/src/main")));
+  }
+
+  @Test
+  void ordinaryModeDiscoversGlobCandidatesButLeavesResourcesToQuarkus() throws IOException {
     Path codegenInput = tempDir.resolve("pkg/src/main/proto/schema.proto");
     var config =
         testConfig(
@@ -262,9 +328,95 @@ class BazelFileWatcherTest {
     var paths = new WatchedPaths(config);
 
     assertEquals(List.of(tempDir.resolve("pkg/src/main/proto")), paths.candidateRoots());
-    assertTrue(paths.isCandidateInput(tempDir.resolve("pkg/src/main/proto/added.proto")));
-    assertFalse(paths.isDirectoryWatchPath(tempDir.resolve("pkg/src/main/resources/index.html")));
-    assertFalse(paths.isDirectoryInput(tempDir.resolve("pkg/src/main/resources/index.html")));
+    assertEquals(
+        WatchedPaths.Scope.APPLICATION,
+        paths.inputScope(tempDir.resolve("pkg/src/main/proto/added.proto")));
+    Path resource = tempDir.resolve("pkg/src/main/resources/index.html");
+    assertEquals(WatchedPaths.Scope.NONE, paths.inputScope(resource));
+    assertEquals(WatchedPaths.Scope.NONE, paths.treeScope(resource.getParent()));
+    try (var watcher = new BazelFileWatcher(config)) {
+      assertFalse(
+          watcher.forcesReload(StandardWatchEventKinds.ENTRY_MODIFY, codegenInput),
+          "ordinary mode lets changed bytecode, not a forced restart, reveal regenerated classes");
+      assertTrue(watcher.forcesReload(StandardWatchEventKinds.ENTRY_CREATE, codegenInput));
+    }
+  }
+
+  @Test
+  void continuousTestingForcesReloadForNonJavaEdits() throws IOException {
+    var config =
+        testConfig(
+            tempDir.resolve("output"),
+            List.of(),
+            "--test-application-model",
+            tempDir.resolve("test-model.json").toString(),
+            "--test-classes-dir",
+            tempDir.resolve("mutable/test-classes").toString());
+    try (var watcher = new BazelFileWatcher(config)) {
+      assertTrue(watcher.forcesReload(StandardWatchEventKinds.ENTRY_MODIFY, Path.of("input.txt")));
+      assertFalse(watcher.forcesReload(StandardWatchEventKinds.ENTRY_MODIFY, Path.of("App.java")));
+    }
+  }
+
+  @Test
+  void testOnlyReloadLeavesApplicationClassesUntouched() throws Exception {
+    Path main = Files.createDirectories(tempDir.resolve("compiled-main"));
+    Path tests = Files.createDirectories(tempDir.resolve("compiled-tests"));
+    Files.writeString(main.resolve("App.class"), "main");
+    Files.writeString(tests.resolve("AppTest.class"), "test");
+    var config =
+        testConfig(
+            tempDir.resolve("output"),
+            List.of(),
+            "--test-application-model",
+            tempDir.resolve("test-model.json").toString(),
+            "--test-classes-dir",
+            tempDir.resolve("mutable/test-classes").toString(),
+            "--classes-output-dirs",
+            main.toString(),
+            "--test-classes-output-dirs",
+            tests.toString());
+    try (var watcher = new BazelFileWatcher(config)) {
+      assertTrue(watcher.syncClasses(false, false, false));
+      Path app = config.classesDir().resolve("App.class");
+      Path test = config.testClassesDir().resolve("AppTest.class");
+      long appTimestamp = Files.getLastModifiedTime(app).toMillis();
+      long testTimestamp = Files.getLastModifiedTime(test).toMillis();
+
+      assertTrue(watcher.syncClasses(false, true, false));
+      assertEquals(appTimestamp, Files.getLastModifiedTime(app).toMillis());
+      assertTrue(Files.getLastModifiedTime(test).toMillis() > testTimestamp);
+    }
+  }
+
+  @Test
+  void registrationReplacesTheStaleKeyOfARecreatedDirectory() throws IOException {
+    Path sourceDir = Files.createDirectories(tempDir.resolve("src/main/java/pkg"));
+    var config = testConfig(tempDir.resolve("output"), List.of(tempDir.resolve("src/main/java")));
+    try (var watcher = new BazelFileWatcher(config)) {
+      watcher.registerWatchers(config.sourceDirs());
+      // Simulates a directory deleted and recreated before its invalidated key was drained.
+      watcher.registeredKey(sourceDir).cancel();
+      watcher.registerWatchers(config.sourceDirs());
+      assertTrue(watcher.registeredKey(sourceDir).isValid());
+    }
+  }
+
+  @Test
+  void recursiveRegistrationSkipsVersionControlDirectories() throws IOException {
+    Files.createDirectories(tempDir.resolve("root/.git/objects"));
+    Files.createDirectories(tempDir.resolve("root/proto"));
+    var config = testConfig(tempDir.resolve("output"), List.of(tempDir.resolve("root")));
+    try (var watcher = new BazelFileWatcher(config)) {
+      watcher.registerWatchers(config.sourceDirs());
+      assertNotNull(watcher.registeredKey(tempDir.resolve("root/proto")));
+      assertNull(watcher.registeredKey(tempDir.resolve("root/.git")));
+      assertNull(watcher.registeredKey(tempDir.resolve("root/.git/objects")));
+    }
+    assertTrue(BazelFileWatcher.isVersionControlDirectory(Path.of("workspace/.git")));
+    assertTrue(BazelFileWatcher.isVersionControlDirectory(Path.of("workspace/.hg")));
+    assertTrue(BazelFileWatcher.isVersionControlDirectory(Path.of("workspace/.svn")));
+    assertFalse(BazelFileWatcher.isVersionControlDirectory(Path.of("workspace/.schemas")));
   }
 
   @Test

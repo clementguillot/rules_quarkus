@@ -15,9 +15,9 @@ load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusAppInfo", "QuarkusContinuousTestInfo", "QuarkusNativeInfo")
-load("//quarkus/private:application_model_aspect.bzl", "collect_deployment_model_artifacts", "collect_deployment_model_fragments", "collect_direct_model_dependency_ids", "collect_local_deployments", "collect_local_runtime_aliases", "collect_model_artifacts", "collect_model_fragments", "collect_model_root_ids", "collect_watch_metadata", "has_maven_artifact", "quarkus_application_model_aspect", "write_synthetic_test_root_fragment")
+load("//quarkus/private:application_model_aspect.bzl", "build_file_path", "collect_deployment_model_artifacts", "collect_deployment_model_fragments", "collect_local_deployments", "collect_local_runtime_aliases", "collect_model_artifacts", "collect_model_fragments", "collect_model_root_ids", "collect_watch_metadata", "has_maven_artifact", "quarkus_application_model_aspect", "write_synthetic_test_root_fragment")
 load("//quarkus/private:build_properties.bzl", "validate_build_property_keys")
-load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_extension_runtime_jars", "collect_local_app_jars", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
+load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_extension_deployment_classpath", "collect_extension_runtime_jars", "collect_local_app_jars", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
 load("//quarkus/private:coverage_transition.bzl", "disable_coverage_transition", "single_transitioned_target")
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model", "assemble_application_model_from_parts")
 load("//quarkus/private:quarkus_codegen_impl.bzl", "collect_codegen_input_files", "quarkus_codegen_metadata_aspect")
@@ -35,7 +35,7 @@ def regex_escape_class_name(class_name):
 
 def test_resources_without_sources_error(srcs, resources):
     """Returns an actionable error for resources the public macro would ignore."""
-    if resources and not srcs:
+    if resources and srcs == None:
         return "quarkus_test resources require inline srcs; declare resources on the precompiled java_library instead"
     return ""
 
@@ -77,20 +77,29 @@ def _build_property_jvm_flags(build_properties):
         for key in sorted(build_properties)
     ]
 
-_QuarkusTestModelPartsInfo = provider(
-    doc = """Graph parts of one quarkus_test TEST model. Only the continuous-test aggregate
-    reads them, to re-assemble several tests into one model without reading lossy model files.""",
+_QuarkusContinuousTestPartsInfo = provider(
+    doc = """Continuous-testing inputs of one quarkus_test, consumed only by the aggregate that
+    combines the listed tests into the dev session's single TEST model. Fields stay lazy so tests
+    that no dev target references pay no analysis-time flattening.""",
     fields = {
+        "build_files": "Depset of BUILD files whose changes require restarting dev mode.",
+        "build_properties": "Declared test JVM system properties.",
+        "class_output_candidates": "Depset of local compiled test jars that may be synchronized.",
+        "codegen_input_files": "Depset of exact workspace-relative test code-generation inputs.",
         "conditional_classpath": "Depset of conditional dependency candidates.",
         "deployment_classpath": "Depset of deployment artifacts.",
         "deployment_model_artifacts": "Depset of artifacts referenced by local deployment fragments.",
         "deployment_model_fragments": "Depset of local-extension deployment graph fragments.",
+        "input_files": "Depset of exact declared test-graph source and resource files.",
+        "jvm_flags": "Declared flags for the shared dev/test child JVM.",
         "local_deployments": "Local extension deployment coordinate-to-target mappings.",
         "local_runtime_aliases": "Raw-to-packaged local extension runtime target mappings.",
         "model_artifacts": "Depset of artifacts referenced by runtime model fragments.",
         "model_fragments": "Depset of runtime target model fragments.",
         "root_ids": "Ordered graph root ids of the test.",
         "runtime_classpath": "Depset of runtime artifacts.",
+        "test_classes": "Explicit class selectors.",
+        "test_packages": "Explicit package selectors.",
     },
 )
 
@@ -113,19 +122,10 @@ def _direct_class_outputs(deps):
                 outputs.append(class_jar)
     return outputs
 
-def _ordered_continuous_test_outputs(deps, runtime_classpath, test_outputs):
-    """Orders reloadable test outputs exactly like the test runtime classpath."""
-    candidates = {
-        file.path: True
-        for file in _direct_class_outputs(deps) + test_outputs.to_list()
-    }
-    ordered = []
-    seen = {}
-    for file in runtime_classpath.to_list():
-        if file.path in candidates and file.path not in seen:
-            seen[file.path] = True
-            ordered.append(file)
-    return ordered
+def _ordered_continuous_test_outputs(part):
+    """Orders one test's reloadable outputs exactly like its runtime classpath."""
+    candidates = {file.path: True for file in part.class_output_candidates.to_list()}
+    return [file for file in part.runtime_classpath.to_list() if file.path in candidates]
 
 def _ordered_unique_strings(groups):
     result = []
@@ -147,20 +147,43 @@ def _ordered_unique_files(groups):
                 result.append(file)
     return result
 
-def _merge_continuous_properties(targets, infos):
+def merge_continuous_build_properties(labels, property_dicts):
+    """Merges build_properties of aggregated tests, rejecting conflicting values.
+
+    Args:
+      labels: Labels of the aggregated quarkus_test targets.
+      property_dicts: Their declared build_properties, in the same order.
+
+    Returns:
+      A struct with the merged `properties` and an `error` message (empty on success).
+    """
     properties = {}
     owners = {}
-    for index in range(len(infos)):
-        for key, value in infos[index].build_properties.items():
+    for index in range(len(property_dicts)):
+        for key, value in property_dicts[index].items():
             if key in properties and properties[key] != value:
-                fail("continuous_test targets '{}' and '{}' declare conflicting build_properties value for '{}'".format(
+                return struct(properties = {}, error = "continuous_test targets '{}' and '{}' declare conflicting build_properties value for '{}'".format(
                     owners[key],
-                    targets[index].label,
+                    labels[index],
                     key,
                 ))
             properties[key] = value
-            owners[key] = targets[index].label
-    return properties
+            owners[key] = labels[index]
+    return struct(properties = properties, error = "")
+
+def merge_continuous_jvm_flags(flag_lists):
+    """Concatenates JVM flags in target order.
+
+    Flags are not de-duplicated: options such as `--add-opens` take their value as a separate
+    argument, so dropping a repeated token would corrupt the command line.
+
+    Args:
+      flag_lists: The jvm_flags of each aggregated test, in target order.
+
+    Returns:
+      The concatenated flag list.
+    """
+    return [flag for flags in flag_lists for flag in flags]
 
 def continuous_selection_error(labels, selector_counts):
     """Returns an error when only some aggregated targets narrow their test selection.
@@ -183,79 +206,105 @@ def continuous_selection_error(labels, selector_counts):
             "one dev session applies a single test selection, so add selectors to these targets " +
             "or remove them from the others").format(unselected)
 
-def _merge_continuous_mappings(infos, field, key_field, value_field, label):
+def merge_continuous_mappings(item_lists, key_field, value_field, label):
+    """Merges local-extension mappings of aggregated tests, rejecting conflicting targets.
+
+    Args:
+      item_lists: Mapping dicts of each aggregated test, in target order.
+      key_field: Field identifying a mapping.
+      value_field: Field that must agree across tests for the same key.
+      label: Human-readable mapping kind for the error message.
+
+    Returns:
+      A struct with the merged `items` and an `error` message (empty on success).
+    """
     result = []
     seen = {}
-    for info in infos:
-        for item in getattr(info, field):
+    for items in item_lists:
+        for item in items:
             key = item[key_field]
             value = item[value_field]
             if key in seen and seen[key] != value:
-                fail("continuous_test {} '{}' maps to multiple targets".format(label, key))
+                return struct(items = [], error = "continuous_test {} '{}' maps to multiple targets".format(label, key))
             if key not in seen:
                 seen[key] = value
                 result.append(item)
+    return struct(items = result, error = "")
+
+def _checked(result):
+    if result.error:
+        fail(result.error)
     return result
 
 def _continuous_test_aggregate_impl(ctx):
-    if len(ctx.attr.tests) < 2:
-        fail("continuous test aggregation requires at least two quarkus_test targets")
-
-    infos = [target[QuarkusContinuousTestInfo] for target in ctx.attr.tests]
-    parts = [target[_QuarkusTestModelPartsInfo] for target in ctx.attr.tests]
+    labels = [target.label for target in ctx.attr.tests]
+    parts = [target[_QuarkusContinuousTestPartsInfo] for target in ctx.attr.tests]
     selection_error = continuous_selection_error(
-        [target.label for target in ctx.attr.tests],
-        [len(info.test_classes) + len(info.test_packages) for info in infos],
+        labels,
+        [len(part.test_classes) + len(part.test_packages) for part in parts],
     )
     if selection_error:
         fail(selection_error)
     application_root_ids = collect_model_root_ids(ctx.attr.application_deps)
     if not application_root_ids:
         fail("continuous test aggregation requires at least one application dependency")
-    classes_output_dirs = _ordered_unique_files([info.classes_output_dirs for info in infos])
+    classes_output_dirs = _ordered_unique_files([_ordered_continuous_test_outputs(part) for part in parts])
     synthetic_root = write_synthetic_test_root_fragment(
         ctx,
         application_root_ids,
         _ordered_unique_strings([part.root_ids for part in parts]),
         classes_output_dirs,
     )
+
+    # The synthetic root depends on the application itself, so its graph is part of the model even
+    # when every listed test is module-owned and never reaches the application on its own.
+    application = ctx.attr.application_deps
+    model_artifacts = depset(transitive = [collect_model_artifacts(application)] + [part.model_artifacts for part in parts])
+    deployment_model_artifacts = depset(transitive = [collect_deployment_model_artifacts(application)] + [part.deployment_model_artifacts for part in parts])
+    runtime_classpath = depset(transitive = [collect_runtime_classpath(application)] + [part.runtime_classpath for part in parts])
+    conditional_classpath = depset(transitive = [part.conditional_classpath for part in parts])
+    deployment_classpath = depset(transitive = [collect_extension_deployment_classpath(application)] + [part.deployment_classpath for part in parts])
     model = assemble_application_model_from_parts(
         ctx,
         [str(ctx.label)],
-        depset([synthetic_root], transitive = [part.model_fragments for part in parts]),
-        depset(transitive = [part.model_artifacts for part in parts]),
-        depset(transitive = [part.deployment_model_fragments for part in parts]),
-        depset(transitive = [part.deployment_model_artifacts for part in parts]),
-        _merge_continuous_mappings(parts, "local_deployments", "coordinate", "targetId", "local deployment coordinate"),
-        _merge_continuous_mappings(parts, "local_runtime_aliases", "rawTargetId", "targetId", "local runtime target"),
-        depset(transitive = [part.runtime_classpath for part in parts]),
-        depset(transitive = [part.conditional_classpath for part in parts]),
-        depset(transitive = [part.deployment_classpath for part in parts]),
+        depset([synthetic_root], transitive = [collect_model_fragments(application)] + [part.model_fragments for part in parts]),
+        model_artifacts,
+        depset(transitive = [collect_deployment_model_fragments(application)] + [part.deployment_model_fragments for part in parts]),
+        deployment_model_artifacts,
+        _checked(merge_continuous_mappings([collect_local_deployments(application)] + [part.local_deployments for part in parts], "coordinate", "targetId", "local deployment coordinate")).items,
+        _checked(merge_continuous_mappings([collect_local_runtime_aliases(application)] + [part.local_runtime_aliases for part in parts], "rawTargetId", "targetId", "local runtime target")).items,
+        runtime_classpath,
+        conditional_classpath,
+        deployment_classpath,
         "test",
+        # Like DEV mode, the first application dependency is the application: the synthetic root
+        # also depends on every other application root, which must not compete with it.
+        test_application_id = application_root_ids[0],
     )
 
     return [
         DefaultInfo(files = depset([model])),
         OutputGroupInfo(quarkus_model = depset([model])),
         QuarkusContinuousTestInfo(
-            application_dependency_ids = depset(
-                application_root_ids,
-                transitive = [info.application_dependency_ids for info in infos],
-            ),
             application_model = model,
-            build_files = depset(transitive = [info.build_files for info in infos]),
-            build_properties = _merge_continuous_properties(ctx.attr.tests, infos),
+            build_files = depset(transitive = [part.build_files for part in parts]),
+            build_properties = _checked(merge_continuous_build_properties(labels, [part.build_properties for part in parts])).properties,
             classes_output_dirs = classes_output_dirs,
-            codegen_input_files = depset(transitive = [info.codegen_input_files for info in infos]),
-            input_files = depset(transitive = [info.input_files for info in infos]),
-            # Concatenate rather than de-duplicate: flags such as --add-opens take a separate value.
-            jvm_flags = [flag for info in infos for flag in info.jvm_flags],
+            codegen_input_files = depset(transitive = [part.codegen_input_files for part in parts]),
+            input_files = depset(transitive = [part.input_files for part in parts]),
+            jvm_flags = merge_continuous_jvm_flags([part.jvm_flags for part in parts]),
             model_classpath = depset(
                 [model],
-                transitive = [info.model_classpath for info in infos],
+                transitive = [
+                    runtime_classpath,
+                    conditional_classpath,
+                    deployment_classpath,
+                    model_artifacts,
+                    deployment_model_artifacts,
+                ],
             ),
-            test_classes = _ordered_unique_strings([info.test_classes for info in infos]),
-            test_packages = _ordered_unique_strings([info.test_packages for info in infos]),
+            test_classes = _ordered_unique_strings([part.test_classes for part in parts]),
+            test_packages = _ordered_unique_strings([part.test_packages for part in parts]),
         ),
     ]
 
@@ -386,41 +435,30 @@ def _test_impl(ctx, integration):
     ]
     if not integration:
         metadata = collect_watch_metadata(ctx.attr.deps)
-        model_artifacts = collect_model_artifacts(ctx.attr.deps)
-        deployment_model_artifacts = collect_deployment_model_artifacts(ctx.attr.deps)
-        providers.append(QuarkusContinuousTestInfo(
-            application_dependency_ids = depset(collect_direct_model_dependency_ids(ctx.attr.deps)),
-            application_model = model,
-            build_files = metadata.build_files,
-            build_properties = declared_build_properties,
-            classes_output_dirs = _ordered_continuous_test_outputs(ctx.attr.deps, runtime_classpath, metadata.test_outputs),
-            codegen_input_files = collect_codegen_input_files(ctx.attr.deps),
-            input_files = metadata.input_files,
-            jvm_flags = ctx.attr.jvm_flags,
-            model_classpath = depset(
-                [model],
-                transitive = [
-                    runtime_classpath,
-                    conditional_classpath,
-                    deploy_classpath,
-                    model_artifacts,
-                    deployment_model_artifacts,
-                ],
+        providers.append(_QuarkusContinuousTestPartsInfo(
+            # The test's own package holds its selectors and properties, even when it declares no
+            # Java target (a precompiled test in a separate package).
+            build_files = depset(
+                [] if ctx.label.workspace_name else [build_file_path(ctx)],
+                transitive = [metadata.build_files],
             ),
-            test_classes = ctx.attr.test_classes,
-            test_packages = ctx.attr.test_packages,
-        ))
-        providers.append(_QuarkusTestModelPartsInfo(
+            build_properties = declared_build_properties,
+            class_output_candidates = depset(_direct_class_outputs(ctx.attr.deps), transitive = [metadata.test_outputs]),
+            codegen_input_files = collect_codegen_input_files(ctx.attr.deps),
             conditional_classpath = conditional_classpath,
             deployment_classpath = deploy_classpath,
-            deployment_model_artifacts = deployment_model_artifacts,
+            deployment_model_artifacts = collect_deployment_model_artifacts(ctx.attr.deps),
             deployment_model_fragments = collect_deployment_model_fragments(ctx.attr.deps),
+            input_files = metadata.input_files,
+            jvm_flags = ctx.attr.jvm_flags,
             local_deployments = collect_local_deployments(ctx.attr.deps),
             local_runtime_aliases = collect_local_runtime_aliases(ctx.attr.deps),
-            model_artifacts = model_artifacts,
+            model_artifacts = collect_model_artifacts(ctx.attr.deps),
             model_fragments = collect_model_fragments(ctx.attr.deps),
             root_ids = collect_model_root_ids(ctx.attr.deps),
             runtime_classpath = runtime_classpath,
+            test_classes = ctx.attr.test_classes,
+            test_packages = ctx.attr.test_packages,
         ))
     return providers
 
@@ -555,15 +593,18 @@ quarkus_continuous_test_aggregate = rule(
     attrs = {
         "application_deps": attr.label_list(
             mandatory = True,
-            aspects = [quarkus_application_model_aspect],
+            aspects = [
+                quarkus_extension_deployment_classpath_aspect,
+                quarkus_application_model_aspect,
+            ],
             providers = [JavaInfo],
-            doc = "Application dependencies used to identify the TEST model root.",
+            doc = "Application dependencies: the TEST model root and part of its graph.",
         ),
         "tests": attr.label_list(
             mandatory = True,
             cfg = disable_coverage_transition,
-            providers = [QuarkusContinuousTestInfo, _QuarkusTestModelPartsInfo],
-            doc = "Independently executable quarkus_test targets combined for one dev session.",
+            providers = [_QuarkusContinuousTestPartsInfo],
+            doc = "quarkus_test targets combined into the dev session's single TEST model.",
         ),
         "conditional_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
         "deployment_artifacts": attr.label(mandatory = True),

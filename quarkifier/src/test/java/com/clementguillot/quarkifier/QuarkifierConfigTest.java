@@ -177,7 +177,7 @@ class QuarkifierConfigTest {
             "bazel-bin/test.jar,bazel-bin/other-tests.jar",
             "--watched-input",
             "src/test/java/AppTest.java",
-            "--watched-input",
+            "--watched-test-input",
             "src/test/resources/fixture.txt",
             "--watched-build-file",
             "BUILD.bazel");
@@ -187,9 +187,8 @@ class QuarkifierConfigTest {
     assertEquals(
         List.of(Path.of("bazel-bin/test.jar"), Path.of("bazel-bin/other-tests.jar")),
         config.testClassesOutputDirs());
-    assertEquals(
-        List.of(Path.of("src/test/java/AppTest.java"), Path.of("src/test/resources/fixture.txt")),
-        config.watchedInputs());
+    assertEquals(List.of(Path.of("src/test/java/AppTest.java")), config.watchedInputs());
+    assertEquals(List.of(Path.of("src/test/resources/fixture.txt")), config.watchedTestInputs());
     assertEquals(List.of(Path.of("BUILD.bazel")), config.watchedBuildFiles());
   }
 
@@ -204,6 +203,7 @@ class QuarkifierConfigTest {
     assertNull(config.testClassesDir());
     assertTrue(config.testClassesOutputDirs().isEmpty());
     assertTrue(config.watchedInputs().isEmpty());
+    assertTrue(config.watchedTestInputs().isEmpty());
     assertTrue(config.watchedBuildFiles().isEmpty());
   }
 
@@ -215,6 +215,7 @@ class QuarkifierConfigTest {
             List.of("--test-classes-dir", "/tmp/test-classes"),
             List.of("--test-classes-output-dirs", "bazel-bin/test.jar"),
             List.of("--watched-input", "src/test/java/AppTest.java"),
+            List.of("--watched-test-input", "src/test/resources/fixture.txt"),
             List.of("--watched-build-file", "BUILD.bazel"),
             List.of("--test-jvm-arg=-Dtest.flag=true"))) {
       var args =

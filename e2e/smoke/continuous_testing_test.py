@@ -90,6 +90,10 @@ def prepare(workspace):
     shutil.copyfile(smoke / "maven_install.json", workspace / "maven_install.json")
     (workspace / "MODULE.bazel").write_text(module)
     shutil.copyfile(smoke / ".bazelrc", workspace / ".bazelrc")
+    # Drive the nested workspace with the outer Bazel version (CI writes one per matrix entry);
+    # without it Bazelisk would pick the latest release instead.
+    if (smoke / ".bazelversion").exists():
+        shutil.copyfile(smoke / ".bazelversion", workspace / ".bazelversion")
     shutil.copytree(smoke / "ext", workspace / "ext", dirs_exist_ok=True)
     (workspace / "BUILD.bazel").write_text((fixture / "BUILD.bazel.tpl").read_text())
     main_source = workspace / "src/main/java/fixture/Main.java"
@@ -120,6 +124,35 @@ def prepare(workspace):
     shutil.copyfile(fixture / "SubmoduleService.java", submodule / "SubmoduleService.java")
     shutil.copyfile(fixture / "SubmoduleTest.java", submodule_test_source)
     shutil.copyfile(fixture / "Submodule.BUILD.bazel.tpl", submodule / "BUILD.bazel")
+    # A test package whose inline glob starts empty; its first test is added while dev mode runs.
+    empty_glob = workspace / "emptyglob"
+    empty_glob.mkdir(exist_ok=True)
+    (empty_glob / "BUILD.bazel").write_text(
+        'load("@rules_quarkus//quarkus:defs.bzl", "quarkus_test")\n'
+        'quarkus_test(\n'
+        '    name = "test",\n'
+        '    srcs = glob(["src/test/java/**/*.java"], allow_empty = True),\n'
+        '    test_packages = ["emptyglob"],\n'
+        '    deps = ["//submodule:lib", "@maven//:org_junit_jupiter_junit_jupiter_api"],\n'
+        '    visibility = ["//visibility:public"],\n'
+        ')\n'
+    )
+    for package, build in {
+        "independent": (
+            'load("@rules_java//java:java_library.bzl", "java_library")\n'
+            'java_library(name = "lib", srcs = ["Independent.java"], visibility = ["//visibility:public"])\n'
+        ),
+        "moduletests": (
+            'load("@rules_quarkus//quarkus:defs.bzl", "quarkus_test")\n'
+            'quarkus_test(name = "test", test_packages = ["submodule"], deps = ["//submodule:tests"],'
+            ' visibility = ["//visibility:public"])\n'
+        ),
+    }.items():
+        (workspace / package).mkdir(exist_ok=True)
+        (workspace / package / "BUILD.bazel").write_text(build)
+    (workspace / "independent/Independent.java").write_text(
+        "package independent;\npublic final class Independent {}\n"
+    )
     unrelated = workspace / "unrelated"
     unrelated.mkdir(exist_ok=True)
     (unrelated / "BUILD.bazel").write_text('exports_files(["ignored.txt"])\n')
@@ -137,7 +170,7 @@ def prepare(workspace):
             f'quarkus_app(name="app", {arguments})\n'
         )
     (workspace / "tests").mkdir(exist_ok=True)
-    for name in ("FlatTest", "SelectedTest", "ExcludedTest"):
+    for name in ("FlatTest", "SelectedTest", "SelectedIT", "ExcludedTest"):
         shutil.copyfile(fixture / f"{name}.java", workspace / "tests" / f"{name}.java")
     for name, value in {
         "src/main/hello/main.hello": "main-v1",
@@ -283,9 +316,15 @@ def certify(workspace, log_path):
                 match = re.search(r"Listening on: http://localhost:(\d+)", log_path.read_text())
                 return int(match.group(1)) if match else None
             ui = DevUI(eventually(startup, 600))
-            subprocess.run([bazel, "build", "//:positional_test", "//:without_tests"],
+            subprocess.run([bazel, "build", "//:positional_test", "//:without_tests", "//:module_tests_only_dev"],
                            cwd=workspace, env=environment, stdout=log,
                            stderr=subprocess.STDOUT, check=True, timeout=600)
+            # Packages that only declare the app or a precompiled test still require a restart.
+            watched_build_files = (
+                workspace / "bazel-bin/module_tests_only_dev_watched_build_files.txt"
+            ).read_text().split()
+            assert "BUILD.bazel" in watched_build_files, watched_build_files
+            assert "moduletests/BUILD.bazel" in watched_build_files, watched_build_files
             subprocess.run([bazel, "test", "//submodule:test", "--test_output=errors"],
                            cwd=workspace, env=environment, stdout=log,
                            stderr=subprocess.STDOUT, check=True, timeout=600)
@@ -431,6 +470,22 @@ def certify(workspace, log_path):
             status = eventually(lambda: completed(status["lastRun"], 0, expected_tests))
             assert "AddedSubmoduleTest" not in json.dumps(ui.call("getResults"))
             print("PASS: submodule test creation, declared deletion/restore and removal", flush=True)
+
+            # The first file of an initially empty glob, in a package with no source directory yet.
+            first_test = workspace / "emptyglob/src/test/java/emptyglob/FirstTest.java"
+            previous = status["lastRun"]
+            first_test.parent.mkdir(parents=True)
+            first_test.write_text(
+                "package emptyglob;\n"
+                "import org.junit.jupiter.api.Test;\n"
+                "class FirstTest { @Test void runs() {} }\n"
+            )
+            status = eventually(lambda: completed(previous, 0, expected_tests + 1))
+            assert "FirstTest" in json.dumps(ui.call("getResults"))
+            previous = status["lastRun"]
+            first_test.unlink()
+            status = eventually(lambda: completed(previous, 0, expected_tests))
+            print("PASS: the first file of an initially empty test glob is picked up and removed", flush=True)
 
             # Deleting and restoring declared sources, and creating/removing an application
             # source, must reach both the running application and the continuous-test results.

@@ -50,7 +50,8 @@ def _files_attr(ctx, attr_name):
         return []
     return [_file_record(file) for file in getattr(ctx.rule.files, attr_name)]
 
-def _build_file_path(ctx):
+def build_file_path(ctx):
+    """Returns the workspace-relative BUILD file declaring the rule or aspect target of `ctx`."""
     return ctx.build_file_path if hasattr(ctx, "build_file_path") else (ctx.label.package + "/BUILD.bazel" if ctx.label.package else "BUILD.bazel")
 
 def _edge_records(graphs, relation, scope):
@@ -126,7 +127,7 @@ def _extract_workspace_outputs(ctx, target, output_jars, suffix = ""):
 def _target_fragment(ctx, target, edges, coordinates = None, output_jars = None, output_directories = None, suffix = ""):
     target_id = str(target.label) if not suffix else "local-deployment:" + str(target.label)
     output = ctx.actions.declare_file(ctx.label.name + suffix + ".quarkus-target-v1.json")
-    build_file = _build_file_path(ctx)
+    build_file = build_file_path(ctx)
     java_info = target[JavaInfo]
     content = json.encode({
         "bazelLabel": str(target.label),
@@ -299,7 +300,7 @@ def _application_model_aspect_impl(target, ctx):
                 transitive = [graph.watch_inputs for graph in child_graphs],
             ),
             watch_build_files = depset(
-                direct = [_build_file_path(ctx)] if JavaInfo in target and not ctx.label.workspace_name else [],
+                direct = [build_file_path(ctx)] if JavaInfo in target and not ctx.label.workspace_name else [],
                 transitive = [graph.watch_build_files for graph in child_graphs],
             ),
             test_outputs = depset(
@@ -383,27 +384,6 @@ def collect_model_root_ids(deps):
                 seen[root_id] = True
                 root_ids.append(root_id)
     return root_ids
-
-def collect_direct_model_dependency_ids(deps):
-    """Collects direct dependency ids of graph roots in public dependency order.
-
-    Args:
-        deps: Direct dependencies carrying application-model graph providers.
-
-    Returns:
-        A deduplicated list of direct dependency ids for all graph roots.
-    """
-    dependency_ids = []
-    seen = {}
-    for dep in deps:
-        if QuarkusBazelTargetGraphInfo not in dep:
-            continue
-        for edge in dep[QuarkusBazelTargetGraphInfo].root_edges:
-            dependency_id = edge["targetId"]
-            if dependency_id not in seen:
-                seen[dependency_id] = True
-                dependency_ids.append(dependency_id)
-    return dependency_ids
 
 def collect_deployment_model_fragments(deps):
     """Collects local-extension deployment graph fragments."""
@@ -492,7 +472,7 @@ def write_synthetic_test_root_fragment(ctx, application_root_ids, test_root_ids,
     output = ctx.actions.declare_file(ctx.label.name + ".quarkus-target-v1.json")
     content = json.encode({
         "bazelLabel": target_id,
-        "buildFile": _build_file_path(ctx),
+        "buildFile": build_file_path(ctx),
         "coordinates": None,
         "edges": sorted(edges, key = _edge_sort_key),
         "neverlink": False,
@@ -512,12 +492,14 @@ def write_synthetic_test_root_fragment(ctx, application_root_ids, test_root_ids,
     ctx.actions.write(output = output, content = content)
     return output
 
-def write_model_root_ids_file(ctx, root_ids):
+def write_model_root_ids_file(ctx, root_ids, test_application_id = None):
     """Writes already-collected model root ids in their declared order.
 
     Args:
         ctx: Rule context used to declare and write the roots file.
         root_ids: Ordered, deduplicated graph root ids.
+        test_application_id: Application library of a TEST model whose single root joins several
+            test graphs, or None to select it from the test root's dependencies.
 
     Returns:
         The declared application-model roots JSON file.
@@ -527,6 +509,7 @@ def write_model_root_ids_file(ctx, root_ids):
         "applicationLabel": str(ctx.label),
         "rootIds": root_ids,
         "schemaVersion": "quarkus-bazel-roots-v1",
+        "testApplicationId": test_application_id,
     }) + "\n"
     ctx.actions.write(output = output, content = content)
     return output

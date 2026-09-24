@@ -74,6 +74,7 @@ if [ -f "$CLASSES_OUTPUT_DIRS_FILE" ]; then
 fi
 
 WATCHED_INPUTS_FILE="${RUNFILES_DIR}/%{workspace}/%{watched_inputs_file}"
+WATCHED_TEST_INPUTS_FILE="${RUNFILES_DIR}/%{workspace}/%{watched_test_inputs_file}"
 WATCHED_BUILD_FILES_FILE="${RUNFILES_DIR}/%{workspace}/%{watched_build_files_file}"
 
 # Read continuous-testing compiled-output metadata.
@@ -110,6 +111,7 @@ esac
 HOT_RELOAD_ARGS=()
 RESOURCES_VALUE=""
 WATCHED_INPUT_ARGS=()
+WATCHED_TEST_INPUT_ARGS=()
 WATCHED_BUILD_FILE_ARGS=()
 
 # Prefixing helper: accumulate into an array (O(1) append) and join once.
@@ -141,6 +143,14 @@ if [ -f "$WATCHED_INPUTS_FILE" ]; then
             WATCHED_INPUT_ARGS+=("--watched-input" "${WORKSPACE_ROOT}/${input}")
         fi
     done < "$WATCHED_INPUTS_FILE"
+fi
+
+if [ -f "$WATCHED_TEST_INPUTS_FILE" ]; then
+    while IFS= read -r input; do
+        if [ -n "$input" ]; then
+            WATCHED_TEST_INPUT_ARGS+=("--watched-test-input" "${WORKSPACE_ROOT}/${input}")
+        fi
+    done < "$WATCHED_TEST_INPUTS_FILE"
 fi
 
 if [ -f "$WATCHED_BUILD_FILES_FILE" ]; then
@@ -215,6 +225,7 @@ if [ -n "$BAZEL_TARGETS" ] && { [ -n "$TEST_MODEL_FILE" ] || [ -n "$SOURCE_DIRS"
     fi
     # The ${arr[@]+...} form keeps empty arrays safe under `set -u` on bash 3.2 (macOS).
     HOT_RELOAD_ARGS+=(${WATCHED_INPUT_ARGS[@]+"${WATCHED_INPUT_ARGS[@]}"})
+    HOT_RELOAD_ARGS+=(${WATCHED_TEST_INPUT_ARGS[@]+"${WATCHED_TEST_INPUT_ARGS[@]}"})
     HOT_RELOAD_ARGS+=(${WATCHED_BUILD_FILE_ARGS[@]+"${WATCHED_BUILD_FILE_ARGS[@]}"})
     for flag in ${TEST_JVM_FLAGS[@]+"${TEST_JVM_FLAGS[@]}"}; do
         HOT_RELOAD_ARGS+=("--test-jvm-arg=$flag")

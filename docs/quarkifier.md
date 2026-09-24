@@ -35,6 +35,7 @@ java -jar quarkifier_<minor>_deploy.jar \
   [--test-classes-dir <path>] \
   [--test-classes-output-dirs <path,path,...>] \
   [--watched-input <path>]... \
+  [--watched-test-input <path>]... \
   [--watched-build-file <path>]... \
   [--test-jvm-arg <flag>]... \
   [--bazel-targets <label,label,...>] \
@@ -73,6 +74,7 @@ java -jar quarkifier_<minor>_deploy.jar \
 | `--test-classes-dir` | No | — | Mutable test output directory; enables output-only Quarkus scanning |
 | `--test-classes-output-dirs` | No | `[]` | Comma-separated compiled test/helper outputs to synchronize |
 | `--watched-input` | No | `[]` | Repeatable exact declared input watched in dev mode: CodeGenProvider inputs, plus every source and resource input during continuous testing |
+| `--watched-test-input` | No | `[]` | Repeatable exact input only the continuous-test graph declares; changes rerun tests without restarting the application |
 | `--watched-build-file` | No | `[]` | Repeatable BUILD file watched to warn that the dev session must be restarted |
 | `--test-jvm-arg` | No | `[]` | Repeatable shared dev/test JVM flag; use `--test-jvm-arg=-Dkey=value` |
 | `--bazel-targets` | No | `[]` | Comma-separated Bazel targets to rebuild on source changes |
@@ -92,8 +94,8 @@ java -jar quarkifier_<minor>_deploy.jar \
 
 Continuous-testing options and `--watched-input` are accepted only in
 `--mode dev`. `--test-application-model` and `--test-classes-dir` must be
-supplied together; the other test outputs, JVM flags, and watched BUILD files
-require that pair. Before launch, the TEST model must identify exactly the same Bazel
+supplied together; the other test outputs, test-only inputs, JVM flags, and
+watched BUILD files require that pair. Before launch, the TEST model must identify exactly the same Bazel
 application root as the DEV model.
 
 ### Extension enrichment
@@ -197,6 +199,7 @@ public record QuarkifierConfig(
     Path applicationModel,
     Path testApplicationModel,
     List<Path> watchedInputs,
+    List<Path> watchedTestInputs,
     List<Path> watchedBuildFiles,
     List<String> testJvmArgs
 ) { ... }

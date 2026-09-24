@@ -1397,6 +1397,7 @@ load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_extension_impl.
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_native_app_impl.bzl", "quarkus_native_app_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_native_container_app_impl.bzl", "quarkus_native_container_app_rule")
 load("@com_clementguillot_rules_quarkus//quarkus/private:quarkus_test_impl.bzl", _quarkus_continuous_test_aggregate = "quarkus_continuous_test_aggregate", _quarkus_integration_test = "quarkus_integration_test", _quarkus_test = "quarkus_test", _test_resources_without_sources_error = "test_resources_without_sources_error")
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@com_clementguillot_rules_quarkus//quarkus/private:versions.bzl", "DEFAULT_NATIVE_BUILDER_IMAGE")
 load("@rules_java//java:java_library.bzl", "java_library")
 
@@ -1607,31 +1608,28 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
         **kwargs
     )
 
-    continuous_test_target = continuous_test
-    if type(continuous_test) == "list":
-        if len(continuous_test) == 0:
-            continuous_test_target = None
-        elif len(continuous_test) == 1:
-            continuous_test_target = continuous_test[0]
-        else:
-            aggregate_name = name + "_continuous_tests"
-            _quarkus_continuous_test_aggregate(
-                name = aggregate_name,
-                application_deps = kwargs.get("deps", []),
-                tests = continuous_test,
-                quarkus_version = _QUARKUS_VERSION,
-                quarkifier_tool = _QUARKIFIER_TOOL,
-                deployment_artifacts = _DEPLOYMENT_ARTIFACTS,
-                conditional_catalog = _CONDITIONAL_CATALOG,
-                deployment_catalog = _DEPLOYMENT_CATALOG,
-                model_private_deps = _TEST_INFRASTRUCTURE_DEPS,
-                platform_catalog = _PLATFORM_CATALOG,
-                platform_properties = _PLATFORM_PROPERTIES,
-                runtime_catalog = _RUNTIME_CATALOG,
-                testonly = True,
-                visibility = ["//visibility:private"],
-            )
-            continuous_test_target = ":" + aggregate_name
+    # Even a single test goes through the aggregate: it roots the TEST model at the application,
+    # which also lets a module-owned quarkus_test run against the application it belongs to.
+    continuous_tests = continuous_test if type(continuous_test) == "list" else ([continuous_test] if continuous_test else [])
+    continuous_test_target = None
+    if continuous_tests:
+        continuous_test_target = ":" + name + "_continuous_tests"
+        _quarkus_continuous_test_aggregate(
+            name = name + "_continuous_tests",
+            application_deps = kwargs.get("deps", []),
+            tests = continuous_tests,
+            quarkus_version = _QUARKUS_VERSION,
+            quarkifier_tool = _QUARKIFIER_TOOL,
+            deployment_artifacts = _DEPLOYMENT_ARTIFACTS,
+            conditional_catalog = _CONDITIONAL_CATALOG,
+            deployment_catalog = _DEPLOYMENT_CATALOG,
+            model_private_deps = _TEST_INFRASTRUCTURE_DEPS,
+            platform_catalog = _PLATFORM_CATALOG,
+            platform_properties = _PLATFORM_PROPERTIES,
+            runtime_catalog = _RUNTIME_CATALOG,
+            testonly = True,
+            visibility = ["//visibility:private"],
+        )
 
     # Attrs shared by the secondary (_dev / _native) targets.
     main_class = kwargs.get("main_class", "")
@@ -1683,16 +1681,31 @@ def _prepare_test_target(name, srcs, resources, deps, test_packages, test_classe
     if resources_error:
         fail(resources_error)
     test_deps = deps or []
-    if srcs:
+
+    # Inline srcs, even an initially empty glob, always get a test library: it puts the test's
+    # package into the dev graph, so continuous testing picks up the glob's first file live.
+    if srcs != None:
         compile_deps = []
         seen_compile_deps = {{}}
         for dep in test_deps + _TEST_INFRASTRUCTURE_DEPS:
             if dep not in seen_compile_deps:
                 seen_compile_deps[dep] = True
                 compile_deps.append(dep)
+        library_srcs = srcs
+        if not srcs:
+            # java_library emits no jar without inputs, while continuous testing can only publish
+            # classes into a jar that exists when the session starts. Compile an empty unit until
+            # the glob matches a source; the jar keeps its path once real sources appear.
+            write_file(
+                name = name + "_lib_placeholder",
+                out = name + "_lib_placeholder.java",
+                content = ["// Empty compilation unit: the test glob matches no source yet.", ""],
+                testonly = True,
+            )
+            library_srcs = [":" + name + "_lib_placeholder"]
         java_library(
             name = name + "_lib",
-            srcs = srcs,
+            srcs = library_srcs,
             resources = resources,
             deps = compile_deps,
             testonly = True,
@@ -1719,9 +1732,9 @@ def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_clas
                  jvm_flags = None, build_properties = None, resources = [], **kwargs):
     \"\"\"Runs @QuarkusTest-annotated JUnit 5 tests with full Quarkus augmentation.
 
-    If srcs is provided, a java_library is created internally to compile the
-    test sources. If srcs is omitted, deps must include a pre-compiled
-    java_library containing the test classes.
+    If srcs is provided (even as an empty glob), a java_library is created
+    internally to compile the test sources. If srcs is omitted, deps must
+    include a pre-compiled java_library containing the test classes.
 
     With inline srcs, declare `resources` here (e.g.
     glob(["src/test/resources/**"], allow_empty = True)) to package test resources.

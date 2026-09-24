@@ -532,6 +532,30 @@ class BazelApplicationModelAssemblerTest {
   }
 
   @Test
+  void testModeUsesAnExplicitApplicationAmongIndependentLibraries() throws IOException {
+    var testInputs = withTestApplication(multiDependencyTestInputs(false), APP);
+
+    BazelApplicationModel model = BazelApplicationModelAssembler.assemble(testInputs);
+
+    assertEquals(APP, model.applicationId());
+    assertTrue(
+        targets(node(model, APP)).contains(SHARED),
+        "the other application library becomes a dependency of the explicit application");
+  }
+
+  @Test
+  void testModeRejectsAnExplicitApplicationOutsideTheTestRoot() throws IOException {
+    var testInputs = withTestApplication(multiDependencyTestInputs(false), EXT);
+
+    BazelApplicationModelException exception =
+        assertThrows(
+            BazelApplicationModelException.class,
+            () -> BazelApplicationModelAssembler.assemble(testInputs));
+
+    assertTrue(exception.getMessage().contains("is not a direct dependency of test root"));
+  }
+
+  @Test
   void testOnlyHelperWithCustomLayoutDoesNotCompeteWithTheApplication() throws IOException {
     var model = BazelApplicationModelAssembler.assemble(multiDependencyTestInputs(false, true));
     assertEquals(APP, model.applicationId());
@@ -1261,6 +1285,30 @@ class BazelApplicationModelAssemblerTest {
         "multi_dep_test",
         "ignored-test-version",
         base.producerVersion());
+  }
+
+  private static BazelApplicationModelAssembler.Inputs withTestApplication(
+      BazelApplicationModelAssembler.Inputs inputs, String applicationId) {
+    return new BazelApplicationModelAssembler.Inputs(
+        new Roots(inputs.roots().applicationLabel(), inputs.roots().rootIds(), applicationId),
+        inputs.targetFragments(),
+        inputs.runtimeCatalog(),
+        inputs.conditionalCatalog(),
+        inputs.deploymentCatalog(),
+        inputs.platformCatalog(),
+        inputs.localDeployments(),
+        inputs.localRuntimeAliases(),
+        inputs.conditionalPaths(),
+        inputs.deploymentPaths(),
+        inputs.platformPropertyPaths(),
+        inputs.runtimeClasspathPaths(),
+        inputs.deploymentClasspathPaths(),
+        inputs.modelPrivateTargetIds(),
+        inputs.quarkusVersion(),
+        inputs.mode(),
+        inputs.applicationName(),
+        inputs.applicationVersion(),
+        inputs.producerVersion());
   }
 
   private static TargetFragment withTestOnly(TargetFragment fragment) {

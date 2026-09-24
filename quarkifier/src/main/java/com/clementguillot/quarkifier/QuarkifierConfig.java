@@ -34,7 +34,9 @@ import java.util.Map;
  * @param applicationModel explicit validated Bazel model JSON
  * @param testApplicationModel explicit validated TEST-mode Bazel model JSON (may be {@code null})
  * @param watchedInputs exact declared inputs watched in dev mode: generator inputs, plus every
- *     source and resource input under continuous testing
+ *     source and resource input of the application graph under continuous testing
+ * @param watchedTestInputs exact inputs only the continuous-test graph declares; changing them
+ *     reruns tests without restarting the application
  * @param watchedBuildFiles BUILD files whose changes require a dev-mode restart
  * @param testJvmArgs JVM flags for the shared dev/test child process
  */
@@ -63,6 +65,7 @@ public record QuarkifierConfig(
     Path applicationModel,
     Path testApplicationModel,
     List<Path> watchedInputs,
+    List<Path> watchedTestInputs,
     List<Path> watchedBuildFiles,
     List<String> testJvmArgs) {
 

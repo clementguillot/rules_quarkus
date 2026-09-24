@@ -204,7 +204,7 @@ def assemble_application_model(ctx, deps, runtime_classpath, conditional_classpa
         application_name,
     )
 
-def assemble_application_model_from_parts(ctx, root_ids, fragments, model_artifacts, deployment_fragments, deployment_model_artifacts, local_deployments, local_runtime_aliases, runtime_classpath, conditional_classpath, deployment_classpath, mode, application_name = None):
+def assemble_application_model_from_parts(ctx, root_ids, fragments, model_artifacts, deployment_fragments, deployment_model_artifacts, local_deployments, local_runtime_aliases, runtime_classpath, conditional_classpath, deployment_classpath, mode, application_name = None, test_application_id = None):
     """Assembles one model from graph parts exported by other analysis targets.
 
     This is used by continuous testing to combine independently executable
@@ -213,7 +213,7 @@ def assemble_application_model_from_parts(ctx, root_ids, fragments, model_artifa
     """
     return _run_model_assembly(
         ctx,
-        write_model_root_ids_file(ctx, root_ids),
+        write_model_root_ids_file(ctx, root_ids, test_application_id),
         fragments,
         model_artifacts,
         deployment_fragments,

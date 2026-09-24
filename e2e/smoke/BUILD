@@ -547,7 +547,10 @@ sh_test(
         "maven_install.json",
         ":app_dev",
     ] + glob(["continuous/**"]),
-    env_inherit = ["PATH"],
+    env_inherit = [
+        "PATH",
+        "USE_BAZEL_VERSION",
+    ],
     tags = [
         "exclusive",
         # The nested build reads repository sources, so the outer test result

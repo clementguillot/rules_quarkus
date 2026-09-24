@@ -408,7 +408,7 @@ workflow. Selecting `aot-jar` with Quarkus 3.27 fails during Bazel analysis.
 | `package_type` | `string` | `"fast-jar"` | JVM package layout; see the table above |
 | `dev` | `bool` | `True` | Also create the `<name>_dev` target |
 | `dev_build_args` | `string_list` | `[]` | Extra Bazel flags reused by hot-reload builds |
-| `continuous_test` | `label` or `label_list` | `None` | Optional `quarkus_test` target, or ordered list of targets, used for continuous testing in one dev-mode session |
+| `continuous_test` | `label` or `label_list` | `None` | Optional `quarkus_test` target, or ordered list of targets, used for continuous testing in one dev-mode session; makes `<name>_dev` `testonly` |
 | `native` | `bool` | `False` | Also create `<name>_native` using `rules_graalvm` |
 | `native_container_build` | `bool` | `False` | Also create `<name>_native` using Docker or Podman |
 

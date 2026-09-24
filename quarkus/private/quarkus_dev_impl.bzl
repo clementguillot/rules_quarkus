@@ -13,7 +13,7 @@ load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusContinuousTestInfo")
-load("//quarkus/private:application_model_aspect.bzl", "collect_model_root_ids", "collect_watch_metadata", "quarkus_application_model_aspect")
+load("//quarkus/private:application_model_aspect.bzl", "build_file_path", "collect_watch_metadata", "quarkus_application_model_aspect")
 load("//quarkus/private:build_properties.bzl", "write_build_properties")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_local_app_jars", "collect_resource_dir_paths", "collect_runtime_classpath", "collect_source_dir_paths", "is_local_artifact", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
 load("//quarkus/private:coverage_transition.bzl", "dev_lifecycle_transition", "disable_coverage_transition", "single_transitioned_target")
@@ -99,26 +99,29 @@ def _quarkus_dev_impl(ctx):
     bazel_targets = _hot_reload_bazel_target(ctx)
     continuous_test = single_transitioned_target(ctx.attr.continuous_test) if ctx.attr.continuous_test else None
     continuous_test_info = continuous_test[QuarkusContinuousTestInfo] if continuous_test else None
-    if continuous_test_info:
-        relationship_error = _continuous_test_application_error(
-            collect_model_root_ids(ctx.attr.deps),
-            continuous_test_info.application_dependency_ids.to_list(),
-        )
-        if relationship_error:
-            fail(relationship_error)
     watch_metadata = collect_watch_metadata(ctx.attr.deps)
-    app_owners = {file.owner: True for file in runtime_classpath.to_list()}
+    app_owners = {file.owner: True for file in runtime_classpath.to_list()} if continuous_test_info else {}
 
     # Ordinary dev mode watches source/resource directories plus exact codegen inputs;
-    # continuous testing watches every exact declared input of the DEV and TEST graphs.
+    # continuous testing watches every exact declared input of the DEV and TEST graphs. Inputs
+    # only the TEST graph declares are passed separately: changing them reruns tests without
+    # restarting the running application.
     watched_inputs = depset(
-        transitive = [collect_codegen_input_files(ctx.attr.deps)] + ([
-            watch_metadata.input_files,
-            continuous_test_info.codegen_input_files,
-            continuous_test_info.input_files,
-        ] if continuous_test_info else []),
+        transitive = [collect_codegen_input_files(ctx.attr.deps)] + ([watch_metadata.input_files] if continuous_test_info else []),
     ).to_list()
+    application_inputs = {path: True for path in watched_inputs}
+    watched_test_inputs = [
+        path
+        for path in depset(
+            transitive = [continuous_test_info.codegen_input_files, continuous_test_info.input_files],
+        ).to_list()
+        if path not in application_inputs
+    ] if continuous_test_info else []
+
+    # The app's own package declares its deps and continuous_test list, even when it holds no
+    # Java target; changing it requires restarting the session like any other BUILD file.
     watched_build_files = depset(
+        [build_file_path(ctx)],
         transitive = [watch_metadata.build_files] + ([continuous_test_info.build_files] if continuous_test_info else []),
     ).to_list() if continuous_test_info else []
 
@@ -140,6 +143,7 @@ def _quarkus_dev_impl(ctx):
         ),
         watched_build_files = _write_lines_file(ctx, "_watched_build_files.txt", watched_build_files),
         watched_inputs = _write_lines_file(ctx, "_watched_inputs.txt", watched_inputs),
+        watched_test_inputs = _write_lines_file(ctx, "_watched_test_inputs.txt", watched_test_inputs),
     )
     test_model = continuous_test_info.application_model if continuous_test_info else None
 
@@ -161,6 +165,7 @@ def _quarkus_dev_impl(ctx):
             files.test_classes_output_dirs,
             files.watched_build_files,
             files.watched_inputs,
+            files.watched_test_inputs,
             model,
         ] + ([test_model] if test_model else []) + ctx.files.deployment_artifacts,
         transitive_files = depset(transitive = [
@@ -196,22 +201,16 @@ def _continuous_build_properties(app_properties, test_info):
     selectors = ["^" + regex_escape_class_name(name) + "$" for name in test_info.test_classes]
     selectors.extend(["^" + regex_escape_class_name(name) + "\\..*$" for name in test_info.test_packages])
     if selectors:
-        selection = "(" + "|".join(selectors) + ")"
+        # Quarkus ignores quarkus.test.exclude-pattern once an include-pattern is set, so the
+        # packaged *IT exclusion that quarkus_test applies must be part of the include pattern.
+        # Without selectors, Quarkus' default (or configured) exclude-pattern already skips *IT.
         configured = properties.get("quarkus.test.include-pattern")
-        properties["quarkus.test.include-pattern"] = "(?=(?:" + configured + ")$)" + selection if configured else selection
-
-    # Match quarkus_test's exclusion of packaged integration tests.
-    properties["quarkus.test.exclude-pattern"] = "(" + properties.get("quarkus.test.exclude-pattern", "^$") + "|.*IT$)"
+        properties["quarkus.test.include-pattern"] = (
+            "(?!.*IT$)" +
+            ("(?=(?:" + configured + ")$)" if configured else "") +
+            "(" + "|".join(selectors) + ")"
+        )
     return properties
-
-def _continuous_test_application_error(application_root_ids, test_dependency_ids):
-    """Requires TEST model selection to include the DEV model's first application root."""
-    if not application_root_ids:
-        return "continuous_test: dev application has no model root"
-    application_id = application_root_ids[0]
-    if application_id not in test_dependency_ids:
-        return "continuous_test: direct TEST model dependencies {} do not include dev application '{}'; both targets must use the same application library".format(test_dependency_ids, application_id)
-    return ""
 
 def _write_dev_launcher(ctx, tool_jar, files, model_file, test_model_file, java_runtime, test_info):
     """Expands the dev launcher template with the metadata file locations."""
@@ -239,6 +238,7 @@ def _write_dev_launcher(ctx, tool_jar, files, model_file, test_model_file, java_
             "%{tool_jar}": tool_jar.short_path,
             "%{watched_build_files_file}": files.watched_build_files.short_path,
             "%{watched_inputs_file}": files.watched_inputs.short_path,
+            "%{watched_test_inputs_file}": files.watched_test_inputs.short_path,
             "%{workspace}": ctx.workspace_name,
         },
         is_executable = True,
@@ -261,7 +261,7 @@ quarkus_dev_rule = rule(
         "continuous_test": attr.label(
             cfg = disable_coverage_transition,
             providers = [QuarkusContinuousTestInfo],
-            doc = "Optional single-test or aggregated continuous-test provider used in dev mode.",
+            doc = "Optional continuous-test aggregate (created by the quarkus_app macro) used in dev mode.",
         ),
         "core_deployment_deps": attr.label(
             cfg = disable_coverage_transition,
@@ -335,4 +335,3 @@ stale files. Flags containing commas are not supported.
 )
 
 continuous_build_properties_for_test = _continuous_build_properties
-continuous_test_application_error_for_test = _continuous_test_application_error

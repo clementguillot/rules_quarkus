@@ -32,6 +32,7 @@ quarkus_test(
     srcs = [
         "tests/ExcludedTest.java",
         "tests/FlatTest.java",
+        "tests/SelectedIT.java",
         "tests/SelectedTest.java",
     ],
     build_properties = {"fixture.property": "round trip"},
@@ -55,10 +56,22 @@ quarkus_app(
     name = "app",
     continuous_test = [
         ":test",
+        "//emptyglob:test",
         "//submodule:test",
     ],
     dev_build_args = ["--define=continuous_fixture=true"],
     deps = [":lib"],
+)
+
+# A module-owned test alone still runs against this application. The test is precompiled in a
+# package without Java targets, and the app has a second, independent local library.
+quarkus_app(
+    name = "module_tests_only",
+    continuous_test = "//moduletests:test",
+    deps = [
+        ":lib",
+        "//independent:lib",
+    ],
 )
 
 # The original positional signature must remain valid.
