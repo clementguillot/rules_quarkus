@@ -176,11 +176,10 @@ public final class BazelFileWatcher implements Closeable {
         WatchKey key = watchService.take(); // blocks until event
         boolean rebuildNeeded = processEvents(key);
         if (!key.reset()) {
-          // Directory deleted or key invalidated: drop it so the OS watch
-          // resource is released (inotify watches are bounded per user) and
-          // the map does not grow across branch switches in long sessions.
+          // Directory deleted or key invalidated: release the OS watch (inotify watches are bounded
+          // per user). The entry itself is dropped when the parent reports the deletion, which can
+          // arrive later: it is how that event is still recognized as a watched directory.
           key.cancel();
-          watchKeys.values().remove(key);
         }
 
         if (rebuildNeeded) {
@@ -221,8 +220,9 @@ public final class BazelFileWatcher implements Closeable {
         warnRestartRequired(changed);
         continue;
       }
-      if (kind == StandardWatchEventKinds.ENTRY_DELETE
-          && watchKeys.containsKey(changed.toAbsolutePath().normalize())) {
+      Path absolute = changed.toAbsolutePath().normalize();
+      if (kind == StandardWatchEventKinds.ENTRY_DELETE && watchKeys.containsKey(absolute)) {
+        watchKeys.keySet().removeIf(directory -> directory.startsWith(absolute));
         rebuildNeeded |= onDirectoryDeleted(changed);
         continue;
       }

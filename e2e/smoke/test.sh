@@ -3,8 +3,10 @@ set -euo pipefail
 
 bzlmod_flag="${BZLMOD_FLAG:---enable_bzlmod=true}"
 
+# //:app_dev is built, not run: its continuous-test aggregate must also analyze under coverage.
 bazel coverage \
   "$bzlmod_flag" \
+  //:app_dev \
   //:integration_test \
   //:test \
   --combined_report=lcov \

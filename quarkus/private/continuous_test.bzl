@@ -308,6 +308,9 @@ quarkus_continuous_test_aggregate = rule(
     attrs = {
         "application_deps": attr.label_list(
             mandatory = True,
+            # Same configuration as `tests`: the model joins both graphs, and a target reached in
+            # two configurations (e.g. under `bazel coverage //...`) would be a duplicate node.
+            cfg = disable_coverage_transition,
             aspects = [
                 quarkus_extension_deployment_classpath_aspect,
                 quarkus_application_model_aspect,

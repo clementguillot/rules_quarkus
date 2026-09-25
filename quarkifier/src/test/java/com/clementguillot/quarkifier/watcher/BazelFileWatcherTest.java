@@ -432,6 +432,61 @@ class BazelFileWatcherTest {
   }
 
   @Test
+  void restoringADeletedInputTogetherWithItsDirectoryRebuilds() throws Exception {
+    Path builds = tempDir.resolve("builds.log");
+    Path command = tempDir.resolve("fake-bazel");
+    Files.writeString(command, "#!/bin/sh\necho build >> '" + builds + "'\nexit 0\n");
+    assertTrue(command.toFile().setExecutable(true));
+    Path input = tempDir.resolve("pkg/data/input.txt");
+    Files.createDirectories(input.getParent());
+    Files.writeString(input, "v1");
+    var config =
+        testConfig(
+            tempDir.resolve("output"),
+            List.of(),
+            "--test-application-model",
+            tempDir.resolve("test-model.json").toString(),
+            "--test-classes-dir",
+            tempDir.resolve("mutable/test-classes").toString(),
+            "--watched-input",
+            input.toString(),
+            "--bazel-command",
+            command.toString());
+    try (var watcher = BazelFileWatcher.startInBackground(config)) {
+      deleteRecursively(input.getParent());
+      awaitBuilds(builds, 1);
+      int afterDeletion = buildCount(builds);
+
+      // git checkout / git stash pop recreate the directory and the file together.
+      Files.createDirectories(input.getParent());
+      Files.writeString(input, "v1");
+      awaitBuilds(builds, afterDeletion + 1);
+    }
+  }
+
+  private static void deleteRecursively(Path root) throws IOException {
+    try (var paths = Files.walk(root)) {
+      for (Path path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) {
+        Files.delete(path);
+      }
+    }
+  }
+
+  private static int buildCount(Path builds) throws IOException {
+    return Files.exists(builds) ? Files.readAllLines(builds).size() : 0;
+  }
+
+  private static void awaitBuilds(Path builds, int expected) throws Exception {
+    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(40);
+    while (buildCount(builds) < expected) {
+      assertTrue(
+          System.nanoTime() < deadline,
+          "expected " + expected + " builds, saw " + buildCount(builds));
+      Thread.sleep(200);
+    }
+  }
+
+  @Test
   void buildFileChangePrintsRestartWarningWithoutRebuilding() throws Exception {
     Path buildFile = tempDir.resolve("helper/BUILD.bazel");
     Files.createDirectories(buildFile.getParent());
