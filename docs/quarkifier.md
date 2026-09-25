@@ -186,8 +186,6 @@ public record QuarkifierConfig(
     String nativeBuilderImage,
     List<Path> sourceDirs,
     Path classesDir,
-    Path testClassesDir,
-    List<Path> testClassesOutputDirs,
     List<String> bazelTargets,
     List<Path> classesOutputDirs,
     Path workspaceDir,
@@ -197,12 +195,18 @@ public record QuarkifierConfig(
     List<Path> localAppJars,
     Map<String, String> buildProperties,
     Path applicationModel,
-    Path testApplicationModel,
     List<Path> watchedInputs,
-    List<Path> watchedTestInputs,
-    List<Path> watchedBuildFiles,
-    List<String> testJvmArgs
-) { ... }
+    ContinuousTesting continuousTesting  // null unless continuous testing is configured
+) {
+  public record ContinuousTesting(
+      Path applicationModel,
+      Path classesDir,
+      List<Path> classesOutputDirs,
+      List<Path> watchedInputs,
+      List<Path> watchedBuildFiles,
+      List<String> jvmArgs
+  ) { ... }
+}
 ```
 
 ## Augmentation Pipeline

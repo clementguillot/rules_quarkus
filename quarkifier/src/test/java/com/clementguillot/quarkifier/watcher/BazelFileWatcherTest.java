@@ -78,19 +78,23 @@ class BazelFileWatcherTest {
             main.toString(),
             "--test-classes-output-dirs",
             tests.toString());
-    Files.createDirectories(config.reloadNotificationDir());
+    Files.createDirectories(config.continuousTesting().reloadNotificationDir());
     try (var watcher = new BazelFileWatcher(config)) {
       assertTrue(watcher.syncClasses(true, true, false));
       assertEquals(
           "key=value", Files.readString(config.classesDir().resolve("application.properties")));
-      assertEquals("packaged", Files.readString(config.testClassesDir().resolve("fixture.txt")));
-      assertFalse(Files.exists(config.testClassesDir().resolve("undeclared.txt")));
-      assertTrue(Files.exists(config.reloadNotificationDir().resolve("completed-build")));
-      Files.writeString(config.testClassesDir().resolve("Stale.class"), "stale");
+      assertEquals(
+          "packaged",
+          Files.readString(config.continuousTesting().classesDir().resolve("fixture.txt")));
+      assertFalse(Files.exists(config.continuousTesting().classesDir().resolve("undeclared.txt")));
+      assertTrue(
+          Files.exists(
+              config.continuousTesting().reloadNotificationDir().resolve("completed-build")));
+      Files.writeString(config.continuousTesting().classesDir().resolve("Stale.class"), "stale");
       Files.delete(tests.resolve("fixture.txt"));
       assertTrue(watcher.syncClasses(true, true, false));
-      assertFalse(Files.exists(config.testClassesDir().resolve("fixture.txt")));
-      assertFalse(Files.exists(config.testClassesDir().resolve("Stale.class")));
+      assertFalse(Files.exists(config.continuousTesting().classesDir().resolve("fixture.txt")));
+      assertFalse(Files.exists(config.continuousTesting().classesDir().resolve("Stale.class")));
     }
   }
 
@@ -104,7 +108,7 @@ class BazelFileWatcherTest {
             List.of(tempDir.resolve("src/main/java")),
             "--classes-output-dirs",
             compiled.toString());
-    assertNull(config.reloadNotificationDir(), "only continuous testing needs a notification");
+    assertNull(config.continuousTesting(), "only continuous testing needs a notification");
     try (var watcher = new BazelFileWatcher(config)) {
       Path compiledClass = compiled.resolve("fixture/Added.class");
       Files.createDirectories(compiledClass.getParent());
@@ -148,12 +152,20 @@ class BazelFileWatcherTest {
     try (var watcher = BazelFileWatcher.startInBackground(config)) {
       Files.writeString(tests.resolve("AppTest.class"), "new");
       watcher.triggerBuildAndSync();
-      assertEquals("last-good", Files.readString(config.testClassesDir().resolve("AppTest.class")));
-      assertFalse(Files.exists(config.reloadNotificationDir().resolve("completed-build")));
+      assertEquals(
+          "last-good",
+          Files.readString(config.continuousTesting().classesDir().resolve("AppTest.class")));
+      assertFalse(
+          Files.exists(
+              config.continuousTesting().reloadNotificationDir().resolve("completed-build")));
       Files.writeString(command, "#!/bin/sh\nexit 0\n");
       watcher.triggerBuildAndSync();
-      assertEquals("new", Files.readString(config.testClassesDir().resolve("AppTest.class")));
-      assertTrue(Files.exists(config.reloadNotificationDir().resolve("completed-build")));
+      assertEquals(
+          "new",
+          Files.readString(config.continuousTesting().classesDir().resolve("AppTest.class")));
+      assertTrue(
+          Files.exists(
+              config.continuousTesting().reloadNotificationDir().resolve("completed-build")));
     }
   }
 
@@ -379,7 +391,7 @@ class BazelFileWatcherTest {
     try (var watcher = new BazelFileWatcher(config)) {
       assertTrue(watcher.syncClasses(false, false, false));
       Path app = config.classesDir().resolve("App.class");
-      Path test = config.testClassesDir().resolve("AppTest.class");
+      Path test = config.continuousTesting().classesDir().resolve("AppTest.class");
       long appTimestamp = Files.getLastModifiedTime(app).toMillis();
       long testTimestamp = Files.getLastModifiedTime(test).toMillis();
 

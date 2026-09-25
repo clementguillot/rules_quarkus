@@ -182,14 +182,16 @@ class QuarkifierConfigTest {
             "--watched-build-file",
             "BUILD.bazel");
 
-    assertEquals(Path.of("test-model.json"), config.testApplicationModel());
-    assertEquals(Path.of("/tmp/test-classes"), config.testClassesDir());
+    assertEquals(Path.of("test-model.json"), config.continuousTesting().applicationModel());
+    assertEquals(Path.of("/tmp/test-classes"), config.continuousTesting().classesDir());
     assertEquals(
         List.of(Path.of("bazel-bin/test.jar"), Path.of("bazel-bin/other-tests.jar")),
-        config.testClassesOutputDirs());
+        config.continuousTesting().classesOutputDirs());
     assertEquals(List.of(Path.of("src/test/java/AppTest.java")), config.watchedInputs());
-    assertEquals(List.of(Path.of("src/test/resources/fixture.txt")), config.watchedTestInputs());
-    assertEquals(List.of(Path.of("BUILD.bazel")), config.watchedBuildFiles());
+    assertEquals(
+        List.of(Path.of("src/test/resources/fixture.txt")),
+        config.continuousTesting().watchedInputs());
+    assertEquals(List.of(Path.of("BUILD.bazel")), config.continuousTesting().watchedBuildFiles());
   }
 
   @Test
@@ -199,12 +201,8 @@ class QuarkifierConfigTest {
             "--application-classpath", "a.jar",
             "--output-dir", "/out");
 
-    assertNull(config.testApplicationModel());
-    assertNull(config.testClassesDir());
-    assertTrue(config.testClassesOutputDirs().isEmpty());
+    assertNull(config.continuousTesting());
     assertTrue(config.watchedInputs().isEmpty());
-    assertTrue(config.watchedTestInputs().isEmpty());
-    assertTrue(config.watchedBuildFiles().isEmpty());
   }
 
   @Test
@@ -285,7 +283,7 @@ class QuarkifierConfigTest {
     assertEquals(
         List.of(Path.of("src/main/schema.proto"), Path.of("schemas/src/main/schema.avsc")),
         config.watchedInputs());
-    assertNull(config.testApplicationModel());
+    assertNull(config.continuousTesting());
   }
 
   @Test

@@ -3,6 +3,7 @@ package com.clementguillot.quarkifier;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Immutable configuration for a single augmentation invocation.
@@ -21,8 +22,6 @@ import java.util.Map;
  *     platform.quarkus.native.builder-image} (may be {@code null})
  * @param sourceDirs source directories for hot-reload in dev mode
  * @param classesDir mutable directory for .class files in dev mode (may be {@code null})
- * @param testClassesDir mutable directory for test .class files in dev mode (may be {@code null})
- * @param testClassesOutputDirs bazel-bin outputs containing compiled test classes
  * @param bazelTargets Bazel targets to rebuild on source changes
  * @param classesOutputDirs bazel-bin output directories containing .class files
  * @param workspaceDir Bazel workspace root directory for running bazel build (may be {@code null})
@@ -32,13 +31,10 @@ import java.util.Map;
  * @param localAppJars local workspace jars to use as application roots
  * @param buildProperties declared hermetic build-time configuration
  * @param applicationModel explicit validated Bazel model JSON
- * @param testApplicationModel explicit validated TEST-mode Bazel model JSON (may be {@code null})
  * @param watchedInputs exact declared inputs watched in dev mode: generator inputs, plus every
  *     source and resource input of the application graph under continuous testing
- * @param watchedTestInputs exact inputs only the continuous-test graph declares; changing them
- *     reruns tests without restarting the application
- * @param watchedBuildFiles BUILD files whose changes require a dev-mode restart
- * @param testJvmArgs JVM flags for the shared dev/test child process
+ * @param continuousTesting continuous-testing settings of a dev session, or {@code null} when
+ *     continuous testing is not configured
  */
 public record QuarkifierConfig(
     List<Path> applicationClasspath,
@@ -52,8 +48,6 @@ public record QuarkifierConfig(
     String nativeBuilderImage,
     List<Path> sourceDirs,
     Path classesDir,
-    Path testClassesDir,
-    List<Path> testClassesOutputDirs,
     List<String> bazelTargets,
     List<Path> classesOutputDirs,
     Path workspaceDir,
@@ -63,19 +57,43 @@ public record QuarkifierConfig(
     List<Path> localAppJars,
     Map<String, String> buildProperties,
     Path applicationModel,
-    Path testApplicationModel,
     List<Path> watchedInputs,
-    List<Path> watchedTestInputs,
-    List<Path> watchedBuildFiles,
-    List<String> testJvmArgs) {
+    ContinuousTesting continuousTesting) {
 
   /**
-   * Private, source-free test source directory used to wake Quarkus continuous testing after a
-   * completed Bazel sync, or {@code null} when continuous testing is not configured.
+   * Continuous-testing settings of a dev session.
+   *
+   * @param applicationModel explicit validated TEST-mode Bazel model JSON
+   * @param classesDir mutable directory for compiled tests and their resources
+   * @param classesOutputDirs bazel-bin outputs containing compiled test classes
+   * @param watchedInputs exact inputs only the continuous-test graph declares; changing them reruns
+   *     tests without restarting the application
+   * @param watchedBuildFiles BUILD files whose changes require a dev-mode restart
+   * @param jvmArgs JVM flags for the shared dev/test child process
    */
-  public Path reloadNotificationDir() {
-    return testClassesDir == null
-        ? null
-        : testClassesDir.toAbsolutePath().getParent().resolve("reload-notifications");
+  public record ContinuousTesting(
+      Path applicationModel,
+      Path classesDir,
+      List<Path> classesOutputDirs,
+      List<Path> watchedInputs,
+      List<Path> watchedBuildFiles,
+      List<String> jvmArgs) {
+
+    public ContinuousTesting {
+      Objects.requireNonNull(applicationModel, "applicationModel");
+      Objects.requireNonNull(classesDir, "classesDir");
+      classesOutputDirs = List.copyOf(classesOutputDirs);
+      watchedInputs = List.copyOf(watchedInputs);
+      watchedBuildFiles = List.copyOf(watchedBuildFiles);
+      jvmArgs = List.copyOf(jvmArgs);
+    }
+
+    /**
+     * Private, source-free test source directory used to wake Quarkus continuous testing after a
+     * completed Bazel sync.
+     */
+    public Path reloadNotificationDir() {
+      return classesDir.toAbsolutePath().getParent().resolve("reload-notifications");
+    }
   }
 }

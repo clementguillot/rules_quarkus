@@ -23,6 +23,8 @@ exports_files([
     "quarkus_dev_impl.bzl",
     "quarkus_test_impl.bzl",
     "classpath_utils.bzl",
+    "continuous_test.bzl",
+    "test_selectors.bzl",
     "coverage_transition.bzl",
     "codegen_lifecycle.bzl",
     "quarkus_codegen_impl.bzl",

@@ -243,18 +243,9 @@ public final class AugmentationCommand implements Callable<Integer> {
         resolveClasspath(coreDeploymentClasspath, coreDeploymentClasspathFile);
     List<Path> resolvedLocalJars = resolveClasspath(localAppJars, localAppJarsFile);
     AugmentationMode resolvedMode = parseMode(mode);
-    List<Path> resolvedTestClassesOutputDirs = orEmpty(testClassesOutputDirs);
     List<Path> resolvedWatchedInputs = orEmpty(watchedInputs);
-    List<Path> resolvedWatchedTestInputs = orEmpty(watchedTestInputs);
-    List<Path> resolvedWatchedBuildFiles = orEmpty(watchedBuildFiles);
-    List<String> resolvedTestJvmArgs = orEmpty(testJvmArgs);
-    validateContinuousTestingOptions(
-        resolvedMode,
-        resolvedTestClassesOutputDirs,
-        resolvedWatchedInputs,
-        resolvedWatchedTestInputs,
-        resolvedWatchedBuildFiles,
-        resolvedTestJvmArgs);
+    QuarkifierConfig.ContinuousTesting continuousTesting =
+        continuousTesting(resolvedMode, resolvedWatchedInputs);
     if (resolvedMode == AugmentationMode.TEST && buildPropertiesFile != null) {
       throw parameterException(
           "--build-properties-file is not supported in TEST mode; pass test augmentation"
@@ -288,8 +279,6 @@ public final class AugmentationCommand implements Callable<Integer> {
         nativeBuilderImage,
         orEmpty(sourceDirs),
         classesDir,
-        testClassesDir,
-        resolvedTestClassesOutputDirs,
         orEmpty(bazelTargets),
         orEmpty(classesOutputDirs),
         workspaceDir,
@@ -299,11 +288,8 @@ public final class AugmentationCommand implements Callable<Integer> {
         resolvedLocalJars,
         resolvedBuildProperties,
         applicationModel,
-        testApplicationModel,
         resolvedWatchedInputs,
-        resolvedWatchedTestInputs,
-        resolvedWatchedBuildFiles,
-        resolvedTestJvmArgs);
+        continuousTesting);
   }
 
   // ---- internal helpers ----
@@ -338,34 +324,42 @@ public final class AugmentationCommand implements Callable<Integer> {
     return list.stream().filter(e -> !e.toString().isBlank()).toList();
   }
 
-  private void validateContinuousTestingOptions(
-      AugmentationMode resolvedMode,
-      List<Path> resolvedTestClassesOutputDirs,
-      List<Path> resolvedWatchedInputs,
-      List<Path> resolvedWatchedTestInputs,
-      List<Path> resolvedWatchedBuildFiles,
-      List<String> resolvedTestJvmArgs) {
+  /**
+   * Validates the continuous-testing options and groups them.
+   *
+   * @return the settings, or {@code null} when no continuous-testing option was given
+   */
+  private QuarkifierConfig.ContinuousTesting continuousTesting(
+      AugmentationMode resolvedMode, List<Path> resolvedWatchedInputs) {
+    List<Path> outputs = orEmpty(testClassesOutputDirs);
+    List<Path> testInputs = orEmpty(watchedTestInputs);
+    List<Path> buildFiles = orEmpty(watchedBuildFiles);
+    List<String> jvmArgs = orEmpty(testJvmArgs);
     boolean hasTestOptions =
         testApplicationModel != null
             || testClassesDir != null
-            || !resolvedTestClassesOutputDirs.isEmpty()
-            || !resolvedWatchedTestInputs.isEmpty()
-            || !resolvedWatchedBuildFiles.isEmpty()
-            || !resolvedTestJvmArgs.isEmpty();
+            || !outputs.isEmpty()
+            || !testInputs.isEmpty()
+            || !buildFiles.isEmpty()
+            || !jvmArgs.isEmpty();
     if ((hasTestOptions || !resolvedWatchedInputs.isEmpty())
         && resolvedMode != AugmentationMode.DEV) {
       throw parameterException("Continuous-testing and watch options require --mode dev");
     }
-    if (resolvedMode == AugmentationMode.DEV
-        && ((testApplicationModel == null) != (testClassesDir == null))) {
-      throw parameterException(
-          "--test-application-model and --test-classes-dir must be provided together");
+    if (!hasTestOptions) {
+      return null;
     }
-    if (resolvedMode == AugmentationMode.DEV && hasTestOptions && testApplicationModel == null) {
+    if (testApplicationModel == null && testClassesDir == null) {
       throw parameterException(
           "Continuous-testing options require --test-application-model and"
               + " --test-classes-dir");
     }
+    if (testApplicationModel == null || testClassesDir == null) {
+      throw parameterException(
+          "--test-application-model and --test-classes-dir must be provided together");
+    }
+    return new QuarkifierConfig.ContinuousTesting(
+        testApplicationModel, testClassesDir, outputs, testInputs, buildFiles, jvmArgs);
   }
 
   private CommandLine.ParameterException parameterException(String message) {

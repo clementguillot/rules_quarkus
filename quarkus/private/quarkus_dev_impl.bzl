@@ -16,10 +16,10 @@ load("//quarkus:providers.bzl", "QuarkusContinuousTestInfo")
 load("//quarkus/private:application_model_aspect.bzl", "build_file_path", "collect_watch_metadata", "quarkus_application_model_aspect")
 load("//quarkus/private:build_properties.bzl", "write_build_properties")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_local_app_jars", "collect_resource_dir_paths", "collect_runtime_classpath", "collect_source_dir_paths", "is_local_artifact", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
+load("//quarkus/private:continuous_test.bzl", "continuous_build_properties")
 load("//quarkus/private:coverage_transition.bzl", "dev_lifecycle_transition", "disable_coverage_transition", "single_transitioned_target")
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
 load("//quarkus/private:quarkus_codegen_impl.bzl", "collect_codegen_input_files", "quarkus_codegen_metadata_aspect")
-load("//quarkus/private:quarkus_test_impl.bzl", "regex_escape_class_name")
 
 def _hot_reload_bazel_target(ctx):
     """Returns the label the file watcher rebuilds on a source change.
@@ -78,6 +78,60 @@ def _write_lines_file(ctx, name_suffix, values):
     ctx.actions.write(output = out, content = "\n".join(values) + ("\n" if values else ""))
     return out
 
+def _ordinary_session(ctx, runtime_classpath):
+    """Ordinary dev mode: Quarkus watches source/resource roots; Bazel adds codegen inputs."""
+    return struct(
+        build_properties = dict(ctx.attr.build_properties),
+        extra_runfiles = [],
+        resource_dirs = collect_resource_dir_paths(ctx.attr.deps, runtime_classpath),
+        source_dirs = collect_source_dir_paths(ctx.attr.deps, runtime_classpath),
+        test_classes_output_dirs = [],
+        test_jvm_flags = [],
+        test_model = None,
+        watched_build_files = [],
+        watched_inputs = collect_codegen_input_files(ctx.attr.deps).to_list(),
+        watched_test_inputs = [],
+    )
+
+def _continuous_session(ctx, runtime_classpath, test_info):
+    """Continuous testing: Bazel watches every exact declared input of both graphs.
+
+    Quarkus gets no workspace source or resource paths, so Bazel is the only compiler and
+    resource writer. Inputs that only the TEST graph declares are passed separately: changing
+    them reruns tests without restarting the running application.
+    """
+    watch_metadata = collect_watch_metadata(ctx.attr.deps)
+    watched_inputs = depset(
+        transitive = [collect_codegen_input_files(ctx.attr.deps), watch_metadata.input_files],
+    ).to_list()
+    application_inputs = {path: True for path in watched_inputs}
+    application_owners = {file.owner: True for file in runtime_classpath.to_list()}
+    return struct(
+        build_properties = continuous_build_properties(ctx.attr.build_properties, test_info),
+        extra_runfiles = [test_info.model_classpath],
+        resource_dirs = [],
+        source_dirs = [],
+        test_classes_output_dirs = [
+            file.path
+            for file in test_info.classes_output_dirs
+            if file.owner not in application_owners
+        ],
+        test_jvm_flags = test_info.jvm_flags,
+        test_model = test_info.application_model,
+        # The app's own package declares its deps and continuous_test list, even when it holds no
+        # Java target; changing it requires restarting the session like any other BUILD file.
+        watched_build_files = depset(
+            [build_file_path(ctx)],
+            transitive = [watch_metadata.build_files, test_info.build_files],
+        ).to_list(),
+        watched_inputs = watched_inputs,
+        watched_test_inputs = [
+            path
+            for path in depset(transitive = [test_info.codegen_input_files, test_info.input_files]).to_list()
+            if path not in application_inputs
+        ],
+    )
+
 def _quarkus_dev_impl(ctx):
     if not ctx.attr.deps:
         fail("quarkus_dev rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
@@ -96,60 +150,29 @@ def _quarkus_dev_impl(ctx):
         "dev",
         ctx.label.name.removesuffix("_dev"),
     )
-    bazel_targets = _hot_reload_bazel_target(ctx)
     continuous_test = single_transitioned_target(ctx.attr.continuous_test) if ctx.attr.continuous_test else None
-    continuous_test_info = continuous_test[QuarkusContinuousTestInfo] if continuous_test else None
-    watch_metadata = collect_watch_metadata(ctx.attr.deps)
-    app_owners = {file.owner: True for file in runtime_classpath.to_list()} if continuous_test_info else {}
-
-    # Ordinary dev mode watches source/resource directories plus exact codegen inputs;
-    # continuous testing watches every exact declared input of the DEV and TEST graphs. Inputs
-    # only the TEST graph declares are passed separately: changing them reruns tests without
-    # restarting the running application.
-    watched_inputs = depset(
-        transitive = [collect_codegen_input_files(ctx.attr.deps)] + ([watch_metadata.input_files] if continuous_test_info else []),
-    ).to_list()
-    application_inputs = {path: True for path in watched_inputs}
-    watched_test_inputs = [
-        path
-        for path in depset(
-            transitive = [continuous_test_info.codegen_input_files, continuous_test_info.input_files],
-        ).to_list()
-        if path not in application_inputs
-    ] if continuous_test_info else []
-
-    # The app's own package declares its deps and continuous_test list, even when it holds no
-    # Java target; changing it requires restarting the session like any other BUILD file.
-    watched_build_files = depset(
-        [build_file_path(ctx)],
-        transitive = [watch_metadata.build_files] + ([continuous_test_info.build_files] if continuous_test_info else []),
-    ).to_list() if continuous_test_info else []
+    session = _continuous_session(ctx, runtime_classpath, continuous_test[QuarkusContinuousTestInfo]) if continuous_test else _ordinary_session(ctx, runtime_classpath)
 
     # Classpath and hot-reload metadata files, read by the launcher at runtime
     # and resolved against the runfiles tree.
     files = struct(
         app_cp = write_runfiles_paths_file(ctx, "_app_cp.txt", runtime_classpath, ":"),
-        build_properties = write_build_properties(ctx, _continuous_build_properties(ctx.attr.build_properties, continuous_test_info)),
+        build_properties = write_build_properties(ctx, session.build_properties),
         local_app_jars = write_runfiles_paths_file(ctx, "_local_app_jars.txt", depset(collect_local_app_jars(ctx.attr.deps, runtime_classpath)), ":"),
         core_deploy_cp = write_runfiles_paths_file(ctx, "_core_deploy_cp.txt", core_deployment_classpath, ":"),
-        source_dirs = _write_csv_file(ctx, "_source_dirs.txt", [] if continuous_test_info else collect_source_dir_paths(ctx.attr.deps, runtime_classpath)),
-        resource_dirs = _write_csv_file(ctx, "_resource_dirs.txt", [] if continuous_test_info else collect_resource_dir_paths(ctx.attr.deps, runtime_classpath)),
-        bazel_targets = _write_csv_file(ctx, "_bazel_targets.txt", bazel_targets),
+        source_dirs = _write_csv_file(ctx, "_source_dirs.txt", session.source_dirs),
+        resource_dirs = _write_csv_file(ctx, "_resource_dirs.txt", session.resource_dirs),
+        bazel_targets = _write_csv_file(ctx, "_bazel_targets.txt", _hot_reload_bazel_target(ctx)),
         classes_output_dirs = _write_csv_file(ctx, "_classes_output_dirs.txt", _collect_classes_output_dirs(ctx.attr.deps, runtime_classpath)),
-        test_classes_output_dirs = _write_csv_file(
-            ctx,
-            "_test_classes_output_dirs.txt",
-            [file.path for file in continuous_test_info.classes_output_dirs if file.owner not in app_owners] if continuous_test_info else [],
-        ),
-        watched_build_files = _write_lines_file(ctx, "_watched_build_files.txt", watched_build_files),
-        watched_inputs = _write_lines_file(ctx, "_watched_inputs.txt", watched_inputs),
-        watched_test_inputs = _write_lines_file(ctx, "_watched_test_inputs.txt", watched_test_inputs),
+        test_classes_output_dirs = _write_csv_file(ctx, "_test_classes_output_dirs.txt", session.test_classes_output_dirs),
+        watched_build_files = _write_lines_file(ctx, "_watched_build_files.txt", session.watched_build_files),
+        watched_inputs = _write_lines_file(ctx, "_watched_inputs.txt", session.watched_inputs),
+        watched_test_inputs = _write_lines_file(ctx, "_watched_test_inputs.txt", session.watched_test_inputs),
     )
-    test_model = continuous_test_info.application_model if continuous_test_info else None
 
     tool_jar = ctx.file.quarkifier_tool
     java_runtime = ctx.attr._java_runtime[java_common.JavaRuntimeInfo]
-    launcher = _write_dev_launcher(ctx, tool_jar, files, model, test_model, java_runtime, continuous_test_info)
+    launcher = _write_dev_launcher(ctx, tool_jar, files, model, session, java_runtime)
 
     runfiles = ctx.runfiles(
         files = [
@@ -167,14 +190,14 @@ def _quarkus_dev_impl(ctx):
             files.watched_inputs,
             files.watched_test_inputs,
             model,
-        ] + ([test_model] if test_model else []) + ctx.files.deployment_artifacts,
+        ] + ([session.test_model] if session.test_model else []) + ctx.files.deployment_artifacts,
         transitive_files = depset(transitive = [
             runtime_classpath,
             conditional_classpath,
             deployment_classpath,
             core_deployment_classpath,
             java_runtime.files,
-        ] + ([continuous_test_info.model_classpath] if continuous_test_info else [])),
+        ] + session.extra_runfiles),
     )
 
     return [
@@ -189,30 +212,7 @@ def _join_dev_build_args(args):
             fail("dev_build_args: commas are not supported (used as delimiter); got '{}'".format(arg))
     return ",".join(args)
 
-def _continuous_build_properties(app_properties, test_info):
-    """Preserves test configuration without silently changing conflicting app settings."""
-    properties = dict(app_properties)
-    if not test_info:
-        return properties
-    for key, value in test_info.build_properties.items():
-        if key in properties and properties[key] != value:
-            fail("continuous_test: conflicting build_properties value for '{}'; dev and tests share one JVM".format(key))
-        properties[key] = value
-    selectors = ["^" + regex_escape_class_name(name) + "$" for name in test_info.test_classes]
-    selectors.extend(["^" + regex_escape_class_name(name) + "\\..*$" for name in test_info.test_packages])
-    if selectors:
-        # Quarkus ignores quarkus.test.exclude-pattern once an include-pattern is set, so the
-        # packaged *IT exclusion that quarkus_test applies must be part of the include pattern.
-        # Without selectors, Quarkus' default (or configured) exclude-pattern already skips *IT.
-        configured = properties.get("quarkus.test.include-pattern")
-        properties["quarkus.test.include-pattern"] = (
-            "(?!.*IT$)" +
-            ("(?=(?:" + configured + ")$)" if configured else "") +
-            "(" + "|".join(selectors) + ")"
-        )
-    return properties
-
-def _write_dev_launcher(ctx, tool_jar, files, model_file, test_model_file, java_runtime, test_info):
+def _write_dev_launcher(ctx, tool_jar, files, model_file, session, java_runtime):
     """Expands the dev launcher template with the metadata file locations."""
     launcher = ctx.actions.declare_file(ctx.label.name + "_dev.sh")
     ctx.actions.expand_template(
@@ -233,8 +233,8 @@ def _write_dev_launcher(ctx, tool_jar, files, model_file, test_model_file, java_
             "%{resource_dirs_file}": files.resource_dirs.short_path,
             "%{source_dirs_file}": files.source_dirs.short_path,
             "%{test_classes_output_dirs_file}": files.test_classes_output_dirs.short_path,
-            "%{test_model_file}": test_model_file.short_path if test_model_file else "",
-            "%{test_jvm_flags}": " ".join([shell.quote(flag) for flag in test_info.jvm_flags]) if test_info else "",
+            "%{test_model_file}": session.test_model.short_path if session.test_model else "",
+            "%{test_jvm_flags}": " ".join([shell.quote(flag) for flag in session.test_jvm_flags]),
             "%{tool_jar}": tool_jar.short_path,
             "%{watched_build_files_file}": files.watched_build_files.short_path,
             "%{watched_inputs_file}": files.watched_inputs.short_path,
@@ -333,5 +333,3 @@ stale files. Flags containing commas are not supported.
         ),
     },
 )
-
-continuous_build_properties_for_test = _continuous_build_properties

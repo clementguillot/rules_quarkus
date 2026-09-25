@@ -15,10 +15,11 @@ final class ContinuousTestApplicationModelLoader {
 
   static ApplicationModel load(QuarkifierConfig config, BazelApplicationModel applicationModel)
       throws Exception {
-    if (config.testApplicationModel() == null) {
+    if (config.continuousTesting() == null) {
       return null;
     }
-    var explicitModel = BazelApplicationModelReader.read(config.testApplicationModel());
+    var explicitModel =
+        BazelApplicationModelReader.read(config.continuousTesting().applicationModel());
     AugmentationExecutor.validateModelCompatibility(AugmentationMode.TEST, explicitModel);
     validateRelationship(applicationModel, explicitModel);
     return ExplicitApplicationModelBuilder.build(explicitModel);

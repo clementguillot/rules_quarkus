@@ -9,7 +9,6 @@ import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
-import java.nio.file.StandardOpenOption;
 import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
@@ -39,26 +38,28 @@ import org.jboss.logging.Logger;
  * <p>Runs as a daemon thread inside the quarkifier process in DEV mode. Implements {@link
  * Closeable} to ensure the {@link WatchService} and executor are properly released.
  */
-@SuppressWarnings("PMD.TooManyMethods") // cohesive watch/build/sync lifecycle
+@SuppressWarnings("PMD.TooManyMethods") // cohesive watch/scope/sync lifecycle
 public final class BazelFileWatcher implements Closeable {
 
   private static final Logger LOGGER = Logger.getLogger(BazelFileWatcher.class);
   private static final long DEFAULT_DEBOUNCE_MS = 100;
-  private static final String BAZEL_LOG_FILE = "bazel-hot-reload.log";
 
   private final QuarkifierConfig config;
+
+  /** Continuous-testing settings, or {@code null} for ordinary dev mode. */
+  private final QuarkifierConfig.ContinuousTesting continuousTesting;
+
   private final WatchService watchService;
   private final ScheduledExecutorService debounceExecutor;
   private final AtomicBoolean buildInProgress = new AtomicBoolean(false);
   private final AtomicBoolean pendingBuild = new AtomicBoolean(false);
-  private final AtomicBoolean staleOutputsWarned = new AtomicBoolean(false);
   private final AtomicBoolean applicationReloadNeeded = new AtomicBoolean(false);
   private final AtomicBoolean testReloadNeeded = new AtomicBoolean(false);
   private final AtomicBoolean javaDeletionPending = new AtomicBoolean(false);
   private final AtomicBoolean buildFileChangeWarned = new AtomicBoolean(false);
   private volatile ScheduledFuture<?> debounceTask;
   private final Map<Path, WatchKey> watchKeys = new ConcurrentHashMap<>();
-  private final Path bazelLogPath;
+  private final BazelBuild bazelBuild;
 
   /**
    * Hot-reloadable class outputs, with locally-built Quarkus extension jars removed. An extension
@@ -69,9 +70,6 @@ public final class BazelFileWatcher implements Closeable {
   private final List<Path> reloadableClassesOutputDirs;
 
   private final List<Path> reloadableTestClassesOutputDirs;
-
-  /** Application and test class outputs combined, for the stale-output freshness check. */
-  private final List<Path> allReloadableOutputDirs;
 
   /** Path policy: which filesystem paths this watcher cares about. */
   private final WatchedPaths paths;
@@ -85,12 +83,15 @@ public final class BazelFileWatcher implements Closeable {
    */
   BazelFileWatcher(QuarkifierConfig config) throws IOException {
     this.config = config;
+    this.continuousTesting = config.continuousTesting();
     this.reloadableClassesOutputDirs = ClassSyncer.excludeExtensionJars(config.classesOutputDirs());
     this.reloadableTestClassesOutputDirs =
-        ClassSyncer.excludeExtensionJars(config.testClassesOutputDirs());
+        continuousTesting == null
+            ? List.of()
+            : ClassSyncer.excludeExtensionJars(continuousTesting.classesOutputDirs());
     List<Path> allOutputs = new ArrayList<>(reloadableClassesOutputDirs);
     allOutputs.addAll(reloadableTestClassesOutputDirs);
-    this.allReloadableOutputDirs = List.copyOf(allOutputs);
+    this.bazelBuild = new BazelBuild(config, allOutputs);
     this.paths = new WatchedPaths(config);
     this.watchService = FileSystems.getDefault().newWatchService();
     this.debounceExecutor =
@@ -100,20 +101,6 @@ public final class BazelFileWatcher implements Closeable {
               t.setDaemon(true);
               return t;
             });
-    // Create bazel log file in output dir or temp dir
-    Path outputDir = config.outputDir();
-    if (outputDir != null) {
-      this.bazelLogPath = outputDir.resolve(BAZEL_LOG_FILE);
-    } else {
-      this.bazelLogPath = Path.of(System.getProperty("java.io.tmpdir", "/tmp"), BAZEL_LOG_FILE);
-    }
-    // Initialize log file
-    Files.createDirectories(bazelLogPath.getParent());
-    Files.writeString(
-        bazelLogPath,
-        "[hot-reload] Bazel build log\n",
-        StandardOpenOption.CREATE,
-        StandardOpenOption.APPEND);
   }
 
   /**
@@ -236,20 +223,7 @@ public final class BazelFileWatcher implements Closeable {
       }
       if (kind == StandardWatchEventKinds.ENTRY_DELETE
           && watchKeys.containsKey(changed.toAbsolutePath().normalize())) {
-        // A registered directory was removed. Recursive removal is not guaranteed to deliver a
-        // delete event for every contained file, so this event alone requests one Bazel rebuild.
-        WatchedPaths.Scope scope = paths.treeScope(changed);
-        if (scope == WatchedPaths.Scope.NONE) {
-          if (paths.isExactWatchAncestor(changed)) {
-            warnRestartRequired(changed);
-          }
-          continue;
-        }
-        requestReload(scope);
-        if (paths.isSourceDirectoryWatchPath(changed)) {
-          javaDeletionPending.set(true);
-        }
-        rebuildNeeded = true;
+        rebuildNeeded |= onDirectoryDeleted(changed);
         continue;
       }
       if (kind == StandardWatchEventKinds.ENTRY_CREATE && Files.isDirectory(changed)) {
@@ -284,12 +258,33 @@ public final class BazelFileWatcher implements Closeable {
    */
   boolean forcesReload(WatchEvent.Kind<?> kind, Path changed) {
     return kind != StandardWatchEventKinds.ENTRY_MODIFY
-        || (config.testClassesDir() != null && WatchedPaths.isNonJavaInput(changed));
+        || (continuousTesting != null && WatchedPaths.isNonJavaInput(changed));
   }
 
   /** Returns the key currently registered for {@code directory}, or {@code null}. */
   WatchKey registeredKey(Path directory) {
     return watchKeys.get(directory);
+  }
+
+  /**
+   * Handles the removal of a registered directory. Recursive removal is not guaranteed to deliver a
+   * delete event for every contained file, so this event alone requests one Bazel rebuild.
+   *
+   * @return whether a rebuild is needed
+   */
+  private boolean onDirectoryDeleted(Path directory) {
+    WatchedPaths.Scope scope = paths.treeScope(directory);
+    if (scope == WatchedPaths.Scope.NONE) {
+      if (paths.isExactWatchAncestor(directory)) {
+        warnRestartRequired(directory);
+      }
+      return false;
+    }
+    requestReload(scope);
+    if (paths.isSourceDirectoryWatchPath(directory)) {
+      javaDeletionPending.set(true);
+    }
+    return true;
   }
 
   /**
@@ -370,13 +365,12 @@ public final class BazelFileWatcher implements Closeable {
           // Ordinary dev mode lets Quarkus correlate a deleted source with its previous class.
           // Continuous testing has no source roots, so retaining that class would keep it live.
           boolean preserveStaleClasses =
-              javaDeletionPending.getAndSet(false) && config.testClassesDir() == null;
+              javaDeletionPending.getAndSet(false) && continuousTesting == null;
           long start = System.currentTimeMillis();
-          boolean success = runBazelBuild(config.bazelTargets());
+          boolean success = bazelBuild.run();
           long elapsed = System.currentTimeMillis() - start;
 
           if (success) {
-            warnIfOutputsWentStale(start);
             if (!syncClasses(reloadApplication, reloadTests, preserveStaleClasses)) {
               restorePending(applicationReloadNeeded, reloadApplication);
               restorePending(testReloadNeeded, reloadTests);
@@ -407,124 +401,6 @@ public final class BazelFileWatcher implements Closeable {
   }
 
   /**
-   * Invokes {@code bazel build} via {@link ProcessBuilder} with the given targets. Bazel output is
-   * redirected to a log file to avoid polluting the Quarkus dev console. The build process has a
-   * configurable timeout to prevent hanging.
-   *
-   * @param targets Bazel target labels to build
-   * @return {@code true} if the build succeeded (exit code 0), {@code false} otherwise
-   */
-  boolean runBazelBuild(List<String> targets) {
-    List<String> command = new ArrayList<>();
-    command.add(config.bazelCommand());
-    command.add("build");
-    // Extra flags so the rebuild uses the same configuration as the original
-    // `bazel run` — otherwise outputs land in a different bazel-out tree than
-    // the recorded classes output paths.
-    command.addAll(config.bazelBuildArgs());
-    command.addAll(targets);
-
-    LOGGER.debugf("[hot-reload] Rebuilding %s...", String.join(" ", targets));
-
-    try {
-      ProcessBuilder pb = new ProcessBuilder(command);
-      if (config.workspaceDir() != null) {
-        pb.directory(config.workspaceDir().toFile());
-      }
-      // Redirect bazel output to log file to avoid polluting Quarkus console
-      pb.redirectOutput(ProcessBuilder.Redirect.appendTo(bazelLogPath.toFile()));
-      pb.redirectError(ProcessBuilder.Redirect.appendTo(bazelLogPath.toFile()));
-
-      Process process = pb.start();
-
-      // Wait with timeout to prevent hanging if bazel gets stuck
-      long timeout = config.bazelBuildTimeoutSeconds();
-      boolean finished = process.waitFor(timeout, TimeUnit.SECONDS);
-
-      if (!finished) {
-        LOGGER.warnf(
-            "[hot-reload] Bazel build timed out after %d seconds, destroying process."
-                + " Killing the client may leave the server-side build running; the next"
-                + " rebuild can then block on the workspace lock until it finishes. Raise"
-                + " --bazel-build-timeout-seconds if your builds are legitimately slow.",
-            timeout);
-        process.destroyForcibly();
-        logBazelLogTail();
-        return false;
-      }
-
-      int exitCode = process.exitValue();
-      if (exitCode != 0) {
-        LOGGER.warnf(
-            "[hot-reload] Bazel build failed with exit code %d (see %s)", exitCode, bazelLogPath);
-        logBazelLogTail();
-      }
-      return exitCode == 0;
-    } catch (IOException e) {
-      LOGGER.errorf("[hot-reload] Failed to start bazel build: %s", e.getMessage());
-      return false;
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      LOGGER.warn("[hot-reload] Build interrupted");
-      return false;
-    }
-  }
-
-  /**
-   * Warns (once per session) when a successful rebuild updated none of the recorded class output
-   * paths — the telltale sign that the rebuild ran in a different configuration than the original
-   * {@code bazel run} (e.g. the user launched dev mode with {@code --config} or {@code -c opt}), so
-   * hot-reload would silently sync stale classes.
-   *
-   * <p>Directories are skipped (their mtime does not reflect nested changes); a fully-incremental
-   * no-op rebuild could in theory trigger a false warning, which is why this warns instead of
-   * failing and only fires once.
-   *
-   * @param buildStartMillis wall-clock time at which the rebuild was started
-   */
-  private void warnIfOutputsWentStale(long buildStartMillis) {
-    if (staleOutputsWarned.get()) {
-      return;
-    }
-    long threshold = buildStartMillis - 2000; // slack for coarse mtime granularity
-    for (Path path : allReloadableOutputDirs) {
-      try {
-        if (Files.isDirectory(path)) {
-          return; // cannot cheaply track directory freshness; assume OK
-        }
-        if (Files.exists(path) && Files.getLastModifiedTime(path).toMillis() >= threshold) {
-          return; // at least one output was rewritten by this build
-        }
-      } catch (IOException ignored) {
-        // Unreadable path — let syncClasses surface the real error.
-      }
-    }
-    if (staleOutputsWarned.compareAndSet(false, true)) {
-      LOGGER.warnf(
-          "[hot-reload] Build succeeded but none of the class output paths were updated: %s."
-              + " If you launch dev mode with extra Bazel flags (e.g. --config, -c opt), set"
-              + " dev_build_args on quarkus_app/quarkus_dev so hot-reload rebuilds use the same"
-              + " configuration — otherwise code changes will not be picked up.",
-          allReloadableOutputDirs);
-    }
-  }
-
-  /** Logs the tail of the bazel build log so failures are visible without digging for the file. */
-  private void logBazelLogTail() {
-    try {
-      List<String> lines = Files.readAllLines(bazelLogPath);
-      int from = Math.max(0, lines.size() - 20);
-      LOGGER.warnf(
-          "[hot-reload] Last %d lines of %s:%n%s",
-          lines.size() - from,
-          bazelLogPath,
-          String.join(System.lineSeparator(), lines.subList(from, lines.size())));
-    } catch (IOException e) {
-      LOGGER.debugf("[hot-reload] Could not read bazel log %s: %s", bazelLogPath, e.getMessage());
-    }
-  }
-
-  /**
    * Copies changed {@code .class} files from the bazel-bin output paths to the mutable classes
    * directory, and — when continuous testing is configured — the compiled tests and their packaged
    * resources to the mutable test-classes directory.
@@ -543,8 +419,8 @@ public final class BazelFileWatcher implements Closeable {
     try {
       syncOutputs(preserveStaleClasses);
       int changed = reloadApplication ? ClassSyncer.markClassesChanged(config.classesDir()) : 0;
-      if (reloadTests && config.testClassesDir() != null) {
-        changed += ClassSyncer.markClassesChanged(config.testClassesDir());
+      if (reloadTests && continuousTesting != null) {
+        changed += ClassSyncer.markClassesChanged(continuousTesting.classesDir());
       }
       if (changed > 0) {
         LOGGER.debugf("[hot-reload] Marked %d classes changed after structural rebuild", changed);
@@ -552,8 +428,8 @@ public final class BazelFileWatcher implements Closeable {
       // Continuous testing gives Quarkus no source paths, so on Linux its event-driven test
       // scanner would never wake up. This source-free marker is written only after every mutable
       // output is ready; Quarkus then rescans the synchronized trees (other hosts poll them).
-      Path notificationDir = config.reloadNotificationDir();
-      if (notificationDir != null) {
+      if (continuousTesting != null) {
+        Path notificationDir = continuousTesting.reloadNotificationDir();
         Files.createDirectories(notificationDir);
         Files.writeString(
             notificationDir.resolve("completed-build"), Long.toString(System.nanoTime()));
@@ -571,7 +447,7 @@ public final class BazelFileWatcher implements Closeable {
    * workspace resource paths, so packaged resources are synchronized too.
    */
   private void syncOutputs(boolean preserveStaleClasses) throws IOException {
-    if (config.testClassesDir() == null) {
+    if (continuousTesting == null) {
       ClassSyncer.syncClasses(
           reloadableClassesOutputDirs, config.classesDir(), preserveStaleClasses);
       return;
@@ -579,7 +455,7 @@ public final class BazelFileWatcher implements Closeable {
     ClassSyncer.syncClassesAndResources(
         reloadableClassesOutputDirs, config.classesDir(), preserveStaleClasses);
     ClassSyncer.syncClassesAndResources(
-        reloadableTestClassesOutputDirs, config.testClassesDir(), preserveStaleClasses);
+        reloadableTestClassesOutputDirs, continuousTesting.classesDir(), preserveStaleClasses);
   }
 
   /** Closes the {@link WatchService} and shuts down the {@link ScheduledExecutorService}. */

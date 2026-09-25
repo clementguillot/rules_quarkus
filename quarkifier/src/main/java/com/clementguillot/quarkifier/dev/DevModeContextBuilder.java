@@ -87,7 +87,9 @@ final class DevModeContextBuilder {
 
     // Continuous testing is opt-in: the test compilation unit only exists when the
     // launcher provisioned a mutable test-classes directory to sync Bazel outputs into.
-    if (config.testClassesDir() != null) {
+    QuarkifierConfig.ContinuousTesting continuousTesting = config.continuousTesting();
+    if (continuousTesting != null) {
+      String testClassesPath = continuousTesting.classesDir().toAbsolutePath().toString();
       // Bazel is the only compiler/resource writer. Quarkus watches a private
       // source-free directory for post-sync notifications (including on Linux),
       // and scans the already synchronized output trees. Never expose workspace
@@ -96,10 +98,10 @@ final class DevModeContextBuilder {
           .setSourcePaths(PathList.empty())
           .setResourcePaths(PathList.empty())
           .setResourcesOutputPath(classesPath.toAbsolutePath().toString())
-          .setTestSourcePaths(PathList.of(config.reloadNotificationDir()))
-          .setTestClassesPath(config.testClassesDir().toAbsolutePath().toString())
+          .setTestSourcePaths(PathList.of(continuousTesting.reloadNotificationDir()))
+          .setTestClassesPath(testClassesPath)
           .setTestResourcePaths(PathList.empty())
-          .setTestResourcesOutputPath(config.testClassesDir().toAbsolutePath().toString());
+          .setTestResourcesOutputPath(testClassesPath);
     }
     return builder.build();
   }

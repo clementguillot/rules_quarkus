@@ -122,7 +122,9 @@ public final class DevModeLauncher {
         .sorted()
         .map(name -> "-D" + name + "=" + buildProperties.getProperty(name))
         .forEach(cmd::add);
-    cmd.addAll(config.testJvmArgs());
+    if (config.continuousTesting() != null) {
+      cmd.addAll(config.continuousTesting().jvmArgs());
+    }
     cmd.add("-Djava.util.logging.manager=org.jboss.logmanager.LogManager");
     // Required for jboss-threads on Java 24+
     cmd.add("--add-opens");
@@ -157,8 +159,7 @@ public final class DevModeLauncher {
         || config.bazelTargets().isEmpty()
         || (config.sourceDirs().isEmpty()
             && config.watchedInputs().isEmpty()
-            && config.watchedTestInputs().isEmpty()
-            && config.watchedBuildFiles().isEmpty())) {
+            && config.continuousTesting() == null)) {
       return null;
     }
     LOGGER.debug("[hot-reload] Starting file watcher...");

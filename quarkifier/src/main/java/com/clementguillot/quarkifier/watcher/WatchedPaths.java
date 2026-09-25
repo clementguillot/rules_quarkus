@@ -47,8 +47,16 @@ final class WatchedPaths {
     Path workspace = config.workspaceDir() == null ? null : normalize(config.workspaceDir());
     this.sourceDirs = normalizeAll(config.sourceDirs());
     this.applicationInputs = new LinkedHashSet<>(normalizeAll(config.watchedInputs()));
-    this.testInputs = new LinkedHashSet<>(normalizeAll(config.watchedTestInputs()));
-    this.buildFiles = Set.copyOf(normalizeAll(config.watchedBuildFiles()));
+    QuarkifierConfig.ContinuousTesting continuousTesting = config.continuousTesting();
+    this.testInputs =
+        new LinkedHashSet<>(
+            continuousTesting == null
+                ? List.of()
+                : normalizeAll(continuousTesting.watchedInputs()));
+    this.buildFiles =
+        continuousTesting == null
+            ? Set.of()
+            : Set.copyOf(normalizeAll(continuousTesting.watchedBuildFiles()));
     this.applicationRoots = inferCandidateRoots(applicationInputs, workspace);
     this.testRoots = inferCandidateRoots(testInputs, workspace);
     for (Path buildFile : buildFiles) {

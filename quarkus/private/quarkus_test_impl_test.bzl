@@ -1,13 +1,12 @@
 "Unit tests for Quarkus JUnit ConsoleLauncher argument construction."
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load(":quarkus_dev_impl.bzl", "continuous_build_properties_for_test")
-load(":quarkus_test_impl.bzl", "build_property_jvm_flags_for_test", "build_test_args_for_test", "continuous_selection_error", "integration_version_error_for_test", "merge_continuous_build_properties", "merge_continuous_jvm_flags", "merge_continuous_mappings", "quarkus_jacoco_present_for_test", "test_resources_without_sources_error")
+load(":continuous_test.bzl", "continuous_build_properties", "continuous_selection_error", "merge_continuous_build_properties", "merge_continuous_jvm_flags", "merge_continuous_mappings")
+load(":quarkus_test_impl.bzl", "build_property_jvm_flags_for_test", "build_test_args_for_test", "integration_version_error_for_test", "quarkus_jacoco_present_for_test", "test_resources_without_sources_error")
 
 def _continuous_configuration_test_impl(ctx):
     env = unittest.begin(ctx)
-    asserts.equals(env, {"app": "unchanged"}, continuous_build_properties_for_test({"app": "unchanged"}, None))
-    actual = continuous_build_properties_for_test(
+    actual = continuous_build_properties(
         {"app": "value", "shared": "same"},
         struct(build_properties = {"shared": "same", "test": "round trip"}, test_classes = ["fixture.Outer$NestedTest"], test_packages = ["selected"]),
     )
@@ -17,14 +16,14 @@ def _continuous_configuration_test_impl(ctx):
     # Quarkus ignores exclude-pattern once include-pattern is set: *IT exclusion lives in the include.
     asserts.equals(env, "(?!.*IT$)(^fixture\\.Outer\\$NestedTest$|^selected\\..*$)", actual["quarkus.test.include-pattern"])
     asserts.false(env, "quarkus.test.exclude-pattern" in actual)
-    unselected = continuous_build_properties_for_test(
+    unselected = continuous_build_properties(
         {},
         struct(build_properties = {}, test_classes = [], test_packages = []),
     )
 
     # Without selectors, application.properties and Quarkus' default patterns stay in charge.
     asserts.equals(env, {}, unselected)
-    filtered = continuous_build_properties_for_test(
+    filtered = continuous_build_properties(
         {"quarkus.test.include-pattern": ".*SelectedTest"},
         struct(build_properties = {}, test_classes = [], test_packages = ["selected"]),
     )
