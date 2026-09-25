@@ -1,0 +1,16 @@
+package com.example.todo.rest;
+
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.MediaType;
+
+@Path("/added-probe")
+public class AddedResource {
+
+  @GET
+  @Produces(MediaType.TEXT_PLAIN)
+  public String message() {
+    return "added";
+  }
+}

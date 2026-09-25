@@ -169,6 +169,10 @@ class DevModeLauncherTest {
     assertEquals(
         classesDir.toAbsolutePath().toString(),
         context.getApplicationRoot().getMain().getClassesPath());
+    assertEquals(
+        List.of(Path.of("src/main/java")),
+        context.getApplicationRoot().getMain().getSourcePaths().stream().toList(),
+        "ordinary dev mode exposes only workspace source roots to Quarkus");
   }
 
   @Test
@@ -178,6 +182,29 @@ class DevModeLauncherTest {
     assertEquals(
         Path.of("app.jar").toAbsolutePath().toString(),
         context.getApplicationRoot().getMain().getClassesPath());
+  }
+
+  @Test
+  void buildDevModeContext_withContinuousTesting_setsTestModuleMetadata() {
+    var config =
+        devConfig(
+            "--test-application-model", "test-model.json",
+            "--test-classes-dir", "/tmp/test-classes",
+            "--test-classes-output-dirs", "bazel-bin/test.jar");
+
+    var module = DevModeLauncher.buildDevModeContext(config).getApplicationRoot();
+    var test = module.getTest().orElseThrow();
+
+    assertEquals(Path.of("/tmp/test-classes").toAbsolutePath().toString(), test.getClassesPath());
+    assertEquals(
+        List.of(config.continuousTesting().reloadNotificationDir()),
+        test.getSourcePaths().stream().toList());
+    assertTrue(test.getResourcePaths().isEmpty(), "Quarkus must not copy workspace resources");
+    assertTrue(
+        module.getMain().getSourcePaths().isEmpty(), "Quarkus must not compile workspace sources");
+    assertTrue(module.getMain().getResourcePaths().isEmpty());
+    assertEquals(
+        Path.of("/tmp/test-classes").toAbsolutePath().toString(), test.getResourcesOutputPath());
   }
 
   /**

@@ -32,6 +32,12 @@ java -jar quarkifier_<minor>_deploy.jar \
   [--native-builder-image <image>] \
   [--source-dirs <dir,dir,...>] \
   [--classes-dir <path>] \
+  [--test-classes-dir <path>] \
+  [--test-classes-output-dirs <path,path,...>] \
+  [--watched-input <path>]... \
+  [--watched-test-input <path>]... \
+  [--watched-build-file <path>]... \
+  [--test-jvm-arg <flag>]... \
   [--bazel-targets <label,label,...>] \
   [--classes-output-dirs <dir,dir,...>] \
   [--workspace-dir <path>] \
@@ -42,6 +48,7 @@ java -jar quarkifier_<minor>_deploy.jar \
   [--local-app-jars-file <path>] \
   [--build-properties-file <path>] \
   --application-model <quarkus-bazel-model-v1.json> \
+  [--test-application-model <quarkus-bazel-model-v1.json>] \
   [-h|--help] \
   [-V|--version]
 ```
@@ -63,6 +70,13 @@ java -jar quarkifier_<minor>_deploy.jar \
 | `--native-builder-image` | No | `null` | Native builder image for `platform.quarkus.native.builder-image` |
 | `--source-dirs` | No | `[]` | Comma-separated source directories for dev mode hot-reload |
 | `--classes-dir` | No | `null` | Mutable directory for .class files in dev mode |
+| `--test-application-model` | No | — | Explicit TEST-mode model for continuous testing in DEV mode |
+| `--test-classes-dir` | No | — | Mutable test output directory; enables output-only Quarkus scanning |
+| `--test-classes-output-dirs` | No | `[]` | Comma-separated compiled test/helper outputs to synchronize |
+| `--watched-input` | No | `[]` | Repeatable exact declared input watched in dev mode: CodeGenProvider inputs, plus every source and resource input during continuous testing |
+| `--watched-test-input` | No | `[]` | Repeatable exact input only the continuous-test graph declares; changes rerun tests without restarting the application |
+| `--watched-build-file` | No | `[]` | Repeatable BUILD file watched to warn that the dev session must be restarted |
+| `--test-jvm-arg` | No | `[]` | Repeatable shared dev/test JVM flag; use `--test-jvm-arg=-Dkey=value` |
 | `--bazel-targets` | No | `[]` | Comma-separated Bazel targets to rebuild on source changes |
 | `--classes-output-dirs` | No | `[]` | Comma-separated bazel-bin output directories containing .class files |
 | `--workspace-dir` | No | `null` | Bazel workspace root directory for running bazel build |
@@ -77,6 +91,12 @@ java -jar quarkifier_<minor>_deploy.jar \
 | `-V`, `--version` | — | — | Show version info and exit |
 
 *Either the inline flag or the `-file` variant must be provided. The `-file` variants read the classpath from a file (one line, colon-separated paths) to avoid "Argument list too long" errors on Linux when the classpath is very long. When both inline and file are provided, the file variant takes precedence regardless of argument order.
+
+Continuous-testing options and `--watched-input` are accepted only in
+`--mode dev`. `--test-application-model` and `--test-classes-dir` must be
+supplied together; the other test outputs, test-only inputs, JVM flags, and
+watched BUILD files require that pair. Before launch, the TEST model must identify exactly the same Bazel
+application root as the DEV model.
 
 ### Extension enrichment
 
@@ -174,8 +194,19 @@ public record QuarkifierConfig(
     List<String> bazelBuildArgs,
     List<Path> localAppJars,
     Map<String, String> buildProperties,
-    Path applicationModel
-) { ... }
+    Path applicationModel,
+    List<Path> watchedInputs,
+    ContinuousTesting continuousTesting  // null unless continuous testing is configured
+) {
+  public record ContinuousTesting(
+      Path applicationModel,
+      Path classesDir,
+      List<Path> classesOutputDirs,
+      List<Path> watchedInputs,
+      List<Path> watchedBuildFiles,
+      List<String> jvmArgs
+  ) { ... }
+}
 ```
 
 ## Augmentation Pipeline

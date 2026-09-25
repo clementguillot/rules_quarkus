@@ -17,10 +17,20 @@ public final class BazelModelInputs {
 
   private BazelModelInputs() {}
 
-  public record Roots(String applicationLabel, List<String> rootIds) {
+  /**
+   * Graph roots of one model, in public dependency order.
+   *
+   * @param testApplicationId the application library of a TEST model whose single root joins
+   *     several test graphs, or {@code null} to select it from the test root's dependencies
+   */
+  public record Roots(String applicationLabel, List<String> rootIds, String testApplicationId) {
 
     public Roots {
       rootIds = List.copyOf(rootIds);
+    }
+
+    public Roots(String applicationLabel, List<String> rootIds) {
+      this(applicationLabel, rootIds, null);
     }
   }
 
@@ -33,6 +43,7 @@ public final class BazelModelInputs {
       String ruleKind,
       String buildFile,
       boolean neverlink,
+      boolean testOnly,
       ArtifactCoordinates coordinates,
       List<FileReference> runtimeOutputJars,
       List<FileReference> outputDirectories,

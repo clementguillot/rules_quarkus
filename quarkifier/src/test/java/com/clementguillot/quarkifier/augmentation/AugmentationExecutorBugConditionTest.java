@@ -97,6 +97,54 @@ class AugmentationExecutorBugConditionTest {
     assertTrue(exception.getMessage().contains("does not match quarkifier target version"));
   }
 
+  @Test
+  void continuousTestModelRelationshipAcceptsTheSameApplicationIdentity() {
+    assertDoesNotThrow(
+        () ->
+            ContinuousTestApplicationModelLoader.validateRelationship(
+                relationshipModel(BazelApplicationModel.Mode.DEV, "@@//app:lib"),
+                relationshipModel(BazelApplicationModel.Mode.TEST, "@@//app:lib")));
+  }
+
+  @Test
+  void continuousTestModelRelationshipRejectsADifferentApplication() {
+    AugmentationException exception =
+        assertThrows(
+            AugmentationException.class,
+            () ->
+                ContinuousTestApplicationModelLoader.validateRelationship(
+                    relationshipModel(BazelApplicationModel.Mode.DEV, "@@//app:one"),
+                    relationshipModel(BazelApplicationModel.Mode.TEST, "@@//app:two")));
+
+    assertTrue(exception.getMessage().contains("@@//app:two"));
+    assertTrue(exception.getMessage().contains("@@//app:one"));
+    assertTrue(exception.getMessage().contains("does not match dev application"));
+  }
+
+  @Test
+  void continuousTestModelRelationshipRejectsAMissingApplicationNode() {
+    BazelApplicationModel missing =
+        new BazelApplicationModel(
+            BazelApplicationModel.SCHEMA_VERSION,
+            new BazelApplicationModel.Producer("test", "1"),
+            QuarkifierVersionProvider.targetedQuarkusVersion(),
+            BazelApplicationModel.Mode.TEST,
+            "@@//app:missing",
+            List.of(),
+            List.of(),
+            new BazelApplicationModel.Platform(List.of(), Map.of(), List.of()));
+
+    AugmentationException exception =
+        assertThrows(
+            AugmentationException.class,
+            () ->
+                ContinuousTestApplicationModelLoader.validateRelationship(
+                    relationshipModel(BazelApplicationModel.Mode.DEV, "@@//app:lib"), missing));
+
+    assertTrue(exception.getMessage().contains("application node is missing"));
+    assertTrue(exception.getMessage().contains("@@//app:missing"));
+  }
+
   /**
    * When --local-app-jars identifies local jars and a Maven jar is first in the classpath, the
    * production partitioning logic places all local jars in {@code localAppJars} and the Maven jar
@@ -320,6 +368,34 @@ class AugmentationExecutorBugConditionTest {
         mode,
         "app",
         List.of(),
+        List.of(),
+        new BazelApplicationModel.Platform(List.of(), Map.of(), List.of()));
+  }
+
+  private static BazelApplicationModel relationshipModel(
+      BazelApplicationModel.Mode mode, String applicationId) {
+    var application =
+        new BazelApplicationModel.Node(
+            applicationId,
+            BazelApplicationModel.NodeKind.APPLICATION,
+            new BazelApplicationModel.ArtifactCoordinates(
+                "bazel.workspace",
+                applicationId.substring(applicationId.indexOf(':') + 1),
+                "",
+                "jar",
+                "1"),
+            List.of("app.jar"),
+            List.of(),
+            new BazelApplicationModel.ClasspathFacts(false, true, true, false, false, true, false),
+            applicationId,
+            applicationId);
+    return new BazelApplicationModel(
+        BazelApplicationModel.SCHEMA_VERSION,
+        new BazelApplicationModel.Producer("test", "1"),
+        QuarkifierVersionProvider.targetedQuarkusVersion(),
+        mode,
+        applicationId,
+        List.of(application),
         List.of(),
         new BazelApplicationModel.Platform(List.of(), Map.of(), List.of()));
   }

@@ -18,11 +18,17 @@ load("//quarkus:providers.bzl", "QuarkusAppInfo", "QuarkusNativeInfo")
 load("//quarkus/private:application_model_aspect.bzl", "has_maven_artifact", "quarkus_application_model_aspect")
 load("//quarkus/private:build_properties.bzl", "validate_build_property_keys")
 load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_extension_runtime_jars", "collect_local_app_jars", "collect_runtime_classpath", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
+load("//quarkus/private:continuous_test.bzl", "continuous_test_parts")
 load("//quarkus/private:coverage_transition.bzl", "disable_coverage_transition", "single_transitioned_target")
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
+load("//quarkus/private:quarkus_codegen_impl.bzl", "quarkus_codegen_metadata_aspect")
+load("//quarkus/private:test_selectors.bzl", "regex_escape_class_name")
 
-def _regex_escape_class_name(class_name):
-    return class_name.replace("\\", "\\\\").replace(".", "\\.").replace("$", "\\$")
+def test_resources_without_sources_error(srcs, resources):
+    """Returns an actionable error for resources the public macro would ignore."""
+    if resources and srcs == None:
+        return "quarkus_test resources require inline srcs; declare resources on the precompiled java_library instead"
+    return ""
 
 def _build_test_args(test_packages, test_classes, fail_if_no_tests, integration = False):
     """Builds JUnit ConsoleLauncher CLI arguments."""
@@ -34,7 +40,7 @@ def _build_test_args(test_packages, test_classes, fail_if_no_tests, integration 
     for cls in test_classes:
         args.append("--select-class=" + cls)
     if integration:
-        include_patterns = [".*IT$"] + ["^" + _regex_escape_class_name(cls) + "$" for cls in test_classes]
+        include_patterns = [".*IT$"] + ["^" + regex_escape_class_name(cls) + "$" for cls in test_classes]
         args.append("--include-classname=(" + "|".join(include_patterns) + ")")
     else:
         args.append("--exclude-classname=.*IT$")
@@ -183,10 +189,13 @@ def _test_impl(ctx, integration):
     if coverage_runfiles:
         runfiles = runfiles.merge(coverage_runfiles)
 
-    return [
+    providers = [
         DefaultInfo(executable = launcher, runfiles = runfiles),
         OutputGroupInfo(quarkus_model = depset([model])),
     ]
+    if not integration:
+        providers.append(continuous_test_parts(ctx, runtime_classpath, conditional_classpath, deploy_classpath))
+    return providers
 
 def _quarkus_test_impl(ctx):
     return _test_impl(ctx, False)
@@ -228,7 +237,7 @@ def _test_attrs(integration = False):
             aspects = [
                 quarkus_extension_deployment_classpath_aspect,
                 quarkus_application_model_aspect,
-            ],
+            ] + ([] if integration else [quarkus_codegen_metadata_aspect]),
             providers = [JavaInfo],
             doc = "Test java_library targets. Transitive deps (app code, quarkus-junit, etc.) are included automatically.",
         ),

@@ -516,6 +516,9 @@ public final class BazelApplicationModelAssembler {
         applicationId = selection.applicationId();
         collapseTestRoot(testRootId, applicationId);
       } else {
+        if (inputs.roots().testApplicationId() != null) {
+          fail("testApplicationId is only valid for a TEST-mode model");
+        }
         applicationId = inputs.roots().rootIds().get(0);
       }
       MutableNode application = nodes.get(applicationId);
@@ -558,6 +561,23 @@ public final class BazelApplicationModelAssembler {
     }
 
     private TestSelection selectTestApplication() {
+      String explicitApplication = inputs.roots().testApplicationId();
+      if (explicitApplication != null) {
+        // A continuous-test aggregate joins the application and several test graphs under one
+        // root; like DEV mode, it names the application instead of letting candidates compete.
+        String testRootId = inputs.roots().rootIds().get(0);
+        MutableNode testRoot = nodes.get(testRootId);
+        if (testRoot == null
+            || testRoot.edges.values().stream()
+                .noneMatch(edge -> explicitApplication.equals(edge.targetId()))) {
+          fail(
+              "TEST application "
+                  + explicitApplication
+                  + " is not a direct dependency of test root "
+                  + testRootId);
+        }
+        return new TestSelection(testRootId, explicitApplication);
+      }
       List<TestSelection> candidates = new ArrayList<>();
       for (String rootId : inputs.roots().rootIds()) {
         MutableNode testRoot = nodes.get(rootId);
@@ -579,12 +599,20 @@ public final class BazelApplicationModelAssembler {
             .map(applicationId -> new TestSelection(rootId, applicationId))
             .forEach(candidates::add);
       }
-      List<TestSelection> selected = pruneDependedUponCandidates(candidates);
+      List<TestSelection> ordinaryCandidates =
+          candidates.stream()
+              .filter(candidate -> !fragments.get(candidate.applicationId()).testOnly())
+              .toList();
+      List<TestSelection> selected =
+          pruneDependedUponCandidates(
+              ordinaryCandidates.isEmpty() ? candidates : ordinaryCandidates);
       if (selected.size() != 1) {
         fail(
             "quarkus_test roots must identify exactly one local test target with exactly one"
                 + " independent local application library with main sources; found "
-                + selected);
+                + selected
+                + ". Non-testonly candidates are preferred; when every candidate is testonly,"
+                + " exactly one independent candidate is required.");
       }
       return selected.get(0);
     }
@@ -664,6 +692,11 @@ public final class BazelApplicationModelAssembler {
           application.addDeclaredEdge(testDependency);
         }
       }
+      // Re-rooting the TEST graph at the application turns test helpers that depend on the
+      // application into children of that application. Their original edge back to it is now
+      // implicit; retaining it would create a cycle and could incorrectly mark the application
+      // itself reloadable.
+      nodes.values().forEach(node -> node.removeEdgesTo(applicationId));
       testSourceFragment = fragments.get(testRootId);
       nodes.remove(testRootId);
       nodesByCoordinates.remove(BazelArtifactCoordinates.canonical(testRoot.coordinates));
@@ -743,7 +776,10 @@ public final class BazelApplicationModelAssembler {
           continue;
         }
         MutableNode node = nodes.get(id);
-        if (node == null || node.workspaceId == null || extensionDeployments.containsKey(id)) {
+        if (applicationId.equals(id)
+            || node == null
+            || node.workspaceId == null
+            || extensionDeployments.containsKey(id)) {
           continue;
         }
         node.reloadable = true;
@@ -1579,6 +1615,11 @@ public final class BazelApplicationModelAssembler {
             "deployment injection cannot be a declared workspace edge");
       }
       declaredEdges.putIfAbsent(edgeKey(edge), edge);
+    }
+
+    private void removeEdgesTo(String targetId) {
+      edges.values().removeIf(edge -> targetId.equals(edge.targetId()));
+      declaredEdges.values().removeIf(edge -> targetId.equals(edge.targetId()));
     }
 
     private static String edgeKey(DependencyEdge edge) {

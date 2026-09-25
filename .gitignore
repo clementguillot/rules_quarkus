@@ -9,3 +9,4 @@ examples/*/MODULE.bazel.lock
 
 # Nested Bazel output base (used by quarkifier local build repo rule)
 .bazel-nested-build/
+.bazel-nested-builds/

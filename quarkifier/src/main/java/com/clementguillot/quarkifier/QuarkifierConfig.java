@@ -3,6 +3,7 @@ package com.clementguillot.quarkifier;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Immutable configuration for a single augmentation invocation.
@@ -27,10 +28,13 @@ import java.util.Map;
  * @param bazelBuildTimeoutSeconds timeout in seconds for bazel build process (default: 600)
  * @param bazelCommand bazel binary to invoke for hot-reload builds (default: {@code bazel})
  * @param bazelBuildArgs extra flags for the hot-reload {@code bazel build}
- * @param codegenInputDirs directories holding the declared CodeGenProvider inputs
  * @param localAppJars local workspace jars to use as application roots
  * @param buildProperties declared hermetic build-time configuration
  * @param applicationModel explicit validated Bazel model JSON
+ * @param watchedInputs exact declared inputs watched in dev mode: generator inputs, plus every
+ *     source and resource input of the application graph under continuous testing
+ * @param continuousTesting continuous-testing settings of a dev session, or {@code null} when
+ *     continuous testing is not configured
  */
 public record QuarkifierConfig(
     List<Path> applicationClasspath,
@@ -50,7 +54,46 @@ public record QuarkifierConfig(
     long bazelBuildTimeoutSeconds,
     String bazelCommand,
     List<String> bazelBuildArgs,
-    List<Path> codegenInputDirs,
     List<Path> localAppJars,
     Map<String, String> buildProperties,
-    Path applicationModel) {}
+    Path applicationModel,
+    List<Path> watchedInputs,
+    ContinuousTesting continuousTesting) {
+
+  /**
+   * Continuous-testing settings of a dev session.
+   *
+   * @param applicationModel explicit validated TEST-mode Bazel model JSON
+   * @param classesDir mutable directory for compiled tests and their resources
+   * @param classesOutputDirs bazel-bin outputs containing compiled test classes
+   * @param watchedInputs exact inputs only the continuous-test graph declares; changing them reruns
+   *     tests without restarting the application
+   * @param watchedBuildFiles BUILD files whose changes require a dev-mode restart
+   * @param jvmArgs JVM flags for the shared dev/test child process
+   */
+  public record ContinuousTesting(
+      Path applicationModel,
+      Path classesDir,
+      List<Path> classesOutputDirs,
+      List<Path> watchedInputs,
+      List<Path> watchedBuildFiles,
+      List<String> jvmArgs) {
+
+    public ContinuousTesting {
+      Objects.requireNonNull(applicationModel, "applicationModel");
+      Objects.requireNonNull(classesDir, "classesDir");
+      classesOutputDirs = List.copyOf(classesOutputDirs);
+      watchedInputs = List.copyOf(watchedInputs);
+      watchedBuildFiles = List.copyOf(watchedBuildFiles);
+      jvmArgs = List.copyOf(jvmArgs);
+    }
+
+    /**
+     * Private, source-free test source directory used to wake Quarkus continuous testing after a
+     * completed Bazel sync.
+     */
+    public Path reloadNotificationDir() {
+      return classesDir.toAbsolutePath().getParent().resolve("reload-notifications");
+    }
+  }
+}

@@ -17,6 +17,9 @@ QuarkusBazelTargetGraphInfo = provider(
         "root_ids": "Depset of graph node ids represented by this target.",
         "transitive_artifacts": "Runtime artifacts below the root, excluding its outputs.",
         "transitive_fragments": "Runtime fragments below the root, excluding its fragment.",
+        "watch_inputs": "Depset of exact declared local source and resource paths.",
+        "watch_build_files": "Depset of BUILD files defining local Java targets.",
+        "test_outputs": "Depset of runtime jars owned by local testonly Java targets.",
     },
 )
 
@@ -46,6 +49,10 @@ def _files_attr(ctx, attr_name):
     if not hasattr(ctx.rule.files, attr_name):
         return []
     return [_file_record(file) for file in getattr(ctx.rule.files, attr_name)]
+
+def build_file_path(ctx):
+    """Returns the workspace-relative BUILD file declaring the rule or aspect target of `ctx`."""
+    return ctx.build_file_path if hasattr(ctx, "build_file_path") else (ctx.label.package + "/BUILD.bazel" if ctx.label.package else "BUILD.bazel")
 
 def _edge_records(graphs, relation, scope):
     edges = []
@@ -120,7 +127,7 @@ def _extract_workspace_outputs(ctx, target, output_jars, suffix = ""):
 def _target_fragment(ctx, target, edges, coordinates = None, output_jars = None, output_directories = None, suffix = ""):
     target_id = str(target.label) if not suffix else "local-deployment:" + str(target.label)
     output = ctx.actions.declare_file(ctx.label.name + suffix + ".quarkus-target-v1.json")
-    build_file = ctx.build_file_path if hasattr(ctx, "build_file_path") else (ctx.label.package + "/BUILD.bazel" if ctx.label.package else "BUILD.bazel")
+    build_file = build_file_path(ctx)
     java_info = target[JavaInfo]
     content = json.encode({
         "bazelLabel": str(target.label),
@@ -128,6 +135,7 @@ def _target_fragment(ctx, target, edges, coordinates = None, output_jars = None,
         "coordinates": coordinates,
         "edges": sorted(edges, key = _edge_sort_key),
         "neverlink": getattr(ctx.rule.attr, "neverlink", False),
+        "testOnly": getattr(ctx.rule.attr, "testonly", False),
         "outputDirectories": [_file_record(file) for file in (output_directories or [])],
         "package": target.label.package,
         "resources": _files_attr(ctx, "resources"),
@@ -287,6 +295,18 @@ def _application_model_aspect_impl(target, ctx):
 
     return [
         QuarkusBazelTargetGraphInfo(
+            watch_inputs = depset(
+                direct = _watch_files(ctx, "srcs") + _watch_files(ctx, "resources"),
+                transitive = [graph.watch_inputs for graph in child_graphs],
+            ),
+            watch_build_files = depset(
+                direct = [build_file_path(ctx)] if JavaInfo in target and not ctx.label.workspace_name else [],
+                transitive = [graph.watch_build_files for graph in child_graphs],
+            ),
+            test_outputs = depset(
+                direct = target[JavaInfo].runtime_output_jars if JavaInfo in target and not ctx.label.workspace_name and getattr(ctx.rule.attr, "testonly", False) else [],
+                transitive = [graph.test_outputs for graph in child_graphs],
+            ),
             artifacts = depset(direct = direct_artifacts, transitive = transitive_artifacts),
             coordinate_keys = depset(direct = direct_coordinate_keys, transitive = transitive_coordinate_keys),
             deployment_artifacts = depset(transitive = deployment_artifacts),
@@ -300,6 +320,23 @@ def _application_model_aspect_impl(target, ctx):
             transitive_fragments = depset(transitive = transitive_fragments),
         ),
     ]
+
+def _watch_files(ctx, attribute):
+    if ctx.label.workspace_name or not hasattr(ctx.rule.files, attribute):
+        return []
+    return [
+        file.short_path
+        for file in getattr(ctx.rule.files, attribute)
+        if file.is_source and not file.short_path.startswith("../")
+    ]
+
+def collect_watch_metadata(deps):
+    """Exports Bazel-owned input locations and test-only helper outputs for dev testing."""
+    return struct(
+        build_files = _collect_graph_depset(deps, "watch_build_files"),
+        input_files = _collect_graph_depset(deps, "watch_inputs"),
+        test_outputs = _collect_graph_depset(deps, "test_outputs"),
+    )
 
 quarkus_application_model_aspect = aspect(
     implementation = _application_model_aspect_impl,
@@ -327,6 +364,26 @@ def collect_model_fragments(deps):
 def collect_model_artifacts(deps):
     """Collects artifact inputs referenced by runtime model fragments."""
     return _collect_graph_depset(deps, "artifacts")
+
+def collect_model_root_ids(deps):
+    """Collects graph root ids in public dependency order.
+
+    Args:
+        deps: Direct dependencies carrying application-model graph providers.
+
+    Returns:
+        A deduplicated list of graph root ids.
+    """
+    root_ids = []
+    seen = {}
+    for dep in deps:
+        if QuarkusBazelTargetGraphInfo not in dep:
+            continue
+        for root_id in dep[QuarkusBazelTargetGraphInfo].root_ids.to_list():
+            if root_id not in seen:
+                seen[root_id] = True
+                root_ids.append(root_id)
+    return root_ids
 
 def collect_deployment_model_fragments(deps):
     """Collects local-extension deployment graph fragments."""
@@ -386,30 +443,77 @@ def collect_local_runtime_aliases(deps):
     """Collects raw local runtime to packaged extension target aliases."""
     return _collect_unique_mappings(deps, "local_runtime_aliases", "rawTargetId", "targetId", "local runtime target")
 
-def write_model_roots_file(ctx, deps):
-    """Writes direct dependency ids, preserving the public deps order.
+def write_synthetic_test_root_fragment(ctx, application_root_ids, test_root_ids, test_outputs):
+    """Writes one test-only root joining an application to several test roots.
+
+    Args:
+        ctx: Rule context used to declare and write the fragment.
+        application_root_ids: Ordered application dependency root ids.
+        test_root_ids: Ordered roots exported by the selected test targets.
+        test_outputs: Ordered compiled test outputs exposed by the aggregate.
+
+    Returns:
+        The synthetic target-fragment JSON file.
+    """
+    target_id = str(ctx.label)
+    edges = []
+    seen = {}
+    for dependency_id in application_root_ids + test_root_ids:
+        if dependency_id in seen:
+            continue
+        seen[dependency_id] = True
+        edges.append({
+            "exclusions": [],
+            "optional": False,
+            "relation": "deps",
+            "scope": "compile",
+            "targetId": dependency_id,
+        })
+    output = ctx.actions.declare_file(ctx.label.name + ".quarkus-target-v1.json")
+    content = json.encode({
+        "bazelLabel": target_id,
+        "buildFile": build_file_path(ctx),
+        "coordinates": None,
+        "edges": sorted(edges, key = _edge_sort_key),
+        "neverlink": False,
+        "testOnly": True,
+        "outputDirectories": [_file_record(file) for file in test_outputs],
+        "package": ctx.label.package,
+        "resources": [],
+        "ruleKind": "quarkus_continuous_test_aggregate",
+        "runtimeOutputJars": [_file_record(file) for file in test_outputs],
+        "schemaVersion": "quarkus-bazel-target-v1",
+        "sourceJars": [],
+        "sources": [],
+        "targetId": target_id,
+        "targetName": ctx.label.name,
+        "workspaceName": ctx.label.workspace_name,
+    }) + "\n"
+    ctx.actions.write(output = output, content = content)
+    return output
+
+def write_model_root_ids_file(ctx, root_ids, test_application_id = None):
+    """Writes already-collected model root ids in their declared order.
 
     Args:
         ctx: Rule context used to declare and write the roots file.
-        deps: Ordered direct dependencies carrying application-model graph providers.
+        root_ids: Ordered, deduplicated graph root ids.
+        test_application_id: Application library of a TEST model whose single root joins several
+            test graphs, or None to select it from the test root's dependencies.
 
     Returns:
         The declared application-model roots JSON file.
     """
     output = ctx.actions.declare_file(ctx.label.name + ".quarkus-roots-v1.json")
-    root_ids = []
-    seen = {}
-    for dep in deps:
-        if QuarkusBazelTargetGraphInfo not in dep:
-            continue
-        for root_id in dep[QuarkusBazelTargetGraphInfo].root_ids.to_list():
-            if root_id not in seen:
-                seen[root_id] = True
-                root_ids.append(root_id)
     content = json.encode({
         "applicationLabel": str(ctx.label),
         "rootIds": root_ids,
         "schemaVersion": "quarkus-bazel-roots-v1",
+        "testApplicationId": test_application_id,
     }) + "\n"
     ctx.actions.write(output = output, content = content)
     return output
+
+def write_model_roots_file(ctx, deps):
+    """Writes direct dependency ids, preserving the public deps order."""
+    return write_model_root_ids_file(ctx, collect_model_root_ids(deps))

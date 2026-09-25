@@ -1,6 +1,8 @@
 package com.clementguillot.quarkifier.model.transport;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -16,12 +18,27 @@ class BazelModelInputReaderTest {
         BazelModelInputReader.readRoots(
             """
             {"schemaVersion":"quarkus-bazel-roots-v1",\
-            "applicationLabel":"@@//:app","rootIds":["@@//:z","@@//:a"]}
+            "applicationLabel":"@@//:app","rootIds":["@@//:z","@@//:a"],\
+            "testApplicationId":null}
             """);
 
     assertEquals("@@//:app", roots.applicationLabel());
     assertEquals("@@//:z", roots.rootIds().get(0));
     assertEquals("@@//:a", roots.rootIds().get(1));
+    assertNull(roots.testApplicationId());
+  }
+
+  @Test
+  void readsAnExplicitTestApplication() {
+    var roots =
+        BazelModelInputReader.readRoots(
+            """
+            {"schemaVersion":"quarkus-bazel-roots-v1",\
+            "applicationLabel":"@@//:app_continuous_tests","rootIds":["@@//:app_continuous_tests"],\
+            "testApplicationId":"@@//:lib"}
+            """);
+
+    assertEquals("@@//:lib", roots.testApplicationId());
   }
 
   @Test
@@ -47,6 +64,25 @@ class BazelModelInputReaderTest {
                         .replace("\"targetId\":\"@@//:lib\"", "\"targetId\":\"other\"")));
 
     assertTrue(exception.getMessage().contains("must equal bazelLabel"));
+  }
+
+  @Test
+  void testOnlyMetadataIsRequiredAndStrictlyTyped() {
+    assertFalse(BazelModelInputReader.readTargetFragment(targetFragment()).testOnly());
+    assertTrue(
+        BazelModelInputReader.readTargetFragment(
+                targetFragment().replace("\"testOnly\":false", "\"testOnly\":true"))
+            .testOnly());
+    assertThrows(
+        BazelApplicationModelException.class,
+        () ->
+            BazelModelInputReader.readTargetFragment(
+                targetFragment().replace("\"testOnly\":false", "\"testOnly\":\"true\"")));
+    assertThrows(
+        BazelApplicationModelException.class,
+        () ->
+            BazelModelInputReader.readTargetFragment(
+                targetFragment().replace("\"testOnly\":false,", "")));
   }
 
   @Test
@@ -185,6 +221,7 @@ class BazelModelInputReaderTest {
           "ruleKind":"java_library",
           "buildFile":"BUILD.bazel",
           "neverlink":false,
+          "testOnly":false,
           "coordinates":null,
           "runtimeOutputJars":[{
             "path":"bazel-bin/lib.jar","shortPath":"lib.jar",\

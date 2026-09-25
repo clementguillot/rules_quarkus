@@ -64,12 +64,18 @@ public final class BazelModelInputReader {
 
   public static Roots readRoots(String document) {
     Map<String, Object> root = parseRoot(document);
-    fields(root, "$", "schemaVersion", "applicationLabel", "rootIds");
+    fields(root, "$", "schemaVersion", "applicationLabel", "rootIds", "testApplicationId");
     schema(root, BazelModelInputs.ROOTS_SCHEMA);
     var result =
-        new Roots(string(root, "applicationLabel", "$"), stringArray(root, "rootIds", "$"));
+        new Roots(
+            string(root, "applicationLabel", "$"),
+            stringArray(root, "rootIds", "$"),
+            nullableString(root, "testApplicationId", "$"));
     nonBlank(result.applicationLabel(), "$.applicationLabel");
     uniqueNonBlank(result.rootIds(), "$.rootIds", false);
+    if (result.testApplicationId() != null) {
+      nonBlank(result.testApplicationId(), "$.testApplicationId");
+    }
     return result;
   }
 
@@ -91,6 +97,7 @@ public final class BazelModelInputReader {
         "ruleKind",
         "buildFile",
         "neverlink",
+        "testOnly",
         "coordinates",
         "runtimeOutputJars",
         "outputDirectories",
@@ -109,6 +116,7 @@ public final class BazelModelInputReader {
             string(root, "ruleKind", "$"),
             string(root, "buildFile", "$"),
             bool(root, "neverlink", "$"),
+            bool(root, "testOnly", "$"),
             nullableCoordinates(root, "coordinates", "$"),
             mapArray(root, "runtimeOutputJars", "$", BazelModelInputReader::fileReference),
             mapArray(root, "outputDirectories", "$", BazelModelInputReader::fileReference),

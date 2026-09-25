@@ -1,7 +1,7 @@
 "Hermetic action that assembles the explicit Bazel application model."
 
 load("@rules_java//java/common:java_common.bzl", "java_common")
-load("//quarkus/private:application_model_aspect.bzl", "collect_deployment_model_artifacts", "collect_deployment_model_fragments", "collect_local_deployments", "collect_local_runtime_aliases", "collect_model_artifacts", "collect_model_fragments", "write_model_roots_file")
+load("//quarkus/private:application_model_aspect.bzl", "collect_deployment_model_artifacts", "collect_deployment_model_fragments", "collect_local_deployments", "collect_local_runtime_aliases", "collect_model_artifacts", "collect_model_fragments", "write_model_root_ids_file", "write_model_roots_file")
 load("//quarkus/private:versions.bzl", "RULES_VERSION")
 
 _DEPLOYMENT_PATH_MARKERS = ["deployment/jars/", "deployment/artifacts/"]
@@ -197,6 +197,29 @@ def assemble_application_model(ctx, deps, runtime_classpath, conditional_classpa
         collect_deployment_model_artifacts(deps),
         collect_local_deployments(deps),
         collect_local_runtime_aliases(deps),
+        runtime_classpath,
+        conditional_classpath,
+        deployment_classpath,
+        mode,
+        application_name,
+    )
+
+def assemble_application_model_from_parts(ctx, root_ids, fragments, model_artifacts, deployment_fragments, deployment_model_artifacts, local_deployments, local_runtime_aliases, runtime_classpath, conditional_classpath, deployment_classpath, mode, application_name = None, test_application_id = None):
+    """Assembles one model from graph parts exported by other analysis targets.
+
+    This is used by continuous testing to combine independently executable
+    quarkus_test targets without treating their already-assembled model files
+    as a lossy source of graph facts.
+    """
+    return _run_model_assembly(
+        ctx,
+        write_model_root_ids_file(ctx, root_ids, test_application_id),
+        fragments,
+        model_artifacts,
+        deployment_fragments,
+        deployment_model_artifacts,
+        local_deployments,
+        local_runtime_aliases,
         runtime_classpath,
         conditional_classpath,
         deployment_classpath,

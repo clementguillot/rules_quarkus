@@ -1,0 +1,94 @@
+load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app", "quarkus_java_library", "quarkus_test")
+
+quarkus_java_library(
+    name = "lib",
+    srcs = glob(["src/main/java/**/*.java"]),
+    codegen_srcs = ["src/main/hello/main.hello"],
+    resources = ["src/main/resources/app-resource.txt"],
+    deps = [
+        "//dep:value",
+        "//ext/runtime",
+        "//submodule:lib",
+        "@maven//:io_quarkus_quarkus_rest",
+        "@maven//:jakarta_ws_rs_jakarta_ws_rs_api",
+    ],
+)
+
+quarkus_app(
+    name = "hot_reload_app",
+    deps = [":lib"],
+)
+
+quarkus_java_library(
+    name = "test_codegen",
+    testonly = True,
+    codegen_mode = "test",
+    codegen_srcs = ["src/test/hello/test.hello"],
+    deps = [":lib"],
+)
+
+quarkus_test(
+    name = "test",
+    srcs = [
+        "tests/ExcludedTest.java",
+        "tests/FlatTest.java",
+        "tests/SelectedIT.java",
+        "tests/SelectedTest.java",
+    ],
+    build_properties = {"fixture.property": "round trip"},
+    jvm_flags = ["-Dfixture.jvm=quote '$dollar `backtick` $(subshell)"],
+    resources = [
+        "src/test/resources/declared.tmp",
+        "src/test/resources/input.txt",
+    ],
+    test_classes = ["fixture.FlatTest"],
+    test_packages = ["selected"],
+    deps = [
+        ":lib",
+        ":test_codegen",
+        "//helper",
+        "@maven//:io_quarkus_quarkus_junit",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+quarkus_app(
+    name = "app",
+    continuous_test = [
+        ":test",
+        "//emptyglob:test",
+        "//submodule:test",
+    ],
+    dev_build_args = ["--define=continuous_fixture=true"],
+    deps = [":lib"],
+)
+
+# A module-owned test alone still runs against this application. The test is precompiled in a
+# package without Java targets, and the app has a second, independent local library.
+quarkus_app(
+    name = "module_tests_only",
+    continuous_test = "//moduletests:test",
+    deps = [
+        ":lib",
+        "//independent:lib",
+    ],
+)
+
+# The original positional signature must remain valid.
+quarkus_test(
+    "positional_test",
+    ["tests/SelectedTest.java"],
+    [
+        ":lib",
+        "@maven//:io_quarkus_quarkus_junit",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+quarkus_app(
+    "without_tests",
+    False,
+    [],
+    False,
+    deps = [":lib"],
+)
