@@ -25,7 +25,7 @@ java -jar quarkifier_<minor>_deploy.jar \
   [--core-deployment-classpath-file <path>] \
   --output-dir <path> \
   [--resources <path,path,...>] \
-  [--mode normal|test|dev|native] \
+  [--mode normal|test|dev|continuous-test|native] \
   [--package-type fast-jar|uber-jar|mutable-jar|legacy-jar|aot-jar] \
   [--app-name <name>] \
   [--main-class <class>] \
@@ -48,6 +48,7 @@ java -jar quarkifier_<minor>_deploy.jar \
   [--local-app-jars-file <path>] \
   [--build-properties-file <path>] \
   --application-model <quarkus-bazel-model-v1.json> \
+  [--test-application-model <quarkus-bazel-model-v1.json>] \
   [-h|--help] \
   [-V|--version]
 ```
@@ -135,7 +136,7 @@ com.clementguillot.quarkifier
 ├── EnrichExtensionCommand          Parses extension-enrichment arguments
 ├── QuarkifierConfig                Immutable record for config + toArgs() serialization
 ├── QuarkifierVersionProvider       Picocli IVersionProvider: reads version from classpath resource
-├── AugmentationMode                Enum: NORMAL, TEST, DEV, NATIVE
+├── AugmentationMode                Enum: NORMAL, TEST, DEV, CONTINUOUS_TEST, NATIVE
 ├── JarPackageType                  Enum: Fast, Uber, mutable, legacy, and AOT JAR layouts
 ├── AugmentationException           Checked exception wrapping build errors
 ├── BuildProperties                 Default build system properties

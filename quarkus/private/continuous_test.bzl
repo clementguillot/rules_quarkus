@@ -2,8 +2,9 @@
 
 Every quarkus_test exports its graph parts through QuarkusContinuousTestPartsInfo. The hidden
 aggregate created by quarkus_app(continuous_test = ...) joins them with the application graph into
-one application-rooted TEST model and hands the console-only test target a
-QuarkusContinuousTestInfo.
+one application-rooted TEST model and hands it, through QuarkusContinuousTestInfo, to both
+interactive targets: `<name>_dev` uses it as the secondary model of its Dev UI testing and
+`<name>_test` as the primary model of its console-only session.
 """
 
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
@@ -17,10 +18,10 @@ load("//quarkus/private:test_selectors.bzl", "regex_escape_class_name")
 
 QuarkusContinuousTestPartsInfo = provider(
     doc = """Internal: continuous-testing inputs of one quarkus_test, consumed only by the
-    aggregate. Fields stay lazy so tests that no dev target references pay no analysis-time
+    aggregate. Fields stay lazy so tests that no interactive target references pay no analysis-time
     flattening.""",
     fields = {
-        "build_files": "Depset of BUILD files whose changes require restarting the test session.",
+        "build_files": "Depset of BUILD files whose changes require restarting the interactive session.",
         "build_properties": "Declared test JVM system properties.",
         "class_output_candidates": "Depset of local compiled test jars that may be synchronized.",
         "codegen_input_files": "Depset of exact workspace-relative test code-generation inputs.",
@@ -29,7 +30,7 @@ QuarkusContinuousTestPartsInfo = provider(
         "deployment_model_artifacts": "Depset of artifacts referenced by local deployment fragments.",
         "deployment_model_fragments": "Depset of local-extension deployment graph fragments.",
         "input_files": "Depset of exact declared test-graph source and resource files.",
-        "jvm_flags": "Declared flags for the console test child JVM.",
+        "jvm_flags": "Declared flags for the child JVM that runs the tests (_dev or _test).",
         "local_deployments": "Local extension deployment coordinate-to-target mappings.",
         "local_runtime_aliases": "Raw-to-packaged local extension runtime target mappings.",
         "model_artifacts": "Depset of artifacts referenced by runtime model fragments.",
@@ -82,7 +83,10 @@ def continuous_test_parts(ctx, runtime_classpath, conditional_classpath, deploym
     )
 
 def continuous_build_properties(app_properties, test_info):
-    """Returns the console test JVM's build properties, including selection.
+    """Returns the interactive child JVM's build properties, including the test selection.
+
+    In `<name>_dev` the application and its tests share one JVM; in `<name>_test` the tests
+    start the application in that same JVM. Either way one value per key applies.
 
     Args:
       app_properties: The quarkus_app build_properties.
@@ -94,7 +98,8 @@ def continuous_build_properties(app_properties, test_info):
     properties = dict(app_properties)
     for key, value in test_info.build_properties.items():
         if key in properties and properties[key] != value:
-            fail("continuous_test: conflicting build_properties value for '{}'; aggregated tests share one JVM".format(key))
+            fail(("continuous_test: quarkus_app and its continuous_test targets declare conflicting " +
+                  "build_properties value for '{}'; the application and its tests share one JVM").format(key))
         properties[key] = value
     selectors = ["^" + regex_escape_class_name(name) + "$" for name in test_info.test_classes]
     selectors.extend(["^" + regex_escape_class_name(name) + "\\..*$" for name in test_info.test_packages])
@@ -340,5 +345,5 @@ quarkus_continuous_test_aggregate = rule(
             default = "@bazel_tools//tools/jdk:current_java_runtime",
         ),
     },
-    doc = "Internal non-test rule that combines quarkus_test providers for console testing.",
+    doc = "Internal non-test rule that combines quarkus_test providers for the _dev and _test targets.",
 )

@@ -351,10 +351,11 @@ quarkus_test(
 ```
 
 Run `bazel run //:helloworld_test` to start the Quarkus test-only console.
-Use its hotkeys (`r` reruns tests, `p` pauses, and `o` toggles test output).
-Java source, test resource, and main or test code-generation input changes
-rebuild this target through Bazel and rerun affected tests. No dev application
-or Dev UI is started. The target is created even when `dev = False`.
+Tests start running immediately; use its hotkeys (`r` reruns tests, `p` pauses
+or resumes, and `o` toggles test output). Java source, test resource, and main
+or test code-generation input changes rebuild this target through Bazel and
+rerun affected tests. No dev application or Dev UI is started. The target is
+created even when `dev = False`; pass `test = False` to opt out of it.
 
 Dev mode runs in a separate JVM process. Press `Ctrl+C` to stop.
 
@@ -409,8 +410,9 @@ workflow. Selecting `aot-jar` with Quarkus 3.27 fails during Bazel analysis.
 | `package_type` | `string` | `"fast-jar"` | JVM package layout; see the table above |
 | `dev` | `bool` | `True` | Also create the `<name>_dev` target |
 | `dev_build_args` | `string_list` | `[]` | Extra Bazel flags reused by hot-reload builds |
-| `test_build_args` | `string_list` | `[]` | Extra Bazel flags reused when the console test watcher rebuilds `<name>_test` |
-| `continuous_test` | `label` or `label_list` | `None` | Optional `quarkus_test` target, or ordered list of targets, used by Dev UI continuous testing in `<name>_dev` and by the console-only `<name>_test`; makes both targets `testonly` |
+| `test` | `bool` | `True` | Also create the `<name>_test` console continuous-testing target when `continuous_test` is set |
+| `test_build_args` | `string_list` | `[]` | Extra Bazel flags reused when the console test watcher rebuilds `<name>_test`; requires `continuous_test` and `test = True` |
+| `continuous_test` | `label` or `label_list` | `None` | Optional `quarkus_test` target, or ordered list of targets, used by Dev UI continuous testing in `<name>_dev` and by the console-only `<name>_test`; makes both targets `testonly`; requires `dev = True` or `test = True` |
 | `native` | `bool` | `False` | Also create `<name>_native` using `rules_graalvm` |
 | `native_container_build` | `bool` | `False` | Also create `<name>_native` using Docker or Podman |
 

@@ -207,6 +207,7 @@ class QuarkifierConfigTest {
   void parse_continuousTestingOptionsRequireInteractiveMode() {
     for (List<String> option :
         List.of(
+            List.of("--test-application-model", "test-model.json"),
             List.of("--test-classes-dir", "/tmp/test-classes"),
             List.of("--test-classes-output-dirs", "bazel-bin/test.jar"),
             List.of("--watched-input", "src/test/java/AppTest.java"),
@@ -223,8 +224,110 @@ class QuarkifierConfigTest {
               () -> parse(args.toArray(String[]::new)),
               option.get(0));
 
-      assertTrue(exception.getMessage().contains("require"), option.get(0));
+      assertTrue(
+          exception.getMessage().contains("require --mode dev or continuous-test"),
+          option.get(0) + ": " + exception.getMessage());
     }
+  }
+
+  @Test
+  void parse_continuousTestModeRejectsSecondaryTestModel() {
+    var exception =
+        assertThrows(
+            CommandLine.ParameterException.class,
+            () ->
+                parse(
+                    "--application-classpath", "a.jar",
+                    "--output-dir", "/out",
+                    "--mode", "continuous-test",
+                    "--test-application-model", "test-model.json",
+                    "--test-classes-dir", "/tmp/test-classes"));
+    assertTrue(
+        exception.getMessage().contains("--test-application-model is only used with --mode dev"));
+  }
+
+  @Test
+  void parse_devModeRequiresTestClassesDirectoryWithSecondaryModel() {
+    var exception =
+        assertThrows(
+            CommandLine.ParameterException.class,
+            () ->
+                parse(
+                    "--application-classpath", "a.jar",
+                    "--output-dir", "/out",
+                    "--mode", "dev",
+                    "--test-application-model", "test-model.json"));
+    assertTrue(
+        exception
+            .getMessage()
+            .contains("requires --test-application-model and --test-classes-dir"));
+  }
+
+  @Test
+  void config_devModeContinuousTestingRequiresSecondaryModel() {
+    var parsed =
+        parse(
+            "--application-classpath", "a.jar",
+            "--output-dir", "/out",
+            "--mode", "continuous-test",
+            "--test-classes-dir", "/tmp/test-classes");
+
+    var exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> withMode(parsed, AugmentationMode.DEV, parsed.continuousTesting()));
+    assertTrue(exception.getMessage().contains("requires a secondary TEST application model"));
+  }
+
+  @Test
+  void config_continuousTestModeRejectsSecondaryModelAndMissingSettings() {
+    var parsed =
+        parse(
+            "--application-classpath", "a.jar",
+            "--output-dir", "/out",
+            "--mode", "dev",
+            "--test-application-model", "test-model.json",
+            "--test-classes-dir", "/tmp/test-classes");
+
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> withMode(parsed, AugmentationMode.CONTINUOUS_TEST, parsed.continuousTesting()));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> withMode(parsed, AugmentationMode.CONTINUOUS_TEST, null));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> withMode(parsed, AugmentationMode.NORMAL, parsed.continuousTesting()));
+  }
+
+  /** Copies {@code config} with another mode and continuous-testing settings. */
+  private static QuarkifierConfig withMode(
+      QuarkifierConfig config,
+      AugmentationMode mode,
+      QuarkifierConfig.ContinuousTesting continuousTesting) {
+    return new QuarkifierConfig(
+        config.applicationClasspath(),
+        config.coreDeploymentClasspath(),
+        config.outputDir(),
+        config.resources(),
+        mode,
+        config.packageType(),
+        config.appName(),
+        config.mainClass(),
+        config.nativeBuilderImage(),
+        config.sourceDirs(),
+        config.classesDir(),
+        config.bazelTargets(),
+        config.classesOutputDirs(),
+        config.workspaceDir(),
+        config.bazelBuildTimeoutSeconds(),
+        config.bazelCommand(),
+        config.bazelBuildArgs(),
+        config.localAppJars(),
+        config.buildProperties(),
+        config.applicationModel(),
+        config.watchedInputs(),
+        continuousTesting);
   }
 
   @Test

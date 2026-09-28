@@ -1,7 +1,8 @@
-"""Implementation of the quarkus_dev rule.
+"""Implementation of the interactive quarkus_app targets.
 
-Launches a Quarkus application in dev mode with the Quarkus Dev UI.
-The process blocks until terminated (Ctrl+C / SIGTERM).
+`<name>_dev` launches a Quarkus application in dev mode with the Quarkus Dev UI;
+`<name>_test` launches Quarkus' console-only continuous-testing mode. Both
+processes block until terminated (Ctrl+C / SIGTERM).
 
 When declared source or code-generation inputs are detected in deps, the rule
 also wires a Java file watcher (BazelFileWatcher) that triggers incremental
@@ -29,7 +30,7 @@ def _hot_reload_bazel_target(ctx):
     in a different configuration from the paths recorded at analysis time.
 
     Args:
-        ctx: Rule context for the dev target.
+        ctx: Rule context for the _dev or _test target.
     Returns:
         A single-element list holding the target label (e.g. ["//pkg:app_dev"]).
     """
@@ -216,27 +217,28 @@ def _quarkus_dev_impl(ctx):
 def _quarkus_continuous_test_impl(ctx):
     return _interactive_impl(ctx, True)
 
-def _join_build_args(args, name):
+def _join_build_args(args, test_only):
     """Validates and comma-joins launch build args; fails if any entry contains a comma."""
     for arg in args:
         if "," in arg:
-            fail("{}: commas are not supported (used as delimiter); got '{}'".format(name, arg))
+            fail("{}: commas are not supported (used as delimiter); got '{}'".format(
+                "test_build_args" if test_only else "dev_build_args",
+                arg,
+            ))
     return ",".join(args)
 
 def _write_dev_launcher(ctx, tool_jar, files, model_file, session, java_runtime, test_only):
     """Expands the interactive launcher template with the metadata file locations."""
     launcher = ctx.actions.declare_file(ctx.label.name + "_launch.sh")
-    build_args_name = "test_build_args" if test_only else "dev_build_args"
-    build_args = ctx.attr.test_build_args if test_only else ctx.attr.dev_build_args
     ctx.actions.expand_template(
         template = ctx.file._dev_launcher_template,
         output = launcher,
         substitutions = {
             "%{app_cp_file}": files.app_cp.short_path,
-            "%{app_name}": ctx.label.name.removesuffix("_test" if test_only else "_dev"),
+            "%{app_name}": shell.quote(ctx.label.name.removesuffix("_test" if test_only else "_dev")),
             "%{bazel_targets_file}": files.bazel_targets.short_path,
             "%{build_properties_file}": files.build_properties.short_path,
-            "%{build_args}": _join_build_args(build_args, build_args_name),
+            "%{build_args}": shell.quote(_join_build_args(ctx.attr.build_args, test_only)),
             "%{classes_output_dirs_file}": files.classes_output_dirs.short_path,
             "%{core_deploy_cp_file}": files.core_deploy_cp.short_path,
             "%{java_home}": java_runtime.java_home_runfiles_path,
@@ -261,15 +263,21 @@ def _write_dev_launcher(ctx, tool_jar, files, model_file, session, java_runtime,
     return launcher
 
 def _interactive_attrs(deps_cfg, test_only):
-    attrs = {
+    return {
         "build_properties": attr.string_dict(
-            doc = "Declared build-time properties passed hermetically to Quarkus dev mode.",
+            doc = "Declared build-time properties passed hermetically to the Quarkus child JVM.",
         ),
         "conditional_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
         "conditional_deps": attr.label(
             mandatory = True,
             cfg = disable_coverage_transition,
             providers = [JavaInfo],
+        ),
+        "continuous_test": attr.label(
+            mandatory = test_only,
+            cfg = disable_coverage_transition,
+            providers = [QuarkusContinuousTestInfo],
+            doc = "Application-rooted TEST model and declared test inputs (created by the quarkus_app macro).",
         ),
         "core_deployment_deps": attr.label(
             cfg = disable_coverage_transition,
@@ -305,16 +313,14 @@ def _interactive_attrs(deps_cfg, test_only):
             providers = [JavaInfo],
             doc = "java_library and Maven artifact targets.",
         ),
-        "dev_build_args": attr.string_list(
+        "build_args": attr.string_list(
             doc = """\
-Extra flags for the hot-reload `bazel build` (e.g. ["--config=dev"]). Must
-match the configuration used to `bazel run` the dev target — otherwise
-rebuilt classes land in a different bazel-out tree and hot-reload syncs
-stale files. Flags containing commas are not supported.
+Extra flags for the watcher's `bazel build` of this target (e.g. ["--config=dev"]),
+set by the macro from dev_build_args or test_build_args. Must match the
+configuration used to `bazel run` this target — otherwise rebuilt classes land
+in a different bazel-out tree and the watcher syncs stale files. Flags
+containing commas are not supported.
 """,
-        ),
-        "test_build_args": attr.string_list(
-            doc = "Extra Bazel flags for rebuilding the console continuous-test target.",
         ),
         "main_class": attr.string(
             doc = "Override main class, shared from the quarkus_app target.",
@@ -343,13 +349,6 @@ stale files. Flags containing commas are not supported.
             default = "@bazel_tools//tools/allowlists/function_transition_allowlist",
         ),
     }
-    attrs["continuous_test"] = attr.label(
-        mandatory = test_only,
-        cfg = disable_coverage_transition,
-        providers = [QuarkusContinuousTestInfo],
-        doc = "Application-rooted TEST model and declared test inputs.",
-    )
-    return attrs
 
 quarkus_dev_rule = rule(
     implementation = _quarkus_dev_impl,

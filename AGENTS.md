@@ -75,7 +75,7 @@ infrastructure in their BUILD declarations.
 
 ### Preserve lifecycle semantics
 
-Internal target suffixes such as `_dev` and `_native` do not change application
+Internal target suffixes such as `_dev`, `_test`, and `_native` do not change application
 identity. Conditional dependencies are activated by a mode-aware graph
 fixpoint: DEV includes ordinary and conditional-dev dependencies; other modes
 include ordinary conditionals only. Do not replace descriptor-driven behavior

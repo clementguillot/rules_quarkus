@@ -15,9 +15,13 @@ final class ContinuousTestApplicationModelLoader {
 
   static ApplicationModel load(QuarkifierConfig config, BazelApplicationModel applicationModel)
       throws Exception {
-    if (config.continuousTesting() == null
-        || config.continuousTesting().applicationModel() == null) {
+    if (config.continuousTesting() == null) {
       return null;
+    }
+    if (config.continuousTesting().applicationModel() == null) {
+      // QuarkifierConfig already rejects this pairing; never fall back to the DEV model.
+      throw new AugmentationException(
+          "Dev UI continuous testing requires a secondary TEST application model");
     }
     var explicitModel =
         BazelApplicationModelReader.read(config.continuousTesting().applicationModel());

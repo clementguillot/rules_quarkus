@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 import re
 import shutil
-import signal
 import subprocess
 import tempfile
 import time
@@ -28,6 +27,15 @@ def prepare_console(workspace):
         'quarkus_app(name="app", deps=["//dep:value"], '
         'continuous_test=[":one", ":two"])\n'
     )
+    for package, arguments in {
+        "invalid_no_consumer": 'continuous_test="//:test", dev=False, test=False',
+        "invalid_test_build_args": 'test_build_args=["--define=unused=true"]',
+    }.items():
+        (workspace / package).mkdir(exist_ok=True)
+        (workspace / package / "BUILD.bazel").write_text(
+            'load("@rules_quarkus//quarkus:defs.bzl", "quarkus_app")\n'
+            f'quarkus_app(name="app", deps=["//dep:value"], {arguments})\n'
+        )
 
 
 def summaries(log_path):
@@ -50,7 +58,7 @@ def certify(workspace, log_path):
             log.flush()
 
         build("//:positional_test", "//:without_tests", "//:module_tests_only_test",
-              "//:without_dev_app_test", "//:app_dev", "//:app_test")
+              "//:without_dev_app_test", "//:without_console_app_dev", "//:app_dev", "//:app_test")
         test_launcher = (workspace / "bazel-bin/app_test_launch.sh").read_text()
         dev_launcher = (workspace / "bazel-bin/app_dev_launch.sh").read_text()
         assert "--define=test_fixture=true" in test_launcher
@@ -62,6 +70,17 @@ def certify(workspace, log_path):
         missing = subprocess.run([bazel, "query", "//:without_tests_test"], cwd=workspace,
                                  env=environment, capture_output=True, text=True, timeout=60)
         assert missing.returncode != 0, "continuous testing target appeared without continuous_test"
+        opted_out = subprocess.run([bazel, "query", "//:without_console_app_test"], cwd=workspace,
+                                   env=environment, capture_output=True, text=True, timeout=60)
+        assert opted_out.returncode != 0, "continuous testing target appeared with test = False"
+        for target, message in [
+            ("//invalid_no_consumer:app", "continuous_test requires dev = True or test = True"),
+            ("//invalid_test_build_args:app", "test_build_args only applies to the app_test target"),
+        ]:
+            rejected = subprocess.run([bazel, "build", target], cwd=workspace, env=environment,
+                                      capture_output=True, text=True, timeout=600)
+            assert rejected.returncode != 0, target
+            assert message in rejected.stdout + rejected.stderr, rejected.stdout + rejected.stderr
         invalid = subprocess.run([bazel, "build", "//invalid_selection:app_test"], cwd=workspace,
                                  env=environment, capture_output=True, text=True, timeout=600)
         assert invalid.returncode != 0
@@ -102,8 +121,9 @@ def certify(workspace, log_path):
                 return len(runs)
 
             eventually(lambda: "Quarkus continuous testing mode started" in log_path.read_text(), 600)
-            # Upstream test-only mode may perform its first run on startup. Subsequent runs use
-            # the console and the same watcher as the application dev target.
+            # Quarkus' test-only mode starts testing on startup, independent of
+            # quarkus.test.continuous-testing. Subsequent runs use the console and the same
+            # watcher as the application dev target.
             run = eventually(lambda: run_after(0, count=3), 180)
             assert "Profile dev activated" not in log_path.read_text()
             assert "Dev UI" not in log_path.read_text()
@@ -174,7 +194,7 @@ def certify(workspace, log_path):
 
             helper_build = workspace / "helper/BUILD.bazel"
             helper_build.write_text(helper_build.read_text() + "# restart-required smoke check\n")
-            eventually(lambda: "Restart dev mode so Bazel declarations" in log_path.read_text())
+            eventually(lambda: "Restart the continuous-test session so Bazel declarations" in log_path.read_text())
             time.sleep(3)
             assert len(summaries(log_path)) == run, "BUILD edit triggered a stale-model run"
             assert "Failed to create compiler" not in log_path.read_text()

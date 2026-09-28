@@ -21,6 +21,10 @@ CORE_DEPLOY_CP_FILE="${RUNFILES_DIR}/%{workspace}/%{core_deploy_cp_file}"
 LOCAL_APP_JARS_FILE="${RUNFILES_DIR}/%{workspace}/%{local_app_jars_file}"
 MODEL_FILE="${RUNFILES_DIR}/%{workspace}/%{model_file}"
 MAIN_CLASS=%{main_class}
+APP_NAME=%{app_name}
+# Comma-joined watcher build flags, shell-quoted at analysis time so `$`, quotes,
+# and backticks in declared flags reach Bazel verbatim.
+BUILD_ARGS=%{build_args}
 TEST_ENABLED=%{test_enabled}
 TEST_MODEL_FILE=""
 if [ -n "%{test_model_file}" ]; then
@@ -267,7 +271,7 @@ _JAVA_ARGFILE=$(mktemp "${OUTPUT_DIR}/quarkus_dev_args_XXXXXX")
   echo "--mode"
   echo "%{session_mode}"
   echo "--app-name"
-  echo "%{app_name}"
+  _q "$APP_NAME"
   if [ -n "$MAIN_CLASS" ]; then
     echo "--main-class"
     _q "$MAIN_CLASS"
@@ -276,9 +280,9 @@ _JAVA_ARGFILE=$(mktemp "${OUTPUT_DIR}/quarkus_dev_args_XXXXXX")
   _q "$WORKSPACE_ROOT"
   echo "--bazel-command"
   _q "$BAZEL_BIN"
-  if [ -n "%{build_args}" ]; then
+  if [ -n "$BUILD_ARGS" ]; then
     echo "--bazel-build-args"
-    _q "%{build_args}"
+    _q "$BUILD_ARGS"
   fi
   if [ -n "$RESOURCES_VALUE" ]; then
     echo "--resources"

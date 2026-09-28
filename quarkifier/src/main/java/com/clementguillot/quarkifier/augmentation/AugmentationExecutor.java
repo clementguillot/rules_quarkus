@@ -29,7 +29,7 @@ import java.util.Properties;
  * Orchestrates Quarkus augmentation: builds the ApplicationModel, invokes the Quarkus build API,
  * selects the requested output layout, and post-processes Fast JAR output when necessary.
  *
- * <p>For DEV mode, delegates entirely to {@link DevModeLauncher}.
+ * <p>For DEV and CONTINUOUS_TEST modes, delegates entirely to {@link DevModeLauncher}.
  */
 public final class AugmentationExecutor {
 
@@ -58,7 +58,8 @@ public final class AugmentationExecutor {
 
       switch (config.mode()) {
           // DEV: delegate to DevModeLauncher which starts IsolatedDevModeMain
-          // with full Dev UI and hot-reload support.
+          // with full Dev UI and hot-reload support. CONTINUOUS_TEST starts
+          // IsolatedTestModeMain with the TEST model as the primary model.
         case DEV -> DevModeLauncher.launch(
             config,
             appModel,

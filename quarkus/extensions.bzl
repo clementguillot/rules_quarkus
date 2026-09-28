@@ -1383,7 +1383,9 @@ _DEFS_BZL_TEMPLATE = """\
     )
 
 quarkus_app() automatically creates a <name>_dev target for Quarkus dev mode
-with hot-reload support. Use dev=False to opt out.
+with hot-reload support. Use dev=False to opt out. With continuous_test set, it
+also creates a <name>_test console-only continuous-testing target; use test=False
+to opt out.
 Use native=True to create a <name>_native target for GraalVM native image compilation.
 
 quarkus_extension_runtime() wraps a local Quarkus extension runtime module;
@@ -1561,13 +1563,14 @@ def quarkus_java_library(name, srcs = [], resources = [], deps = [], codegen_src
 def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_container_build = False,
                 native_container_runtime = "auto", native_builder_image = _DEFAULT_BUILDER_IMAGE,
                 package_type = "fast-jar", build_properties = {{}}, continuous_test = None,
-                test_build_args = [], **kwargs):
-    \"\"\"Builds a Quarkus application with optional dev-mode and native targets.
+                test_build_args = [], test = True, **kwargs):
+    \"\"\"Builds a Quarkus application with optional dev-mode, continuous-test, and native targets.
 
     Creates:
       - <name>: production JVM package (bazel run //pkg:<name>)
       - <name>_dev: dev mode with hot-reload (bazel run //pkg:<name>_dev), unless dev=False
-      - <name>_test: console-only continuous testing (bazel run //pkg:<name>_test), if continuous_test is set
+      - <name>_test: console-only continuous testing (bazel run //pkg:<name>_test), if
+        continuous_test is set, unless test=False
       - <name>_native: native binary (bazel run //pkg:<name>_native), if native=True or native_container_build=True
 
     Args:
@@ -1576,10 +1579,14 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
         dev_build_args: Extra flags for the hot-reload `bazel build` (e.g. ["--config=dev"]).
             Must match the flags you pass to `bazel run` for the dev target, otherwise
             rebuilt classes land in a different output tree and hot-reload syncs stale files.
-        test_build_args: Extra flags for the continuous-test `bazel build`. Must match
-            the flags passed to `bazel run` for the test target.
+        test: If True (default), also creates a <name>_test console-only continuous-testing
+            target when continuous_test is set.
+        test_build_args: Extra flags for the <name>_test watcher's `bazel build`. Must match
+            the flags passed to `bazel run` for the test target. Requires continuous_test
+            and test=True.
         continuous_test: Optional quarkus_test target, or list of targets, whose tests run
-            continuously in the Dev UI (if dev=True) and in the console-only test target.
+            continuously in the Dev UI of <name>_dev and in the console of <name>_test.
+            Requires dev=True or test=True.
         native: If True, creates a <name>_native target using rules_graalvm (host compilation).
         native_container_build: If True, creates a <name>_native target using Docker/Podman (container compilation).
         native_container_runtime: Container runtime: 'auto' (default), 'docker', or 'podman'.
@@ -1589,6 +1596,12 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
         build_properties: Declared build-time properties shared by the JVM, dev, and native targets.
         **kwargs: Passed to the underlying quarkus_app_rule (deps, version, jvm_flags, etc.).
     \"\"\"
+    if continuous_test and not dev and not test:
+        fail("quarkus_app '" + name + "': continuous_test requires dev = True or test = True; " +
+             "both the " + name + "_dev and " + name + "_test targets are disabled.")
+    if test_build_args and not (continuous_test and test):
+        fail("quarkus_app '" + name + "': test_build_args only applies to the " + name +
+             "_test target, which requires continuous_test and test = True.")
     if native and native_container_build:
         fail("Cannot set both 'native' and 'native_container_build'. " +
              "Use 'native' for host-based compilation (rules_graalvm) or " +
@@ -1634,7 +1647,7 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
             visibility = ["//visibility:private"],
         )
 
-    # Attrs shared by the secondary (_dev / _native) targets.
+    # Attrs shared by the secondary (_dev / _test / _native) targets.
     main_class = kwargs.get("main_class", "")
     common = dict(
         build_properties = build_properties,
@@ -1655,18 +1668,18 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
     if dev:
         quarkus_dev_rule(
             name = name + "_dev",
+            build_args = dev_build_args,
             continuous_test = continuous_test_target,
             core_deployment_deps = _CORE_DEPLOYMENT_DEPS,
-            dev_build_args = dev_build_args,
             testonly = bool(continuous_test_target) or kwargs.get("testonly", False),
             **common
         )
-    if continuous_test_target:
+    if continuous_test_target and test:
         quarkus_continuous_test_rule(
             name = name + "_test",
+            build_args = test_build_args,
             continuous_test = continuous_test_target,
             core_deployment_deps = _CORE_DEPLOYMENT_DEPS,
-            test_build_args = test_build_args,
             testonly = True,
             **common
         )
@@ -1752,7 +1765,7 @@ def quarkus_test(name, srcs = None, deps = None, test_packages = None, test_clas
     glob(["src/test/resources/**"], allow_empty = True)) to package test resources.
     With precompiled tests, declare resources on the supplied java_library
     targets instead; passing this macro's `resources` without srcs is rejected.
-    Dev and console test targets wired through `continuous_test` sync those compiled test jars'
+    The _dev and _test targets wired through `continuous_test` sync those compiled test jars'
     classes and packaged resources into its mutable test-classes directory.
     \"\"\"
     prepared = _prepare_test_target(

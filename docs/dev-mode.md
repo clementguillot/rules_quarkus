@@ -396,12 +396,15 @@ matrix.
 ### Console-only test session
 
 The same `continuous_test` declaration creates a test-only `<name>_test`
-executable, including when `dev = False`. Run it with `bazel run //:app_test`
-to use Quarkus' test-only console. It starts in Quarkus' default paused state;
-press `r` to start or rerun tests, `p` to pause, and `o` to toggle test output.
-Set `quarkus.test.continuous-testing=enabled` in application configuration to
-start tests immediately. This session does not start the dev application or Dev
-UI. The ordinary `quarkus_test` targets remain one-shot `bazel test` targets.
+executable, including when `dev = False`; pass `test = False` to opt out.
+`continuous_test` must still have a consumer, so `dev = False` together with
+`test = False` fails analysis, as does `test_build_args` without a `_test`
+target. Run it with `bazel run //:app_test` to use Quarkus' test-only console.
+Unlike the Dev UI, which honors `quarkus.test.continuous-testing` (paused by
+default), Quarkus' test-only mode starts running tests immediately. Press `r` to
+rerun tests, `p` to pause or resume, and `o` to toggle test output. This session
+does not start the dev application or Dev UI. The ordinary `quarkus_test`
+targets remain one-shot `bazel test` targets.
 
 Both interactive targets use the hidden aggregate's application-rooted TEST
 model, selectors, test properties, declared-input watcher, and synchronized

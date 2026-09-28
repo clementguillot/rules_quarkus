@@ -71,6 +71,13 @@ quarkus_app(
     deps = [":lib"],
 )
 
+quarkus_app(
+    name = "without_console_app",
+    continuous_test = ":test",
+    test = False,
+    deps = [":lib"],
+)
+
 # A module-owned test alone still runs against this application. The test is precompiled in a
 # package without Java targets, and the app has a second, independent local library.
 quarkus_app(

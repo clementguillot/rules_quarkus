@@ -491,13 +491,14 @@ class BazelFileWatcherTest {
       try (var watcher = BazelFileWatcher.startInBackground(config)) {
         Files.writeString(
             buildFile, "# changed\n", StandardOpenOption.APPEND, StandardOpenOption.WRITE);
+        String warning = "Restart the continuous-test session";
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
-        while (!warningOutput.toString(StandardCharsets.UTF_8).contains("Restart dev mode")
+        while (!warningOutput.toString(StandardCharsets.UTF_8).contains(warning)
             && System.nanoTime() < deadline) {
           Thread.sleep(25);
         }
         assertTrue(
-            warningOutput.toString(StandardCharsets.UTF_8).contains("Restart dev mode"),
+            warningOutput.toString(StandardCharsets.UTF_8).contains(warning),
             warningOutput.toString(StandardCharsets.UTF_8));
         assertEquals(
             "[hot-reload] Bazel build log\n",

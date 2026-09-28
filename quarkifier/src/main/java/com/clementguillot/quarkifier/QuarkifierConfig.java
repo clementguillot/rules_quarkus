@@ -60,6 +60,32 @@ public record QuarkifierConfig(
     ContinuousTesting continuousTesting) {
 
   /**
+   * Pairs each interactive mode with its TEST model: Dev UI testing needs a secondary TEST model
+   * beside the DEV model, while console testing uses the primary model and must not get another.
+   */
+  public QuarkifierConfig {
+    if (continuousTesting == null) {
+      if (mode == AugmentationMode.CONTINUOUS_TEST) {
+        throw new IllegalArgumentException(
+            "CONTINUOUS_TEST mode requires continuous-testing settings");
+      }
+    } else if (mode == AugmentationMode.DEV) {
+      if (continuousTesting.applicationModel() == null) {
+        throw new IllegalArgumentException(
+            "Dev UI continuous testing requires a secondary TEST application model");
+      }
+    } else if (mode == AugmentationMode.CONTINUOUS_TEST) {
+      if (continuousTesting.applicationModel() != null) {
+        throw new IllegalArgumentException(
+            "Console continuous testing uses the primary TEST model; a secondary model is invalid");
+      }
+    } else {
+      throw new IllegalArgumentException(
+          "Continuous testing requires DEV or CONTINUOUS_TEST mode, not " + mode);
+    }
+  }
+
+  /**
    * Continuous-testing settings of an interactive session.
    *
    * @param applicationModel secondary TEST model in dev mode; {@code null} when the TEST model is

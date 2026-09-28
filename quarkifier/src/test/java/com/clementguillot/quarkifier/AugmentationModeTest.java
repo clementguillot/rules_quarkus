@@ -23,6 +23,12 @@ class AugmentationModeTest {
   }
 
   @Test
+  void parse_continuousTest() {
+    assertEquals(AugmentationMode.CONTINUOUS_TEST, AugmentationMode.parse("continuous-test"));
+    assertEquals(AugmentationMode.CONTINUOUS_TEST, AugmentationMode.parse("Continuous-Test"));
+  }
+
+  @Test
   void parse_caseInsensitive() {
     assertEquals(AugmentationMode.NORMAL, AugmentationMode.parse("NORMAL"));
     assertEquals(AugmentationMode.DEV, AugmentationMode.parse("Dev"));
