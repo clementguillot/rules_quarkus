@@ -168,9 +168,7 @@ class QuarkifierConfigTest {
             "--output-dir",
             "/out",
             "--mode",
-            "dev",
-            "--test-application-model",
-            "test-model.json",
+            "continuous-test",
             "--test-classes-dir",
             "/tmp/test-classes",
             "--test-classes-output-dirs",
@@ -182,7 +180,7 @@ class QuarkifierConfigTest {
             "--watched-build-file",
             "BUILD.bazel");
 
-    assertEquals(Path.of("test-model.json"), config.continuousTesting().applicationModel());
+    assertEquals(AugmentationMode.CONTINUOUS_TEST, config.mode());
     assertEquals(Path.of("/tmp/test-classes"), config.continuousTesting().classesDir());
     assertEquals(
         List.of(Path.of("bazel-bin/test.jar"), Path.of("bazel-bin/other-tests.jar")),
@@ -206,10 +204,9 @@ class QuarkifierConfigTest {
   }
 
   @Test
-  void parse_continuousTestingOptionsRequireDevMode() {
+  void parse_continuousTestingOptionsRequireInteractiveMode() {
     for (List<String> option :
         List.of(
-            List.of("--test-application-model", "test-model.json"),
             List.of("--test-classes-dir", "/tmp/test-classes"),
             List.of("--test-classes-output-dirs", "bazel-bin/test.jar"),
             List.of("--watched-input", "src/test/java/AppTest.java"),
@@ -226,29 +223,24 @@ class QuarkifierConfigTest {
               () -> parse(args.toArray(String[]::new)),
               option.get(0));
 
-      assertTrue(exception.getMessage().contains("require --mode dev"), option.get(0));
+      assertTrue(exception.getMessage().contains("require"), option.get(0));
     }
   }
 
   @Test
-  void parse_devModeRequiresContinuousTestingModelAndClassesDirectoryTogether() {
-    for (List<String> option :
-        List.of(
-            List.of("--test-application-model", "test-model.json"),
-            List.of("--test-classes-dir", "/tmp/test-classes"))) {
-      var args =
-          new ArrayList<>(
-              List.of("--application-classpath", "a.jar", "--output-dir", "/out", "--mode", "dev"));
-      args.addAll(option);
-
-      var exception =
-          assertThrows(
-              CommandLine.ParameterException.class,
-              () -> parse(args.toArray(String[]::new)),
-              option.get(0));
-
-      assertTrue(exception.getMessage().contains("must be provided together"), option.get(0));
-    }
+  void parse_continuousTestModeRequiresTestClassesDirectory() {
+    var exception =
+        assertThrows(
+            CommandLine.ParameterException.class,
+            () ->
+                parse(
+                    "--application-classpath",
+                    "a.jar",
+                    "--output-dir",
+                    "/out",
+                    "--mode",
+                    "continuous-test"));
+    assertTrue(exception.getMessage().contains("requires --test-classes-dir"));
   }
 
   @Test
@@ -267,8 +259,22 @@ class QuarkifierConfigTest {
                     "--watched-build-file",
                     "BUILD.bazel"));
 
-    assertTrue(exception.getMessage().contains("require --test-application-model"));
-    assertTrue(exception.getMessage().contains("--test-classes-dir"));
+    assertTrue(
+        exception
+            .getMessage()
+            .contains("requires --test-application-model and --test-classes-dir"));
+  }
+
+  @Test
+  void parse_devUiContinuousTestingUsesSecondaryTestModel() {
+    var config =
+        parse(
+            "--application-classpath", "a.jar",
+            "--output-dir", "/out",
+            "--mode", "dev",
+            "--test-application-model", "test-model.json",
+            "--test-classes-dir", "/tmp/test-classes");
+    assertEquals(Path.of("test-model.json"), config.continuousTesting().applicationModel());
   }
 
   @Test

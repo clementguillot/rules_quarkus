@@ -24,11 +24,9 @@ load("//quarkus/private:quarkus_codegen_impl.bzl", "collect_codegen_input_files"
 def _hot_reload_bazel_target(ctx):
     """Returns the label the file watcher rebuilds on a source change.
 
-    This must be the dev target itself, never its deps: `deps` is configured
-    through dev_lifecycle_transition, so a dep built directly from the command
-    line lands in the baseline output tree while _classes_output_dirs.txt
-    points into the transitioned one, and hot-reload would sync stale classes.
-    Building the dev target re-applies the transition to the whole graph.
+    This must be the launch target itself, never its deps: the dev target's deps
+    use dev_lifecycle_transition, and rebuilding a dep directly may put outputs
+    in a different configuration from the paths recorded at analysis time.
 
     Args:
         ctx: Rule context for the dev target.
@@ -87,13 +85,14 @@ def _ordinary_session(ctx, runtime_classpath):
         source_dirs = collect_source_dir_paths(ctx.attr.deps, runtime_classpath),
         test_classes_output_dirs = [],
         test_jvm_flags = [],
+        test_enabled = False,
         test_model = None,
         watched_build_files = [],
         watched_inputs = collect_codegen_input_files(ctx.attr.deps).to_list(),
         watched_test_inputs = [],
     )
 
-def _continuous_session(ctx, runtime_classpath, test_info):
+def _continuous_session(ctx, runtime_classpath, test_info, test_only):
     """Continuous testing: Bazel watches every exact declared input of both graphs.
 
     Quarkus gets no workspace source or resource paths, so Bazel is the only compiler and
@@ -117,7 +116,8 @@ def _continuous_session(ctx, runtime_classpath, test_info):
             if file.owner not in application_owners
         ],
         test_jvm_flags = test_info.jvm_flags,
-        test_model = test_info.application_model,
+        test_enabled = True,
+        test_model = None if test_only else test_info.application_model,
         # The app's own package declares its deps and continuous_test list, even when it holds no
         # Java target; changing it requires restarting the session like any other BUILD file.
         watched_build_files = depset(
@@ -132,26 +132,31 @@ def _continuous_session(ctx, runtime_classpath, test_info):
         ],
     )
 
-def _quarkus_dev_impl(ctx):
+def _interactive_impl(ctx, test_only):
     if not ctx.attr.deps:
-        fail("quarkus_dev rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
+        fail("quarkus_app target '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
 
     runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
     conditional_classpath = collect_runtime_classpath([single_transitioned_target(ctx.attr.conditional_deps)])
     deployment_classpath = collect_deployment_classpath(single_transitioned_target(ctx.attr.deployment_deps), ctx.attr.deps)
     core_deployment_dep = single_transitioned_target(ctx.attr.core_deployment_deps)
     core_deployment_classpath = collect_runtime_classpath([core_deployment_dep]) if core_deployment_dep else depset()
-    model = assemble_application_model(
-        ctx,
-        ctx.attr.deps,
-        runtime_classpath,
-        conditional_classpath,
-        deployment_classpath,
-        "dev",
-        ctx.label.name.removesuffix("_dev"),
-    )
-    continuous_test = single_transitioned_target(ctx.attr.continuous_test) if ctx.attr.continuous_test else None
-    session = _continuous_session(ctx, runtime_classpath, continuous_test[QuarkusContinuousTestInfo]) if continuous_test else _ordinary_session(ctx, runtime_classpath)
+    if test_only:
+        test_info = single_transitioned_target(ctx.attr.continuous_test)[QuarkusContinuousTestInfo]
+        model = test_info.application_model
+        session = _continuous_session(ctx, runtime_classpath, test_info, True)
+    else:
+        model = assemble_application_model(
+            ctx,
+            ctx.attr.deps,
+            runtime_classpath,
+            conditional_classpath,
+            deployment_classpath,
+            "dev",
+            ctx.label.name.removesuffix("_dev"),
+        )
+        continuous_test = single_transitioned_target(ctx.attr.continuous_test) if ctx.attr.continuous_test else None
+        session = _continuous_session(ctx, runtime_classpath, continuous_test[QuarkusContinuousTestInfo], False) if continuous_test else _ordinary_session(ctx, runtime_classpath)
 
     # Classpath and hot-reload metadata files, read by the launcher at runtime
     # and resolved against the runfiles tree.
@@ -172,7 +177,7 @@ def _quarkus_dev_impl(ctx):
 
     tool_jar = ctx.file.quarkifier_tool
     java_runtime = ctx.attr._java_runtime[java_common.JavaRuntimeInfo]
-    launcher = _write_dev_launcher(ctx, tool_jar, files, model, session, java_runtime)
+    launcher = _write_dev_launcher(ctx, tool_jar, files, model, session, java_runtime, test_only)
 
     runfiles = ctx.runfiles(
         files = [
@@ -205,25 +210,33 @@ def _quarkus_dev_impl(ctx):
         OutputGroupInfo(quarkus_model = depset([model])),
     ]
 
-def _join_dev_build_args(args):
-    """Validates and comma-joins dev_build_args; fails if any entry contains a comma."""
+def _quarkus_dev_impl(ctx):
+    return _interactive_impl(ctx, False)
+
+def _quarkus_continuous_test_impl(ctx):
+    return _interactive_impl(ctx, True)
+
+def _join_build_args(args, name):
+    """Validates and comma-joins launch build args; fails if any entry contains a comma."""
     for arg in args:
         if "," in arg:
-            fail("dev_build_args: commas are not supported (used as delimiter); got '{}'".format(arg))
+            fail("{}: commas are not supported (used as delimiter); got '{}'".format(name, arg))
     return ",".join(args)
 
-def _write_dev_launcher(ctx, tool_jar, files, model_file, session, java_runtime):
-    """Expands the dev launcher template with the metadata file locations."""
-    launcher = ctx.actions.declare_file(ctx.label.name + "_dev.sh")
+def _write_dev_launcher(ctx, tool_jar, files, model_file, session, java_runtime, test_only):
+    """Expands the interactive launcher template with the metadata file locations."""
+    launcher = ctx.actions.declare_file(ctx.label.name + "_launch.sh")
+    build_args_name = "test_build_args" if test_only else "dev_build_args"
+    build_args = ctx.attr.test_build_args if test_only else ctx.attr.dev_build_args
     ctx.actions.expand_template(
         template = ctx.file._dev_launcher_template,
         output = launcher,
         substitutions = {
             "%{app_cp_file}": files.app_cp.short_path,
-            "%{app_name}": ctx.label.name.removesuffix("_dev"),
+            "%{app_name}": ctx.label.name.removesuffix("_test" if test_only else "_dev"),
             "%{bazel_targets_file}": files.bazel_targets.short_path,
             "%{build_properties_file}": files.build_properties.short_path,
-            "%{dev_build_args}": _join_dev_build_args(ctx.attr.dev_build_args),
+            "%{build_args}": _join_build_args(build_args, build_args_name),
             "%{classes_output_dirs_file}": files.classes_output_dirs.short_path,
             "%{core_deploy_cp_file}": files.core_deploy_cp.short_path,
             "%{java_home}": java_runtime.java_home_runfiles_path,
@@ -233,7 +246,9 @@ def _write_dev_launcher(ctx, tool_jar, files, model_file, session, java_runtime)
             "%{resource_dirs_file}": files.resource_dirs.short_path,
             "%{source_dirs_file}": files.source_dirs.short_path,
             "%{test_classes_output_dirs_file}": files.test_classes_output_dirs.short_path,
+            "%{test_enabled}": "true" if session.test_enabled else "false",
             "%{test_model_file}": session.test_model.short_path if session.test_model else "",
+            "%{session_mode}": "continuous-test" if test_only else "dev",
             "%{test_jvm_flags}": " ".join([shell.quote(flag) for flag in session.test_jvm_flags]),
             "%{tool_jar}": tool_jar.short_path,
             "%{watched_build_files_file}": files.watched_build_files.short_path,
@@ -245,9 +260,7 @@ def _write_dev_launcher(ctx, tool_jar, files, model_file, session, java_runtime)
     )
     return launcher
 
-quarkus_dev_rule = rule(
-    implementation = _quarkus_dev_impl,
-    executable = True,
+def _interactive_attrs(deps_cfg, test_only):
     attrs = {
         "build_properties": attr.string_dict(
             doc = "Declared build-time properties passed hermetically to Quarkus dev mode.",
@@ -257,11 +270,6 @@ quarkus_dev_rule = rule(
             mandatory = True,
             cfg = disable_coverage_transition,
             providers = [JavaInfo],
-        ),
-        "continuous_test": attr.label(
-            cfg = disable_coverage_transition,
-            providers = [QuarkusContinuousTestInfo],
-            doc = "Optional continuous-test aggregate (created by the quarkus_app macro) used in dev mode.",
         ),
         "core_deployment_deps": attr.label(
             cfg = disable_coverage_transition,
@@ -288,7 +296,7 @@ quarkus_dev_rule = rule(
         ),
         "deps": attr.label_list(
             mandatory = True,
-            cfg = dev_lifecycle_transition,
+            cfg = deps_cfg,
             aspects = [
                 quarkus_extension_deployment_classpath_aspect,
                 quarkus_application_model_aspect,
@@ -304,6 +312,9 @@ match the configuration used to `bazel run` the dev target — otherwise
 rebuilt classes land in a different bazel-out tree and hot-reload syncs
 stale files. Flags containing commas are not supported.
 """,
+        ),
+        "test_build_args": attr.string_list(
+            doc = "Extra Bazel flags for rebuilding the console continuous-test target.",
         ),
         "main_class": attr.string(
             doc = "Override main class, shared from the quarkus_app target.",
@@ -331,5 +342,23 @@ stale files. Flags containing commas are not supported.
         "_allowlist_function_transition": attr.label(
             default = "@bazel_tools//tools/allowlists/function_transition_allowlist",
         ),
-    },
+    }
+    attrs["continuous_test"] = attr.label(
+        mandatory = test_only,
+        cfg = disable_coverage_transition,
+        providers = [QuarkusContinuousTestInfo],
+        doc = "Application-rooted TEST model and declared test inputs.",
+    )
+    return attrs
+
+quarkus_dev_rule = rule(
+    implementation = _quarkus_dev_impl,
+    executable = True,
+    attrs = _interactive_attrs(dev_lifecycle_transition, False),
+)
+
+quarkus_continuous_test_rule = rule(
+    implementation = _quarkus_continuous_test_impl,
+    executable = True,
+    attrs = _interactive_attrs(disable_coverage_transition, True),
 )

@@ -31,7 +31,7 @@ class BazelFileWatcherTest {
                 "--application-classpath", "app.jar",
                 "--application-model", "model.json",
                 "--output-dir", outputDir.toString(),
-                "--mode", "dev",
+                "--mode", List.of(extra).contains("--test-classes-dir") ? "continuous-test" : "dev",
                 "--app-name", "test-app",
                 "--classes-dir", tempDir.resolve("classes").toString(),
                 "--bazel-targets", "//pkg:lib",
@@ -70,8 +70,6 @@ class BazelFileWatcherTest {
         testConfig(
             tempDir.resolve("output"),
             List.of(),
-            "--test-application-model",
-            tempDir.resolve("test-model.json").toString(),
             "--test-classes-dir",
             tempDir.resolve("mutable/test-classes").toString(),
             "--classes-output-dirs",
@@ -141,8 +139,6 @@ class BazelFileWatcherTest {
         testConfig(
             tempDir.resolve("output"),
             List.of(),
-            "--test-application-model",
-            tempDir.resolve("test-model.json").toString(),
             "--test-classes-dir",
             tempDir.resolve("mutable/test-classes").toString(),
             "--test-classes-output-dirs",
@@ -217,8 +213,6 @@ class BazelFileWatcherTest {
         testConfig(
             tempDir.resolve("output"),
             List.of(),
-            "--test-application-model",
-            tempDir.resolve("test-model.json").toString(),
             "--test-classes-dir",
             tempDir.resolve("mutable/test-classes").toString(),
             "--watched-input",
@@ -282,8 +276,6 @@ class BazelFileWatcherTest {
         testConfig(
             tempDir.resolve("output"),
             List.of(),
-            "--test-application-model",
-            tempDir.resolve("test-model.json").toString(),
             "--test-classes-dir",
             tempDir.resolve("mutable/test-classes").toString(),
             "--watched-input",
@@ -309,8 +301,6 @@ class BazelFileWatcherTest {
         testConfig(
             tempDir.resolve("output"),
             List.of(),
-            "--test-application-model",
-            tempDir.resolve("test-model.json").toString(),
             "--test-classes-dir",
             tempDir.resolve("mutable/test-classes").toString(),
             "--watched-input",
@@ -360,8 +350,6 @@ class BazelFileWatcherTest {
         testConfig(
             tempDir.resolve("output"),
             List.of(),
-            "--test-application-model",
-            tempDir.resolve("test-model.json").toString(),
             "--test-classes-dir",
             tempDir.resolve("mutable/test-classes").toString());
     try (var watcher = new BazelFileWatcher(config)) {
@@ -380,8 +368,6 @@ class BazelFileWatcherTest {
         testConfig(
             tempDir.resolve("output"),
             List.of(),
-            "--test-application-model",
-            tempDir.resolve("test-model.json").toString(),
             "--test-classes-dir",
             tempDir.resolve("mutable/test-classes").toString(),
             "--classes-output-dirs",
@@ -444,8 +430,6 @@ class BazelFileWatcherTest {
         testConfig(
             tempDir.resolve("output"),
             List.of(),
-            "--test-application-model",
-            tempDir.resolve("test-model.json").toString(),
             "--test-classes-dir",
             tempDir.resolve("mutable/test-classes").toString(),
             "--watched-input",
@@ -496,8 +480,6 @@ class BazelFileWatcherTest {
         testConfig(
             outputDir,
             List.of(),
-            "--test-application-model",
-            tempDir.resolve("test-model.json").toString(),
             "--test-classes-dir",
             tempDir.resolve("mutable/test-classes").toString(),
             "--watched-build-file",

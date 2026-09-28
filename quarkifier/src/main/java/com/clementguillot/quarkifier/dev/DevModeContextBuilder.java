@@ -1,10 +1,12 @@
 package com.clementguillot.quarkifier.dev;
 
+import com.clementguillot.quarkifier.AugmentationMode;
 import com.clementguillot.quarkifier.BuildProperties;
 import com.clementguillot.quarkifier.QuarkifierConfig;
 import com.clementguillot.quarkifier.maven.MavenCoordinateParser;
 import io.quarkus.bootstrap.app.QuarkusBootstrap;
 import io.quarkus.deployment.dev.DevModeContext;
+import io.quarkus.deployment.dev.IsolatedTestModeMain;
 import io.quarkus.maven.dependency.ArtifactKey;
 import io.quarkus.paths.PathList;
 import java.nio.file.Path;
@@ -22,7 +24,12 @@ final class DevModeContextBuilder {
     var context = new DevModeContext();
     context.setAbortOnFailedStart(true);
     context.setLocalProjectDiscovery(false);
-    context.setMode(QuarkusBootstrap.Mode.DEV);
+    if (config.mode() == AugmentationMode.CONTINUOUS_TEST) {
+      context.setMode(QuarkusBootstrap.Mode.CONTINUOUS_TEST);
+      context.setAlternateEntryPoint(IsolatedTestModeMain.class.getName());
+    } else {
+      context.setMode(QuarkusBootstrap.Mode.DEV);
+    }
     context.setBaseName(config.appName() != null ? config.appName() : "quarkus-app");
     context.setArgs(new String[0]);
 

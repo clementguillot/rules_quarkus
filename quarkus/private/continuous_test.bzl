@@ -1,9 +1,9 @@
-"""Continuous testing: combines quarkus_test targets into the dev session's single TEST model.
+"""Continuous testing: combines quarkus_test targets into one TEST model.
 
 Every quarkus_test exports its graph parts through QuarkusContinuousTestPartsInfo. The hidden
 aggregate created by quarkus_app(continuous_test = ...) joins them with the application graph into
-one application-rooted TEST model, because Quarkus runs one shared dev/test JVM, and hands the
-dev target a QuarkusContinuousTestInfo.
+one application-rooted TEST model and hands the console-only test target a
+QuarkusContinuousTestInfo.
 """
 
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
@@ -20,7 +20,7 @@ QuarkusContinuousTestPartsInfo = provider(
     aggregate. Fields stay lazy so tests that no dev target references pay no analysis-time
     flattening.""",
     fields = {
-        "build_files": "Depset of BUILD files whose changes require restarting dev mode.",
+        "build_files": "Depset of BUILD files whose changes require restarting the test session.",
         "build_properties": "Declared test JVM system properties.",
         "class_output_candidates": "Depset of local compiled test jars that may be synchronized.",
         "codegen_input_files": "Depset of exact workspace-relative test code-generation inputs.",
@@ -29,7 +29,7 @@ QuarkusContinuousTestPartsInfo = provider(
         "deployment_model_artifacts": "Depset of artifacts referenced by local deployment fragments.",
         "deployment_model_fragments": "Depset of local-extension deployment graph fragments.",
         "input_files": "Depset of exact declared test-graph source and resource files.",
-        "jvm_flags": "Declared flags for the shared dev/test child JVM.",
+        "jvm_flags": "Declared flags for the console test child JVM.",
         "local_deployments": "Local extension deployment coordinate-to-target mappings.",
         "local_runtime_aliases": "Raw-to-packaged local extension runtime target mappings.",
         "model_artifacts": "Depset of artifacts referenced by runtime model fragments.",
@@ -82,7 +82,7 @@ def continuous_test_parts(ctx, runtime_classpath, conditional_classpath, deploym
     )
 
 def continuous_build_properties(app_properties, test_info):
-    """Returns the dev JVM's build properties, including the continuous-test selection.
+    """Returns the console test JVM's build properties, including selection.
 
     Args:
       app_properties: The quarkus_app build_properties.
@@ -94,7 +94,7 @@ def continuous_build_properties(app_properties, test_info):
     properties = dict(app_properties)
     for key, value in test_info.build_properties.items():
         if key in properties and properties[key] != value:
-            fail("continuous_test: conflicting build_properties value for '{}'; dev and tests share one JVM".format(key))
+            fail("continuous_test: conflicting build_properties value for '{}'; aggregated tests share one JVM".format(key))
         properties[key] = value
     selectors = ["^" + regex_escape_class_name(name) + "$" for name in test_info.test_classes]
     selectors.extend(["^" + regex_escape_class_name(name) + "\\..*$" for name in test_info.test_packages])
@@ -113,7 +113,7 @@ def continuous_build_properties(app_properties, test_info):
 def continuous_selection_error(labels, selector_counts):
     """Returns an error when only some aggregated targets narrow their test selection.
 
-    Quarkus applies one include-pattern to the shared dev/test JVM. A target without
+    Quarkus applies one include-pattern to the shared test JVM. A target without
     selectors runs every test in its jars, which a class-name pattern cannot express
     next to another target's selectors.
 
@@ -128,7 +128,7 @@ def continuous_selection_error(labels, selector_counts):
     if not unselected or len(unselected) == len(labels):
         return ""
     return ("continuous_test: {} declare no test_classes/test_packages while other targets do; " +
-            "one dev session applies a single test selection, so add selectors to these targets " +
+            "one continuous-test session applies a single test selection, so add selectors to these targets " +
             "or remove them from the others").format(unselected)
 
 def merge_continuous_build_properties(labels, property_dicts):
@@ -198,7 +198,7 @@ def _direct_class_outputs(deps):
     """Returns compiled jars for the test libraries named directly by the test rule.
 
     External-repository deps are skipped: their jars are dependencies, not
-    reloadable test outputs, and the dev target extracts these into the mutable
+    reloadable test outputs, and the interactive launcher extracts these into the mutable
     test-classes directory together with their packaged resources.
     """
     outputs = []
@@ -322,7 +322,7 @@ quarkus_continuous_test_aggregate = rule(
             mandatory = True,
             cfg = disable_coverage_transition,
             providers = [QuarkusContinuousTestPartsInfo],
-            doc = "quarkus_test targets combined into the dev session's single TEST model.",
+            doc = "quarkus_test targets combined into an interactive session's single TEST model.",
         ),
         "conditional_catalog": attr.label(allow_single_file = [".json"], mandatory = True),
         "deployment_artifacts": attr.label(mandatory = True),
@@ -340,5 +340,5 @@ quarkus_continuous_test_aggregate = rule(
             default = "@bazel_tools//tools/jdk:current_java_runtime",
         ),
     },
-    doc = "Internal non-test rule that combines quarkus_test providers for dev mode.",
+    doc = "Internal non-test rule that combines quarkus_test providers for console testing.",
 )

@@ -158,7 +158,6 @@ def prepare(workspace):
     (unrelated / "BUILD.bazel").write_text('exports_files(["ignored.txt"])\n')
     (unrelated / "ignored.txt").write_text("ignored-v1")
     for package, arguments in {
-        "invalid_dev": 'dev=False, continuous_test="//:test"',
         "invalid_selection": (
             'deps=["//submodule:lib"], '
             'continuous_test=["//submodule:test", "//submodule:unselected_test"]'
@@ -329,8 +328,7 @@ def certify(workspace, log_path):
                            cwd=workspace, env=environment, stdout=log,
                            stderr=subprocess.STDOUT, check=True, timeout=600)
             for target, message in [
-                ("//invalid_dev:app", "continuous_test requires the dev target"),
-                ("//invalid_selection:app_dev", "one dev session applies a single test selection"),
+                ("//invalid_selection:app_dev", "one continuous-test session applies a single test selection"),
             ]:
                 invalid = subprocess.run(
                     [bazel, "build", target],

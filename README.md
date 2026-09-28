@@ -58,7 +58,8 @@ quarkus_integration_test(
 
 ```bash
 bazel run //:app       # Production mode
-bazel run //:app_dev   # Dev mode (hot-reload + Dev UI + continuous tests)
+bazel run //:app_dev   # Dev mode (hot-reload + Dev UI continuous testing)
+bazel run //:app_test  # Console-only continuous testing
 bazel test //:test     # @QuarkusTest
 bazel test //:integration_test # @QuarkusIntegrationTest against the selected package
 bazel coverage //:test # Bazel LCOV coverage

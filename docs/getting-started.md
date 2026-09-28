@@ -327,9 +327,10 @@ This launches Quarkus in dev mode with:
 - **Dev UI** at `http://localhost:8080/q/dev-ui`
 - **Hot-reload** watching your source directories for changes
 
-To enable Quarkus continuous testing in the same session, connect the app to a
+To create a console-only continuous test session, connect the app to a
 `quarkus_test` target. Forward labels are supported, so declaration order does
-not matter:
+not matter. The same declaration also enables continuous testing in the Dev UI
+when the app has a dev target:
 
 ```starlark
 quarkus_app(
@@ -349,11 +350,11 @@ quarkus_test(
 )
 ```
 
-Start `<name>_dev`, open the **Continuous Testing** page in Dev UI, and click
-**Start**. The same controls are available from the terminal (`r` starts or
-reruns tests and `o` toggles test output). Java source, test resource, and main
-or test code-generation input changes rebuild the dev target through Bazel,
-sync the affected outputs, and publish the result and failure output to Dev UI.
+Run `bazel run //:helloworld_test` to start the Quarkus test-only console.
+Use its hotkeys (`r` reruns tests, `p` pauses, and `o` toggles test output).
+Java source, test resource, and main or test code-generation input changes
+rebuild this target through Bazel and rerun affected tests. No dev application
+or Dev UI is started. The target is created even when `dev = False`.
 
 Dev mode runs in a separate JVM process. Press `Ctrl+C` to stop.
 
@@ -402,13 +403,14 @@ workflow. Selecting `aot-jar` with Quarkus 3.27 fails during Bazel analysis.
 |---|---|---|---|
 | `deps` | `label_list` | (required) | `java_library` and Maven artifact targets |
 | `version` | `string` | `""` | Application version for Quarkus startup banner |
-| `build_properties` | `string_dict` | `{}` | Declared build-time configuration shared with the `_dev` and `_native` targets; see [Declared build-time configuration](#declared-build-time-configuration) |
+| `build_properties` | `string_dict` | `{}` | Declared build-time configuration shared with the `_dev`, `_test`, and `_native` targets; see [Declared build-time configuration](#declared-build-time-configuration) |
 | `jvm_flags` | `string_list` | `[]` | JVM flags for runtime execution |
 | `main_class` | `string` | `""` | Override main class (default: Quarkus runner) |
 | `package_type` | `string` | `"fast-jar"` | JVM package layout; see the table above |
 | `dev` | `bool` | `True` | Also create the `<name>_dev` target |
 | `dev_build_args` | `string_list` | `[]` | Extra Bazel flags reused by hot-reload builds |
-| `continuous_test` | `label` or `label_list` | `None` | Optional `quarkus_test` target, or ordered list of targets, used for continuous testing in one dev-mode session; makes `<name>_dev` `testonly` |
+| `test_build_args` | `string_list` | `[]` | Extra Bazel flags reused when the console test watcher rebuilds `<name>_test` |
+| `continuous_test` | `label` or `label_list` | `None` | Optional `quarkus_test` target, or ordered list of targets, used by Dev UI continuous testing in `<name>_dev` and by the console-only `<name>_test`; makes both targets `testonly` |
 | `native` | `bool` | `False` | Also create `<name>_native` using `rules_graalvm` |
 | `native_container_build` | `bool` | `False` | Also create `<name>_native` using Docker or Podman |
 

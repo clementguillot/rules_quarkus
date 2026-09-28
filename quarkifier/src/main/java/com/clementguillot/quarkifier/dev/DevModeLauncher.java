@@ -27,12 +27,12 @@ import java.util.zip.ZipOutputStream;
 import org.jboss.logging.Logger;
 
 /**
- * Launches Quarkus in dev mode with full Dev UI support via {@code IsolatedDevModeMain}.
+ * Launches Quarkus interactive dev or console-only continuous-test mode.
  *
  * <p>Creates a minimal "dev jar" with a serialized {@link DevModeContext} and a manifest classpath
  * pointing to core deployment infrastructure jars + parent-first runtime artifacts. A separate JVM
- * process runs {@link DevModeMain#main} which bootstraps {@code IsolatedDevModeMain} inside a clean
- * augment classloader.
+ * process runs {@link DevModeMain#main}, which selects the entry point from the serialized context
+ * inside a clean augment classloader.
  *
  * @see <a href="../../../../../../docs/dev-mode.md">docs/dev-mode.md</a> for the full architecture
  */
@@ -44,12 +44,12 @@ public final class DevModeLauncher {
   private DevModeLauncher() {}
 
   /**
-   * Launches Quarkus dev mode in a separate JVM process.
+   * Launches Quarkus dev or continuous-test mode in a separate JVM process.
    *
    * @param config CLI configuration including source dirs, classpath, output dir
-   * @param appModel the ApplicationModel built from classpath jars
-   * @param testAppModel the TEST-mode ApplicationModel used by continuous testing, or {@code null}
-   * @throws AugmentationException if dev mode fails to start
+   * @param appModel the primary ApplicationModel
+   * @param testAppModel the secondary TEST model used by Dev UI testing, or {@code null}
+   * @throws AugmentationException if the child process fails to start
    */
   public static void launch(
       QuarkifierConfig config, ApplicationModel appModel, ApplicationModel testAppModel)
@@ -90,7 +90,7 @@ public final class DevModeLauncher {
         int exitCode = process.waitFor();
 
         if (exitCode != 0) {
-          throw new AugmentationException("Dev mode process exited with code " + exitCode);
+          throw new AugmentationException("Interactive process exited with code " + exitCode);
         }
       } finally {
         if (process != null && process.isAlive()) {
@@ -104,7 +104,7 @@ public final class DevModeLauncher {
     } catch (AugmentationException e) {
       throw e;
     } catch (Exception e) {
-      throw new AugmentationException("Failed to launch dev mode: " + e.getMessage(), e);
+      throw new AugmentationException("Failed to launch interactive mode: " + e.getMessage(), e);
     }
   }
 

@@ -63,6 +63,7 @@ public final class AugmentationExecutor {
             config,
             appModel,
             ContinuousTestApplicationModelLoader.load(config, loadedModel.explicitModel()));
+        case CONTINUOUS_TEST -> DevModeLauncher.launch(config, appModel, null);
           // TEST: serialize the ApplicationModel for use by QuarkusTestExtension.
           // No augmentation is run — the test JVM handles that via QuarkusBootstrap.Mode.TEST.
         case TEST -> serializeTestModel(outputDir, appModel);
@@ -103,7 +104,8 @@ public final class AugmentationExecutor {
 
   static void validateModelCompatibility(AugmentationMode mode, BazelApplicationModel explicitModel)
       throws AugmentationException {
-    if (!mode.name().equals(explicitModel.mode().name())) {
+    String expectedModelMode = mode == AugmentationMode.CONTINUOUS_TEST ? "TEST" : mode.name();
+    if (!expectedModelMode.equals(explicitModel.mode().name())) {
       throw new AugmentationException(
           "Explicit application model mode "
               + explicitModel.mode()
@@ -224,6 +226,7 @@ public final class AugmentationExecutor {
       case NORMAL, NATIVE -> QuarkusBootstrap.Mode.PROD;
       case TEST -> QuarkusBootstrap.Mode.TEST;
       case DEV -> QuarkusBootstrap.Mode.DEV;
+      case CONTINUOUS_TEST -> QuarkusBootstrap.Mode.CONTINUOUS_TEST;
     };
   }
 

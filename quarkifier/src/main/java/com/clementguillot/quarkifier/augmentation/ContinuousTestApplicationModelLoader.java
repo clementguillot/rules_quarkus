@@ -8,14 +8,15 @@ import com.clementguillot.quarkifier.model.transport.BazelApplicationModel;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModelReader;
 import io.quarkus.bootstrap.model.ApplicationModel;
 
-/** Loads the optional TEST-mode application model used by Quarkus continuous testing. */
+/** Loads the secondary TEST model used by Dev UI continuous testing. */
 final class ContinuousTestApplicationModelLoader {
 
   private ContinuousTestApplicationModelLoader() {}
 
   static ApplicationModel load(QuarkifierConfig config, BazelApplicationModel applicationModel)
       throws Exception {
-    if (config.continuousTesting() == null) {
+    if (config.continuousTesting() == null
+        || config.continuousTesting().applicationModel() == null) {
       return null;
     }
     var explicitModel =

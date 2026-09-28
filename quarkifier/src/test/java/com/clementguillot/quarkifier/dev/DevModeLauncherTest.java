@@ -28,7 +28,12 @@ class DevModeLauncherTest {
                 "--application-classpath", "app.jar",
                 "--application-model", "model.json",
                 "--output-dir", "/tmp/output",
-                "--mode", "dev",
+                "--mode",
+                    List.of(extraArgs).contains("--test-application-model")
+                        ? "dev"
+                        : (List.of(extraArgs).contains("--test-classes-dir")
+                            ? "continuous-test"
+                            : "dev"),
                 "--app-name", "my-app"));
     args.addAll(List.of(extraArgs));
     return TestQuarkifierConfig.parse(args.toArray(String[]::new));
@@ -188,11 +193,15 @@ class DevModeLauncherTest {
   void buildDevModeContext_withContinuousTesting_setsTestModuleMetadata() {
     var config =
         devConfig(
-            "--test-application-model", "test-model.json",
             "--test-classes-dir", "/tmp/test-classes",
             "--test-classes-output-dirs", "bazel-bin/test.jar");
 
-    var module = DevModeLauncher.buildDevModeContext(config).getApplicationRoot();
+    var context = DevModeLauncher.buildDevModeContext(config);
+    assertEquals(io.quarkus.bootstrap.app.QuarkusBootstrap.Mode.CONTINUOUS_TEST, context.getMode());
+    assertEquals(
+        io.quarkus.deployment.dev.IsolatedTestModeMain.class.getName(),
+        context.getAlternateEntryPoint());
+    var module = context.getApplicationRoot();
     var test = module.getTest().orElseThrow();
 
     assertEquals(Path.of("/tmp/test-classes").toAbsolutePath().toString(), test.getClassesPath());
@@ -205,6 +214,18 @@ class DevModeLauncherTest {
     assertTrue(module.getMain().getResourcePaths().isEmpty());
     assertEquals(
         Path.of("/tmp/test-classes").toAbsolutePath().toString(), test.getResourcesOutputPath());
+  }
+
+  @Test
+  void buildDevModeContext_withDevUiContinuousTestingKeepsDevEntryPoint() {
+    var config =
+        devConfig(
+            "--test-application-model", "test-model.json",
+            "--test-classes-dir", "/tmp/test-classes");
+    var context = DevModeLauncher.buildDevModeContext(config);
+    assertEquals(io.quarkus.bootstrap.app.QuarkusBootstrap.Mode.DEV, context.getMode());
+    assertNull(context.getAlternateEntryPoint());
+    assertTrue(context.getApplicationRoot().getTest().isPresent());
   }
 
   /**
