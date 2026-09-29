@@ -44,16 +44,16 @@ QuarkusCodeGenInfo = provider(
 )
 
 QuarkusContinuousTestInfo = provider(
-    doc = "Aggregated continuous-test model and outputs consumed by a quarkus_app dev target.",
+    doc = "Aggregated continuous-test model and outputs consumed by the quarkus_app _dev and _test targets.",
     fields = {
         "application_model": "TEST-mode quarkus-bazel-model-v1 JSON File.",
-        "build_files": "Depset of BUILD files whose changes require restarting dev mode.",
+        "build_files": "Depset of BUILD files whose changes require restarting the interactive session.",
         "classes_output_dirs": "Ordered list of compiled test class jars/directories in runtime classpath order.",
         "codegen_input_files": "Depset of exact workspace-relative test code-generation inputs.",
         "input_files": "Depset of exact declared test-graph source and resource files.",
         "model_classpath": "Depset of files referenced by the TEST-mode application model.",
         "build_properties": "Declared test JVM system properties.",
-        "jvm_flags": "Declared flags for the shared dev/test child JVM.",
+        "jvm_flags": "Declared flags for the child JVM that runs the tests (_dev or _test).",
         "test_classes": "Explicit class selectors.",
         "test_packages": "Explicit package selectors.",
     },

@@ -85,7 +85,7 @@ public final class AugmentationCommand implements Callable<Integer> {
 
   @Option(
       names = "--test-application-model",
-      description = "Validated TEST-mode quarkus-bazel-model-v1 JSON for continuous testing.")
+      description = "Validated TEST-mode model for Dev UI continuous testing.")
   private Path testApplicationModel;
 
   // ---- Output ----
@@ -103,7 +103,7 @@ public final class AugmentationCommand implements Callable<Integer> {
 
   @Option(
       names = "--mode",
-      description = "Augmentation mode: normal, test, dev, or native.",
+      description = "Augmentation mode: normal, test, dev, continuous-test, or native.",
       defaultValue = "normal")
   private String mode;
 
@@ -146,7 +146,7 @@ public final class AugmentationCommand implements Callable<Integer> {
 
   @Option(
       names = "--test-classes-dir",
-      description = "Mutable directory for compiled test classes in dev mode.")
+      description = "Mutable directory for compiled test classes in Dev UI or console testing.")
   private Path testClassesDir;
 
   @Option(
@@ -163,15 +163,15 @@ public final class AugmentationCommand implements Callable<Integer> {
 
   @Option(
       names = "--watched-test-input",
-      description = "Exact input only the continuous-test graph declares, watched in dev mode.")
+      description = "Exact input only the continuous-test graph declares.")
   private List<Path> watchedTestInputs;
 
   @Option(
       names = "--watched-build-file",
-      description = "BUILD file whose change requires restarting the dev session.")
+      description = "BUILD file whose change requires restarting the interactive session.")
   private List<Path> watchedBuildFiles;
 
-  @Option(names = "--test-jvm-arg", description = "JVM flag for the shared dev/test process.")
+  @Option(names = "--test-jvm-arg", description = "JVM flag for Dev UI or console testing.")
   private List<String> testJvmArgs;
 
   @Option(
@@ -335,6 +335,11 @@ public final class AugmentationCommand implements Callable<Integer> {
     List<Path> testInputs = orEmpty(watchedTestInputs);
     List<Path> buildFiles = orEmpty(watchedBuildFiles);
     List<String> jvmArgs = orEmpty(testJvmArgs);
+    if (!resolvedWatchedInputs.isEmpty()
+        && resolvedMode != AugmentationMode.DEV
+        && resolvedMode != AugmentationMode.CONTINUOUS_TEST) {
+      throw parameterException("Watch options require --mode dev or continuous-test");
+    }
     boolean hasTestOptions =
         testApplicationModel != null
             || testClassesDir != null
@@ -342,21 +347,24 @@ public final class AugmentationCommand implements Callable<Integer> {
             || !testInputs.isEmpty()
             || !buildFiles.isEmpty()
             || !jvmArgs.isEmpty();
-    if ((hasTestOptions || !resolvedWatchedInputs.isEmpty())
-        && resolvedMode != AugmentationMode.DEV) {
-      throw parameterException("Continuous-testing and watch options require --mode dev");
-    }
-    if (!hasTestOptions) {
+    if (resolvedMode != AugmentationMode.DEV && resolvedMode != AugmentationMode.CONTINUOUS_TEST) {
+      if (hasTestOptions) {
+        throw parameterException(
+            "Continuous-testing options require --mode dev or continuous-test");
+      }
       return null;
     }
-    if (testApplicationModel == null && testClassesDir == null) {
-      throw parameterException(
-          "Continuous-testing options require --test-application-model and"
-              + " --test-classes-dir");
+    if (resolvedMode == AugmentationMode.DEV && !hasTestOptions) {
+      return null;
     }
-    if (testApplicationModel == null || testClassesDir == null) {
+    if (testClassesDir == null
+        || (resolvedMode == AugmentationMode.DEV && testApplicationModel == null)) {
       throw parameterException(
-          "--test-application-model and --test-classes-dir must be provided together");
+          "Dev UI continuous testing requires --test-application-model and --test-classes-dir;"
+              + " console continuous testing requires --test-classes-dir");
+    }
+    if (resolvedMode == AugmentationMode.CONTINUOUS_TEST && testApplicationModel != null) {
+      throw parameterException("--test-application-model is only used with --mode dev");
     }
     return new QuarkifierConfig.ContinuousTesting(
         testApplicationModel, testClassesDir, outputs, testInputs, buildFiles, jvmArgs);

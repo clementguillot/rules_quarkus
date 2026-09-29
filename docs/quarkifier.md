@@ -25,7 +25,7 @@ java -jar quarkifier_<minor>_deploy.jar \
   [--core-deployment-classpath-file <path>] \
   --output-dir <path> \
   [--resources <path,path,...>] \
-  [--mode normal|test|dev|native] \
+  [--mode normal|test|dev|continuous-test|native] \
   [--package-type fast-jar|uber-jar|mutable-jar|legacy-jar|aot-jar] \
   [--app-name <name>] \
   [--main-class <class>] \
@@ -63,20 +63,20 @@ java -jar quarkifier_<minor>_deploy.jar \
 | `--core-deployment-classpath-file` | No | — | File containing the core deployment classpath |
 | `--output-dir` | Yes | — | Directory where the selected package is written |
 | `--resources` | No | `[]` | Comma-separated list of resource file paths |
-| `--mode` | No | `normal` | Augmentation mode: `normal`, `test`, `dev`, or `native` |
+| `--mode` | No | `normal` | Augmentation mode: `normal`, `test`, `dev`, `continuous-test`, or `native` |
 | `--package-type` | No | `fast-jar` | JVM package layout; `uber-jar`, `mutable-jar`, `legacy-jar`, and `aot-jar` require `--mode normal`; `aot-jar` also requires Quarkus 3.33 |
 | `--app-name` | No | `null` | Application name for Quarkus startup banner |
 | `--main-class` | No | `null` | Fully-qualified custom main class annotated with `@QuarkusMain` |
 | `--native-builder-image` | No | `null` | Native builder image for `platform.quarkus.native.builder-image` |
 | `--source-dirs` | No | `[]` | Comma-separated source directories for dev mode hot-reload |
 | `--classes-dir` | No | `null` | Mutable directory for .class files in dev mode |
-| `--test-application-model` | No | — | Explicit TEST-mode model for continuous testing in DEV mode |
-| `--test-classes-dir` | No | — | Mutable test output directory; enables output-only Quarkus scanning |
+| `--test-application-model` | With Dev UI testing | — | Secondary validated TEST model used in `dev` mode |
+| `--test-classes-dir` | With continuous testing | — | Mutable test output directory; enables output-only Quarkus scanning |
 | `--test-classes-output-dirs` | No | `[]` | Comma-separated compiled test/helper outputs to synchronize |
-| `--watched-input` | No | `[]` | Repeatable exact declared input watched in dev mode: CodeGenProvider inputs, plus every source and resource input during continuous testing |
-| `--watched-test-input` | No | `[]` | Repeatable exact input only the continuous-test graph declares; changes rerun tests without restarting the application |
-| `--watched-build-file` | No | `[]` | Repeatable BUILD file watched to warn that the dev session must be restarted |
-| `--test-jvm-arg` | No | `[]` | Repeatable shared dev/test JVM flag; use `--test-jvm-arg=-Dkey=value` |
+| `--watched-input` | No | `[]` | Repeatable exact declared input watched in `dev` or `continuous-test` mode |
+| `--watched-test-input` | No | `[]` | Repeatable exact input only the continuous-test graph declares |
+| `--watched-build-file` | No | `[]` | Repeatable BUILD file whose change requires restarting the interactive session |
+| `--test-jvm-arg` | No | `[]` | Repeatable JVM flag for Dev UI or console continuous testing; use `--test-jvm-arg=-Dkey=value` |
 | `--bazel-targets` | No | `[]` | Comma-separated Bazel targets to rebuild on source changes |
 | `--classes-output-dirs` | No | `[]` | Comma-separated bazel-bin output directories containing .class files |
 | `--workspace-dir` | No | `null` | Bazel workspace root directory for running bazel build |
@@ -85,18 +85,17 @@ java -jar quarkifier_<minor>_deploy.jar \
 | `--bazel-build-args` | No | `[]` | Comma-separated extra flags for the hot-reload bazel build |
 | `--local-app-jars` | No | `[]` | Colon-separated local workspace jars to use as application roots |
 | `--local-app-jars-file` | No | — | File containing local app jars (alternative to `--local-app-jars`) |
-| `--build-properties-file` | No | — | UTF-8 `.properties` file containing declared build-system configuration; names must be non-empty and cannot contain `=`; accepted by normal, dev, and native augmentation and rejected in TEST mode, where augmentation occurs in the test JVM |
-| `--application-model` | Yes | — | Strict `quarkus-bazel-model-v1` input; its mode and Quarkus version must match the invocation and version-specific tool |
+| `--build-properties-file` | No | — | UTF-8 `.properties` file containing declared build-system configuration; names must be non-empty and cannot contain `=`; accepted by normal, dev, continuous-test, and native augmentation and rejected in one-shot TEST mode, where augmentation occurs in the test JVM |
+| `--application-model` | Yes | — | Strict `quarkus-bazel-model-v1` input; `continuous-test` requires a TEST model, and every mode requires the matching Quarkus version |
 | `-h`, `--help` | — | — | Show help message and exit |
 | `-V`, `--version` | — | — | Show version info and exit |
 
 *Either the inline flag or the `-file` variant must be provided. The `-file` variants read the classpath from a file (one line, colon-separated paths) to avoid "Argument list too long" errors on Linux when the classpath is very long. When both inline and file are provided, the file variant takes precedence regardless of argument order.
 
-Continuous-testing options and `--watched-input` are accepted only in
-`--mode dev`. `--test-application-model` and `--test-classes-dir` must be
-supplied together; the other test outputs, test-only inputs, JVM flags, and
-watched BUILD files require that pair. Before launch, the TEST model must identify exactly the same Bazel
-application root as the DEV model.
+Continuous-testing options are accepted in `--mode dev` with a secondary TEST
+model for the Dev UI, or in `--mode continuous-test` with a primary TEST model.
+Both forms require `--test-classes-dir`. Dev UI testing also requires
+`--test-application-model`. `--watched-input` is accepted in both modes.
 
 ### Extension enrichment
 
@@ -137,7 +136,7 @@ com.clementguillot.quarkifier
 ├── EnrichExtensionCommand          Parses extension-enrichment arguments
 ├── QuarkifierConfig                Immutable record for config + toArgs() serialization
 ├── QuarkifierVersionProvider       Picocli IVersionProvider: reads version from classpath resource
-├── AugmentationMode                Enum: NORMAL, TEST, DEV, NATIVE
+├── AugmentationMode                Enum: NORMAL, TEST, DEV, CONTINUOUS_TEST, NATIVE
 ├── JarPackageType                  Enum: Fast, Uber, mutable, legacy, and AOT JAR layouts
 ├── AugmentationException           Checked exception wrapping build errors
 ├── BuildProperties                 Default build system properties
@@ -199,7 +198,7 @@ public record QuarkifierConfig(
     ContinuousTesting continuousTesting  // null unless continuous testing is configured
 ) {
   public record ContinuousTesting(
-      Path applicationModel,
+      Path applicationModel,  // secondary TEST model in dev mode; null in console test mode
       Path classesDir,
       List<Path> classesOutputDirs,
       List<Path> watchedInputs,

@@ -21,6 +21,11 @@ CORE_DEPLOY_CP_FILE="${RUNFILES_DIR}/%{workspace}/%{core_deploy_cp_file}"
 LOCAL_APP_JARS_FILE="${RUNFILES_DIR}/%{workspace}/%{local_app_jars_file}"
 MODEL_FILE="${RUNFILES_DIR}/%{workspace}/%{model_file}"
 MAIN_CLASS=%{main_class}
+APP_NAME=%{app_name}
+# Comma-joined watcher build flags, shell-quoted at analysis time so `$`, quotes,
+# and backticks in declared flags reach Bazel verbatim.
+BUILD_ARGS=%{build_args}
+TEST_ENABLED=%{test_enabled}
 TEST_MODEL_FILE=""
 if [ -n "%{test_model_file}" ]; then
     TEST_MODEL_FILE="${RUNFILES_DIR}/%{workspace}/%{test_model_file}"
@@ -161,9 +166,9 @@ if [ -f "$WATCHED_BUILD_FILES_FILE" ]; then
     done < "$WATCHED_BUILD_FILES_FILE"
 fi
 
-if [ -n "$BAZEL_TARGETS" ] && { [ -n "$TEST_MODEL_FILE" ] || [ -n "$SOURCE_DIRS" ] || [ "${#WATCHED_INPUT_ARGS[@]}" -gt 0 ]; }; then
+if [ -n "$BAZEL_TARGETS" ] && { [ "$TEST_ENABLED" = "true" ] || [ -n "$SOURCE_DIRS" ] || [ "${#WATCHED_INPUT_ARGS[@]}" -gt 0 ]; }; then
     CLASSES_DIR=$(mktemp -d "${TMPDIR:-/tmp}/quarkus_hotreload_classes_XXXXXX")
-    if [ -n "$TEST_MODEL_FILE" ]; then
+    if [ "$TEST_ENABLED" = "true" ]; then
         # Quarkus' test framework recognizes conventional build-tool output
         # suffixes when locating a loaded test class. Keep the mutable Bazel
         # output under test-classes so this fallback also works for profiles
@@ -216,9 +221,11 @@ if [ -n "$BAZEL_TARGETS" ] && { [ -n "$TEST_MODEL_FILE" ] || [ -n "$SOURCE_DIRS"
     if [ -n "$ABS_SOURCE_DIRS" ]; then
         HOT_RELOAD_ARGS+=("--source-dirs" "$ABS_SOURCE_DIRS")
     fi
+    if [ "$TEST_ENABLED" = "true" ]; then
+        HOT_RELOAD_ARGS+=("--test-classes-dir" "$TEST_CLASSES_DIR")
+    fi
     if [ -n "$TEST_MODEL_FILE" ]; then
         HOT_RELOAD_ARGS+=("--test-application-model" "$TEST_MODEL_FILE")
-        HOT_RELOAD_ARGS+=("--test-classes-dir" "$TEST_CLASSES_DIR")
     fi
     if [ -n "$ABS_TEST_CLASSES_OUTPUT_DIRS" ]; then
         HOT_RELOAD_ARGS+=("--test-classes-output-dirs" "$ABS_TEST_CLASSES_OUTPUT_DIRS")
@@ -262,9 +269,9 @@ _JAVA_ARGFILE=$(mktemp "${OUTPUT_DIR}/quarkus_dev_args_XXXXXX")
   echo "--output-dir"
   _q "$OUTPUT_DIR"
   echo "--mode"
-  echo "dev"
+  echo "%{session_mode}"
   echo "--app-name"
-  echo "%{app_name}"
+  _q "$APP_NAME"
   if [ -n "$MAIN_CLASS" ]; then
     echo "--main-class"
     _q "$MAIN_CLASS"
@@ -273,9 +280,9 @@ _JAVA_ARGFILE=$(mktemp "${OUTPUT_DIR}/quarkus_dev_args_XXXXXX")
   _q "$WORKSPACE_ROOT"
   echo "--bazel-command"
   _q "$BAZEL_BIN"
-  if [ -n "%{dev_build_args}" ]; then
+  if [ -n "$BUILD_ARGS" ]; then
     echo "--bazel-build-args"
-    _q "%{dev_build_args}"
+    _q "$BUILD_ARGS"
   fi
   if [ -n "$RESOURCES_VALUE" ]; then
     echo "--resources"

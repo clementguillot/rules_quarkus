@@ -258,7 +258,7 @@ quarkus_app(
 ```
 
 Each target remains part of Bazel's test universe, so `bazel test //...` runs
-the application and module tests exactly once. For dev mode, the macro creates
+the application and module tests exactly once. The macro creates
 a hidden non-test aggregation target, even for a single label. It combines the
 test graphs into one application-rooted TEST model because Quarkus runs one
 shared dev/test JVM; it does not select one module's model or pass several
@@ -393,6 +393,30 @@ reruns in a disposable workspace. It intentionally runs once against Quarkus
 3.33.2, the latest supported version, rather than maintaining a Quarkus-version
 matrix.
 
+### Console-only test session
+
+The same `continuous_test` declaration creates a test-only `<name>_test`
+executable, including when `dev = False`; pass `test = False` to opt out.
+`continuous_test` must still have a consumer, so `dev = False` together with
+`test = False` fails analysis, as does `test_build_args` without a `_test`
+target. Run it with `bazel run //:app_test` to use Quarkus' test-only console.
+Unlike the Dev UI, which honors `quarkus.test.continuous-testing` (paused by
+default), Quarkus' test-only mode starts running tests immediately. Press `r` to
+rerun tests, `p` to pause or resume, and `o` to toggle test output. This session
+does not start the dev application or Dev UI. The ordinary `quarkus_test`
+targets remain one-shot `bazel test` targets.
+
+Both interactive targets use the hidden aggregate's application-rooted TEST
+model, selectors, test properties, declared-input watcher, and synchronized
+class/resource trees. The `_dev` launcher supplies that model as a secondary
+model beside its DEV model; `_test` uses it as the primary model with
+`QuarkusBootstrap.Mode.CONTINUOUS_TEST` and `IsolatedTestModeMain`. The `_test`
+watcher rebuilds `<name>_test`, so its configuration-affecting launch flags
+belong in `test_build_args`. Its CLI and model validation are covered by both
+versioned Quarkifier test suites, and its source/resource edits and console
+controls have a separate external smoke test. The Dev UI smoke test remains a
+regression test for `<name>_dev`.
+
 ### Generated sources
 
 Code generation always runs through Bazel before the initial dev startup.
@@ -442,6 +466,9 @@ when a successful rebuild updates none of the recorded class outputs — the tel
 sign of a configuration mismatch. The rebuild timeout defaults to 600 s
 (`--bazel-build-timeout-seconds`); on timeout or build failure, the tail of
 `bazel-hot-reload.log` is echoed to the console.
+
+For `bazel run //pkg:app_test`, use `test_build_args` for the same purpose;
+`dev_build_args` applies only to `<name>_dev`.
 
 ## Known Limitations
 

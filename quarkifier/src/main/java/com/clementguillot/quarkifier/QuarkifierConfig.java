@@ -9,11 +9,11 @@ import java.util.Objects;
  * Immutable configuration for a single augmentation invocation.
  *
  * @param applicationClasspath runtime jars
- * @param coreDeploymentClasspath dev process infrastructure — Quarkus bootstrap resolvers and
- *     quarkus-core-deployment transitive closures (dev mode only)
+ * @param coreDeploymentClasspath interactive process infrastructure — Quarkus bootstrap resolvers
+ *     and quarkus-core-deployment transitive closures
  * @param outputDir directory where the selected package is written
  * @param resources additional resource paths
- * @param mode NORMAL, TEST, DEV, or NATIVE
+ * @param mode NORMAL, TEST, DEV, CONTINUOUS_TEST, or NATIVE
  * @param packageType Quarkus JVM package layout (used in NORMAL mode)
  * @param appName application name for Quarkus startup banner (may be {@code null})
  * @param mainClass fully-qualified custom main class name annotated with {@code @QuarkusMain} (may
@@ -31,10 +31,9 @@ import java.util.Objects;
  * @param localAppJars local workspace jars to use as application roots
  * @param buildProperties declared hermetic build-time configuration
  * @param applicationModel explicit validated Bazel model JSON
- * @param watchedInputs exact declared inputs watched in dev mode: generator inputs, plus every
- *     source and resource input of the application graph under continuous testing
- * @param continuousTesting continuous-testing settings of a dev session, or {@code null} when
- *     continuous testing is not configured
+ * @param watchedInputs exact declared inputs watched by the interactive session
+ * @param continuousTesting settings of a Dev UI or console continuous-test session, or {@code null}
+ *     when continuous testing is not configured
  */
 public record QuarkifierConfig(
     List<Path> applicationClasspath,
@@ -61,15 +60,42 @@ public record QuarkifierConfig(
     ContinuousTesting continuousTesting) {
 
   /**
-   * Continuous-testing settings of a dev session.
+   * Pairs each interactive mode with its TEST model: Dev UI testing needs a secondary TEST model
+   * beside the DEV model, while console testing uses the primary model and must not get another.
+   */
+  public QuarkifierConfig {
+    if (continuousTesting == null) {
+      if (mode == AugmentationMode.CONTINUOUS_TEST) {
+        throw new IllegalArgumentException(
+            "CONTINUOUS_TEST mode requires continuous-testing settings");
+      }
+    } else if (mode == AugmentationMode.DEV) {
+      if (continuousTesting.applicationModel() == null) {
+        throw new IllegalArgumentException(
+            "Dev UI continuous testing requires a secondary TEST application model");
+      }
+    } else if (mode == AugmentationMode.CONTINUOUS_TEST) {
+      if (continuousTesting.applicationModel() != null) {
+        throw new IllegalArgumentException(
+            "Console continuous testing uses the primary TEST model; a secondary model is invalid");
+      }
+    } else {
+      throw new IllegalArgumentException(
+          "Continuous testing requires DEV or CONTINUOUS_TEST mode, not " + mode);
+    }
+  }
+
+  /**
+   * Continuous-testing settings of an interactive session.
    *
-   * @param applicationModel explicit validated TEST-mode Bazel model JSON
+   * @param applicationModel secondary TEST model in dev mode; {@code null} when the TEST model is
+   *     primary
    * @param classesDir mutable directory for compiled tests and their resources
    * @param classesOutputDirs bazel-bin outputs containing compiled test classes
    * @param watchedInputs exact inputs only the continuous-test graph declares; changing them reruns
    *     tests without restarting the application
-   * @param watchedBuildFiles BUILD files whose changes require a dev-mode restart
-   * @param jvmArgs JVM flags for the shared dev/test child process
+   * @param watchedBuildFiles BUILD files whose changes require a session restart
+   * @param jvmArgs JVM flags for the test child process
    */
   public record ContinuousTesting(
       Path applicationModel,
@@ -80,7 +106,6 @@ public record QuarkifierConfig(
       List<String> jvmArgs) {
 
     public ContinuousTesting {
-      Objects.requireNonNull(applicationModel, "applicationModel");
       Objects.requireNonNull(classesDir, "classesDir");
       classesOutputDirs = List.copyOf(classesOutputDirs);
       watchedInputs = List.copyOf(watchedInputs);

@@ -1,5 +1,6 @@
 package com.clementguillot.quarkifier.watcher;
 
+import com.clementguillot.quarkifier.AugmentationMode;
 import com.clementguillot.quarkifier.QuarkifierConfig;
 import java.io.Closeable;
 import java.io.IOException;
@@ -330,13 +331,22 @@ public final class BazelFileWatcher implements Closeable {
       String warning =
           "[hot-reload] "
               + changed
-              + " changed. Restart dev mode so Bazel declarations, application models, and the"
-              + " exact watch set are reloaded.";
+              + " changed. Restart "
+              + sessionName()
+              + " so Bazel declarations, application models, and the exact watch set are"
+              + " reloaded.";
       LOGGER.warn(warning);
       // Quarkus reconfigures the logging manager after the watcher starts. Keep this lifecycle
       // warning visible even when that removes the parent process's logger handler.
       System.err.println(warning);
     }
+  }
+
+  /** Names the running session in user-facing restart warnings. */
+  private String sessionName() {
+    return config.mode() == AugmentationMode.CONTINUOUS_TEST
+        ? "the continuous-test session"
+        : "dev mode";
   }
 
   /** Cancels any pending scheduled build and schedules a new one after the debounce delay. */

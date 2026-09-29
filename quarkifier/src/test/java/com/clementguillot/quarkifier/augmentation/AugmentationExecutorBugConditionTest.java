@@ -145,6 +145,25 @@ class AugmentationExecutorBugConditionTest {
     assertTrue(exception.getMessage().contains("@@//app:missing"));
   }
 
+  @Test
+  void validateModelCompatibility_continuousTestRequiresTestModel() {
+    assertDoesNotThrow(
+        () ->
+            AugmentationExecutor.validateModelCompatibility(
+                AugmentationMode.CONTINUOUS_TEST,
+                compatibilityModel(
+                    BazelApplicationModel.Mode.TEST,
+                    QuarkifierVersionProvider.targetedQuarkusVersion())));
+    assertThrows(
+        AugmentationException.class,
+        () ->
+            AugmentationExecutor.validateModelCompatibility(
+                AugmentationMode.CONTINUOUS_TEST,
+                compatibilityModel(
+                    BazelApplicationModel.Mode.DEV,
+                    QuarkifierVersionProvider.targetedQuarkusVersion())));
+  }
+
   /**
    * When --local-app-jars identifies local jars and a Maven jar is first in the classpath, the
    * production partitioning logic places all local jars in {@code localAppJars} and the Maven jar

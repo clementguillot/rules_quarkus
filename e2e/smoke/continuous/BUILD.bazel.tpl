@@ -60,6 +60,21 @@ quarkus_app(
         "//submodule:test",
     ],
     dev_build_args = ["--define=continuous_fixture=true"],
+    test_build_args = ["--define=test_fixture=true"],
+    deps = [":lib"],
+)
+
+quarkus_app(
+    name = "without_dev_app",
+    dev = False,
+    continuous_test = ":test",
+    deps = [":lib"],
+)
+
+quarkus_app(
+    name = "without_console_app",
+    continuous_test = ":test",
+    test = False,
     deps = [":lib"],
 )
 

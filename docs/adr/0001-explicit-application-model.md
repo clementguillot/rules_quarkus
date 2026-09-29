@@ -52,8 +52,8 @@ The runtime catalog is deliberately hybrid:
 5. no artifact is admitted by a name convention or orphan-repair step.
 
 All normal, dev, test, and native-sources entry points assemble the same
-contract with a lifecycle mode. Internal target suffixes such as `_dev` and
-`_native` do not change the application identity.
+contract with a lifecycle mode. Internal target suffixes such as `_dev`,
+`_test`, and `_native` do not change the application identity.
 
 ## Public API and DX invariant
 

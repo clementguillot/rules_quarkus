@@ -561,6 +561,32 @@ sh_test(
     ],
 )
 
+# Console-only continuous testing is covered separately so the Dev UI regression
+# remains an independent test.
+sh_test(
+    name = "console_continuous_testing_test",
+    size = "enormous",
+    srcs = ["console_continuous_testing_test.sh"],
+    data = [
+        ".bazelrc",
+        "MODULE.bazel",
+        "console_continuous_testing_test.py",
+        "continuous_testing_test.py",
+        "maven_install.json",
+        ":app_test",
+    ] + glob(["continuous/**"]),
+    env_inherit = [
+        "PATH",
+        "USE_BAZEL_VERSION",
+    ],
+    tags = [
+        "exclusive",
+        "external",
+        "no-remote",
+        "no-sandbox",
+    ],
+)
+
 # --- fail_if_no_tests smoke tests (issue #125) ---
 #
 # EmptyTest.java is a @QuarkusTest with zero @Test methods.
