@@ -32,7 +32,7 @@ class EnrichExtensionCommandTest {
                 "enrich-extension",
                 runtimeJar.toString(),
                 output.toString(),
-                "3.33.2",
+                "3.33.4",
                 cpFile.toString(),
                 "cli-ext",
                 "org.acme",
@@ -42,7 +42,7 @@ class EnrichExtensionCommandTest {
     assertEquals(0, exitCode);
     String result = Files.readString(output);
     assertTrue(result.contains("artifact: \"org.acme:cli-ext::jar:1.0.0\""));
-    assertTrue(result.contains("built-with-quarkus-core: \"3.33.2\""));
+    assertTrue(result.contains("built-with-quarkus-core: \"3.33.4\""));
     assertTrue(result.contains("    - \"io.quarkus:quarkus-arc\""));
   }
 
@@ -72,7 +72,7 @@ class EnrichExtensionCommandTest {
                 "enrich-extension",
                 "/nonexistent/runtime.jar",
                 output.toString(),
-                "3.33.2",
+                "3.33.4",
                 cpFile.toString(),
                 "broken",
                 "org.acme",
@@ -100,7 +100,7 @@ class EnrichExtensionCommandTest {
                 "enrich-extension",
                 emptyJar.toString(),
                 output.toString(),
-                "3.33.2",
+                "3.33.4",
                 cpFile.toString(),
                 "fallback-name",
                 "org.acme",
@@ -111,7 +111,7 @@ class EnrichExtensionCommandTest {
     String result = Files.readString(output);
     assertTrue(result.contains("name: \"fallback-name\""));
     assertTrue(result.contains("artifact: \"org.acme:fallback-name::jar:1.0.0\""));
-    assertTrue(result.contains("built-with-quarkus-core: \"3.33.2\""));
+    assertTrue(result.contains("built-with-quarkus-core: \"3.33.4\""));
   }
 
   // ---- helpers ----
@@ -127,12 +127,12 @@ class EnrichExtensionCommandTest {
   }
 
   private Path createExtensionJar(String groupId, String artifactId) throws IOException {
-    Path jar = tempDir.resolve(artifactId + "-3.33.2.jar");
+    Path jar = tempDir.resolve(artifactId + "-3.33.4.jar");
     try (var jos = new JarOutputStream(new FileOutputStream(jar.toFile()))) {
       // Extension marker
       jos.putNextEntry(new JarEntry("META-INF/quarkus-extension.properties"));
       jos.write(
-          ("deployment-artifact=" + groupId + ":" + artifactId + "-deployment:3.33.2\n")
+          ("deployment-artifact=" + groupId + ":" + artifactId + "-deployment:3.33.4\n")
               .getBytes(StandardCharsets.UTF_8));
       jos.closeEntry();
       // pom.properties
@@ -141,7 +141,7 @@ class EnrichExtensionCommandTest {
       Properties props = new Properties();
       props.setProperty("groupId", groupId);
       props.setProperty("artifactId", artifactId);
-      props.setProperty("version", "3.33.2");
+      props.setProperty("version", "3.33.4");
       props.store(jos, null);
       jos.closeEntry();
     }

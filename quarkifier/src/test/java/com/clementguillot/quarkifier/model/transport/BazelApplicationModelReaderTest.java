@@ -35,7 +35,7 @@ class BazelApplicationModelReaderTest {
     BazelApplicationModel model = BazelApplicationModelReader.read(validDocument());
 
     assertEquals(BazelApplicationModel.SCHEMA_VERSION, model.schemaVersion());
-    assertEquals("3.33.2", model.quarkusVersion());
+    assertEquals("3.33.4", model.quarkusVersion());
     assertEquals(Mode.NORMAL, model.mode());
     assertEquals("app", model.applicationId());
     assertEquals(2, model.nodes().size());
@@ -198,8 +198,8 @@ class BazelApplicationModelReaderTest {
         new Node(
             "rest-deployment",
             NodeKind.DEPLOYMENT,
-            new ArtifactCoordinates("io.quarkus", "quarkus-rest-deployment", "", "jar", "3.33.2"),
-            List.of("deployment/quarkus-rest-deployment-3.33.2.jar"),
+            new ArtifactCoordinates("io.quarkus", "quarkus-rest-deployment", "", "jar", "3.33.4"),
+            List.of("deployment/quarkus-rest-deployment-3.33.4.jar"),
             List.of(
                 new DependencyEdge(
                     runtimeExtension.id(),
@@ -256,7 +256,7 @@ class BazelApplicationModelReaderTest {
         {
           "schemaVersion":"quarkus-bazel-model-v1",
           "producer":{"name":"rules_quarkus","version":"0.5.0"},
-          "quarkusVersion":"3.33.2",
+          "quarkusVersion":"3.33.4",
           "mode":"normal",
           "applicationId":"app",
           "nodes":[
@@ -298,9 +298,9 @@ class BazelApplicationModelReaderTest {
                 "artifactId":"quarkus-rest",
                 "classifier":"",
                 "type":"jar",
-                "version":"3.33.2"
+                "version":"3.33.4"
               },
-              "paths":["external/maven/io/quarkus/quarkus-rest/3.33.2/quarkus-rest-3.33.2.jar"],
+              "paths":["external/maven/io/quarkus/quarkus-rest/3.33.4/quarkus-rest-3.33.4.jar"],
               "dependencies":[],
               "classpath":{
                 "directFromApplication":true,
@@ -341,19 +341,19 @@ class BazelApplicationModelReaderTest {
               "artifactId":"quarkus-bom",
               "classifier":"",
               "type":"pom",
-              "version":"3.33.2"
+              "version":"3.33.4"
             }],
             "properties":{"platform.quarkus.native.builder-image":"mandrel"},
             "releases":[{
               "platformKey":"io.quarkus.platform",
               "stream":"3.33",
-              "version":"3.33.2",
+              "version":"3.33.4",
               "memberBoms":[{
                 "groupId":"io.quarkus.platform",
                 "artifactId":"quarkus-bom",
                 "classifier":"",
                 "type":"pom",
-                "version":"3.33.2"
+                "version":"3.33.4"
               }]
             }]
           }

@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-18
-- Reference implementation: Quarkus 3.33.2
+- Reference implementation: Quarkus 3.33.4
 
 ## Context
 
@@ -95,7 +95,7 @@ The explicit transport is strict:
 - intentional differences use exact-value SHA-256 allowlists, so a value change
   makes the approval stale.
 
-The certified matrix covers Quarkus 3.33.2 and 3.27.4 adapters and Bazel 7.7.1,
+The certified matrix covers Quarkus 3.33.4 and 3.27.6 adapters and Bazel 7.7.1,
 8.x, and 9.x. Full lifecycle coverage includes normal augmentation, dev-mode
 boot, test bootstrap, and native-sources augmentation.
 

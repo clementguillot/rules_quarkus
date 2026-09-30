@@ -58,7 +58,7 @@ curl -fsS "${BASE_URL}/q/dev-ui/devui-data.js" -o "${DATA}"
 
 APP='bazel.workspace:app:1.0.0-SNAPSHOT'
 EXT='com.example.smoke:smoke-extension:1.0.0'
-ARC='io.quarkus:quarkus-arc:3.33.2'
+ARC='io.quarkus:quarkus-arc:3.33.4'
 
 grep -Fq "\"source\":\"${APP}\",\"target\":\"${EXT}\"" "${DATA}"
 grep -Fq "\"source\":\"${EXT}\",\"target\":\"${ARC}\"" "${DATA}"

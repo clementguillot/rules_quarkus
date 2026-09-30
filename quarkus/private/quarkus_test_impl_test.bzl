@@ -146,12 +146,12 @@ def _integration_version_test_impl(ctx):
     asserts.equals(
         env,
         "",
-        integration_version_error_for_test("integration_test", "3.33.2", "//:app", "3.33.2"),
+        integration_version_error_for_test("integration_test", "3.33.4", "//:app", "3.33.4"),
     )
     asserts.equals(
         env,
-        "quarkus_integration_test rule 'integration_test' uses Quarkus 3.33.2, but app '//:app' was built with Quarkus 3.27.4",
-        integration_version_error_for_test("integration_test", "3.33.2", "//:app", "3.27.4"),
+        "quarkus_integration_test rule 'integration_test' uses Quarkus 3.33.4, but app '//:app' was built with Quarkus 3.27.6",
+        integration_version_error_for_test("integration_test", "3.33.4", "//:app", "3.27.6"),
     )
     return unittest.end(env)
 

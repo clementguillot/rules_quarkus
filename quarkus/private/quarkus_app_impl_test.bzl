@@ -15,12 +15,12 @@ runner_paths_test = unittest.make(_runner_paths_test_impl)
 
 def _package_type_versions_test_impl(ctx):
     env = unittest.begin(ctx)
-    asserts.equals(env, "", package_type_version_error_for_test("fast-jar", "3.27.4"))
-    asserts.equals(env, "", package_type_version_error_for_test("aot-jar", "3.33.2"))
+    asserts.equals(env, "", package_type_version_error_for_test("fast-jar", "3.27.6"))
+    asserts.equals(env, "", package_type_version_error_for_test("aot-jar", "3.33.4"))
     asserts.equals(
         env,
-        "package_type 'aot-jar' requires Quarkus 3.33; configured version is 3.27.4",
-        package_type_version_error_for_test("aot-jar", "3.27.4"),
+        "package_type 'aot-jar' requires Quarkus 3.33; configured version is 3.27.6",
+        package_type_version_error_for_test("aot-jar", "3.27.6"),
     )
     return unittest.end(env)
 

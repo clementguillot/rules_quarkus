@@ -110,7 +110,7 @@ And `quarkifier_source_dir` to resolve the local deploy jar:
 
 ```starlark
 quarkus.toolchain(
-    quarkus_version = "3.27.4",  # or "3.33.2"
+    quarkus_version = "3.27.6",  # or "3.33.4"
     lock_file = "//:maven_install.json",
     quarkifier_source_dir = "@com_clementguillot_rules_quarkus//:MODULE.bazel",
 )
@@ -139,8 +139,8 @@ Defined in `quarkus/private/versions.bzl`:
 ```starlark
 # Dict mapping minor version → supported patch version
 SUPPORTED_VERSIONS = {
-    "3.27": "3.27.4",
-    "3.33": "3.33.2",
+    "3.27": "3.27.6",
+    "3.33": "3.33.4",
 }
 _RULES_VERSION = "$Format:%(describe:tags=true)$"
 RULES_VERSION = "0.0.0" if _RULES_VERSION.startswith("$Format") else _RULES_VERSION.replace("v", "", 1)

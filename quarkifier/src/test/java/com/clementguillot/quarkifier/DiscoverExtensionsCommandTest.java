@@ -19,9 +19,9 @@ class DiscoverExtensionsCommandTest {
 
   @Test
   void discoversOnlyDescriptorsAndPreservesExactCoordinates() throws IOException {
-    Path standard = extensionJar("standard.jar", "io.quarkus:quarkus-rest-deployment:3.33.2");
+    Path standard = extensionJar("standard.jar", "io.quarkus:quarkus-rest-deployment:3.33.4");
     Path custom = extensionJar("custom.jar", "custom.group:custom-build-steps:build:jar:9.1");
-    Path duplicate = extensionJar("duplicate.jar", "io.quarkus:quarkus-rest-deployment:3.33.2");
+    Path duplicate = extensionJar("duplicate.jar", "io.quarkus:quarkus-rest-deployment:3.33.4");
     Path plain = plainJar("plain.jar");
     Path classpath = tempDir.resolve("runtime-classpath.txt");
     Files.write(
@@ -44,7 +44,7 @@ class DiscoverExtensionsCommandTest {
     assertEquals(
         java.util.List.of(
             "custom.group:custom-build-steps:build:jar:9.1",
-            "io.quarkus:quarkus-rest-deployment:3.33.2"),
+            "io.quarkus:quarkus-rest-deployment:3.33.4"),
         Files.readAllLines(output, StandardCharsets.UTF_8));
   }
 

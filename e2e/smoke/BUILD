@@ -171,7 +171,7 @@ quarkus_native_app_rule(
     platform_catalog = "@rules_quarkus//model:platform-catalog-v1.json",
     platform_properties = "@rules_quarkus//model:platform_properties",
     quarkifier_tool = "@rules_quarkus//quarkifier:tool.jar",
-    quarkus_version = "3.33.2",
+    quarkus_version = "3.33.4",
     runtime_catalog = "@rules_quarkus//model:runtime-catalog-v1.json",
     tags = ["manual"],
     version = "1.0.0-SNAPSHOT",
@@ -298,7 +298,7 @@ quarkus_test(
 fake_native_app(
     name = "fake_native_app",
     testonly = True,
-    quarkus_version = "3.33.2",
+    quarkus_version = "3.33.4",
 )
 
 quarkus_integration_test(

@@ -25,7 +25,7 @@ public final class EnrichExtensionCommand implements Callable<Integer> {
   @Parameters(index = "1", description = "Output path for the enriched yaml file.")
   private Path output;
 
-  @Parameters(index = "2", description = "Quarkus core version (e.g. 3.33.2).")
+  @Parameters(index = "2", description = "Quarkus core version (e.g. 3.33.4).")
   private String quarkusVersion;
 
   @Parameters(index = "3", description = "File listing the compile classpath (one jar per line).")

@@ -33,8 +33,8 @@ class JarPackageTypeTest {
 
   @Test
   void aotRequiresQuarkus333() {
-    assertFalse(JarPackageType.AOT_JAR.supports("3.27.4"));
-    assertTrue(JarPackageType.AOT_JAR.supports("3.33.2"));
-    assertTrue(JarPackageType.UBER_JAR.supports("3.27.4"));
+    assertFalse(JarPackageType.AOT_JAR.supports("3.27.6"));
+    assertTrue(JarPackageType.AOT_JAR.supports("3.33.4"));
+    assertTrue(JarPackageType.UBER_JAR.supports("3.27.6"));
   }
 }

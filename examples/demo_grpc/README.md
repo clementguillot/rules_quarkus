@@ -23,7 +23,7 @@ and Avro APIs plus that handwritten class in `ContractResource`.
 
 ```
 demo_grpc/
-├── MODULE.bazel              # Bazel module with Quarkus 3.33.2
+├── MODULE.bazel              # Bazel module with Quarkus 3.33.4
 ├── messages/                 # Shared mixed generated + handwritten contract library
 │   ├── BUILD.bazel           # one quarkus_java_library, two codegen extensions
 │   ├── src/main/proto/item.proto

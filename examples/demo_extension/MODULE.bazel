@@ -34,7 +34,7 @@ maven.install(
         "org.junit.platform:junit-platform-console-standalone:1.13.4",
         "org.junit.platform:junit-platform-launcher:1.13.4",
     ],
-    boms = ["io.quarkus.platform:quarkus-bom:3.33.2"],
+    boms = ["io.quarkus.platform:quarkus-bom:3.33.4"],
     known_contributing_modules = [
         "bazel_worker_java",
         "protobuf",
@@ -47,6 +47,6 @@ quarkus = use_extension("@com_clementguillot_rules_quarkus//quarkus:extensions.b
 quarkus.toolchain(
     lock_file = "//:maven_install.json",
     quarkifier_source_dir = "@com_clementguillot_rules_quarkus//:MODULE.bazel",
-    quarkus_version = "3.33.2",
+    quarkus_version = "3.33.4",
 )
 use_repo(quarkus, "rules_quarkus")
