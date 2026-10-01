@@ -76,6 +76,7 @@ quarkus_java_library(
         # Locally-built custom extension (runtime side); deployment is auto-wired.
         "//ext/runtime",
         "@maven//:io_quarkus_quarkus_arc",
+        "@maven//:io_quarkus_quarkus_core",
         "@maven//:io_quarkus_quarkus_rest",
         "@maven//:jakarta_inject_jakarta_inject_api",
         "@maven//:jakarta_ws_rs_jakarta_ws_rs_api",
@@ -214,6 +215,34 @@ quarkus_test(
     jvm_flags = ["-Drules.quarkus.user-jvm-flag=declared"],
     deps = [
         ":test_lib",
+    ],
+)
+
+# QuarkusTest must index an application's @QuarkusMain exactly once even when
+# the launcher and serialized model expose its jar through different paths.
+java_library(
+    name = "custom_main_lib",
+    srcs = glob(["src/quarkusmain/main/java/**/*.java"]),
+    deps = [
+        "@maven//:io_quarkus_quarkus_arc",
+        "@maven//:io_quarkus_quarkus_core",
+        "@maven//:io_quarkus_quarkus_rest",
+        "@maven//:jakarta_ws_rs_jakarta_ws_rs_api",
+    ],
+)
+
+quarkus_test(
+    name = "custom_main_test",
+    srcs = ["src/quarkusmain/test/java/smoke/CustomMainTest.java"],
+    deps = [
+        ":custom_main_lib",
+        "@maven//:io_quarkus_quarkus_junit",
+        "@maven//:io_rest_assured_rest_assured",
+        "@maven//:org_hamcrest_hamcrest",
+        "@maven//:org_junit_jupiter_junit_jupiter",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+        "@maven//:org_junit_platform_junit_platform_console_standalone",
+        "@maven//:org_junit_platform_junit_platform_launcher",
     ],
 )
 

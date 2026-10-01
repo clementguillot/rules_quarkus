@@ -122,7 +122,7 @@ def _test_impl(ctx, integration):
 
     # Runtime classpath (for both JUnit -cp and quarkifier --application-classpath)
     # and the user-built jars Quarkus must scan (comma-separated, for
-    # OUTPUT_SOURCES_DIR).
+    # test discovery and integration-test OUTPUT_SOURCES_DIR).
     # Extension runtime jars are excluded from direct_jars: leaving them as app
     # roots exposes their @ConfigRoot classes to both classloaders (SRCFG00027).
     cp_file = write_runfiles_paths_file(ctx, "_cp.txt", runtime_classpath, ":")

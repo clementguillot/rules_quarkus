@@ -6,8 +6,6 @@ import com.clementguillot.quarkifier.BuildProperties;
 import com.clementguillot.quarkifier.JarPackageType;
 import com.clementguillot.quarkifier.QuarkifierConfig;
 import com.clementguillot.quarkifier.QuarkifierVersionProvider;
-import com.clementguillot.quarkifier.dev.AppModelSerializerImpl;
-import com.clementguillot.quarkifier.dev.AppModelSerializerStrategy;
 import com.clementguillot.quarkifier.dev.DevModeLauncher;
 import com.clementguillot.quarkifier.model.ExplicitApplicationModelBuilder;
 import com.clementguillot.quarkifier.model.transport.BazelApplicationModel;
@@ -21,7 +19,6 @@ import io.quarkus.paths.PathList;
 import java.lang.reflect.Constructor;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Properties;
 
@@ -67,7 +64,7 @@ public final class AugmentationExecutor {
         case CONTINUOUS_TEST -> DevModeLauncher.launch(config, appModel, null);
           // TEST: serialize the ApplicationModel for use by QuarkusTestExtension.
           // No augmentation is run — the test JVM handles that via QuarkusBootstrap.Mode.TEST.
-        case TEST -> serializeTestModel(outputDir, appModel);
+        case TEST -> ApplicationTestModelWriter.write(outputDir, appModel);
         case NATIVE -> {
           runAugmentation(config, partition.localAppJars(), appModel, outputDir);
           NativeSourcesAssembler.assemble(outputDir, effectiveRuntimeJars);
@@ -124,18 +121,6 @@ public final class AugmentationExecutor {
               + explicitModel.quarkusVersion()
               + " does not match quarkifier target version "
               + targetedQuarkusVersion);
-    }
-  }
-
-  /** Writes the serialized test ApplicationModel to {@code <output-dir>/test-app-model.dat}. */
-  private static void serializeTestModel(Path outputDir, ApplicationModel appModel)
-      throws Exception {
-    Path modelFile = outputDir.resolve("test-app-model.dat");
-    AppModelSerializerStrategy serializer = new AppModelSerializerImpl();
-    Path serializedModel = serializer.serialize(appModel);
-    if (!serializedModel.equals(modelFile)) {
-      Files.copy(serializedModel, modelFile, StandardCopyOption.REPLACE_EXISTING);
-      Files.deleteIfExists(serializedModel);
     }
   }
 
