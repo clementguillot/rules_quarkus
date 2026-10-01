@@ -7,7 +7,7 @@ A simple Todo REST API demonstrating `rules_quarkus` with multiple library modul
 ```
 demoapp/
 ├── BUILD.bazel              # App layer: REST resource + quarkus_app + quarkus_test
-├── MODULE.bazel             # Bazel module with Quarkus 3.33.2
+├── MODULE.bazel             # Bazel module with Quarkus 3.33.4
 ├── dev-probes/              # Inactive templates for adding source/test files
 ├── libs/
 │   ├── todo-model/          # Plain Java library (no framework deps)

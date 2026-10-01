@@ -46,7 +46,7 @@ class BazelApplicationModelAssemblerTest {
   private static final String SHARED = "@@//contracts:contracts";
   private static final String TEST_ONLY = "@@maven//:org_example_test_only";
   private static final String TEST_PRIVATE = "@@maven//:org_example_test_private";
-  private static final String DEPLOYMENT = "io.quarkus:example-deployment::jar:3.33.2";
+  private static final String DEPLOYMENT = "io.quarkus:example-deployment::jar:3.33.4";
   private static final String LOCAL_EXTENSION = "@@//extension:greeting";
   private static final String RAW_LOCAL_RUNTIME = "@@//extension/runtime:runtime";
   private static final String LOCAL_DEPLOYMENT = "local-deployment:@@//extension:greeting";
@@ -65,11 +65,11 @@ class BazelApplicationModelAssemblerTest {
     assertEquals(List.of(EXT, deployment.id()), targets(app));
     assertEquals(List.of(COMMON), targets(runtimeExtension));
     assertTrue(targets(deployment).contains(EXT));
-    assertTrue(targets(deployment).contains("deployment:io.quarkus:helper::jar:3.33.2"));
+    assertTrue(targets(deployment).contains("deployment:io.quarkus:helper::jar:3.33.4"));
     assertEquals(
         List.of(new ArtifactKey("bad.group", "excluded")),
         deployment.dependencies().stream()
-            .filter(edge -> edge.targetId().equals("deployment:io.quarkus:helper::jar:3.33.2"))
+            .filter(edge -> edge.targetId().equals("deployment:io.quarkus:helper::jar:3.33.4"))
             .findFirst()
             .orElseThrow()
             .exclusions());
@@ -115,7 +115,7 @@ class BazelApplicationModelAssemblerTest {
 
   @Test
   void failsWhenDescriptorDeploymentArtifactIsMissingFromResolverGraph() throws IOException {
-    var inputs = inputs(false, "io.quarkus:missing-deployment:3.33.2");
+    var inputs = inputs(false, "io.quarkus:missing-deployment:3.33.4");
 
     BazelApplicationModelException exception =
         assertThrows(
@@ -243,7 +243,7 @@ class BazelApplicationModelAssemblerTest {
                 new RuntimeCatalogNode(
                     "io.quarkus:example",
                     "io_quarkus_example",
-                    coords("io.quarkus", "example", "3.33.2"),
+                    coords("io.quarkus", "example", "3.33.4"),
                     List.of()),
                 base.runtimeCatalog().nodes().get(1)),
             List.of("io.quarkus:example"),
@@ -353,7 +353,7 @@ class BazelApplicationModelAssemblerTest {
             Set.of(appJar.toString(), runtimeJar.toString()),
             Set.of(appJar.toString(), runtimeJar.toString(), deploymentJar.toString()),
             Set.of(),
-            "3.33.2",
+            "3.33.4",
             Mode.NORMAL,
             "demo",
             "1.0.0",
@@ -403,9 +403,9 @@ class BazelApplicationModelAssemblerTest {
     Properties platformProperties = new Properties();
     platformProperties.setProperty("platform.quarkus.native.builder-image", "mandrel");
     platformProperties.setProperty(
-        "platform.release-info@io.quarkus.platform$3.33#3.33.2",
-        "io.quarkus.platform:quarkus-bom::pom:3.33.2,"
-            + "io.quarkus.platform:quarkus-camel-bom::pom:3.33.2");
+        "platform.release-info@io.quarkus.platform$3.33#3.33.4",
+        "io.quarkus.platform:quarkus-bom::pom:3.33.4,"
+            + "io.quarkus.platform:quarkus-camel-bom::pom:3.33.4");
     try (var output = Files.newOutputStream(propertiesFile)) {
       platformProperties.store(output, null);
     }
@@ -413,7 +413,7 @@ class BazelApplicationModelAssemblerTest {
     var base = inputs(true, DEPLOYMENT);
     var platformCatalog =
         new PlatformCatalog(
-            List.of(pomCoords("io.quarkus.platform", "quarkus-bom", "3.33.2")),
+            List.of(pomCoords("io.quarkus.platform", "quarkus-bom", "3.33.4")),
             List.of("model/platform-properties/quarkus.properties"),
             Map.of("platform.custom", "override"));
     var platformInputs =
@@ -787,16 +787,16 @@ class BazelApplicationModelAssemblerTest {
     BazelApplicationModel normal =
         BazelApplicationModelAssembler.assemble(conditionalInputs(Mode.NORMAL));
 
-    String featureA = "conditional:io.quarkus:feature-a::jar:3.33.2";
-    String featureB = "conditional:io.quarkus:feature-b::jar:3.33.2";
-    String devHelper = "conditional:io.quarkus:dev-helper::jar:3.33.2";
+    String featureA = "conditional:io.quarkus:feature-a::jar:3.33.4";
+    String featureB = "conditional:io.quarkus:feature-b::jar:3.33.4";
+    String devHelper = "conditional:io.quarkus:dev-helper::jar:3.33.4";
     assertTrue(normal.nodes().stream().anyMatch(node -> featureA.equals(node.id())));
     assertTrue(normal.nodes().stream().anyMatch(node -> featureB.equals(node.id())));
     assertFalse(normal.nodes().stream().anyMatch(node -> devHelper.equals(node.id())));
     assertTrue(targets(node(normal, EXT)).contains(featureA));
     assertTrue(
         targets(node(normal, EXT))
-            .contains("deployment:io.quarkus:feature-a-deployment::jar:3.33.2"));
+            .contains("deployment:io.quarkus:feature-a-deployment::jar:3.33.4"));
     assertTrue(targets(node(normal, featureA)).contains(featureB));
     assertEquals(
         List.of(new ArtifactKey("excluded.group", "excluded")),
@@ -807,7 +807,7 @@ class BazelApplicationModelAssemblerTest {
             .exclusions());
     assertTrue(
         targets(node(normal, featureA))
-            .contains("deployment:io.quarkus:feature-b-deployment::jar:3.33.2"));
+            .contains("deployment:io.quarkus:feature-b-deployment::jar:3.33.4"));
     assertFalse(node(normal, featureA).classpath().topLevelRuntimeExtension());
 
     BazelApplicationModel dev =
@@ -821,54 +821,54 @@ class BazelApplicationModelAssemblerTest {
 
   private BazelApplicationModelAssembler.Inputs conditionalInputs(Mode mode) throws IOException {
     var base = inputs(true, DEPLOYMENT);
-    Path featureA = jar("feature-a.jar", "io.quarkus:feature-a-deployment:3.33.2");
-    Path featureB = jar("feature-b.jar", "io.quarkus:feature-b-deployment:3.33.2");
+    Path featureA = jar("feature-a.jar", "io.quarkus:feature-a-deployment:3.33.4");
+    Path featureB = jar("feature-b.jar", "io.quarkus:feature-b-deployment:3.33.4");
     Path devHelper = jar("dev-helper.jar", null);
     Path blocked = jar("blocked.jar", null);
     Map<String, String> conditionalPaths =
         Map.of(
-            "conditional/jars/io/quarkus/feature-a/3.33.2/feature-a.jar", featureA.toString(),
-            "conditional/jars/io/quarkus/feature-b/3.33.2/feature-b.jar", featureB.toString(),
-            "conditional/jars/io/quarkus/dev-helper/3.33.2/dev-helper.jar", devHelper.toString(),
-            "conditional/jars/io/quarkus/blocked/3.33.2/blocked.jar", blocked.toString(),
-            "conditional/jars/io/quarkus/example/3.33.2/example.jar", featureA.toString());
+            "conditional/jars/io/quarkus/feature-a/3.33.4/feature-a.jar", featureA.toString(),
+            "conditional/jars/io/quarkus/feature-b/3.33.4/feature-b.jar", featureB.toString(),
+            "conditional/jars/io/quarkus/dev-helper/3.33.4/dev-helper.jar", devHelper.toString(),
+            "conditional/jars/io/quarkus/blocked/3.33.4/blocked.jar", blocked.toString(),
+            "conditional/jars/io/quarkus/example/3.33.4/example.jar", featureA.toString());
     ConditionalCatalog conditional =
         new ConditionalCatalog(
             "coursier",
             "0.1.0",
             List.of(
-                "io.quarkus:blocked:3.33.2",
-                "io.quarkus:dev-helper:3.33.2",
-                "io.quarkus:feature-a:3.33.2",
-                "io.quarkus:feature-b:3.33.2"),
+                "io.quarkus:blocked:3.33.4",
+                "io.quarkus:dev-helper:3.33.4",
+                "io.quarkus:feature-a:3.33.4",
+                "io.quarkus:feature-b:3.33.4"),
             List.of(
                 conditionalNode("blocked"),
                 conditionalNode("dev-helper"),
-                conditionalNode("feature-a", List.of("io.quarkus:example:3.33.2")),
+                conditionalNode("feature-a", List.of("io.quarkus:example:3.33.4")),
                 conditionalNode("feature-b", List.of(), List.of("excluded.group:excluded")),
                 conditionalNode("example")),
             List.of(
                 new ExtensionDescriptor(
-                    "io.quarkus:example:3.33.2",
-                    "io.quarkus:example-deployment:3.33.2",
-                    List.of("io.quarkus:feature-a:3.33.2", "io.quarkus:blocked:3.33.2"),
-                    List.of("io.quarkus:dev-helper:3.33.2"),
+                    "io.quarkus:example:3.33.4",
+                    "io.quarkus:example-deployment:3.33.4",
+                    List.of("io.quarkus:feature-a:3.33.4", "io.quarkus:blocked:3.33.4"),
+                    List.of("io.quarkus:dev-helper:3.33.4"),
                     List.of()),
                 new ExtensionDescriptor(
-                    "io.quarkus:feature-a:3.33.2",
-                    "io.quarkus:feature-a-deployment:3.33.2",
-                    List.of("io.quarkus:feature-b:3.33.2"),
+                    "io.quarkus:feature-a:3.33.4",
+                    "io.quarkus:feature-a-deployment:3.33.4",
+                    List.of("io.quarkus:feature-b:3.33.4"),
                     List.of(),
                     List.of("org.example:common")),
                 new ExtensionDescriptor(
-                    "io.quarkus:feature-b:3.33.2",
-                    "io.quarkus:feature-b-deployment:3.33.2",
+                    "io.quarkus:feature-b:3.33.4",
+                    "io.quarkus:feature-b-deployment:3.33.4",
                     List.of(),
                     List.of(),
                     List.of("io.quarkus:feature-a")),
                 new ExtensionDescriptor(
-                    "io.quarkus:blocked:3.33.2",
-                    "io.quarkus:blocked-deployment:3.33.2",
+                    "io.quarkus:blocked:3.33.4",
+                    "io.quarkus:blocked-deployment:3.33.4",
                     List.of(),
                     List.of(),
                     List.of("missing.group:trigger"))),
@@ -879,39 +879,39 @@ class BazelApplicationModelAssemblerTest {
     var deploymentNodes = new java.util.ArrayList<>(base.deploymentCatalog().nodes());
     deploymentNodes.add(
         new DeploymentCatalogNode(
-            "io.quarkus:feature-a-deployment:3.33.2",
-            "deployment/jars/io/quarkus/feature-a-deployment/3.33.2/feature-a-deployment.jar",
-            List.of("io.quarkus:feature-a:3.33.2"),
+            "io.quarkus:feature-a-deployment:3.33.4",
+            "deployment/jars/io/quarkus/feature-a-deployment/3.33.4/feature-a-deployment.jar",
+            List.of("io.quarkus:feature-a:3.33.4"),
             List.of()));
     deploymentNodes.add(
         new DeploymentCatalogNode(
-            "io.quarkus:feature-b-deployment:3.33.2",
-            "deployment/jars/io/quarkus/feature-b-deployment/3.33.2/feature-b-deployment.jar",
-            List.of("io.quarkus:feature-b:3.33.2"),
+            "io.quarkus:feature-b-deployment:3.33.4",
+            "deployment/jars/io/quarkus/feature-b-deployment/3.33.4/feature-b-deployment.jar",
+            List.of("io.quarkus:feature-b:3.33.4"),
             List.of()));
     deploymentNodes.add(
         new DeploymentCatalogNode(
-            "io.quarkus:feature-a:3.33.2",
-            "deployment/jars/io/quarkus/feature-a/3.33.2/feature-a.jar",
+            "io.quarkus:feature-a:3.33.4",
+            "deployment/jars/io/quarkus/feature-a/3.33.4/feature-a.jar",
             List.of(),
             List.of()));
     deploymentNodes.add(
         new DeploymentCatalogNode(
-            "io.quarkus:feature-b:3.33.2",
-            "deployment/jars/io/quarkus/feature-b/3.33.2/feature-b.jar",
+            "io.quarkus:feature-b:3.33.4",
+            "deployment/jars/io/quarkus/feature-b/3.33.4/feature-b.jar",
             List.of(),
             List.of()));
     var deploymentPaths = new java.util.HashMap<>(base.deploymentPaths());
     deploymentPaths.put(
-        "deployment/jars/io/quarkus/feature-a-deployment/3.33.2/feature-a-deployment.jar",
+        "deployment/jars/io/quarkus/feature-a-deployment/3.33.4/feature-a-deployment.jar",
         featureADeployment.toString());
     deploymentPaths.put(
-        "deployment/jars/io/quarkus/feature-b-deployment/3.33.2/feature-b-deployment.jar",
+        "deployment/jars/io/quarkus/feature-b-deployment/3.33.4/feature-b-deployment.jar",
         featureBDeployment.toString());
     deploymentPaths.put(
-        "deployment/jars/io/quarkus/feature-a/3.33.2/feature-a.jar", featureA.toString());
+        "deployment/jars/io/quarkus/feature-a/3.33.4/feature-a.jar", featureA.toString());
     deploymentPaths.put(
-        "deployment/jars/io/quarkus/feature-b/3.33.2/feature-b.jar", featureB.toString());
+        "deployment/jars/io/quarkus/feature-b/3.33.4/feature-b.jar", featureB.toString());
     var deploymentClasspath = new java.util.HashSet<>(base.deploymentClasspathPaths());
     deploymentClasspath.add(featureADeployment.toString());
     deploymentClasspath.add(featureBDeployment.toString());
@@ -925,9 +925,9 @@ class BazelApplicationModelAssemblerTest {
             "coursier",
             "0.1.0",
             List.of(
-                "io.quarkus:example-deployment:3.33.2",
-                "io.quarkus:feature-a-deployment:3.33.2",
-                "io.quarkus:feature-b-deployment:3.33.2"),
+                "io.quarkus:example-deployment:3.33.4",
+                "io.quarkus:feature-a-deployment:3.33.4",
+                "io.quarkus:feature-b-deployment:3.33.4"),
             List.of(),
             deploymentNodes,
             Map.of()),
@@ -959,8 +959,8 @@ class BazelApplicationModelAssemblerTest {
   private static ConditionalCatalogNode conditionalNode(
       String artifactId, List<String> dependencies, List<String> exclusions) {
     return new ConditionalCatalogNode(
-        "io.quarkus:" + artifactId + ":3.33.2",
-        "conditional/jars/io/quarkus/" + artifactId + "/3.33.2/" + artifactId + ".jar",
+        "io.quarkus:" + artifactId + ":3.33.4",
+        "conditional/jars/io/quarkus/" + artifactId + "/3.33.4/" + artifactId + ".jar",
         dependencies,
         exclusions);
   }
@@ -984,7 +984,7 @@ class BazelApplicationModelAssemblerTest {
                 new RuntimeCatalogNode(
                     "io.quarkus:example",
                     "io_quarkus_example",
-                    coords("io.quarkus", "example", "3.33.2"),
+                    coords("io.quarkus", "example", "3.33.4"),
                     List.of("org.example:common")),
                 new RuntimeCatalogNode(
                     "org.example:common",
@@ -997,18 +997,18 @@ class BazelApplicationModelAssemblerTest {
         new DeploymentCatalog(
             "coursier",
             "0.1.0",
-            includeDeployment ? List.of("io.quarkus:example-deployment:3.33.2") : List.of(),
+            includeDeployment ? List.of("io.quarkus:example-deployment:3.33.4") : List.of(),
             List.of(),
             includeDeployment
                 ? List.of(
                     new DeploymentCatalogNode(
-                        "io.quarkus:example-deployment:3.33.2",
-                        "deployment/jars/io/quarkus/example-deployment/3.33.2/example-deployment.jar",
-                        List.of("io.quarkus:example:3.33.2", "io.quarkus:helper:3.33.2"),
+                        "io.quarkus:example-deployment:3.33.4",
+                        "deployment/jars/io/quarkus/example-deployment/3.33.4/example-deployment.jar",
+                        List.of("io.quarkus:example:3.33.4", "io.quarkus:helper:3.33.4"),
                         List.of("bad.group:excluded")),
                     new DeploymentCatalogNode(
-                        "io.quarkus:example:3.33.2",
-                        "deployment/jars/io/quarkus/example/3.33.2/example.jar",
+                        "io.quarkus:example:3.33.4",
+                        "deployment/jars/io/quarkus/example/3.33.4/example.jar",
                         List.of("org.example:common:1.0"),
                         List.of()),
                     new DeploymentCatalogNode(
@@ -1017,8 +1017,8 @@ class BazelApplicationModelAssemblerTest {
                         List.of(),
                         List.of()),
                     new DeploymentCatalogNode(
-                        "io.quarkus:helper:3.33.2",
-                        "deployment/jars/io/quarkus/helper/3.33.2/helper.jar",
+                        "io.quarkus:helper:3.33.4",
+                        "deployment/jars/io/quarkus/helper/3.33.4/helper.jar",
                         List.of(),
                         List.of("bad.group:excluded")))
                 : List.of(),
@@ -1026,13 +1026,13 @@ class BazelApplicationModelAssemblerTest {
     Map<String, String> paths =
         includeDeployment
             ? Map.of(
-                "deployment/jars/io/quarkus/example-deployment/3.33.2/example-deployment.jar",
+                "deployment/jars/io/quarkus/example-deployment/3.33.4/example-deployment.jar",
                 deploymentJar.toString(),
-                "deployment/jars/io/quarkus/example/3.33.2/example.jar",
+                "deployment/jars/io/quarkus/example/3.33.4/example.jar",
                 extensionJar.toString(),
                 "deployment/jars/org/example/common/1.0/common.jar",
                 commonJar.toString(),
-                "deployment/jars/io/quarkus/helper/3.33.2/helper.jar",
+                "deployment/jars/io/quarkus/helper/3.33.4/helper.jar",
                 helperJar.toString())
             : Map.of();
     Set<String> runtimePaths =
@@ -1057,7 +1057,7 @@ class BazelApplicationModelAssemblerTest {
         runtimePaths,
         deploymentClasspathPaths,
         Set.of(),
-        "3.33.2",
+        "3.33.4",
         Mode.NORMAL,
         "demo",
         "1.2.3",

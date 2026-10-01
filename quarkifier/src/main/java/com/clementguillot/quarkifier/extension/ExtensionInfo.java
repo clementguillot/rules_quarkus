@@ -12,7 +12,7 @@ import java.util.List;
  *
  * @param groupId Maven group ID (e.g. {@code io.quarkus})
  * @param artifactId Maven runtime artifact ID (e.g. {@code quarkus-resteasy-reactive})
- * @param version Maven version (e.g. {@code 3.27.4})
+ * @param version Maven version (e.g. {@code 3.27.6})
  * @param sourceJar the classpath jar that contained the extension metadata
  * @param runtimeArtifact exact runtime coordinate supplied by the resolver
  * @param deploymentArtifact exact deployment coordinate declared by the extension descriptor

@@ -1,7 +1,7 @@
 {
   "schemaVersion": "quarkus-bazel-model-v1",
   "producer": {"name": "rules_quarkus", "version": "example"},
-  "quarkusVersion": "3.33.2",
+  "quarkusVersion": "3.33.4",
   "mode": "normal",
   "applicationId": "@@//:app",
   "nodes": [{

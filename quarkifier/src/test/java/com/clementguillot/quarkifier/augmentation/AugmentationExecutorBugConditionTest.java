@@ -36,7 +36,7 @@ class AugmentationExecutorBugConditionTest {
   @Test
   void validatePackageTypeCompatibility_acceptsSupportedJvmOutputs() {
     for (JarPackageType type : JarPackageType.values()) {
-      assertDoesNotThrow(() -> type.validateCompatibility(AugmentationMode.NORMAL, "3.33.2"));
+      assertDoesNotThrow(() -> type.validateCompatibility(AugmentationMode.NORMAL, "3.33.4"));
     }
   }
 
@@ -45,8 +45,8 @@ class AugmentationExecutorBugConditionTest {
     var exception =
         assertThrows(
             AugmentationException.class,
-            () -> JarPackageType.AOT_JAR.validateCompatibility(AugmentationMode.NORMAL, "3.27.4"));
-    assertTrue(exception.getMessage().contains("not supported by Quarkus 3.27.4"));
+            () -> JarPackageType.AOT_JAR.validateCompatibility(AugmentationMode.NORMAL, "3.27.6"));
+    assertTrue(exception.getMessage().contains("not supported by Quarkus 3.27.6"));
   }
 
   @Test
@@ -54,7 +54,7 @@ class AugmentationExecutorBugConditionTest {
     var exception =
         assertThrows(
             AugmentationException.class,
-            () -> JarPackageType.UBER_JAR.validateCompatibility(AugmentationMode.NATIVE, "3.33.2"));
+            () -> JarPackageType.UBER_JAR.validateCompatibility(AugmentationMode.NATIVE, "3.33.4"));
     assertTrue(exception.getMessage().contains("only valid in normal mode"));
   }
 
@@ -172,7 +172,7 @@ class AugmentationExecutorBugConditionTest {
   @Test
   void partitionClasspath_localAppJarsProvided_mavenJarFirst() throws AugmentationException {
     Path mavenJar =
-        Path.of("external/maven/io/quarkus/quarkus-rest/3.33.2/quarkus-rest-3.33.2.jar");
+        Path.of("external/maven/io/quarkus/quarkus-rest/3.33.4/quarkus-rest-3.33.4.jar");
     Path local1Jar = Path.of("bazel-out/bin/services/api/libapi.jar");
     Path local2Jar = Path.of("bazel-out/bin/services/domain/libdomain.jar");
 
@@ -200,7 +200,7 @@ class AugmentationExecutorBugConditionTest {
     Path local1Jar = Path.of("bazel-out/bin/services/api/libapi.jar");
     Path local2Jar = Path.of("bazel-out/bin/services/domain/libdomain.jar");
     Path mavenJar =
-        Path.of("external/maven/io/quarkus/quarkus-rest/3.33.2/quarkus-rest-3.33.2.jar");
+        Path.of("external/maven/io/quarkus/quarkus-rest/3.33.4/quarkus-rest-3.33.4.jar");
 
     QuarkifierConfig config =
         configWith(List.of(local1Jar, local2Jar, mavenJar), List.of(local1Jar, local2Jar));
@@ -224,7 +224,7 @@ class AugmentationExecutorBugConditionTest {
   void partitionClasspath_noLocalAppJars_fallsBackToFirstEntry() throws AugmentationException {
     Path firstJar = Path.of("bazel-out/bin/lib/liblib.jar");
     Path secondJar =
-        Path.of("external/maven/io/quarkus/quarkus-core/3.33.2/quarkus-core-3.33.2.jar");
+        Path.of("external/maven/io/quarkus/quarkus-core/3.33.4/quarkus-core-3.33.4.jar");
 
     QuarkifierConfig config =
         configWith(List.of(firstJar, secondJar), List.of()); // no --local-app-jars
@@ -275,7 +275,7 @@ class AugmentationExecutorBugConditionTest {
             "com/example/greeting/runtime/GreetingService.class",
             "bytecode"));
 
-    Path mavenJar = tempDir.resolve("quarkus-rest-3.33.2.jar");
+    Path mavenJar = tempDir.resolve("quarkus-rest-3.33.4.jar");
     writeJar(mavenJar, Map.of("io/quarkus/rest/Marker.class", "bytecode"));
 
     AugmentationExecutor.ClasspathPartition reclassified =

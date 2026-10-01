@@ -128,12 +128,12 @@ def _relocated_runtime_root_test_impl(ctx):
             "repositories": 3,
         },
         "artifacts": {
-            "io.quarkus:quarkus-junit": {"shasums": {"jar": "junit"}, "version": "3.33.2"},
-            "io.quarkus:quarkus-test-common": {"shasums": {"jar": "test-common"}, "version": "3.33.2"},
+            "io.quarkus:quarkus-junit": {"shasums": {"jar": "junit"}, "version": "3.33.4"},
+            "io.quarkus:quarkus-test-common": {"shasums": {"jar": "test-common"}, "version": "3.33.4"},
             "io.smallrye:jandex": {"shasums": {"jar": "jandex"}, "version": "3.5.3"},
         },
         "conflict_resolution": {
-            "io.quarkus:quarkus-junit5": "io.quarkus:quarkus-junit5:3.33.2",
+            "io.quarkus:quarkus-junit5": "io.quarkus:quarkus-junit5:3.33.4",
         },
         "dependencies": {
             "io.quarkus:quarkus-junit": ["io.quarkus:quarkus-test-common"],
@@ -155,7 +155,7 @@ def _relocated_runtime_root_test_impl(ctx):
     asserts.equals(env, [], catalog["directArtifacts"])
     asserts.equals(
         env,
-        ["io.quarkus:quarkus-junit5:3.33.2"],
+        ["io.quarkus:quarkus-junit5:3.33.4"],
         runtime_resolution_roots_for_test(lock, catalog),
     )
     return unittest.end(env)
@@ -169,12 +169,12 @@ def _relocated_runtime_dependency_closure_test_impl(ctx):
             "io.quarkus:quarkus-junit5": 1,
         },
         "artifacts": {
-            "io.quarkus:quarkus-junit": {"shasums": {"jar": "junit"}, "version": "3.33.2"},
-            "io.quarkus:quarkus-test-common": {"shasums": {"jar": "test-common"}, "version": "3.33.2"},
+            "io.quarkus:quarkus-junit": {"shasums": {"jar": "junit"}, "version": "3.33.4"},
+            "io.quarkus:quarkus-test-common": {"shasums": {"jar": "test-common"}, "version": "3.33.4"},
             "io.smallrye:jandex": {"shasums": {"jar": "jandex"}, "version": "3.5.3"},
         },
         "conflict_resolution": {
-            "io.quarkus:quarkus-junit5": "io.quarkus:quarkus-junit5:3.33.2",
+            "io.quarkus:quarkus-junit5": "io.quarkus:quarkus-junit5:3.33.4",
         },
         "dependencies": {
             "io.quarkus:quarkus-junit": ["io.quarkus:quarkus-test-common"],
@@ -188,11 +188,11 @@ def _relocated_runtime_dependency_closure_test_impl(ctx):
         "conflict_resolution": {},
         "dependencies": [
             {
-                "coord": "io.quarkus:quarkus-junit:3.33.2",
-                "directDependencies": ["io.quarkus:quarkus-test-common:3.33.2"],
+                "coord": "io.quarkus:quarkus-junit:3.33.4",
+                "directDependencies": ["io.quarkus:quarkus-test-common:3.33.4"],
             },
             {
-                "coord": "io.quarkus:quarkus-test-common:3.33.2",
+                "coord": "io.quarkus:quarkus-test-common:3.33.4",
                 "directDependencies": ["io.smallrye:jandex:3.5.3"],
             },
             {
@@ -260,9 +260,9 @@ runtime_discovery_artifacts_test = unittest.make(_runtime_discovery_artifacts_te
 
 def _coursier_artifact_test_impl(ctx):
     env = unittest.begin(ctx)
-    gav = coursier_artifact_for_test("io.quarkus:quarkus-rest-deployment:3.33.2")
-    asserts.equals(env, "io.quarkus:quarkus-rest-deployment:3.33.2", gav.fetch)
-    asserts.equals(env, "io.quarkus:quarkus-rest-deployment:3.33.2", gav.report)
+    gav = coursier_artifact_for_test("io.quarkus:quarkus-rest-deployment:3.33.4")
+    asserts.equals(env, "io.quarkus:quarkus-rest-deployment:3.33.4", gav.fetch)
+    asserts.equals(env, "io.quarkus:quarkus-rest-deployment:3.33.4", gav.report)
 
     classified = coursier_artifact_for_test("custom.group:build-steps:special:jar:9.1")
     asserts.equals(env, "custom.group:build-steps:9.1,classifier=special", classified.fetch)
@@ -280,11 +280,11 @@ def _dev_mode_artifacts_test_impl(ctx):
     asserts.equals(
         env,
         [
-            "io.quarkus:quarkus-bootstrap-gradle-resolver:3.33.2",
-            "io.quarkus:quarkus-bootstrap-maven-resolver:3.33.2",
-            "io.quarkus:quarkus-core-deployment:3.33.2",
+            "io.quarkus:quarkus-bootstrap-gradle-resolver:3.33.4",
+            "io.quarkus:quarkus-bootstrap-maven-resolver:3.33.4",
+            "io.quarkus:quarkus-core-deployment:3.33.4",
         ],
-        dev_mode_artifacts_for_test("3.33.2"),
+        dev_mode_artifacts_for_test("3.33.4"),
     )
     return unittest.end(env)
 

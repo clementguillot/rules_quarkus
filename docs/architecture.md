@@ -3,8 +3,8 @@
 `rules_quarkus` provides Bazel-native rules for building and running Quarkus JVM applications. Instead of wrapping Maven/Gradle plugins, it invokes the Quarkus internal build API (`io.quarkus.deployment`) directly through a custom Java tool called the **Quarkifier**. This gives Bazel full control over caching, sandboxing, and dependency tracking.
 
 - **Module**: `com_clementguillot_rules_quarkus`
-- **Quarkus versions**: 3.27.4 LTS, 3.33.2 LTS
-- **Version scope**: one configured Quarkus version per Bazel workspace (either `3.27.4` or `3.33.2`)
+- **Quarkus versions**: 3.27.6 LTS, 3.33.4 LTS
+- **Version scope**: one configured Quarkus version per Bazel workspace (either `3.27.6` or `3.33.4`)
 - **Java**: 17+
 - **Bazel**: 7+, 8+, or 9+ (bzlmod only, WORKSPACE not supported)
 
@@ -70,7 +70,7 @@ graph TD
 
 The `quarkus` module extension (`quarkus/extensions.bzl`) creates a single unified repository:
 
-Current limitation: the extension consumes the first `quarkus.toolchain()` tag and creates a fixed repository name (`@rules_quarkus`). This means version selection is workspace-wide. You can choose `3.27.4` or `3.33.2` per workspace, but one workspace cannot currently build different Quarkus versions side by side.
+Current limitation: the extension consumes the first `quarkus.toolchain()` tag and creates a fixed repository name (`@rules_quarkus`). This means version selection is workspace-wide. You can choose `3.27.6` or `3.33.4` per workspace, but one workspace cannot currently build different Quarkus versions side by side.
 
 ### @rules_quarkus
 

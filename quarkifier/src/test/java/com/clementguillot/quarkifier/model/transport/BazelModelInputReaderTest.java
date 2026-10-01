@@ -183,7 +183,7 @@ class BazelModelInputReaderTest {
             {
               "schemaVersion":"quarkus-bazel-platform-catalog-v1",
               "imports":[{"groupId":"io.quarkus.platform","artifactId":"quarkus-bom",\
-                "classifier":"","type":"pom","version":"3.33.2"}],
+                "classifier":"","type":"pom","version":"3.33.4"}],
               "propertyFiles":["model/platform-properties/io/quarkus.properties"],
               "properties":{"platform.custom":"value"}
             }

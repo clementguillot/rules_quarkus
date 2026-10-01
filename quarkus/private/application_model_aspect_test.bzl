@@ -74,7 +74,7 @@ def application_model_aspect_test_suite(name = "application_model_aspect_tests")
     java_library(
         name = "coordinate_maven_leaf",
         testonly = True,
-        tags = ["maven_coordinates=io.quarkus:quarkus-jacoco:3.33.2"],
+        tags = ["maven_coordinates=io.quarkus:quarkus-jacoco:3.33.4"],
     )
     java_library(
         name = "coordinate_maven_parent",

@@ -31,8 +31,8 @@ Use `rules_jvm_external` to declare your Quarkus runtime dependencies. Only decl
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.install(
     artifacts = [
-        "io.quarkus:quarkus-rest:3.33.2",
-        "io.quarkus:quarkus-arc:3.33.2",
+        "io.quarkus:quarkus-rest:3.33.4",
+        "io.quarkus:quarkus-arc:3.33.4",
     ],
     lock_file = "//:maven_install.json",
 )
@@ -41,9 +41,9 @@ use_repo(maven, "maven")
 
 Run `bazel run @maven//:pin` to generate the `maven_install.json` lock file.
 
-> **Supported versions**: You must use exactly `3.27.4` or `3.33.2`. These are the only supported patch versions.
+> **Supported versions**: You must use exactly `3.27.6` or `3.33.4`. These are the only supported patch versions.
 >
-> **Known limitation**: a single Bazel workspace can configure only one `quarkus.toolchain()` today. You can choose `3.27.4` or `3.33.2` per workspace, but you cannot build different Quarkus minor versions side by side in the same workspace yet.
+> **Known limitation**: a single Bazel workspace can configure only one `quarkus.toolchain()` today. You can choose `3.27.6` or `3.33.4` per workspace, but you cannot build different Quarkus minor versions side by side in the same workspace yet.
 
 ## 3. Configure the Quarkus Toolchain
 
@@ -53,7 +53,7 @@ quarkus = use_extension(
     "quarkus",
 )
 quarkus.toolchain(
-    quarkus_version = "3.33.2",
+    quarkus_version = "3.33.4",
     lock_file = "//:maven_install.json",
 )
 use_repo(quarkus, "rules_quarkus")
@@ -74,7 +74,7 @@ different `MODULE.bazel` configurations.
 
 | Attribute | Default | Description |
 |---|---|---|
-| `quarkus_version` | (required) | Quarkus version: `"3.27.4"` or `"3.33.2"` |
+| `quarkus_version` | (required) | Quarkus version: `"3.27.6"` or `"3.33.4"` |
 | `lock_file` | `None` | Path to `maven_install.json` for extension auto-discovery |
 | `extension_group_prefixes` | `["io.quarkus", "io.quarkiverse."]` | Deprecated compatibility option; descriptor discovery no longer filters by groupId |
 | `quarkifier_source_dir` | `None` | Label in the rules_quarkus source dir for local dev builds |
@@ -463,11 +463,11 @@ bazel_dep(name = "rules_jvm_external", version = "6.10")
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.install(
     artifacts = [
-        "io.quarkus:quarkus-rest:3.33.2",
-        "io.quarkus:quarkus-arc:3.33.2",
+        "io.quarkus:quarkus-rest:3.33.4",
+        "io.quarkus:quarkus-arc:3.33.4",
         # Test dependencies
-        "io.quarkus:quarkus-junit:3.33.2",
-        "io.quarkus:quarkus-jacoco:3.33.2",
+        "io.quarkus:quarkus-junit:3.33.4",
+        "io.quarkus:quarkus-jacoco:3.33.4",
         "io.rest-assured:rest-assured:5.5.6",
         "org.junit.jupiter:junit-jupiter:5.13.4",
         "org.junit.platform:junit-platform-console-standalone:1.13.4",
@@ -480,7 +480,7 @@ use_repo(maven, "maven")
 quarkus = use_extension("@com_clementguillot_rules_quarkus//quarkus:extensions.bzl", "quarkus")
 quarkus.toolchain(
     lock_file = "//:maven_install.json",
-    quarkus_version = "3.33.2",
+    quarkus_version = "3.33.4",
 )
 use_repo(quarkus, "rules_quarkus")
 ```
