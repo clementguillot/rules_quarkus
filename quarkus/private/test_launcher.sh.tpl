@@ -79,7 +79,7 @@ MODEL_APP_CP_FILE=$(mktemp)
 _realpath_entries "$APP_CP_FILE" "$MODEL_APP_CP_FILE" || exit 1
 
 # Direct dep jars: comma-separated in source, prefix each entry.
-# Produces two files: comma-separated (for OUTPUT_SOURCES_DIR / test discovery)
+# Produces two files: comma-separated (for integration roots / test discovery)
 # and colon-separated (for --local-app-jars-file).
 DIRECT_JARS_FILE=$(mktemp)
 _prefix_entries "," "${WORKSPACE_DIR}/%{direct_jars_file}" "$DIRECT_JARS_FILE"
@@ -134,15 +134,17 @@ fi
 # Keep APP_CP_FILE and DIRECT_JARS_FILE for phase 2; clean the rest.
 rm -f "$MODEL_APP_CP_FILE" "$LOCAL_APP_JARS_FILE"
 
-if [ ! -f "$MODEL_DIR/test-app-model.dat" ]; then
+if [ ! -f "$MODEL_DIR/test-app-model.dat" ] ||
+    [ ! -f "$MODEL_DIR/test-additional-app-roots.txt" ]; then
   rm -f "$APP_CP_FILE" "$DIRECT_JARS_FILE" "$COVERAGE_JARS_FILE"
-  echo "ERROR: test-app-model.dat was not generated" >&2
+  echo "ERROR: Serialized test model or additional application roots were not generated" >&2
   exit 1
 fi
 
 # Phase 2: Run JUnit with the serialized model.
-# OUTPUT_SOURCES_DIR tells AppMakerHelper to add the user's jars to the
-# application root so Quarkus scans them for @Path endpoints and CDI beans.
+# QuarkusTest obtains the application root from the serialized model. Additional
+# local module roots use model paths too, avoiding duplicate runfiles aliases.
+# Integration tests still need OUTPUT_SOURCES_DIR for Dev Services bootstrap.
 # Auto-discover test classes from user jars if no explicit selectors were given.
 # Unit tests follow JUnit's default naming pattern while integration tests
 # follow the Maven Failsafe-compatible *IT convention.
@@ -259,7 +261,7 @@ elif [ "$QUARKUS_JACOCO_PRESENT" = "true" ]; then
   )
 fi
 
-# Use a JDK @argfile to avoid E2BIG on the -cp and -DOUTPUT_SOURCES_DIR args.
+# Use a JDK @argfile to avoid E2BIG on the classpath and integration root args.
 # Values are double-quoted per JDK argfile syntax to handle paths with spaces;
 # backslash and double-quote are escaped inside the quotes.
 _argfile_escape() { tr -d '\n' | sed 's/\\/\\\\/g; s/"/\\"/g'; }
@@ -273,10 +275,16 @@ JAVA_ARGS_FILE=$(mktemp)
   fi
   _argfile_escape < "$APP_CP_FILE"
   printf '"\n'
-  printf '"'
-  printf '%s' "-DOUTPUT_SOURCES_DIR="
-  _argfile_escape < "$DIRECT_JARS_FILE"
-  printf '"\n'
+  if [ "$TEST_KIND" = "integration" ]; then
+    printf '"'
+    printf '%s' "-DOUTPUT_SOURCES_DIR="
+    _argfile_escape < "$DIRECT_JARS_FILE"
+    printf '"\n'
+  elif [ -s "$MODEL_DIR/test-additional-app-roots.txt" ]; then
+    printf '"-DOUTPUT_SOURCES_DIR='
+    _argfile_escape < "$MODEL_DIR/test-additional-app-roots.txt"
+    printf '"\n'
+  fi
 } > "$JAVA_ARGS_FILE"
 
 "$JAVA" "@$JAVA_ARGS_FILE" \
