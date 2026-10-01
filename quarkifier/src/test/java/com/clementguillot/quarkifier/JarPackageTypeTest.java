@@ -30,11 +30,4 @@ class JarPackageTypeTest {
     assertEquals("quarkus-run.jar", JarPackageType.UBER_JAR.runnerPath());
     assertEquals("quarkus-run.jar", JarPackageType.LEGACY_JAR.runnerPath());
   }
-
-  @Test
-  void aotRequiresQuarkus333() {
-    assertFalse(JarPackageType.AOT_JAR.supports("3.27.6"));
-    assertTrue(JarPackageType.AOT_JAR.supports("3.33.4"));
-    assertTrue(JarPackageType.UBER_JAR.supports("3.27.6"));
-  }
 }

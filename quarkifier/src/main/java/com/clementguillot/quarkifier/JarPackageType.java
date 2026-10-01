@@ -31,20 +31,10 @@ public enum JarPackageType {
     return fastJarLayout ? "quarkus-app/quarkus-run.jar" : "quarkus-run.jar";
   }
 
-  /** Whether this package type exists in the given supported Quarkus release. */
-  public boolean supports(String quarkusVersion) {
-    return this != AOT_JAR || !quarkusVersion.startsWith("3.27.");
-  }
-
-  /** Validates this package type against the requested lifecycle and Quarkus release. */
-  public void validateCompatibility(AugmentationMode mode, String quarkusVersion)
-      throws AugmentationException {
+  /** Validates this package type against the requested lifecycle. */
+  public void validateCompatibility(AugmentationMode mode) throws AugmentationException {
     if (mode != AugmentationMode.NORMAL && this != FAST_JAR) {
       throw new AugmentationException("Package type " + value + " is only valid in normal mode");
-    }
-    if (!supports(quarkusVersion)) {
-      throw new AugmentationException(
-          "Package type " + value + " is not supported by Quarkus " + quarkusVersion);
     }
   }
 

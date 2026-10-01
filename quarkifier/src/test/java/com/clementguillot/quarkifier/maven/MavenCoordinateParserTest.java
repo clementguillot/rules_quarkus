@@ -20,20 +20,20 @@ class MavenCoordinateParserTest {
 
   @Test
   void parseStandardMavenPath() {
-    var path = Path.of("/repo/io/quarkus/quarkus-arc/3.27.6/quarkus-arc-3.27.6.jar");
+    var path = Path.of("/repo/io/quarkus/quarkus-arc/3.40.1/quarkus-arc-3.40.1.jar");
     var coords = MavenCoordinateParser.parse(path);
     assertEquals("io.quarkus", coords.groupId());
     assertEquals("quarkus-arc", coords.artifactId());
-    assertEquals("3.27.6", coords.version());
+    assertEquals("3.40.1", coords.version());
   }
 
   @Test
   void parseProcessedPrefixPath() {
-    var path = Path.of("/repo/io/quarkus/quarkus-arc/3.27.6/processed_quarkus-arc-3.27.6.jar");
+    var path = Path.of("/repo/io/quarkus/quarkus-arc/3.40.1/processed_quarkus-arc-3.40.1.jar");
     var coords = MavenCoordinateParser.parse(path);
     assertEquals("io.quarkus", coords.groupId());
     assertEquals("quarkus-arc", coords.artifactId());
-    assertEquals("3.27.6", coords.version());
+    assertEquals("3.40.1", coords.version());
   }
 
   @Test
@@ -41,11 +41,11 @@ class MavenCoordinateParserTest {
     var path =
         Path.of(
             "/private/var/bazel/external/maven/v1/https/repo1.maven.org/maven2/"
-                + "io/quarkus/quarkus-rest/3.27.6/processed_quarkus-rest-3.27.6.jar");
+                + "io/quarkus/quarkus-rest/3.40.1/processed_quarkus-rest-3.40.1.jar");
     var coords = MavenCoordinateParser.parse(path);
     assertEquals("io.quarkus", coords.groupId());
     assertEquals("quarkus-rest", coords.artifactId());
-    assertEquals("3.27.6", coords.version());
+    assertEquals("3.40.1", coords.version());
   }
 
   @Test
@@ -94,8 +94,8 @@ class MavenCoordinateParserTest {
 
   @ParameterizedTest
   @CsvSource({
-    "quarkus-arc-3.27.6.jar, quarkus-arc, 3.27.6",
-    "processed_quarkus-arc-3.27.6.jar, quarkus-arc, 3.27.6",
+    "quarkus-arc-3.40.1.jar, quarkus-arc, 3.40.1",
+    "processed_quarkus-arc-3.40.1.jar, quarkus-arc, 3.40.1",
     "jakarta.ws.rs-api-4.0.0.jar, jakarta.ws.rs-api, 4.0.0",
     "smallrye-common-annotation-2.5.0.jar, smallrye-common-annotation, 2.5.0",
   })
@@ -190,10 +190,10 @@ class MavenCoordinateParserTest {
 
   @Test
   void sameArtifactFromDifferentSourcesProducesSameArtifactIdAndVersion() {
-    var mavenPath = Path.of("/repo/io/quarkus/quarkus-arc/3.27.6/processed_quarkus-arc-3.27.6.jar");
+    var mavenPath = Path.of("/repo/io/quarkus/quarkus-arc/3.40.1/processed_quarkus-arc-3.40.1.jar");
     var mavenCoords = MavenCoordinateParser.parse(mavenPath);
 
-    var coursierPath = Path.of("jars/quarkus-arc-3.27.6.jar");
+    var coursierPath = Path.of("jars/quarkus-arc-3.40.1.jar");
     var coursierCoords = MavenCoordinateParser.parse(coursierPath);
 
     assertEquals(mavenCoords.artifactId(), coursierCoords.artifactId());

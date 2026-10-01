@@ -19,8 +19,8 @@ quarkus_app(
     deps = [":lib"],
 )
 
-# Additional package layouts supported by the Quarkus 3.27 line. AOT JAR is
-# available from the supported Quarkus 3.33 line only.
+# Alternative JVM package layouts. Each remains independently buildable and
+# runnable, while the default target above stays a Fast JAR.
 quarkus_app(
     name = "helloworld_uber",
     dev = False,
@@ -45,12 +45,21 @@ quarkus_app(
     deps = [":lib"],
 )
 
+quarkus_app(
+    name = "helloworld_aot",
+    dev = False,
+    package_type = "aot-jar",
+    version = "1.0.0",
+    deps = [":lib"],
+)
+
 quarkus_test(
     name = "test",
     srcs = glob(["src/test/java/**/*.java"]),
     deps = [
         ":lib",
-        "@maven//:io_quarkus_quarkus_junit5",
+        "@maven//:io_quarkus_quarkus_jacoco",
+        "@maven//:io_quarkus_quarkus_junit",
         "@maven//:io_rest_assured_rest_assured",
         "@maven//:org_hamcrest_hamcrest",
         "@maven//:org_junit_jupiter_junit_jupiter",
@@ -66,7 +75,8 @@ quarkus_integration_test(
     app = ":helloworld",
     deps = [
         ":lib",
-        "@maven//:io_quarkus_quarkus_junit5",
+        "@maven//:io_quarkus_quarkus_jacoco",
+        "@maven//:io_quarkus_quarkus_junit",
         "@maven//:io_rest_assured_rest_assured",
         "@maven//:org_hamcrest_hamcrest",
         "@maven//:org_junit_jupiter_junit_jupiter",

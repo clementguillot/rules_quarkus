@@ -110,7 +110,7 @@ quarkus_native_app_rule(
     platform_catalog = "@rules_quarkus//model:platform-catalog-v1.json",
     platform_properties = "@rules_quarkus//model:platform_properties",
     quarkifier_tool = "@rules_quarkus//quarkifier:tool.jar",
-    quarkus_version = "3.33.4",
+    quarkus_version = "3.40.1",
     runtime_catalog = "@rules_quarkus//model:runtime-catalog-v1.json",
     tags = ["manual"],
     deps = _BIG_DEPS,

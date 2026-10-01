@@ -27,11 +27,6 @@ def _runner_path(package_type):
         return "quarkus-app/quarkus-run.jar"
     return "quarkus-run.jar"
 
-def _package_type_version_error(package_type, quarkus_version):
-    if package_type == "aot-jar" and quarkus_version.startswith("3.27."):
-        return "package_type 'aot-jar' requires Quarkus 3.33; configured version is {}".format(quarkus_version)
-    return ""
-
 def _shell_quote(s):
     """Shell-quotes a string so it survives word splitting."""
     return "'" + s.replace("'", "'\\''") + "'"
@@ -57,9 +52,6 @@ def _write_launcher(ctx, output_dir, java_runtime):
 def _quarkus_app_impl(ctx):
     if not ctx.attr.deps:
         fail("quarkus_app rule '{}' requires at least one dependency in 'deps'".format(ctx.label.name))
-    package_type_error = _package_type_version_error(ctx.attr.package_type, ctx.attr.quarkus_version)
-    if package_type_error:
-        fail(package_type_error)
 
     runtime_classpath = collect_runtime_classpath(ctx.attr.deps)
     conditional_classpath = collect_runtime_classpath([single_transitioned_target(ctx.attr.conditional_deps)])
@@ -208,5 +200,4 @@ Internal rule — use quarkus_app() macro from @rules_quarkus//quarkus:defs.bzl 
 )
 
 # Exported only for Starlark unit tests.
-package_type_version_error_for_test = _package_type_version_error
 runner_path_for_test = _runner_path
