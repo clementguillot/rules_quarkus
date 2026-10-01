@@ -6,21 +6,16 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- * Version-specific writer for {@code quarkus-application.dat}.
+ * Writer for {@code quarkus-application.dat}.
  *
- * <p>The signature of {@code SerializedApplication.write()} changed between Quarkus 3.27 and 3.33:
- *
- * <ul>
- *   <li>3.27: {@code write(OutputStream, String, Path, List<Path>, List<Path>, List<?>)}
- *   <li>3.33+: {@code write(OutputStream, String, Path, List<Path>, List<Path>)}
- * </ul>
- *
- * <p>Each per-minor source directory provides an implementation of this interface that calls the
- * correct overload directly, avoiding reflection.
+ * <p>The signature of {@code SerializedApplication.write()} is not stable across Quarkus minors
+ * (3.33 removed the deprecated {@code nonExistentSourcePaths} parameter). Every supported minor
+ * shares one implementation today; this seam lets a future minor call a different overload
+ * directly, avoiding reflection.
  */
 public interface ApplicationDatWriter {
 
-  /** Singleton instance — resolved at compile time from the version-specific source directory. */
+  /** Singleton instance. */
   ApplicationDatWriter INSTANCE = new ApplicationDatWriterImpl();
 
   /**

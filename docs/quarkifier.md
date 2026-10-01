@@ -3,7 +3,7 @@
 The Quarkifier (`com.clementguillot.quarkifier`) is a standalone Java tool that invokes the Quarkus internal build API (`io.quarkus.deployment`) to perform build-time augmentation. It is the core engine behind `rules_quarkus`.
 
 - **Main class**: `com.clementguillot.quarkifier.QuarkifierLauncher`
-- **Built against**: Quarkus 3.27.6 LTS and 3.33.4
+- **Built against**: Quarkus 3.33.4 LTS and 3.40.1 LTS
 
 ## CLI Interface
 
@@ -64,7 +64,7 @@ java -jar quarkifier_<minor>_deploy.jar \
 | `--output-dir` | Yes | — | Directory where the selected package is written |
 | `--resources` | No | `[]` | Comma-separated list of resource file paths |
 | `--mode` | No | `normal` | Augmentation mode: `normal`, `test`, `dev`, `continuous-test`, or `native` |
-| `--package-type` | No | `fast-jar` | JVM package layout; `uber-jar`, `mutable-jar`, `legacy-jar`, and `aot-jar` require `--mode normal`; `aot-jar` also requires Quarkus 3.33 |
+| `--package-type` | No | `fast-jar` | JVM package layout; `uber-jar`, `mutable-jar`, `legacy-jar`, and `aot-jar` require `--mode normal` |
 | `--app-name` | No | `null` | Application name for Quarkus startup banner |
 | `--main-class` | No | `null` | Fully-qualified custom main class annotated with `@QuarkusMain` |
 | `--native-builder-image` | No | `null` | Native builder image for `platform.quarkus.native.builder-image` |
@@ -156,12 +156,12 @@ com.clementguillot.quarkifier
 ├── augmentation/                   Augmentation execution and post-processing
 │   ├── AugmentationExecutor        Orchestrates bootstrap + augmentation
 │   ├── FastJarAssembler            Post-processes output into runnable Fast_Jar
-│   └── ApplicationDatWriter        Version-safe reflection wrapper for SerializedApplication.write()
+│   └── ApplicationDatWriter        Seam over SerializedApplication.write(), whose signature varies by minor
 │
 ├── dev/                            Dev mode
 │   ├── DevModeLauncher             Builds DevModeContext, launches subprocess
-│   ├── AppModelSerializerStrategy  Interface for version-specific model serialization
-│   └── AppModelSerializerImpl      (in java_3_27/ or java_3_33/) Version-specific implementation
+│   ├── AppModelSerializerStrategy  Seam for the model serialization format Quarkus reads back
+│   └── AppModelSerializerImpl      JSON implementation shared by every supported minor
 │
 └── watcher/                        File watching for hot-reload
     └── BazelFileWatcher            Watches source dirs, triggers bazel build on changes
@@ -294,11 +294,10 @@ dev, test, and native invocation requires the explicit model.
 ## Package outputs
 
 Normal augmentation supports `fast-jar`, `uber-jar`, `mutable-jar`,
-`legacy-jar`, and (with Quarkus 3.33) `aot-jar`. A stable
-`quarkus-run.jar` name is requested for every layout so Bazel launchers and
-integration tests never need to discover a configurable runner suffix. Fast,
-mutable, and AOT layouts place it under `quarkus-app/`; Uber and legacy place
-it at the output root.
+`legacy-jar`, and `aot-jar`. A stable `quarkus-run.jar` name is requested for
+every layout so Bazel launchers and integration tests never need to discover a
+configurable runner suffix. Fast, mutable, and AOT layouts place it under
+`quarkus-app/`; Uber and legacy place it at the output root.
 
 ## Post-Processing (FastJarAssembler)
 
@@ -330,9 +329,9 @@ Extracts `groupId`/`artifactId`/`version` from jar file paths. Handles multiple 
 
 | Format | Example |
 |---|---|
-| Standard Maven repo | `.../io/quarkus/quarkus-arc/3.27.6/quarkus-arc-3.27.6.jar` |
-| Bazel `processed_` prefix | `.../processed_quarkus-arc-3.27.6.jar` |
-| Coursier cache (short) | `jars/quarkus-arc-3.27.6.jar` |
+| Standard Maven repo | `.../io/quarkus/quarkus-arc/3.40.1/quarkus-arc-3.40.1.jar` |
+| Bazel `processed_` prefix | `.../processed_quarkus-arc-3.40.1.jar` |
+| Coursier cache (short) | `jars/quarkus-arc-3.40.1.jar` |
 
 Uses stop segments (`external`, `v1`, `https`, `maven`, etc.) to identify where groupId segments begin when walking backwards from the filename.
 

@@ -43,11 +43,11 @@ class ExtensionYamlEnricherTest {
   void enrichMetadata_existingYaml_appendsToMetadata() throws IOException {
     String input =
         "name: \"hello\"\ndescription: \"A greeting extension\"\nmetadata:\n  status: stable\n";
-    String result = enrichMetadata(input, "hello", "3.27.6", List.of("io.quarkus:quarkus-arc"));
+    String result = enrichMetadata(input, "hello", "3.40.1", List.of("io.quarkus:quarkus-arc"));
 
     assertTrue(result.contains("name: \"hello\""));
     assertTrue(result.contains("status: stable"));
-    assertTrue(result.contains("built-with-quarkus-core: \"3.27.6\""));
+    assertTrue(result.contains("built-with-quarkus-core: \"3.40.1\""));
     assertTrue(result.contains("    - \"io.quarkus:quarkus-arc\""));
   }
 
@@ -65,14 +65,14 @@ class ExtensionYamlEnricherTest {
     String input =
         "name: \"re-enrich\"\n"
             + "metadata:\n"
-            + "  built-with-quarkus-core: \"3.27.0\"\n"
+            + "  built-with-quarkus-core: \"3.33.0\"\n"
             + "  extension-dependencies:\n"
             + "    - \"old:dep\"\n"
             + "  status: preview\n";
     String result = enrichMetadata(input, "re-enrich", "3.33.4", List.of("new:dep"));
 
     // Old values replaced
-    assertFalse(result.contains("3.27.0"));
+    assertFalse(result.contains("3.33.0"));
     assertFalse(result.contains("old:dep"));
     // New values present
     assertTrue(result.contains("built-with-quarkus-core: \"3.33.4\""));

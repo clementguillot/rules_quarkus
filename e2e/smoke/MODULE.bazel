@@ -46,21 +46,21 @@ register_toolchains("@graalvm//:sdk")
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.install(
     artifacts = [
-        "io.quarkus:quarkus-rest:3.33.4",
-        "io.quarkus:quarkus-arc:3.33.4",
-        "io.quarkus:quarkus-avro:3.33.4",
-        "io.quarkus:quarkus-grpc:3.33.4",
+        "io.quarkus:quarkus-rest:3.40.1",
+        "io.quarkus:quarkus-arc:3.40.1",
+        "io.quarkus:quarkus-avro:3.40.1",
+        "io.quarkus:quarkus-grpc:3.40.1",
         # Activates quarkus-rest's normal conditional quarkus-rest-kotlin dependency.
-        "io.quarkus:quarkus-kotlin:3.33.4",
+        "io.quarkus:quarkus-kotlin:3.40.1",
         # Custom-extension build deps (deployment modules + annotation processor)
-        "io.quarkus:quarkus-arc-deployment:3.33.4",
-        "io.quarkus:quarkus-core-deployment:3.33.4",
-        "io.quarkus:quarkus-extension-processor:3.33.4",
-        "io.quarkus:quarkus-junit:3.33.4",
-        "io.rest-assured:rest-assured:5.5.6",
-        "org.junit.jupiter:junit-jupiter:5.13.4",
-        "org.junit.platform:junit-platform-console-standalone:1.13.4",
-        "org.junit.platform:junit-platform-launcher:1.13.4",
+        "io.quarkus:quarkus-arc-deployment:3.40.1",
+        "io.quarkus:quarkus-core-deployment:3.40.1",
+        "io.quarkus:quarkus-extension-processor:3.40.1",
+        "io.quarkus:quarkus-junit:3.40.1",
+        "io.rest-assured:rest-assured:6.0.1",
+        "org.junit.jupiter:junit-jupiter:6.1.3",
+        "org.junit.platform:junit-platform-console-standalone:6.1.3",
+        "org.junit.platform:junit-platform-launcher:6.1.3",
     ],
     lock_file = "//:maven_install.json",
 )
@@ -70,6 +70,6 @@ quarkus = use_extension("@com_clementguillot_rules_quarkus//quarkus:extensions.b
 quarkus.toolchain(
     lock_file = "//:maven_install.json",
     quarkifier_source_dir = "@com_clementguillot_rules_quarkus//:MODULE.bazel",
-    quarkus_version = "3.33.4",
+    quarkus_version = "3.40.1",
 )
 use_repo(quarkus, "rules_quarkus")

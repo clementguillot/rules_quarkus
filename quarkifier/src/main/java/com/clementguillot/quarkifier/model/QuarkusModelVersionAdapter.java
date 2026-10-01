@@ -14,7 +14,10 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 
-/** Quarkus 3.33 application-model API calls that do not exist on older supported lines. */
+/**
+ * Quarkus application-model API calls that have changed across minors, kept in one place so a
+ * future minor can diverge without touching the model builders.
+ */
 @SuppressWarnings("PMD.UnusedPrivateMethod")
 final class QuarkusModelVersionAdapter {
 
