@@ -8,6 +8,7 @@ load(":expect_test_failure.bzl", "expect_test_failure_test")
 load(":launcher_precedence_test.bzl", "launcher_precedence_test")
 load(":native_build_properties_test.bzl", "native_build_properties_test")
 load(":native_integration_launcher_test.bzl", "fake_native_app", "native_integration_launcher_test")
+load(":unique_runfiles_test.bzl", "unique_runfiles_test")
 
 # Overrides src/main/resources/application.properties to prove the declared
 # build-system input outranks it during augmentation. The channel differs per
@@ -546,6 +547,20 @@ sh_test(
     srcs = ["conditional_dependency_model_test.sh"],
     args = ["$(rlocationpath :conditional_app_model)"],
     data = [":conditional_app_model"],
+)
+
+# With continuous_test, app_dev builds its dev graph and its TEST graph in two
+# configurations. Each copy of a shared jar must keep its own runfiles path, or
+# Bazel stages one copy and the launcher (and Build without the Bytes) never
+# sees the other, although the application model references it.
+unique_runfiles_test(
+    name = "app_dev_unique_runfiles_test",
+    target = ":app_dev",
+)
+
+unique_runfiles_test(
+    name = "app_test_unique_runfiles_test",
+    target = ":app_test",
 )
 
 sh_test(

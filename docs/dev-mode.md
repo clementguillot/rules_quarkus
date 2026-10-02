@@ -442,6 +442,18 @@ the same query against `//:app` report different configuration hashes, so a
 That is the cost of making code generation launch-mode aware; build only
 `//:app` (or only `//:app_dev`) when the extra configuration is not wanted.
 
+With `continuous_test`, one `<name>_dev` target holds both configurations: its
+DEV graph uses the dev lifecycle, while the TEST graph of the listed
+`quarkus_test` targets does not. A generated jar's runfiles short path omits its
+configuration, so the two copies of a shared jar would claim one runfiles path
+and Bazel would stage only one of them. The interactive launchers therefore
+stage every generated classpath file at its execution path
+(`<workspace>/bazel-out/<configuration>/bin/...`) and list those paths in their
+classpath files. Each copy stays a launcher input, so Bazel materializes it even
+when its action was a remote cache hit under Build without the Bytes; the
+application models reference these files by execution path. The `e2e/smoke`
+`*_unique_runfiles_test` targets fail when a runfiles path is claimed twice.
+
 ### Hot-Reload Build Configuration
 
 On a source change, `BazelFileWatcher` runs `bazel build <targets>` (binary resolved by
