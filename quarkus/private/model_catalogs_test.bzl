@@ -481,6 +481,44 @@ def _deployment_catalog_test_impl(ctx):
 
 deployment_catalog_test = unittest.make(_deployment_catalog_test_impl)
 
+def _deployment_catalog_explicit_jar_type_test_impl(ctx):
+    env = unittest.begin(ctx)
+    cache_path = "/machine/cache/maven2/g/api/1.0/api-1.0.jar"
+
+    # A POM edge declared with an explicit <type>jar</type> is reported as
+    # G:A:jar:V beside the implicit G:A:V spelling of the same artifact.
+    report = {
+        "conflict_resolution": {"g:api:jar:0.9": "g:api:jar:1.0"},
+        "dependencies": [
+            {"coord": "g:api:1.0", "directDependencies": [], "file": cache_path},
+            {"coord": "g:api:jar:1.0", "directDependencies": [], "file": cache_path},
+            {
+                "coord": "g:consumer:1.0",
+                "directDependencies": ["g:api:jar:1.0"],
+                "file": "/machine/cache/maven2/g/consumer/1.0/consumer-1.0.jar",
+            },
+        ],
+        "version": "0.1.0",
+    }
+
+    catalog = deployment_catalog_for_test(
+        report,
+        ["g:consumer:1.0"],
+        [],
+        {
+            cache_path: "deployment/jars/g/api/1.0/api-1.0.jar",
+            "/machine/cache/maven2/g/consumer/1.0/consumer-1.0.jar": "deployment/jars/g/consumer/1.0/consumer-1.0.jar",
+        },
+    )
+
+    asserts.equals(env, ["g:api:1.0", "g:consumer:1.0"], [node["coordinate"] for node in catalog["nodes"]])
+    asserts.equals(env, ["g:api:1.0"], catalog["nodes"][1]["dependencies"])
+    asserts.equals(env, {"g:api:0.9": "g:api:1.0"}, catalog["conflictResolution"])
+    asserts.equals(env, "g:pom-only:pom:1.0", coursier_report_coordinate_for_test("g:pom-only:pom:1.0"))
+    return unittest.end(env)
+
+deployment_catalog_explicit_jar_type_test = unittest.make(_deployment_catalog_explicit_jar_type_test_impl)
+
 def _conditional_catalog_test_impl(ctx):
     env = unittest.begin(ctx)
     cache_path = "/machine/cache/maven2/g/feature/1.0/feature-1.0-tests.jar"
@@ -534,5 +572,6 @@ def model_catalogs_test_suite():
         maven_target_name_test,
         java_major_version_test,
         deployment_catalog_test,
+        deployment_catalog_explicit_jar_type_test,
         conditional_catalog_test,
     )

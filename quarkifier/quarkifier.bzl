@@ -2,7 +2,7 @@
 
 Reduces duplication in BUILD.bazel when adding new Quarkus minor versions.
 Each call creates: java_library, java_binary, java_test, and pmd_test targets
-suffixed with the sanitized minor version (e.g., _3_27).
+suffixed with the sanitized minor version (e.g., _3_40).
 """
 
 load("@rules_java//java:java_binary.bzl", "java_binary")
@@ -14,8 +14,8 @@ def quarkifier_targets(minor, maven_repo):
     """Declares quarkifier library, binary, test, and lint targets for a Quarkus minor version.
 
     Args:
-        minor: Sanitized minor version string (e.g., "3_27", "3_33").
-        maven_repo: Maven repository name (e.g., "@maven_3_27", "@maven_3_33").
+        minor: Sanitized minor version string (e.g., "3_33", "3_40").
+        maven_repo: Maven repository name (e.g., "@maven_3_33", "@maven_3_40").
     """
     lib_name = "quarkifier_lib_" + minor
     bin_name = "quarkifier_" + minor

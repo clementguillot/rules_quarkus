@@ -74,7 +74,7 @@ SHA_BLOCK="QUARKIFIER_SHA256 = {"
 CHECKSUM_ROWS=""
 for jar in bazel-bin/quarkifier/quarkifier_*_deploy.jar; do
   base=$(basename "$jar")
-  # quarkifier_3_27_deploy.jar → 3.27
+  # quarkifier_3_40_deploy.jar → 3.40
   minor=$(echo "$base" | sed -E 's/quarkifier_([0-9]+)_([0-9]+)_deploy\.jar/\1.\2/')
   released="quarkifier-${minor}-${TAG}.jar"
   cp "$jar" "$released"

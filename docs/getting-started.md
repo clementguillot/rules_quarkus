@@ -31,19 +31,25 @@ Use `rules_jvm_external` to declare your Quarkus runtime dependencies. Only decl
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.install(
     artifacts = [
-        "io.quarkus:quarkus-rest:3.33.4",
-        "io.quarkus:quarkus-arc:3.33.4",
+        "io.quarkus:quarkus-rest:3.40.1",
+        "io.quarkus:quarkus-arc:3.40.1",
     ],
+    # Same platform BOM a Maven project imports, so transitive runtime
+    # versions match what Maven would select.
+    boms = ["io.quarkus.platform:quarkus-bom:3.40.1"],
     lock_file = "//:maven_install.json",
 )
 use_repo(maven, "maven")
 ```
 
 Run `bazel run @maven//:pin` to generate the `maven_install.json` lock file.
+Deployment and conditional artifacts are resolved with the toolchain's
+`platform_boms` (the platform BOM by default), mirroring Maven's dependency
+management.
 
-> **Supported versions**: You must use exactly `3.27.6` or `3.33.4`. These are the only supported patch versions.
+> **Supported versions**: You must use exactly `3.33.4` or `3.40.1`. These are the only supported patch versions.
 >
-> **Known limitation**: a single Bazel workspace can configure only one `quarkus.toolchain()` today. You can choose `3.27.6` or `3.33.4` per workspace, but you cannot build different Quarkus minor versions side by side in the same workspace yet.
+> **Known limitation**: a single Bazel workspace can configure only one `quarkus.toolchain()` today. You can choose `3.33.4` or `3.40.1` per workspace, but you cannot build different Quarkus minor versions side by side in the same workspace yet.
 
 ## 3. Configure the Quarkus Toolchain
 
@@ -53,7 +59,7 @@ quarkus = use_extension(
     "quarkus",
 )
 quarkus.toolchain(
-    quarkus_version = "3.33.4",
+    quarkus_version = "3.40.1",
     lock_file = "//:maven_install.json",
 )
 use_repo(quarkus, "rules_quarkus")
@@ -74,10 +80,11 @@ different `MODULE.bazel` configurations.
 
 | Attribute | Default | Description |
 |---|---|---|
-| `quarkus_version` | (required) | Quarkus version: `"3.27.6"` or `"3.33.4"` |
+| `quarkus_version` | (required) | Quarkus version: `"3.33.4"` or `"3.40.1"` |
 | `lock_file` | `None` | Path to `maven_install.json` for extension auto-discovery |
 | `extension_group_prefixes` | `["io.quarkus", "io.quarkiverse."]` | Deprecated compatibility option; descriptor discovery no longer filters by groupId |
 | `quarkifier_source_dir` | `None` | Label in the rules_quarkus source dir for local dev builds |
+| `platform_boms` | `["io.quarkus.platform:quarkus-bom:<quarkus_version>"]` | Quarkus platform BOM imports (G:A:V). They populate the model's platform metadata and manage versions when resolving deployment and conditional artifacts |
 | `quarkifier_sha256` | `""` | SHA-256 pin for the quarkifier jar download. Released versions carry their own checksums, so this is only needed with `git_override`/`archive_override` (the build prints the hash to pin when verification is off) |
 
 ## 4. Create Your Application
@@ -388,15 +395,15 @@ quarkus_app(
 
 | `package_type` | Quarkus | Runner inside the Bazel tree artifact | Purpose |
 |---|---|---|---|
-| `fast-jar` | 3.27, 3.33 | `quarkus-app/quarkus-run.jar` | Recommended indexed production layout |
-| `uber-jar` | 3.27, 3.33 | `quarkus-run.jar` | Single executable JAR |
-| `mutable-jar` | 3.27, 3.33 | `quarkus-app/quarkus-run.jar` | Re-augmentable layout for remote development |
-| `legacy-jar` | 3.27, 3.33 | `quarkus-run.jar` | Deprecated pre-1.12 thin-JAR layout |
-| `aot-jar` | 3.33 only | `quarkus-app/quarkus-run.jar` | System-classloader layout used for AOT-cache workflows |
+| `fast-jar` | 3.33, 3.40 | `quarkus-app/quarkus-run.jar` | Recommended indexed production layout |
+| `uber-jar` | 3.33, 3.40 | `quarkus-run.jar` | Single executable JAR |
+| `mutable-jar` | 3.33, 3.40 | `quarkus-app/quarkus-run.jar` | Re-augmentable layout for remote development |
+| `legacy-jar` | 3.33, 3.40 | `quarkus-run.jar` | Deprecated pre-1.12 thin-JAR layout |
+| `aot-jar` | 3.33, 3.40 | `quarkus-app/quarkus-run.jar` | System-classloader layout used for AOT-cache workflows |
 
 `aot-jar` selects the AOT-compatible package layout. It does not train or
 embed an `app.aot` cache; cache generation remains a separate, JDK-specific
-workflow. Selecting `aot-jar` with Quarkus 3.27 fails during Bazel analysis.
+workflow.
 
 ## quarkus_app Attributes
 
@@ -445,10 +452,10 @@ All transitive dependencies are collected via `JavaInfo` providers and included 
 
 ## Complete MODULE.bazel Example
 
-This is the full `MODULE.bazel` from the `examples/helloworld_3_33` workspace:
+This is the full `MODULE.bazel` from the `examples/helloworld_3_40` workspace:
 
 ```starlark
-module(name = "helloworld_3_33")
+module(name = "helloworld_3_40")
 
 bazel_dep(name = "com_clementguillot_rules_quarkus", version = "0.0.0", dev_dependency = True)
 local_path_override(
@@ -463,16 +470,18 @@ bazel_dep(name = "rules_jvm_external", version = "6.10")
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.install(
     artifacts = [
-        "io.quarkus:quarkus-rest:3.33.4",
-        "io.quarkus:quarkus-arc:3.33.4",
+        "io.quarkus:quarkus-rest:3.40.1",
+        "io.quarkus:quarkus-arc:3.40.1",
         # Test dependencies
-        "io.quarkus:quarkus-junit:3.33.4",
-        "io.quarkus:quarkus-jacoco:3.33.4",
-        "io.rest-assured:rest-assured:5.5.6",
-        "org.junit.jupiter:junit-jupiter:5.13.4",
-        "org.junit.platform:junit-platform-console-standalone:1.13.4",
-        "org.junit.platform:junit-platform-launcher:1.13.4",
+        "io.quarkus:quarkus-junit:3.40.1",
+        "io.quarkus:quarkus-jacoco:3.40.1",
+        "io.rest-assured:rest-assured:6.0.1",
+        "org.junit.jupiter:junit-jupiter:6.1.3",
+        "org.junit.platform:junit-platform-console-standalone:6.1.3",
+        "org.junit.platform:junit-platform-launcher:6.1.3",
     ],
+    # Mirror pom.xml so Maven and Bazel select the same platform versions.
+    boms = ["io.quarkus.platform:quarkus-bom:3.40.1"],
     lock_file = "//:maven_install.json",
 )
 use_repo(maven, "maven")
@@ -480,7 +489,7 @@ use_repo(maven, "maven")
 quarkus = use_extension("@com_clementguillot_rules_quarkus//quarkus:extensions.bzl", "quarkus")
 quarkus.toolchain(
     lock_file = "//:maven_install.json",
-    quarkus_version = "3.33.4",
+    quarkus_version = "3.40.1",
 )
 use_repo(quarkus, "rules_quarkus")
 ```

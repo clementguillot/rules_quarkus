@@ -173,7 +173,7 @@ quarkus_native_app_rule(
     platform_catalog = "@rules_quarkus//model:platform-catalog-v1.json",
     platform_properties = "@rules_quarkus//model:platform_properties",
     quarkifier_tool = "@rules_quarkus//quarkifier:tool.jar",
-    quarkus_version = "3.33.4",
+    quarkus_version = "3.40.1",
     runtime_catalog = "@rules_quarkus//model:runtime-catalog-v1.json",
     tags = ["manual"],
     version = "1.0.0-SNAPSHOT",
@@ -328,7 +328,7 @@ quarkus_test(
 fake_native_app(
     name = "fake_native_app",
     testonly = True,
-    quarkus_version = "3.33.4",
+    quarkus_version = "3.40.1",
 )
 
 quarkus_integration_test(
@@ -573,7 +573,7 @@ sh_test(
     tags = ["no-sandbox"],
 )
 
-# --- Continuous testing through the Dev UI and dev console (Quarkus 3.33 only) ---
+# --- Continuous testing through the Dev UI and dev console (latest supported Quarkus line) ---
 # This invokes real nested Bazel builds and mutates only a disposable fixture
 # workspace. It intentionally requires a local checkout, Bazel and network/cache.
 sh_test(
