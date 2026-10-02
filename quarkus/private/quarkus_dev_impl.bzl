@@ -16,7 +16,7 @@ load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//quarkus:providers.bzl", "QuarkusContinuousTestInfo")
 load("//quarkus/private:application_model_aspect.bzl", "build_file_path", "collect_watch_metadata", "quarkus_application_model_aspect")
 load("//quarkus/private:build_properties.bzl", "write_build_properties")
-load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_local_app_jars", "collect_resource_dir_paths", "collect_runtime_classpath", "collect_source_dir_paths", "is_local_artifact", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
+load("//quarkus/private:classpath_utils.bzl", "collect_deployment_classpath", "collect_local_app_jars", "collect_resource_dir_paths", "collect_runtime_classpath", "collect_source_dir_paths", "configuration_unique_path", "configuration_unique_runfiles", "is_local_artifact", "quarkus_extension_deployment_classpath_aspect", "write_runfiles_paths_file")
 load("//quarkus/private:continuous_test.bzl", "continuous_build_properties")
 load("//quarkus/private:coverage_transition.bzl", "dev_lifecycle_transition", "disable_coverage_transition", "single_transitioned_target")
 load("//quarkus/private:model_assembly.bzl", "assemble_application_model")
@@ -160,12 +160,14 @@ def _interactive_impl(ctx, test_only):
         session = _continuous_session(ctx, runtime_classpath, continuous_test[QuarkusContinuousTestInfo], False) if continuous_test else _ordinary_session(ctx, runtime_classpath)
 
     # Classpath and hot-reload metadata files, read by the launcher at runtime
-    # and resolved against the runfiles tree.
+    # and resolved against the runfiles tree. Classpath entries use
+    # configuration-unique runfiles paths: with continuous testing, the dev
+    # graph and the TEST graph build the same jars in two configurations.
     files = struct(
-        app_cp = write_runfiles_paths_file(ctx, "_app_cp.txt", runtime_classpath, ":"),
+        app_cp = write_runfiles_paths_file(ctx, "_app_cp.txt", runtime_classpath, ":", configuration_unique_path),
         build_properties = write_build_properties(ctx, session.build_properties),
-        local_app_jars = write_runfiles_paths_file(ctx, "_local_app_jars.txt", depset(collect_local_app_jars(ctx.attr.deps, runtime_classpath)), ":"),
-        core_deploy_cp = write_runfiles_paths_file(ctx, "_core_deploy_cp.txt", core_deployment_classpath, ":"),
+        local_app_jars = write_runfiles_paths_file(ctx, "_local_app_jars.txt", depset(collect_local_app_jars(ctx.attr.deps, runtime_classpath)), ":", configuration_unique_path),
+        core_deploy_cp = write_runfiles_paths_file(ctx, "_core_deploy_cp.txt", core_deployment_classpath, ":", configuration_unique_path),
         source_dirs = _write_csv_file(ctx, "_source_dirs.txt", session.source_dirs),
         resource_dirs = _write_csv_file(ctx, "_resource_dirs.txt", session.resource_dirs),
         bazel_targets = _write_csv_file(ctx, "_bazel_targets.txt", _hot_reload_bazel_target(ctx)),
@@ -197,14 +199,13 @@ def _interactive_impl(ctx, test_only):
             files.watched_test_inputs,
             model,
         ] + ([session.test_model] if session.test_model else []) + ctx.files.deployment_artifacts,
-        transitive_files = depset(transitive = [
-            runtime_classpath,
-            conditional_classpath,
-            deployment_classpath,
-            core_deployment_classpath,
-            java_runtime.files,
-        ] + session.extra_runfiles),
-    )
+        transitive_files = java_runtime.files,
+    ).merge(configuration_unique_runfiles(ctx, depset(transitive = [
+        runtime_classpath,
+        conditional_classpath,
+        deployment_classpath,
+        core_deployment_classpath,
+    ] + session.extra_runfiles)))
 
     return [
         DefaultInfo(executable = launcher, runfiles = runfiles),

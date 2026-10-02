@@ -63,6 +63,43 @@ def short_path(f):
     """Returns the short_path of a File, for use with args.add_joined(map_each=...)."""
     return f.short_path
 
+def configuration_unique_path(f):
+    """Returns a runfiles path for a File that stays unique across configurations.
+
+    A generated File's short_path omits its configuration, so copies of one jar
+    built in two configurations (the dev lifecycle and the continuous-test TEST
+    graph of a `_dev` target) claim the same runfiles path and only one is
+    staged. The exec path keeps the configuration. Source files have a single
+    copy and keep their short_path.
+
+    Use with args.add_joined(map_each=...) together with
+    `configuration_unique_runfiles`, which stages Files at these paths.
+    """
+    return f.short_path if f.is_source else f.path
+
+def configuration_unique_runfiles(ctx, files):
+    """Stages Files at `configuration_unique_path`, relative to the workspace runfiles dir.
+
+    Every staged File is an input of the launcher, so Bazel materializes it even
+    when the producing action was a remote cache hit (Build without the Bytes).
+    Launchers resolve exec paths recorded in the application model against the
+    execution root, which only works for Files staged this way.
+
+    Args:
+        ctx: Rule context.
+        files: Depset of Files.
+    Returns:
+        A runfiles object.
+    """
+    sources = []
+    generated = {}
+    for f in files.to_list():
+        if f.is_source:
+            sources.append(f)
+        else:
+            generated[f.path] = f
+    return ctx.runfiles(files = sources, symlinks = generated)
+
 def is_local_artifact(file):
     """Returns True if the file belongs to the local workspace (not an external repo)."""
     return file.owner != None and not file.owner.workspace_name
@@ -224,8 +261,8 @@ def collect_resource_dir_paths(deps, runtime_classpath = None):
     """
     return _collect_marker_dir_paths(deps, runtime_classpath, _RESOURCE_MARKERS)
 
-def write_runfiles_paths_file(ctx, name_suffix, files, separator):
-    """Writes the runfiles short_paths of `files`, joined by `separator`, to a file.
+def write_runfiles_paths_file(ctx, name_suffix, files, separator, path_fn = short_path):
+    """Writes the runfiles paths of `files`, joined by `separator`, to a file.
 
     Launcher scripts read these files at runtime to rebuild classpaths
     relative to the runfiles tree.
@@ -235,11 +272,13 @@ def write_runfiles_paths_file(ctx, name_suffix, files, separator):
         name_suffix: Suffix appended to the target name for the output file name.
         files: Depset or list of Files.
         separator: Join character (e.g. ":" or ",").
+        path_fn: Maps a File to its runfiles path; must match how the Files are
+            staged (`configuration_unique_path` for `configuration_unique_runfiles`).
     Returns:
         The declared output File.
     """
     out = ctx.actions.declare_file(ctx.label.name + name_suffix)
     args = ctx.actions.args()
-    args.add_joined(files, join_with = separator, map_each = short_path)
+    args.add_joined(files, join_with = separator, map_each = path_fn)
     ctx.actions.write(output = out, content = args)
     return out
