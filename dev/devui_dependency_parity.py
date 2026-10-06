@@ -27,9 +27,11 @@ entry stale.
 """
 
 import argparse
+import collections
 import hashlib
 import json
 import os
+import shlex
 import signal
 import socket
 import subprocess
@@ -56,7 +58,11 @@ def _exports(text):
 
 
 def normalize(devui_data):
-    """Returns the canonical graph: sorted node ids and links with the root renamed."""
+    """Returns the canonical graph: sorted node ids and links with the root renamed.
+
+    Duplicates are kept, so a graph that repeats an entry differs from one that
+    lists it once.
+    """
     exports = _exports(devui_data)
     root = exports["root"]
     root_id = root["rootId"]
@@ -64,12 +70,10 @@ def normalize(devui_data):
     def name(coords):
         return APP if coords == root_id else coords
 
-    nodes = sorted({name(node["id"]) for node in root["nodes"]})
+    nodes = sorted(name(node["id"]) for node in root["nodes"])
     links = sorted(
-        {
-            (name(link["source"]), name(link["target"]), link["type"], bool(link["direct"]))
-            for link in root["links"]
-        }
+        (name(link["source"]), name(link["target"]), link["type"], bool(link["direct"]))
+        for link in root["links"]
     )
     return {"rootId": root_id, "nodes": nodes, "links": [list(link) for link in links]}
 
@@ -79,12 +83,14 @@ def capture(url, timeout=1):
         return normalize(response.read().decode("utf-8"))
 
 
-def _line(kind, side, value):
+def _line(kind, side, value, extra, shared):
+    """Formats a difference; `side` has `extra` more occurrences of `value`."""
+    count = " (x{} more)".format(extra) if shared or extra > 1 else ""
     if kind == "node":
-        return "node only in {}: {}".format(side, value)
+        return "node only in {}: {}{}".format(side, value, count)
     source, target, link_type, direct = value
-    return "link only in {}: {} -> {} [{}{}]".format(
-        side, source, target, link_type, ", direct" if direct else ""
+    return "link only in {}: {} -> {} [{}{}]{}".format(
+        side, source, target, link_type, ", direct" if direct else "", count
     )
 
 
@@ -93,11 +99,11 @@ def diff(reference, candidate, allowlist=None):
     allowlist = allowlist or {"nodes": {}, "links": {}}
     unexplained, allowlisted = [], []
     for kind, key in (("node", "nodes"), ("link", "links")):
-        ref = {tuple(v) if isinstance(v, list) else v for v in reference[key]}
-        cand = {tuple(v) if isinstance(v, list) else v for v in candidate[key]}
-        for side, values in (("maven", ref - cand), ("bazel", cand - ref)):
-            for value in sorted(values):
-                line = _line(kind, side, value)
+        ref = collections.Counter(tuple(v) if isinstance(v, list) else v for v in reference[key])
+        cand = collections.Counter(tuple(v) if isinstance(v, list) else v for v in candidate[key])
+        for side, extras, other in (("maven", ref - cand, cand), ("bazel", cand - ref, ref)):
+            for value in sorted(extras):
+                line = _line(kind, side, value, extras[value], value in other)
                 digest = hashlib.sha256(line.encode("utf-8")).hexdigest()
                 reason = allowlist.get(key, {}).get(digest)
                 (allowlisted if reason else unexplained).append(
@@ -191,7 +197,7 @@ def main(argv):
         out_dir = os.path.abspath(args.out_dir)
         os.makedirs(out_dir, exist_ok=True)
         maven_port, bazel_port = _free_port(), _free_port()
-        maven = ["./mvnw", "-B", "quarkus:dev"] + args.maven_args.split() + [
+        maven = ["./mvnw", "-B", "quarkus:dev"] + shlex.split(args.maven_args) + [
             "-Dquarkus.http.port={}".format(maven_port),
             "-Ddebug=false",
             "-Dquarkus.console.enabled=false",

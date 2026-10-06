@@ -127,7 +127,7 @@ parity check of the Bazel-owned model. The application root is normalized to
 `<app>` because Maven uses POM coordinates and Bazel its workspace identity.
 
 ```bash
-export JAVA_HOME=...   # JDK 17+ for ./mvnw and the Coursier repository rule
+export JAVA_HOME=...   # JDK 21+: ./mvnw compiles the example POMs at release 21
 python3 dev/devui_dependency_parity.py run \
     --workspace examples/helloworld_3_40 \
     --bazel-target //:helloworld_dev \
