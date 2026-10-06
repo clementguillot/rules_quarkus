@@ -61,9 +61,8 @@ public final class DevModeLauncher {
       // In a Bazel workspace this directory doesn't exist by default (unlike Maven's target/).
       Files.createDirectories(Path.of(context.getApplicationRoot().getTargetDir()));
 
-      // AppModelSerializerImpl is version-specific:
-      // - 3.27: Java Object Serialization (BootstrapUtils)
-      // - 3.33+: JSON format (ApplicationModelSerializer)
+      // Every supported minor reads the JSON format (ApplicationModelSerializer) that
+      // BootstrapAppModelFactory has expected since Quarkus 3.31.
       AppModelSerializerStrategy serializer = new AppModelSerializerImpl();
       Path serializedModel = serializer.serialize(appModel);
       Path serializedTestModel = testAppModel == null ? null : serializer.serialize(testAppModel);

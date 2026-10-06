@@ -3,6 +3,8 @@
 [default.extend-words]
 vertx = "vertx"
 ser = "ser"
+# jline ships a real `org.jline.nativ` Java package (pinned in lock files).
+nativ = "nativ"
 
 [default]
 extend-ignore-re = [

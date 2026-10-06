@@ -30,12 +30,12 @@ The two modules need the Quarkus extension annotation processor and the deployme
 ```starlark
 maven.install(
     artifacts = [
-        "io.quarkus:quarkus-arc:3.33.4",
+        "io.quarkus:quarkus-arc:3.40.1",
         # Extension annotation processor (emits *.list metadata + accessors)
-        "io.quarkus:quarkus-extension-processor:3.33.4",
+        "io.quarkus:quarkus-extension-processor:3.40.1",
         # Deployment-module compile deps
-        "io.quarkus:quarkus-arc-deployment:3.33.4",
-        "io.quarkus:quarkus-core-deployment:3.33.4",
+        "io.quarkus:quarkus-arc-deployment:3.40.1",
+        "io.quarkus:quarkus-core-deployment:3.40.1",
     ],
     lock_file = "//:maven_install.json",
 )

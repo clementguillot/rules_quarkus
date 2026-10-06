@@ -20,24 +20,32 @@ The `native=True` flag on `quarkus_app` creates a `<name>_native` target that pr
 
 ### 1. Add rules_graalvm to MODULE.bazel
 
+Quarkus 3.33 and 3.40 target GraalVM 25, and 3.40 rejects older releases. The
+`rules_graalvm` 0.11.1 release does not ship GraalVM 25 yet, so override it with
+a fork that does until a release with GraalVM 25 support is published. This is
+the configuration `examples/native_image` uses:
+
 ```starlark
 bazel_dep(name = "rules_graalvm", version = "0.11.1")
+
+# Remove once a rules_graalvm release ships GraalVM 25 support.
+git_override(
+    module_name = "rules_graalvm",
+    commit = "0241d7a902171ce6d5647fa45f7f4789626edb4f",
+    remote = "https://github.com/sgammon/rules_graalvm.git",
+)
 
 gvm = use_extension("@rules_graalvm//:extensions.bzl", "graalvm")
 gvm.graalvm(
     name = "graalvm",
     distribution = "ce",
-    java_version = "21",
-    version = "21.0.2",
+    java_version = "25",
+    version = "25.0.1",
 )
 use_repo(gvm, "graalvm")
 
 register_toolchains("@graalvm//:jvm", "@graalvm//:sdk")
 ```
-
-> **GraalVM version**: Use a version compatible with your Quarkus version.
-> Quarkus 3.33 targets GraalVM 25. If `rules_graalvm` doesn't ship your
-> required version, use `git_override` to point to a fork that does.
 
 ### 2. Add native=True to your quarkus_app
 
@@ -138,33 +146,10 @@ The CC toolchain is resolved hermetically — no `use_default_shell_env` or syst
 
 | Quarkus Version | Required GraalVM | Notes |
 |-----------------|-----------------|-------|
-| 3.27.6 LTS | GraalVM 21+ | Works with `rules_graalvm` 0.11.1 stock |
 | 3.33.4 LTS | GraalVM 25+ | Requires a fork of `rules_graalvm` with GraalVM 25 support |
+| 3.40.1 LTS | GraalVM 25+ | Minimum enforced by Quarkus; requires a fork of `rules_graalvm` with GraalVM 25 support |
 
-### Using a fork for GraalVM 25
-
-If your Quarkus version requires GraalVM 25 (not yet in `rules_graalvm` upstream), use `git_override`:
-
-```starlark
-bazel_dep(name = "rules_graalvm", version = "0.11.1")
-
-git_override(
-    module_name = "rules_graalvm",
-    remote = "https://github.com/<your-fork>/rules_graalvm.git",
-    commit = "<commit-sha-with-graalvm-25-support>",
-)
-
-gvm = use_extension("@rules_graalvm//:extensions.bzl", "graalvm")
-gvm.graalvm(
-    name = "graalvm",
-    distribution = "ce",
-    java_version = "25",
-    version = "25.0.1",
-)
-use_repo(gvm, "graalvm")
-
-register_toolchains("@graalvm//:jvm", "@graalvm//:sdk")
-```
+Both lines need the `rules_graalvm` override shown in [Setup](#1-add-rules_graalvm-to-modulebazel).
 
 ## Troubleshooting
 

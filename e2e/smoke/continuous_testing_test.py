@@ -1,4 +1,4 @@
-"""Real Quarkus 3.33 hot-reload and continuous-testing regression in a disposable workspace.
+"""Real Quarkus 3.40 hot-reload and continuous-testing regression in a disposable workspace.
 
 Uses only Python's standard library. It drives both the Dev UI JSON-RPC WebSocket
 and the ordinary dev-console hotkeys, with no test-only Quarkus endpoints.

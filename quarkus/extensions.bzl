@@ -32,7 +32,7 @@ _DEPLOYMENT_ARTIFACT_TYPES = _CLASSPATH_ARTIFACT_TYPES + ",exe"
 # ---- Version helpers ----
 
 def _extract_minor_version(version):
-    """Extracts the minor version (e.g. "3.27") from a full version string."""
+    """Extracts the minor version (e.g. "3.40") from a full version string."""
     parts = version.split(".")
     if len(parts) < 2:
         fail("Invalid Quarkus version '{}': expected MAJOR.MINOR.PATCH format".format(version))
@@ -45,7 +45,7 @@ def _validate_version(version):
     version must match the supported patch for its minor exactly.
 
     Returns:
-        The minor version string (e.g. "3.27").
+        The minor version string (e.g. "3.40").
     """
     minor = _extract_minor_version(version)
     supported_list = ", ".join([SUPPORTED_VERSIONS[m] for m in sorted(SUPPORTED_VERSIONS)])
@@ -703,11 +703,15 @@ def _find_java(rctx):
 java_major_version_for_test = _java_major_version
 min_java_version_for_test = _MIN_JAVA_VERSION
 
-def _coursier_fetch(rctx, java, artifacts, report_path, forced_versions = [], artifact_types = _CLASSPATH_ARTIFACT_TYPES):
+def _coursier_fetch(rctx, java, artifacts, report_path, forced_versions = [], boms = [], artifact_types = _CLASSPATH_ARTIFACT_TYPES):
     """Runs a batched Coursier fetch.
 
     Timeout scales with artifact count: cold-cache batch fetches for large
     projects can legitimately exceed a flat 300 s.
+
+    `boms` imports dependency management like a Maven application importing
+    its Quarkus platform BOM, so artifacts reached only through extension
+    POMs select the platform-managed versions Maven would.
     """
     args = [
         java,
@@ -723,6 +727,8 @@ def _coursier_fetch(rctx, java, artifacts, report_path, forced_versions = [], ar
     ]
     for forced_version in forced_versions:
         args.extend(["--force-version", forced_version])
+    for bom in boms:
+        args.extend(["--bom", bom])
     return rctx.execute(
         args + artifacts,
         timeout = max(300, len(artifacts) * 60),
@@ -750,8 +756,15 @@ def _artifact_paths_from_report(report):
     return paths
 
 def _coursier_report_coordinate(coordinate):
-    """Converts Coursier report order (G:A:T:C:V) to Quarkus G:A:C:T:V."""
+    """Converts Coursier report order (G:A:T:C:V) to Quarkus G:A:C:T:V.
+
+    Coursier reports a dependency declared with an explicit default
+    `<type>jar</type>` as G:A:jar:V next to the implicit G:A:V spelling of the
+    same artifact, so the default type is dropped to keep one identity.
+    """
     parts = coordinate.split(":")
+    if len(parts) == 4 and parts[2] == "jar":
+        return "{}:{}:{}".format(parts[0], parts[1], parts[3])
     if len(parts) <= 4:
         return coordinate
     if len(parts) == 5:
@@ -957,6 +970,7 @@ def _resolve_conditional_runtime(rctx, java, initial_catalog, forced_versions):
             [_coursier_artifact(roots[key]).fetch for key in sorted(roots)],
             report_path,
             forced_versions = forced_versions,
+            boms = rctx.attr.platform_boms,
         )
         if result.return_code != 0:
             fail("Failed to resolve descriptor-declared conditional dependencies:\n" + result.stderr)
@@ -1027,6 +1041,7 @@ def _resolve_deployment_jars(rctx, java, deployment_artifacts, report_roots, cor
         java,
         deployment_artifacts,
         report_path,
+        boms = rctx.attr.platform_boms,
         artifact_types = _DEPLOYMENT_ARTIFACT_TYPES,
     )
     if result.return_code != 0:
@@ -1592,7 +1607,6 @@ def quarkus_app(name, dev = True, dev_build_args = [], native = False, native_co
         native_container_runtime: Container runtime: 'auto' (default), 'docker', or 'podman'.
         native_builder_image: Builder image for container native compilation.
         package_type: JVM output: fast-jar, uber-jar, mutable-jar, legacy-jar, or aot-jar.
-            aot-jar requires Quarkus 3.33.
         build_properties: Declared build-time properties shared by the JVM, dev, and native targets.
         **kwargs: Passed to the underlying quarkus_app_rule (deps, version, jvm_flags, etc.).
     \"\"\"

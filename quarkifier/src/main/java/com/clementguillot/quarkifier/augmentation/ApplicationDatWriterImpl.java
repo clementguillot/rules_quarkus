@@ -7,10 +7,9 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- * Quarkus 3.27 implementation calling the 6-arg {@code SerializedApplication.write()} signature.
+ * Implementation calling the 5-arg {@code SerializedApplication.write()} signature.
  *
- * <p>In 3.27, the method requires an additional {@code List<?>} parameter (nonExistentSourcePaths)
- * which we pass as an empty list.
+ * <p>In 3.33, the deprecated {@code nonExistentSourcePaths} parameter was removed.
  */
 public final class ApplicationDatWriterImpl implements ApplicationDatWriter {
 
@@ -22,6 +21,6 @@ public final class ApplicationDatWriterImpl implements ApplicationDatWriter {
       List<Path> classPath,
       List<Path> parentFirst)
       throws IOException {
-    SerializedApplication.write(os, mainClass, applicationRoot, classPath, parentFirst, List.of());
+    SerializedApplication.write(os, mainClass, applicationRoot, classPath, parentFirst);
   }
 }

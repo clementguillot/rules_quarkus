@@ -3,11 +3,11 @@ load("//quarkifier:quarkifier.bzl", "quarkifier_targets")
 # Per-minor quarkifier targets.
 # Each call creates: quarkifier_lib_X_Y, quarkifier_X_Y, quarkifier_test_X_Y, pmd_test_X_Y
 quarkifier_targets(
-    maven_repo = "@maven_3_27",
-    minor = "3_27",
+    maven_repo = "@maven_3_33",
+    minor = "3_33",
 )
 
 quarkifier_targets(
-    maven_repo = "@maven_3_33",
-    minor = "3_33",
+    maven_repo = "@maven_3_40",
+    minor = "3_40",
 )

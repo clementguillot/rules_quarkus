@@ -6,8 +6,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 
 /**
- * Quarkus 3.33 implementation using {@code ApplicationModelSerializer.serialize()} (JSON format by
- * default). This is required because Quarkus 3.31+ changed {@code
+ * Implementation using {@code ApplicationModelSerializer.serialize()} (JSON format by default).
+ * This is required because Quarkus 3.31+ changed {@code
  * BootstrapAppModelFactory.loadFromSystemProperty()} to use {@code
  * ApplicationModelSerializer.deserialize()} which expects JSON, not Java Object Serialization.
  */

@@ -36,17 +36,8 @@ class AugmentationExecutorBugConditionTest {
   @Test
   void validatePackageTypeCompatibility_acceptsSupportedJvmOutputs() {
     for (JarPackageType type : JarPackageType.values()) {
-      assertDoesNotThrow(() -> type.validateCompatibility(AugmentationMode.NORMAL, "3.33.4"));
+      assertDoesNotThrow(() -> type.validateCompatibility(AugmentationMode.NORMAL));
     }
-  }
-
-  @Test
-  void validatePackageTypeCompatibility_rejectsAotOn327() {
-    var exception =
-        assertThrows(
-            AugmentationException.class,
-            () -> JarPackageType.AOT_JAR.validateCompatibility(AugmentationMode.NORMAL, "3.27.6"));
-    assertTrue(exception.getMessage().contains("not supported by Quarkus 3.27.6"));
   }
 
   @Test
@@ -54,7 +45,7 @@ class AugmentationExecutorBugConditionTest {
     var exception =
         assertThrows(
             AugmentationException.class,
-            () -> JarPackageType.UBER_JAR.validateCompatibility(AugmentationMode.NATIVE, "3.33.4"));
+            () -> JarPackageType.UBER_JAR.validateCompatibility(AugmentationMode.NATIVE));
     assertTrue(exception.getMessage().contains("only valid in normal mode"));
   }
 

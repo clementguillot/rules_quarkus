@@ -3,15 +3,15 @@
 #
 # Before building the container image run:
 #
-# ./mvnw package
+# ./mvnw package -Dquarkus.package.jar.type=legacy-jar
 #
 # Then, build the image with:
 #
-# docker build -f src/main/docker/Dockerfile.jvm -t quarkus/helloworld-jvm .
+# docker build -f src/main/docker/Dockerfile.legacy-jar -t quarkus/helloworld-legacy-jar .
 #
 # Then run the container using:
 #
-# docker run -i --rm -p 8080:8080 quarkus/helloworld-jvm
+# docker run -i --rm -p 8080:8080 quarkus/helloworld-legacy-jar
 #
 # If you want to include the debug port into your docker image
 # you will have to expose the debug port (default 5005 being the default) like this :  EXPOSE 8080 5005.
@@ -20,7 +20,7 @@
 #
 # Then run the container using :
 #
-# docker run -i --rm -p 8080:8080 quarkus/helloworld-jvm
+# docker run -i --rm -p 8080:8080 quarkus/helloworld-legacy-jar
 #
 # This image uses the `run-java.sh` script to run the application.
 # This scripts computes the command line to execute your Java application, and
@@ -77,17 +77,16 @@
 # - NO_PROXY: A comma separated lists of hosts, IP addresses or domains that can be
 #   accessed directly. (example: "foo.example.com,bar.example.com")
 #
+# You can find more information about the UBI base runtime images and their configuration here:
+# https://rh-openjdk.github.io/redhat-openjdk-containers/
 ###
-FROM registry.access.redhat.com/ubi9/openjdk-17:1.23
+FROM registry.access.redhat.com/ubi9/openjdk-25-runtime:1.24
 
 ENV LANGUAGE='en_US:en'
 
 
-# We make four distinct layers so if there are application changes the library layers can be re-used
-COPY --chown=185 target/quarkus-app/lib/ /deployments/lib/
-COPY --chown=185 target/quarkus-app/*.jar /deployments/
-COPY --chown=185 target/quarkus-app/app/ /deployments/app/
-COPY --chown=185 target/quarkus-app/quarkus/ /deployments/quarkus/
+COPY target/lib/* /deployments/lib/
+COPY target/*-runner.jar /deployments/quarkus-run.jar
 
 EXPOSE 8080
 USER 185

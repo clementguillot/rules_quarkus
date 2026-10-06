@@ -18,16 +18,18 @@ bazel_dep(name = "rules_jvm_external", version = "6.10")
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.install(
     artifacts = [
-        "io.quarkus:quarkus-rest:3.33.4",
-        "io.quarkus:quarkus-arc:3.33.4",
+        "io.quarkus:quarkus-rest",
+        "io.quarkus:quarkus-arc",
         # Test dependencies
-        "io.quarkus:quarkus-junit:3.33.4",
-        "io.quarkus:quarkus-jacoco:3.33.4",
+        "io.quarkus:quarkus-junit",
+        "io.quarkus:quarkus-jacoco",
         "io.rest-assured:rest-assured:5.5.6",
-        "org.junit.jupiter:junit-jupiter:5.13.4",
-        "org.junit.platform:junit-platform-console-standalone:1.13.4",
-        "org.junit.platform:junit-platform-launcher:1.13.4",
+        "org.junit.jupiter:junit-jupiter:6.0.3",
+        "org.junit.platform:junit-platform-console-standalone:6.0.3",
+        "org.junit.platform:junit-platform-launcher:6.0.3",
     ],
+    # Mirror pom.xml so Maven and Bazel select the same platform versions.
+    boms = ["io.quarkus.platform:quarkus-bom:3.33.4"],
     known_contributing_modules = [
         "bazel_worker_java",
         "protobuf",

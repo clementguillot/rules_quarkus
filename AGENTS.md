@@ -9,7 +9,7 @@ safe changes. It applies to the entire repository.
 applications. The Starlark rules invoke the Quarkus build API through the Java
 `Quarkifier`; they do not wrap Maven or Gradle.
 
-- Supported Quarkus versions are exactly `3.27.6` and `3.33.4`.
+- Supported Quarkus versions are exactly `3.33.4` and `3.40.1`.
 - A Bazel workspace selects one Quarkus version; mixed versions in one
   workspace are not supported.
 - Supported Bazel versions are 7, 8, and 9, with Bzlmod only.
@@ -56,7 +56,8 @@ versioned `quarkus-bazel-model-v1` contract. Preserve these ownership rules:
 - The rules_jvm_external v3 lock owns selected external versions, target
   names, artifact files, and explicit exclusions.
 - Pinned Coursier resolution supplies Maven runtime/deployment graph semantics,
-  but artifacts absent from the lock stay excluded.
+  but artifacts absent from the lock stay excluded. Deployment and conditional
+  resolution import the toolchain's platform BOMs, like a Maven application.
 - Quarkus extension descriptors provide exact deployment coordinates.
 - The version-specific Java adapter owns Quarkus flags, platforms,
   capabilities, classloading metadata, and descriptor semantics.
@@ -95,8 +96,8 @@ parent-first runtime artifacts.
   closure, to avoid class-identity conflicts.
 - Preserve Maven directory layout under generated deployment artifacts; Dev UI
   extracts resource versions from those paths.
-- Preserve the version-specific application-model serialization strategies:
-  Java serialization for 3.27 and JSON for 3.33.
+- Preserve the application-model serialization seam
+  (`AppModelSerializerStrategy`); every supported minor uses JSON.
 - Dev dependencies use a lifecycle transition. Hot reload must rebuild the dev
   target in the same Bazel configuration; configuration-affecting launch flags
   belong in `dev_build_args` too.
@@ -113,8 +114,7 @@ Kotlin and Scala generation should fail clearly rather than being ignored.
 
 Fast JAR post-processing must keep boot/main classification, stable Maven-style
 jar names, regenerated application metadata, and runner manifest classpaths in
-sync. All JVM layouts use a stable `quarkus-run.jar` path; `aot-jar` is 3.33
-only.
+sync. All JVM layouts use a stable `quarkus-run.jar` path.
 
 Host native builds and container native builds are mutually exclusive.
 Container builder images should be pinned by digest because mutable tags are
@@ -127,10 +127,10 @@ Run the narrowest checks that cover the change, then expand for cross-cutting
 work. From the repository root:
 
 ```bash
-bazel build //quarkifier:quarkifier_3_27_deploy.jar
 bazel build //quarkifier:quarkifier_3_33_deploy.jar
-bazel test //quarkifier:quarkifier_test_3_27
+bazel build //quarkifier:quarkifier_3_40_deploy.jar
 bazel test //quarkifier:quarkifier_test_3_33
+bazel test //quarkifier:quarkifier_test_3_40
 bazel build //...
 ```
 
@@ -144,10 +144,11 @@ bazel test //...
 Example workspaces also use `local_path_override` and are useful for manual
 lifecycle checks. Build the matching deploy jar in the root workspace first,
 then run targets such as `//:helloworld`, `//:helloworld_dev`, and the relevant
-tests from `examples/helloworld_3_27` or `examples/helloworld_3_33`.
+tests from `examples/helloworld_3_33` or `examples/helloworld_3_40`.
 
-Changes to version-specific Quarkus APIs must cover both adapters unless the
-behavior is intentionally version-gated. Changes to repository setup or public
+Quarkifier sources are shared and compiled once per supported minor, so changes
+touching Quarkus APIs must build and pass tests for both quarkifier targets
+unless the behavior is intentionally version-gated. Changes to repository setup or public
 rules should be checked from an external example or smoke workspace, not only
 with unit tests in the root workspace. Dev-mode changes should be exercised by
 starting the dev target and verifying startup plus hot reload; native changes
@@ -157,6 +158,6 @@ require the corresponding GraalVM or container environment.
 
 Treat a new minor as a coordinated change: update `SUPPORTED_VERSIONS`, add and
 pin its Maven repository and lock file, add versioned Quarkifier library/binary/
-test/static-analysis targets, add version-specific adapter sources, build and
+test/static-analysis targets, add its version resources, build and
 test the deploy jar, and add an example workspace. Follow the complete checklist
 in `docs/developer-guide.md`.
